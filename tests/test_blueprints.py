@@ -6,8 +6,8 @@
     .venv/bin/python tests/test_blueprints.py --offline            # static checks only (no server)
 
 1. Static checks (crew.blueprint_lib.validate): grid snapping per footprint, overlaps, box, every rotation.
-2. In game: isolated headless instances (scripts/instance.py, ids 20-29, localhost; the stage save is copied, never
-   written) on --stage (default crew-test). Cases are spread over --jobs instances (one instance can host many
+2. In game: isolated headless instances (scripts/instance.py, ids 20-29 by default, or 30-39 with
+   --first-instance 30; localhost; the stage save is copied, never written) on --stage (default crew-test). Cases are spread over --jobs instances (one instance can host many
    cases far apart). Each case gets its own force (own research and power network) and:
    - finds a clear spot (surface.can_place_entity, manual build check, for the design AND the test harness, no
      other non-neutral entity within 4 tiles); designs with an anchor (the offshore pump) search the shore;
@@ -18,8 +18,10 @@
      lane; per output belt a loader into a steel chest (the count); chest inputs get an infinity chest; power from
      an electric-energy-interface on its own pole at least 3 tiles away (so it can't power anything the design's
      poles miss), wired to a design pole; for power designs the interface is a 1.8 MW load instead;
-   - research designs: the case force gets the test tech's prerequisites and that tech queued.
-3. Warm up, then measure for --measure seconds of game time: output items (or research units, or MW), and each
+   - research designs: the case force gets the test tech's prerequisites and that tech queued;
+   - every case force gets the RECIPES below enabled (mid-game ones too: advanced circuits, engines, blue packs).
+3. Warm up, then measure for --measure seconds of game time (default: the longest `measure_s` of the designs on
+   that instance, at least 90; slow recipes such as blue packs finish in batches, so they need longer windows): output items (or research units, or MW), and each
    design entity's status every 10 s.
 PASS = measured >= 60% of the design's rated output, every entity placed where asked, and no entity in a bad
 status for most samples (any: no power/fuel/recipe/fluid; producers: also ingredient shortage, output full,
@@ -51,7 +53,11 @@ ALWAYS_BAD = {"no_power", "low_power", "no_fuel", "no_recipe", "not_plugged_in_e
 PRODUCER_BAD = {"item_ingredient_shortage", "no_ingredients", "full_output", "waiting_for_space_in_destination",
                 "no_research_in_progress", "missing_science_packs", "waiting_for_source_items", "no_minable_resources"}
 RECIPES = ["automation-science-pack", "logistic-science-pack", "inserter", "transport-belt", "iron-gear-wheel",
-           "electronic-circuit", "copper-cable", "iron-plate", "copper-plate", "stone-brick"]
+           "electronic-circuit", "copper-cable", "iron-plate", "copper-plate", "stone-brick",
+           "pipe", "steel-plate", "engine-unit", "plastic-bar", "sulfur", "advanced-circuit",
+           "chemical-science-pack"]
+MEASURE_S = 90.0
+INSTANCE_BLOCKS = ((20, 29), (30, 39))  # ids this validator may start (other experiments use the rest)
 
 
 # ---------------------------------------------------------------------------- harness layout (design frame)
@@ -445,9 +451,11 @@ async def run_group(k: int, cases: list[Case], args) -> None:
                   + (f" PROBLEMS {c.problems}" if c.problems else ""), flush=True)
         live = [c for c in cases if not c.error]
         warm = args.warmup if args.warmup is not None else max([c.test.get("warmup_s", 30) for c in live] or [0])
-        print(f"[i{k}] warming up {warm:.0f}s, then measuring {args.measure:.0f}s", flush=True)
+        measure = args.measure if args.measure is not None else max(
+            [MEASURE_S] + [float(c.test.get("measure_s", MEASURE_S)) for c in live])
+        print(f"[i{k}] warming up {warm:.0f}s, then measuring {measure:.0f}s", flush=True)
         await asyncio.sleep(warm)
-        end = time.time() + args.measure
+        end = time.time() + measure
         while True:
             snap = await ev(crew, SAMPLE)
             for c in live:
@@ -503,10 +511,13 @@ def main() -> int:
     ap.add_argument("--designs", help="comma list (default: all)")
     ap.add_argument("--rotations", default="0,90")
     ap.add_argument("--stage", default="crew-test", help="save in server/factorio/saves (copied, never written)")
-    ap.add_argument("--jobs", type=int, default=1, help="instances in parallel (ids 20..29)")
-    ap.add_argument("--first-instance", type=int, default=FIRST_INSTANCE, help="first instance id (20..29)")
+    ap.add_argument("--jobs", type=int, default=1,
+                    help="instances in parallel (ids first-instance.. the end of its block, 29 or 39)")
+    ap.add_argument("--first-instance", type=int, default=FIRST_INSTANCE,
+                    help="first instance id: 20..29 (default 20) or 30..39")
     ap.add_argument("--warmup", type=float, default=None, help="seconds before measuring (default: per design)")
-    ap.add_argument("--measure", type=float, default=90.0, help="seconds of measurement")
+    ap.add_argument("--measure", type=float, default=None,
+                    help=f"seconds of measurement (default: per design `measure_s`, at least {MEASURE_S:g})")
     ap.add_argument("--offline", action="store_true", help="static checks only")
     ap.add_argument("--ghosts", action="store_true",
                     help="build the design the agents' way: entity-ghosts with recipes, then revive them")
@@ -526,9 +537,10 @@ def main() -> int:
 
     rots = [int(r) for r in args.rotations.split(",")]
     cases = [Case(n, r, i, args.ghosts) for i, (n, r) in enumerate((n, r) for n in designs for r in rots)]
-    if not 20 <= args.first_instance <= 29:
-        ap.error("--first-instance must be 20..29")
-    jobs = max(1, min(args.jobs, 30 - args.first_instance, len(cases)))
+    block = next((b for b in INSTANCE_BLOCKS if b[0] <= args.first_instance <= b[1]), None)
+    if not block:
+        ap.error("--first-instance must be 20..29 or 30..39")
+    jobs = max(1, min(args.jobs, block[1] + 1 - args.first_instance, len(cases)))
     groups = [cases[j::jobs] for j in range(jobs)]
 
     async def go():
