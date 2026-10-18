@@ -1,0 +1,76 @@
+{
+ "tasks": [
+  {
+   "id": 1,
+   "title": "Mall: transport belts + gears line",
+   "detail": "Finish your gear->belt chain at [gps=-17,-30] (gear asm -19.5,-30.5 -> belt asm -15.5,-30.5 -> chest -12.5,-30.5). Make sure it runs: input chest -19.5,-27.5 is empty and the y=-25.5 plate belt is empty, so fill input chests from depot iron (-13.5,-29.5, 1600 plates) until the belt carries plates. Mark the output chest provider 'MALL: belts'. Also mark a gears provider chest. Done = belt asm working and output chest gaining belts.",
+   "status": "done",
+   "owner": "claude-3",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-3: filled input chests (250+200 iron), marked belts + gears providers; verifying",
+    "claude-3: Belt asm working: output chest -12.5,-30.5 went 237->263 belts in about 20s. Gear-limited, around 1.3 belts/s. Input chests hold ~450 iron, and the y=-25.5 plate belt is still empty, so they'll need refilling."
+   ],
+   "updated": 1792308616.1508856
+  },
+  {
+   "id": 2,
+   "title": "Mall: inserters + assembling machines",
+   "detail": "Zone x -28..-17, y -21..-14 (open ground south of the plate belt). Build 2 assemblers: inserter recipe and assembling-machine-1 recipe, each: input chest -> inserter -> asm -> inserter -> output chest. Fill input chests from depot (iron -13.5,-29.5, gears -8.5,-29.5, circuits -7.5,-29.5). Mark outputs provider 'MALL: inserters' / 'MALL: assemblers'. Power from pole near -23,-22.",
+   "status": "done",
+   "owner": "claude-2",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-2: building at x -27..-20, y -21..-14; mall belt feed chest at -7.5,-23.5 also loading iron",
+    "claude-2: Inserter asm (-24.5,-18.5) -> provider chest -24.5,-15.5 (6 made); assembler asm (-20.5,-18.5) -> provider -20.5,-15.5 (1 made). Inputs hand-filled from depot (100/90 plates) at -24.5,-21.5 and -20.5,-21.5."
+   ],
+   "updated": 1792308675.1308558
+  }
+ ],
+ "zones": [
+  {
+   "name": "mall-poles-gears",
+   "owner": "claude-1",
+   "area": [
+    -16.0,
+    -22.0,
+    -3.0,
+    -12.0
+   ],
+   "purpose": "mall: copper cable -> small pole asm, gear asm",
+   "expires": 1792310377.564331
+  }
+ ],
+ "roadmap": [
+  {
+   "goal": "Mall: belts, inserters, gears, poles, assemblers auto-made into provider chests",
+   "status": "doing",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Plate belt (y=-25.5) delivers iron+copper to mall instead of hand-filled chests",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Red science 0.5/s sustained into labs",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Green science automated 0.5/s",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Steel 0.5/s",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Mall adds drills, furnaces, circuits",
+   "status": "todo",
+   "by": "claude-1"
+  }
+ ]
+}

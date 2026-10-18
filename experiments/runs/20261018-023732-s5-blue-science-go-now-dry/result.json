@@ -1,0 +1,453 @@
+{
+ "run_id": "20261018-023732-s5-blue-science-go-now-dry",
+ "scenario": "s5-blue-science",
+ "variant": "go-now",
+ "instance": 9,
+ "stage": "stage-s5-oil-plastics",
+ "dry": true,
+ "minutes_planned": 0.0,
+ "errors": [],
+ "start": "2026-10-18 02:37:32",
+ "t_start": 1792309052.2605846,
+ "git": {
+  "commit": "11f3d3b",
+  "dirty_files": []
+ },
+ "mod_version": "0.1.0",
+ "setup": {},
+ "baseline": {
+  "tick": 532392,
+  "values": {
+   "blue_per_min_assemblers": null,
+   "blue_per_min": 0.0,
+   "advanced_circuits_per_min": 0.0,
+   "engine_units_per_min": 0.0,
+   "sulfur_per_min": 0.0,
+   "techs_researched": 26.0,
+   "science_consumed_per_min": 34.0
+  },
+  "errors": {},
+  "raw": {
+   "blue_per_min_assemblers": 0.0
+  }
+ },
+ "targets": {
+  "blue_per_min_assemblers": 6,
+  "blue_per_min": null,
+  "advanced_circuits_per_min": null,
+  "engine_units_per_min": null,
+  "sulfur_per_min": null,
+  "techs_researched": 29.0,
+  "science_consumed_per_min": null
+ },
+ "summary_start": {
+  "minutes": 147,
+  "entities": {
+   "burner-mining-drill": 26,
+   "electric-mining-drill": 47,
+   "stone-furnace": 83,
+   "assembling-machine-1": 27,
+   "assembling-machine-2": 1,
+   "lab": 10,
+   "steam-engine": 12,
+   "boiler": 6,
+   "offshore-pump": 4,
+   "transport-belt": 1422,
+   "inserter": 212,
+   "burner-inserter": 16,
+   "long-handed-inserter": 9,
+   "fast-inserter": 1,
+   "small-electric-pole": 268,
+   "iron-chest": 55,
+   "pumpjack": 2,
+   "oil-refinery": 1,
+   "chemical-plant": 2
+  },
+  "researched": [
+   "advanced-material-processing",
+   "automation",
+   "automation-2",
+   "automation-science-pack",
+   "electric-energy-distribution-1",
+   "electric-mining-drill",
+   "electronics",
+   "engine",
+   "fast-inserter",
+   "fluid-handling",
+   "gun-turret",
+   "lamp",
+   "logistic-science-pack",
+   "logistics",
+   "logistics-2",
+   "military",
+   "military-2",
+   "oil-gathering",
+   "oil-processing",
+   "plastics",
+   "research-speed-1",
+   "steam-power",
+   "steel-axe",
+   "steel-processing",
+   "stone-wall",
+   "toolbelt"
+  ],
+  "research_count": 26,
+  "agents": [
+   "claude-1",
+   "claude-2",
+   "claude-3",
+   "claude-4",
+   "claude-5"
+  ],
+  "per_minute": {
+   "iron-plate": 588,
+   "copper-plate": 354,
+   "steel-plate": 26,
+   "iron-gear-wheel": 94,
+   "electronic-circuit": 48,
+   "automation-science-pack": 19,
+   "logistic-science-pack": 20,
+   "coal": 150,
+   "iron-ore": 624,
+   "copper-ore": 356,
+   "transport-belt": 24,
+   "inserter": 39
+  },
+  "researching": "sulfur-processing",
+  "peaceful": true
+ },
+ "goal": "@all Next stage: automate chemical (blue) science to at least 0.1/s (6 per minute) into the labs. That needs sulfur (finish sulfur processing), advanced circuits (plastic + copper cable + circuits), engine units (steel, gears, pipes), and research of whatever unlocks them. Keep red and green flowing meanwhile.",
+ "elapsed_s": 0.0,
+ "final": {
+  "tick": 532404,
+  "values": {
+   "blue_per_min_assemblers": 0.0,
+   "blue_per_min": 0.0,
+   "advanced_circuits_per_min": 0.0,
+   "engine_units_per_min": 0.0,
+   "sulfur_per_min": 0.0,
+   "techs_researched": 26.0,
+   "science_consumed_per_min": 34.0
+  },
+  "errors": {},
+  "raw": {
+   "blue_per_min_assemblers": 0.0
+  }
+ },
+ "checks": {
+  "blue_per_min_assemblers": {
+   "value": 0.0,
+   "baseline": null,
+   "target": 6,
+   "frac": 0.0,
+   "time_to_target_s": null,
+   "error": null
+  },
+  "blue_per_min": {
+   "value": 0.0,
+   "baseline": 0.0,
+   "target": null,
+   "frac": null,
+   "time_to_target_s": null,
+   "error": null
+  },
+  "advanced_circuits_per_min": {
+   "value": 0.0,
+   "baseline": 0.0,
+   "target": null,
+   "frac": null,
+   "time_to_target_s": null,
+   "error": null
+  },
+  "engine_units_per_min": {
+   "value": 0.0,
+   "baseline": 0.0,
+   "target": null,
+   "frac": null,
+   "time_to_target_s": null,
+   "error": null
+  },
+  "sulfur_per_min": {
+   "value": 0.0,
+   "baseline": 0.0,
+   "target": null,
+   "frac": null,
+   "time_to_target_s": null,
+   "error": null
+  },
+  "techs_researched": {
+   "value": 26.0,
+   "baseline": 26.0,
+   "target": 29.0,
+   "frac": 0.0,
+   "time_to_target_s": null,
+   "error": null
+  },
+  "science_consumed_per_min": {
+   "value": 34.0,
+   "baseline": 34.0,
+   "target": null,
+   "frac": null,
+   "time_to_target_s": null,
+   "error": null
+  }
+ },
+ "score": 0.0,
+ "success": false,
+ "summary_end": {
+  "minutes": 147,
+  "entities": {
+   "burner-mining-drill": 26,
+   "electric-mining-drill": 47,
+   "stone-furnace": 83,
+   "assembling-machine-1": 27,
+   "assembling-machine-2": 1,
+   "lab": 10,
+   "steam-engine": 12,
+   "boiler": 6,
+   "offshore-pump": 4,
+   "transport-belt": 1422,
+   "inserter": 212,
+   "burner-inserter": 16,
+   "long-handed-inserter": 9,
+   "fast-inserter": 1,
+   "small-electric-pole": 268,
+   "iron-chest": 55,
+   "pumpjack": 2,
+   "oil-refinery": 1,
+   "chemical-plant": 2
+  },
+  "researched": [
+   "advanced-material-processing",
+   "automation",
+   "automation-2",
+   "automation-science-pack",
+   "electric-energy-distribution-1",
+   "electric-mining-drill",
+   "electronics",
+   "engine",
+   "fast-inserter",
+   "fluid-handling",
+   "gun-turret",
+   "lamp",
+   "logistic-science-pack",
+   "logistics",
+   "logistics-2",
+   "military",
+   "military-2",
+   "oil-gathering",
+   "oil-processing",
+   "plastics",
+   "research-speed-1",
+   "steam-power",
+   "steel-axe",
+   "steel-processing",
+   "stone-wall",
+   "toolbelt"
+  ],
+  "research_count": 26,
+  "agents": [
+   "claude-1",
+   "claude-2",
+   "claude-3",
+   "claude-4",
+   "claude-5"
+  ],
+  "per_minute": {
+   "iron-plate": 589,
+   "copper-plate": 354,
+   "steel-plate": 26,
+   "iron-gear-wheel": 94,
+   "electronic-circuit": 47,
+   "automation-science-pack": 19,
+   "logistic-science-pack": 20,
+   "coal": 150,
+   "iron-ore": 626,
+   "copper-ore": 356,
+   "transport-belt": 24,
+   "inserter": 39
+  },
+  "researching": "sulfur-processing",
+  "peaceful": true
+ },
+ "agents_end": {
+  "claude-1": {
+   "name": "claude-1",
+   "alive": true,
+   "position": [
+    -18.4,
+    -21.9
+   ],
+   "queued": 0,
+   "stats": {
+    "busy_ticks": 31009,
+    "idle_ticks": 116502,
+    "crafting_ticks": 40289
+   }
+  },
+  "claude-2": {
+   "name": "claude-2",
+   "alive": true,
+   "position": [
+    44.3,
+    89
+   ],
+   "queued": 0,
+   "stats": {
+    "busy_ticks": 22436,
+    "idle_ticks": 125075,
+    "crafting_ticks": 14119
+   }
+  },
+  "claude-3": {
+   "name": "claude-3",
+   "alive": true,
+   "position": [
+    -13.3,
+    -24.6
+   ],
+   "queued": 0,
+   "stats": {
+    "busy_ticks": 59168,
+    "idle_ticks": 88343,
+    "crafting_ticks": 34273
+   }
+  },
+  "claude-4": {
+   "name": "claude-4",
+   "alive": true,
+   "position": [
+    22.6,
+    66.9
+   ],
+   "queued": 0,
+   "stats": {
+    "busy_ticks": 0,
+    "idle_ticks": 147511,
+    "crafting_ticks": 0
+   }
+  },
+  "claude-5": {
+   "name": "claude-5",
+   "alive": true,
+   "position": [
+    27.2,
+    102.2
+   ],
+   "queued": 0,
+   "stats": {
+    "busy_ticks": 0,
+    "idle_ticks": 147511,
+    "crafting_ticks": 0
+   }
+  }
+ },
+ "behavior": {
+  "agents": {
+   "claude-1": {
+    "turns": 0,
+    "tool_calls": 0,
+    "tools": {},
+    "act_ops": {},
+    "hand_logistics": 0,
+    "failures": 0,
+    "tool_secs": 0.0,
+    "turn_secs": 0.0,
+    "turns_ended_idle": 0,
+    "cost_usd": 0.0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "turn_errors": 0,
+    "thoughts": 0,
+    "turns_incomplete": 0,
+    "incomplete_secs": 0.0,
+    "missing": true,
+    "mod_stats": {
+     "busy_ticks": 0,
+     "idle_ticks": 12,
+     "crafting_ticks": 0,
+     "idle_pct": 100.0,
+     "crafting_pct": 0.0
+    },
+    "sampled_busy_pct": null,
+    "alive_at_end": true
+   },
+   "claude-2": {
+    "turns": 0,
+    "tool_calls": 0,
+    "tools": {},
+    "act_ops": {},
+    "hand_logistics": 0,
+    "failures": 0,
+    "tool_secs": 0.0,
+    "turn_secs": 0.0,
+    "turns_ended_idle": 0,
+    "cost_usd": 0.0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "turn_errors": 0,
+    "thoughts": 0,
+    "turns_incomplete": 0,
+    "incomplete_secs": 0.0,
+    "missing": true,
+    "mod_stats": {
+     "busy_ticks": 0,
+     "idle_ticks": 12,
+     "crafting_ticks": 0,
+     "idle_pct": 100.0,
+     "crafting_pct": 0.0
+    },
+    "sampled_busy_pct": null,
+    "alive_at_end": true
+   },
+   "claude-3": {
+    "turns": 0,
+    "tool_calls": 0,
+    "tools": {},
+    "act_ops": {},
+    "hand_logistics": 0,
+    "failures": 0,
+    "tool_secs": 0.0,
+    "turn_secs": 0.0,
+    "turns_ended_idle": 0,
+    "cost_usd": 0.0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "turn_errors": 0,
+    "thoughts": 0,
+    "turns_incomplete": 0,
+    "incomplete_secs": 0.0,
+    "missing": true,
+    "mod_stats": {
+     "busy_ticks": 0,
+     "idle_ticks": 12,
+     "crafting_ticks": 0,
+     "idle_pct": 100.0,
+     "crafting_pct": 0.0
+    },
+    "sampled_busy_pct": null,
+    "alive_at_end": true
+   }
+  },
+  "total": {
+   "turns": 0,
+   "turns_incomplete": 0,
+   "tool_calls": 0,
+   "hand_logistics": 0,
+   "failures": 0,
+   "turns_ended_idle": 0,
+   "cost_usd": 0.0,
+   "tool_secs": 0.0,
+   "turn_secs": 0.0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "char_idle_pct_mean": 100.0,
+   "sampled_busy_pct_mean": null,
+   "act_ops": {}
+  }
+ },
+ "cost_usd": 0.0,
+ "final_save": "/home/stephen/dev/factorio-slave/experiments/runs/20261018-023732-s5-blue-science-go-now-dry/final.zip",
+ "end": "2026-10-18 02:37:35",
+ "t_end": 1792309055.934206
+}

@@ -1,0 +1,3 @@
+MALL (mine): copper chest -14.5,-18.5 -> cable asm -11.5,-18.5 -> pole asm -7.5,-18.5 (wood chest -7.5,-21.5) -> poles chest -4.5,-18.5. Gear: iron chest -14.5,-14.5 -> asm -11.5,-14.5 -> chest -8.5,-14.5. Power poles -9.5,-21.5/-16.5 etc.
+claude-3: belts chain -19..-12,-30.5 out chest -12.5,-30.5. claude-2: inserters (-24.5,-15.5) + assemblers (-20.5,-15.5).
+Depot -13..-6, y -27..-30. Roadmap set. Consulted architect re plate belt y=-25.5 feed (roadmap #1). Wood is manual - refill from trees.

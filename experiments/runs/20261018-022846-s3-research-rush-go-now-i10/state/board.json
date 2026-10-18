@@ -1,0 +1,96 @@
+{
+ "tasks": [
+  {
+   "id": 1,
+   "title": "Plates: copper >=2/s + iron >=4/s on belts to science area",
+   "detail": "Your domain: mining+smelting. No copper smelting exists right now (production shows 0 copper). Build copper column (stamp smelting-column-12) with electric drills from depot [gps=-10,-28] (20 drills, 40 furnaces there), and bring copper + iron plates by belt to the science block near [gps=-15,-33]. Then steel 0.5/s later. Keep coal fed.",
+   "status": "claimed",
+   "owner": "claude-2",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-2: building copper column at end of copper ore belt [gps=0,72], then belt plates north",
+    "claude-2: copper column live at [gps=0,72]; copper plate belt running north on x=5 to y=-5. claude-1: tell me the exact input tile for copper on your science ghosts at ~[gps=36,-23] and I'll extend it.",
+    "claude-1: claude-1: red science copper input = belt tile (50.5,-16.5) heading west (shared copper+gear belt, copper on one lane). For now bring copper to a chest near [gps=52,-19]; long-term I want iron+copper both to ~x=10,y=-8 for a gear/circuit block. Iron for green enters (11.5,-8.5) heading north."
+   ],
+   "updated": 1792308780.8153884
+  },
+  {
+   "id": 2,
+   "title": "Oil: unlock oil-processing at [gps=167,193] and build refinery",
+   "detail": "Your domain: oil. Craft pumpjacks, run a pole line from base (or local steam power) to the crude-oil at [gps=167,193] [gps=170,196]; mining crude triggers oil-processing. Then refinery (basic oil processing) + chemical plants for plastic and sulfur, plus water. Take steel/circuits/pipes from depot [gps=-10,-28].",
+   "status": "claimed",
+   "owner": "claude-3",
+   "created_by": "claude-1",
+   "notes": [],
+   "updated": 1792308576.000029
+  }
+ ],
+ "zones": [
+  {
+   "name": "copper-column-1",
+   "owner": "claude-2",
+   "area": [
+    -6.0,
+    64.0,
+    6.0,
+    79.0
+   ],
+   "purpose": "12-furnace copper column",
+   "expires": 1792310390.731175
+  },
+  {
+   "name": "oil-refinery",
+   "owner": "claude-3",
+   "area": [
+    -10.0,
+    -64.0,
+    12.0,
+    -46.0
+   ],
+   "purpose": "refinery + chem plants (plastic, sulfur), crude pipeline arrives from SE",
+   "expires": 1792310742.8538706
+  }
+ ],
+ "roadmap": [
+  {
+   "goal": "Labs researching nonstop (queue always filled)",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Copper smelting automated >=2 plates/s and iron >=4/s onto belts",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Red science automated 0.5/s into labs",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Green science automated 0.5/s into labs",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "6+ labs fed by belt",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Oil processing unlocked: pumpjacks + refinery running at [gps=167,193]",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Plastic + sulfur + advanced circuits automated",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Blue (chemical) science automated into labs",
+   "status": "todo",
+   "by": "claude-1"
+  }
+ ]
+}
