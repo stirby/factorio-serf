@@ -28,11 +28,34 @@
    "id": 3,
    "title": "STEEL-C: FIX iron belt corner (71.5,-25.5), refuel iron column, expand iron +4 drills +6 furnaces",
    "detail": "This is the critical path. The iron plate belt (x71.5 going north from the furnaces at x74,y26-46) dead-ends: the corner belt at (71.5,-25.5) faces NORTH into empty ground, so the y-25.5 line to the depot is empty and the furnaces hold about 95 plates each.\nTake from the depot: 4 electric-mining-drill, 6 stone-furnace, 12 inserter, 12 transport-belt, 8 small-electric-pole, 680 coal.\n1) FIRST: rotate the belt at (71.5,-25.5) so it faces WEST. Check that plates start moving west.\n2) Coal: the 11 iron furnaces at (74,26),(74,28)...(74,46) have only about 11 coal each (about 8 min left). Insert 40 coal into each.\n3) Extend the ore belt: place transport belts facing NORTH from (76.5,24.5) to (76.5,13.5) (12 belts).\n4) 6 new iron furnaces at (74,24) (74,22) (74,20) (74,18) (74,16) (74,14), plus 30 coal each.\n5) For each new furnace at Y = 24,22,20,18,16,14, place 2 inserters at row Y-0.5 (23.5, 21.5, 19.5, 17.5, 15.5, 13.5), both direction EAST, the same as the existing ones: an input inserter at (75.5,Y-0.5) takes ore from x76, and an output inserter at (72.5,Y-0.5) takes from the furnace and drops on x71.\n6) Poles: (72.5,20.5) (75.5,20.5) (72.5,16.5) (75.5,16.5) (72.5,12.5) (75.5,12.5).\n7) 4 electric drills on the NORTH side of the ore belt y=56.5, facing SOUTH: (79.5,54.5) (82.5,54.5) (85.5,54.5) (88.5,54.5). Poles at (80.5,51.5) and (86.5,51.5), linked from the existing pole (75.5,51.5).\nResult: iron goes from 205 to about 315 plates/min. Steel uses 187/min and the depot gets about 128/min.",
-   "status": "claimed",
+   "status": "done",
    "owner": "claude-3",
    "created_by": "claude-1",
+   "notes": [
+    "claude-3: SCOPE CHANGE: claude-3 does only steps 1-2 (rotate corner (71.5,-25.5) to WEST, then 40 coal into each of the 11 iron furnaces = 440 coal). Steps 3-7 moved to the new IRON EXPANSION task for claude-1. After that, claude-3 goes on to the POWER/COAL task.",
+    "claude-3: Corner (71.5,-25.5) now faces west and the plates are flowing. 11 iron furnaces each have about 40 coal."
+   ],
+   "updated": 1792306214.1028404
+  },
+  {
+   "id": 4,
+   "title": "POWER/COAL: coal belt from coal field (22.5,103.5) to both boilers + depot coal chest",
+   "detail": "Do this after #3 steps 1-2. Bring about 230 transport-belt, 2 underground-belt, 1 splitter, 2 inserter, 2 small-electric-pole. Get 100 coal from the backed-up coal belt or drills at the coal field (y~103), because the depot coal is reserved for #1 and #3.\n0) STOPGAP NOW: insert 50 coal into boiler 2 at (-31.5,-43) by hand, and top up boiler 1's wooden chest at (-27.5,-39.5).\n1) Coal field: the coal belt along y=103.5 runs west from x31 to x22 and dead-ends, already full of coal. Rotate (22.5,103.5) to face NORTH. Underground ENTRANCE at (22.5,102.5) facing north, EXIT at (22.5,100.5) facing north. This crosses the copper belt at y=101.5.\n2) Trunk, all transport-belt (use connect; it routes around the trees around y60-95, or mine them):\n - x=22.5 from y=99.5 up to y=-19.5, facing NORTH (~120)\n - (22.5,-20.5) facing WEST, then y=-20.5 from x=21.5 to x=-26.5 facing WEST (~49). The row is clear; the poles at (10.5,-18.5) and (-22.5,-21.5) are off the line.\n - (-27.5,-20.5) facing NORTH, then x=-27.5 from y=-21.5 to y=-29.5 facing NORTH (9). Clear.\n3) Depot coal tap: inserter at (-12.5,-21.5), direction SOUTH (takes from the coal belt at -20.5 and drops into the existing empty iron chest (-12.5,-22.5), which becomes the coal refill chest). Pole at (-13.5,-21.5), which links to (-11.5,-26.5).\n4) Splitter at (-28,-30.5) facing NORTH (covers -28.5 and -27.5).\n5) Boiler 1 branch: belts (-27.5,-31.5) to (-27.5,-38.5) facing NORTH. Pick up the wooden chest at (-27.5,-39.5) and put a belt facing NORTH there. The existing inserter (-27.5,-40.5) then feeds boiler 1 straight from the belt.\n6) Boiler 2 branch: (-28.5,-31.5) to (-33.5,-31.5) facing WEST (6), then (-34.5,-31.5) to (-34.5,-42.5) facing NORTH (12; the end tile is -42.5). Inserter at (-33.5,-42.5), direction WEST (takes from the belt end and drops east into boiler 2). Pole at (-33.5,-41.5), which links to (-29.5,-38.5).\nResult: both boilers fuelled automatically, so 3.6 MW instead of 1.8 MW. Mined coal is about 135/min; the boilers use up to 54/min and the tap chest up to 50/min while filling. Furnaces still get coal by hand, from the (-12.5,-22.5) chest.",
+   "status": "claimed",
+   "owner": "claude-3",
+   "created_by": "claude-3",
    "notes": [],
-   "updated": 1792305892.1461804
+   "updated": 1792306144.7984536
+  },
+  {
+   "id": 5,
+   "title": "IRON EXPANSION (moved from #3 steps 3-7): +6 iron furnaces x74 y14-24, +4 drills y54.5",
+   "detail": "Do this after #1. Take from the depot: 4 electric-mining-drill, 6 stone-furnace, 12 inserter, 12 transport-belt, 8 small-electric-pole, 180 coal (move it from #3's 680 coal allocation).\n1) Extend the ore belt: transport belts facing NORTH from (76.5,24.5) to (76.5,13.5) (12 belts).\n2) Furnaces at (74,24) (74,22) (74,20) (74,18) (74,16) (74,14), plus 30 coal each.\n3) For each new furnace at Y = 24,22,20,18,16,14, place 2 inserters at row Y-0.5 (23.5, 21.5, 19.5, 17.5, 15.5, 13.5), both direction EAST, the same as the existing ones: (75.5,Y-0.5) takes ore from x76 into the furnace, and (72.5,Y-0.5) takes from the furnace and drops on the x71 plate belt.\n4) Poles: (72.5,20.5) (75.5,20.5) (72.5,16.5) (75.5,16.5) (72.5,12.5) (75.5,12.5).\n5) Drills facing SOUTH at (79.5,54.5) (82.5,54.5) (85.5,54.5) (88.5,54.5), on the north side of the ore belt y=56.5. Poles at (80.5,51.5) and (86.5,51.5), linked from (75.5,51.5).\nIron goes from 205 to about 315 plates/min, so after 10 steel furnaces (187/min) the depot gets about 128/min.",
+   "status": "claimed",
+   "owner": "claude-1",
+   "created_by": "claude-3",
+   "notes": [],
+   "updated": 1792306149.6961384
   }
  ],
  "zones": [],

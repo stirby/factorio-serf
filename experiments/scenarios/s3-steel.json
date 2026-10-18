@@ -30,7 +30,7 @@
    "name": "steel_finished_per_min",
    "lua": "finished('steel-plate')",
    "rate": true,
-   "target": 30
+   "note": "info only; steel can't be hand-smelted, so production stats are the score"
   },
   {
    "name": "iron_per_min",

@@ -4,11 +4,13 @@
    "id": 1,
    "title": "STEEL-1: Fix iron plate belt corner at 71.5,-25.5 + refuel iron smelter",
    "detail": "Do this first. Nothing reaches the depot right now. The plate belt runs north on x=71.5 (y 45 -> -25) and then west on y=-25.5 to the depot. The corner belt at [71.5,-25.5] faces NORTH into nothing, so the y=-25.5 belt is empty and all 11 iron furnaces at x=74 (y 26..46) are stuck at full_output with 100 plates each.\n1) Walk to [71.5,-25.5] and rotate that belt to face WEST, so it feeds [70.5,-25.5]. Watch plates start moving west.\n2) Stopgap fuel: the iron furnaces at [74,26],[74,28]...[74,46] (11 of them) only hold about 10 coal each, which is about 7 min once they restart. Bring 440 coal from the depot coal chest [-9.5,-29.5] and insert 40 into each furnace (about 30 min). The real fix is the separate coal-line task.\n3) Check that plates reach the depot: the belt at [-5.5,-25.5] should carry about 3.4 plates/s on its south lane.\nBring: 440 coal.",
-   "status": "claimed",
+   "status": "done",
    "owner": "claude-1",
    "created_by": "claude-1",
-   "notes": [],
-   "updated": 1792305887.1594799
+   "notes": [
+    "claude-1: Corner rotated west, 11 iron furnaces got ~40 coal each."
+   ],
+   "updated": 1792306231.6088026
   },
   {
    "id": 2,
@@ -30,48 +32,62 @@
    "owner": "claude-3",
    "created_by": "claude-1",
    "notes": [
-    "claude-3: REVISED coal part (the steel-belt part is unchanged). The coal belt now flows WEST so the coal mainline in task #5 can plug into its east end later. Build: iron-chest (coal buffer) at [18.5,-19.5]; inserter at [17.5,-19.5] direction EAST (chest -> belt); small pole at [18.5,-20.5] (5 tiles to the [14.5,-23.5] pole); transport-belt facing WEST at y=-19.5 for x = 16.5 down to -7.5 (25 belts, dead-ends under the first long inserter). Skip the old chest/inserter/pole at [-12.5/-11.5,-19.5]. Only 400 coal is left in the depot [-9.5,-29.5]: put 200 in the coal buffer and leave 200 for the boilers (boiler [-31.5,-43] has NO fuel now; [-27,-42.5] has 5 + 37 in its wooden chest). Belts for this task: 31 steel + 25 coal = 56 (you carry 128)."
+    "claude-3: REVISED coal part (the steel-belt part is unchanged). The coal belt now flows WEST so the coal mainline in task #5 can plug into its east end later. Build: iron-chest (coal buffer) at [18.5,-19.5]; inserter at [17.5,-19.5] direction EAST (chest -> belt); small pole at [18.5,-20.5] (5 tiles to the [14.5,-23.5] pole); transport-belt facing WEST at y=-19.5 for x = 16.5 down to -7.5 (25 belts, dead-ends under the first long inserter). Skip the old chest/inserter/pole at [-12.5/-11.5,-19.5]. Only 400 coal is left in the depot [-9.5,-29.5]: put 200 in the coal buffer and leave 200 for the boilers (boiler [-31.5,-43] has NO fuel now; [-27,-42.5] has 5 + 37 in its wooden chest). Belts for this task: 31 steel + 25 coal = 56 (you carry 128).",
+    "claude-1: Coal part confirmed (final): the coal belt at y=-19.5 flows WEST from x=16.5 to -7.5. The stopgap chest [18.5,-19.5] + inserter [17.5,-19.5] dir EAST + pole [18.5,-20.5] stay until claude-1's branch (#6) arrives from the east along y=-19.5. claude-1 then swaps the chest and inserter for two westbound belts. Keep the pole. The steel belt part is unchanged.",
+    "claude-3: claude-3: built. Steel belt y=-20.5 -> UG -> inserter into the steel chest [-11.5,-29.5]. Coal chest [18.5,-19.5] holds 120 coal, inserter feeds the westbound coal belt y=-19.5 (x 16.5..-7.5). Furnaces fueling. Checking steel arrival next."
    ],
-   "updated": 1792306072.331328
+   "updated": 1792306226.8586087
   },
   {
    "id": 4,
    "title": "PHASE 2 (foreman to assign, claude-4/5?): automate coal to the iron smelter + steel coal chest",
    "detail": "Steel automation is only as good as its fuel. The 11 iron furnaces at x=74 y26..46 are hand-fuelled (0.25 coal/s), and the steel coal chest [-12.5,-19.5] needs 0.2 coal/s. The iron ore belt (y=56 westbound from x~100, then north on x=76.5) only uses its WEST lane; the EAST lane of x=76.5 is free. Plan: run a coal belt from the coal field (electric coal drills ~[33.5..44.5,103.5], current coal belt y=103.5 westbound at x 22..31) to the iron ore belt and side-load it onto the EAST lane of x=76.5 (e.g. enter from the east at about [77.5,50.5]). The iron input inserters at x=75.5 will then fuel the furnaces automatically. About 100 belts. Ask architect for an exact route before building. Do NOT put coal on the plate belt to the depot: it would clog the mall chests at [-15.5]/[-19.5,-27.5].",
-   "status": "open",
-   "owner": "claude-4",
+   "status": "claimed",
+   "owner": "claude-1",
    "created_by": "claude-1",
    "notes": [
     "claude-1: claude-4: you own coal automation. Outcome: coal on the east lane of the iron ore belt x=76.5 so the 11 iron furnaces self-fuel. Consult architect for route. claude-5 can help.",
-    "claude-3: EXACT ROUTE. Source: iron-chest [42.5,103.5] on the coal field, which the electric drills at [40.5,103.5] and [44.5,103.5] (1 coal/s) fill. 1) inserter at [42.5,102.5] direction SOUTH (picks from the chest, drops onto [42.5,101.5]). 2) small pole at [41.5,101.5] (4.1 tiles to the existing pole [42.5,105.5]). 3) belt: connect from [42.5,101.5] north along x=42.5 to [42.5,47.5], then east along y=47.5 to [77.5,47.5]. The LAST belt at [77.5,47.5] faces WEST and side-loads onto the EAST lane of the northbound ore belt [76.5,47.5], upstream of all 11 input inserters (y 25.5..45.5). It crosses no other belt; let connect go around trees. About 95 belts plus 1 inserter and 1 pole. Done when the iron furnaces at x=74 show their coal going up without anyone hand-feeding. Demand is 0.25 coal/s; the inserter gives about 0.83/s."
+    "claude-3: EXACT ROUTE. Source: iron-chest [42.5,103.5] on the coal field, which the electric drills at [40.5,103.5] and [44.5,103.5] (1 coal/s) fill. 1) inserter at [42.5,102.5] direction SOUTH (picks from the chest, drops onto [42.5,101.5]). 2) small pole at [41.5,101.5] (4.1 tiles to the existing pole [42.5,105.5]). 3) belt: connect from [42.5,101.5] north along x=42.5 to [42.5,47.5], then east along y=47.5 to [77.5,47.5]. The LAST belt at [77.5,47.5] faces WEST and side-loads onto the EAST lane of the northbound ore belt [76.5,47.5], upstream of all 11 input inserters (y 25.5..45.5). It crosses no other belt; let connect go around trees. About 95 belts plus 1 inserter and 1 pole. Done when the iron furnaces at x=74 show their coal going up without anyone hand-feeding. Demand is 0.25 coal/s; the inserter gives about 0.83/s.",
+    "claude-1: FINAL ROUTE (replaces the earlier note, which had a mistake: a belt coming from the west can't side-load the EAST lane without crossing the ore belt). Inserter direction = the side it picks from.\nA) SOURCE: inserter at [42.5,102.5] direction SOUTH (picks from coal chest [42.5,103.5], which the drills at [40.5,103.5] and [44.5,103.5] fill; drops onto [42.5,101.5]). Small pole at [41.5,101.5].\nB) TRUNK: connect belt from [42.5,101.5] to [42.5,51.5], heading north. There are burner drills at [42-43,98-99] and many trees between y 52..92; let connect detour or mine the trees. The LAST belt [42.5,51.5] must face NORTH, centred under x=42.5.\nC) SPLITTER facing NORTH at [42,50.5] (covers tiles 41.5 and 42.5 at y=50.5); the input comes in on its right half. The LEFT output [41.5,49.5] is claude-1's steel branch; leave that tile free.\nD) IRON LEG from the RIGHT output: belts [42.5,49.5] N, [42.5,48.5] N, [42.5,47.5] E, then E along y=47.5 for x=43.5..74.5 (32 belts); underground ENTRANCE [75.5,47.5] facing E, EXIT [77.5,47.5] facing E (under the ore belt x=76.5); [78.5,47.5] N; [78.5,46.5] W; [77.5,46.5] W. That last belt side-loads into [76.5,46.5] from the east, so coal lands on the free EAST lane, upstream of every iron input inserter (y<=45.5, plus the new north column). Every tile is checked free; y=47.5 is south of where the plate belt starts (71.5,45.5).\nBring: about 95 belts (depot [-12.5,-30.5] 237, [-6.5,-29.5] 200), 1 splitter [-6.5,-27.5], 2 underground belts [-7.5,-27.5], 1 inserter, 1 pole.\nCapacity: one inserter gives about 0.83 coal/s. Demand is 0.25/s (11 iron furnaces), 0.47/s once claude-2's north column (10 more) runs, plus 0.2/s for steel = 0.67/s. That's OK but tight. If it falls short, add a second loader on the other drill-fed chest [42.5,106.5].",
+    "claude-2: claude-2: the 10 north iron furnaces (y 6..24) each have about 50 coal, enough for ~35 min. Coal chests [42.5,103.5] and [42.5,106.5] each have 1600 buffered (I took 450 from 106.5). If 0.83/s isn't enough, I can add the second loader.",
+    "claude-1: claude-1 taking this (claude-4 idle). #6 branch done."
    ],
-   "updated": 1792306076.2318828
+   "updated": 1792306285.0130923
   },
   {
    "id": 5,
    "title": "COAL-MAIN (for claude-5): Coal belt from the coal field to the steel row coal belt at [17.5,-19.5]",
    "detail": "Meant for claude-5 (the board won't accept claude-5 as assignee). Removes the last hand-feed from the steel line (0.2 coal/s). Source: the westbound coal belt at y=103.5 (x 22..31), fed by the drill at [33.5,103.5] (0.5 coal/s). First clear the stump at [28,103]. If that belt is meant for something else, tell architect.\nRoute: make [24.5,103.5] face NORTH (belts x 31.5..25.5 keep facing west), then connect north along x=24.5 from y=102.5 to y=-19.5, then west along y=-19.5 to [19.5,-19.5]. Corridor x=24.5 is open ground plus trees between y 51..92 (let connect go around them). It crosses no belts. About 130 belts (depot chests [-12.5,-30.5] and [-6.5,-29.5]).\nHook-up (after STEEL-3): mine the stopgap coal chest [18.5,-19.5] and its inserter [17.5,-19.5] (keep the pole [18.5,-20.5]), then place belts [18.5,-19.5] W and [17.5,-19.5] W so the mainline runs straight into [16.5,-19.5].\nBefore you start: bring 400+ coal from the field chests ([45.5,94.5], [45.5,95.5], [42.5,103.5], [42.5,106.5]) to the depot coal chest [-9.5,-29.5]. The boilers at [-30,-43] are about to run dry, and if power fails every inserter stops.",
-   "status": "open",
+   "status": "cancelled",
    "owner": null,
    "created_by": "claude-3",
-   "notes": [],
-   "updated": 1792306090.9394052
-  }
- ],
- "zones": [
-  {
-   "name": "iron-column-north",
-   "owner": "claude-2",
-   "area": [
-    72.0,
-    4.0,
-    78.0,
-    25.0
+   "notes": [
+    "claude-1: Superseded by #4 (claude-4: field -> splitter [42,50.5] -> iron ore belt) and #6 (claude-1: splitter left output -> steel coal belt at y=-19.5). The x=24.5 route is no longer needed. claude-5 can keep ferrying field coal to the depot/boilers."
    ],
-   "purpose": "extend iron smelter column with 10 furnaces north (y 6..24)",
-   "expires": 1792307897.289573
+   "updated": 1792306210.751721
+  },
+  {
+   "id": 6,
+   "title": "COAL-BRANCH: Steel coal belt from splitter [42,50.5] left output to the steel row coal belt at [17.5,-19.5]",
+   "detail": "Pairs with #4 (claude-4 places the splitter facing NORTH at [42,50.5]; its LEFT output tile is [41.5,49.5]). Belt directions = the way items move. Every tile was checked on the map: x=41.5 from y 49 to -19 is open ground, y=-19.5 from x 41 to 17 is open, and it crosses no belts or poles (the main plate belt at y=-25.5 stays north of this route).\n1) transport-belt facing NORTH at x=41.5 for y = 49.5 up to -18.5 (69 belts). Easiest: connect from [41.5,49.5] to [41.5,-18.5].\n2) [41.5,-19.5] facing WEST (corner).\n3) transport-belt facing WEST at y=-19.5 for x = 40.5 down to 19.5 (22 belts).\n4) HOOK-UP: mine claude-3's stopgap coal chest [18.5,-19.5] (take the coal) and its inserter [17.5,-19.5]. Keep the pole [18.5,-20.5]. Place belts [18.5,-19.5] W and [17.5,-19.5] W so the line runs into the steel coal belt [16.5,-19.5] -> -7.5 (westbound, built in #3). Throw the stopgap coal onto the belt.\nBring: about 93 belts (depot [-12.5,-30.5] / [-6.5,-29.5]). No power needed.\nDone when coal moves along y=-19.5 and the long-handed inserters at y=-21.5 keep the steel furnaces fuelled. Steel row demand is 0.2 coal/s.",
+   "status": "claimed",
+   "owner": "claude-1",
+   "created_by": "claude-1",
+   "notes": [],
+   "updated": 1792306209.0517511
+  },
+  {
+   "id": 7,
+   "title": "BOILER-COAL: Extend the steel-row coal belt (y=-19.5) west then north to both boilers",
+   "detail": "No undergrounds needed. The route passes WEST of where the main plate belt ends (belt ends at x=-21.5, chest at -23.5,-25.5), and every tile below was checked free on the map. Belt direction = the way items move; inserter direction = the side it picks from.\n1) Extend the coal belt west: transport-belt facing WEST at y=-19.5 for x = -8.5 down to -26.5 (19 belts), continuing straight from the existing end [-7.5,-19.5].\n2) [-27.5,-19.5] facing NORTH (corner).\n3) transport-belt facing NORTH at x=-27.5 for y = -20.5 up to -38.5 (19 belts). This is clear west of the mall/labs and east of steam-engine column B (x -33..-31).\n4) Mine the wooden chest [-27.5,-39.5] (keep its coal) and put a belt there facing WEST. The existing inserter [-27.5,-40.5] dir SOUTH now picks from this belt into boiler A, so leave it as is.\n5) [-28.5,-39.5] N, [-28.5,-40.5] N, [-28.5,-41.5] N, [-28.5,-42.5] N (4 belts, dead end; -28.5,-43.5 stays empty). This column is clear of boiler A's water connections (at x=-27.5).\n6) Boiler B: inserter at [-29.5,-42.5] direction EAST (picks from the belt at [-28.5,-42.5], drops into boiler B at [-30.5,-42.5]).\n7) small-electric-pole at [-29.5,-41.5] (3 tiles to the pole at [-29.5,-38.5]); it powers that inserter. The existing pole doesn't reach y=-42.5.\nTotals: 44 belts (you carry 72), 1 inserter (craft: 1 plate + 1 gear + 1 circuit), 1 pole. Put the stopgap coal from the wooden chest onto the belt at [-28.5,-40.5].\nCoal: boilers use 0.45 coal/s each at full 1.8 MW, much less at today's load. Steel takes what it needs first (0.2/s), and the boilers get the rest. Until #4/#6 bring field coal, this line runs off the stopgap coal chest [18.5,-19.5], so keep that chest topped up.",
+   "status": "claimed",
+   "owner": "claude-3",
+   "created_by": "claude-3",
+   "notes": [],
+   "updated": 1792306307.096551
   }
  ],
+ "zones": [],
  "roadmap": [
   {
    "goal": "Iron plate belt reaches depot (>=200 plates/min arriving)",

@@ -1,0 +1,59 @@
+{
+ "tasks": [
+  {
+   "id": 1,
+   "title": "Iron column at x=74 sustained 2/s to base belt y=-25.5",
+   "detail": "Iron plate belt x=71.5 north -> y=-25.5 west to base. Keep furnaces fueled, ore fed, add furnaces/drills until ~120 iron/min reaches [gps=0,-26]. Fuel automation if possible.",
+   "status": "claimed",
+   "owner": "claude-2",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-2: backlog draining; building coal drill at [51,101] + coal belt sideloaded onto ore belt x=76 so furnaces self-fuel"
+   ],
+   "updated": 1792306499.0875266
+  },
+  {
+   "id": 2,
+   "title": "Copper plates 1/s belted to base science block",
+   "detail": "Need ~40 copper/min sustained (aim 60) on a belt reaching the science block near [gps=0,-30]. Nearest copper ore at [gps=5,88] (check for closer). Drills -> furnaces -> belt north to base, run it alongside the iron belt at y=-24.5 heading west. Lead will confirm exact delivery point.",
+   "status": "claimed",
+   "owner": "claude-3",
+   "created_by": "claude-1",
+   "notes": [],
+   "updated": 1792306491.818234
+  }
+ ],
+ "zones": [],
+ "roadmap": [
+  {
+   "goal": "Iron plates belted to base at 2/s",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Copper plates belted to base at 1.5/s",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Red science automated 0.25/s into labs",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Green science automated 0.25/s into labs (no hand-feeding)",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Mall makes belts/inserters/gears/circuits",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Steel 0.5/s",
+   "status": "todo",
+   "by": "claude-1"
+  }
+ ]
+}

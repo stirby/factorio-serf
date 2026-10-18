@@ -1,0 +1,510 @@
+{
+ "run_id": "20261018-013621-s3-steel-advisor-i2",
+ "scenario": "s3-steel",
+ "variant": "advisor",
+ "instance": 2,
+ "stage": "stage-s3-steel-oil-ready",
+ "dry": false,
+ "minutes_planned": 30.0,
+ "errors": [],
+ "start": "2026-10-18 01:36:21",
+ "t_start": 1792305381.064074,
+ "git": {
+  "commit": "9cdefec",
+  "dirty_files": []
+ },
+ "mod_version": "0.1.0",
+ "setup": {},
+ "baseline": {
+  "tick": 384966,
+  "values": {
+   "steel_per_min": 0.0,
+   "steel_finished_per_min": null,
+   "iron_per_min": 205.33333333333334,
+   "electric_drills": 18.0,
+   "furnaces": 37.0
+  },
+  "errors": {},
+  "raw": {
+   "steel_finished_per_min": 0.0
+  }
+ },
+ "targets": {
+  "steel_per_min": 30,
+  "steel_finished_per_min": 30,
+  "iron_per_min": null,
+  "electric_drills": null,
+  "furnaces": null
+ },
+ "summary_start": {
+  "minutes": 106,
+  "entities": {
+   "burner-mining-drill": 30,
+   "electric-mining-drill": 18,
+   "stone-furnace": 37,
+   "assembling-machine-1": 8,
+   "lab": 2,
+   "steam-engine": 4,
+   "boiler": 2,
+   "offshore-pump": 2,
+   "transport-belt": 275,
+   "inserter": 43,
+   "small-electric-pole": 116,
+   "iron-chest": 41,
+   "wooden-chest": 1
+  },
+  "researched": [
+   "advanced-material-processing",
+   "automation",
+   "automation-2",
+   "automation-science-pack",
+   "electric-mining-drill",
+   "electronics",
+   "engine",
+   "fast-inserter",
+   "fluid-handling",
+   "gun-turret",
+   "lamp",
+   "logistic-science-pack",
+   "logistics",
+   "logistics-2",
+   "military",
+   "military-2",
+   "oil-gathering",
+   "steam-power",
+   "steel-processing",
+   "stone-wall"
+  ],
+  "research_count": 20,
+  "agents": [
+   "claude-1",
+   "claude-2",
+   "claude-3",
+   "claude-4",
+   "claude-5"
+  ],
+  "per_minute": {
+   "iron-plate": 205,
+   "coal": 135,
+   "iron-ore": 210
+  },
+  "peaceful": true
+ },
+ "goal": "@all Mid-game push. Automate steel: at least 0.5 steel/s (30 per minute) from furnaces fed by belts or inserters, with plates delivered to the depot (marked provider) automatically. Use the depot stock to build. No hand-feeding.",
+ "config": {
+  "agents": [
+   {
+    "name": "claude-1",
+    "role": "foreman",
+    "focus": "production",
+    "model": "claude-opus-5-5"
+   },
+   {
+    "name": "claude-2",
+    "role": "worker",
+    "focus": "resources",
+    "model": "claude-opus-5-5"
+   },
+   {
+    "name": "claude-3",
+    "role": "worker",
+    "focus": "infrastructure",
+    "model": "claude-opus-5-5"
+   }
+  ],
+  "advisor": {
+   "name": "architect",
+   "model": "claude-opus-5-5",
+   "effort": "high"
+  },
+  "defaults": {
+   "backend": "claude-code",
+   "model": "claude-opus-5-5",
+   "max_turns_per_hour": 120
+  },
+  "experiment": null
+ },
+ "t_agents_start": 1792305385.2750409,
+ "stopped_early": true,
+ "elapsed_s": 900.5,
+ "final": {
+  "tick": 439143,
+  "values": {
+   "steel_per_min": 33.0,
+   "steel_finished_per_min": 0.0,
+   "iron_per_min": 266.5833333333333,
+   "electric_drills": 18.0,
+   "furnaces": 56.0
+  },
+  "errors": {},
+  "raw": {
+   "steel_finished_per_min": 46.0
+  }
+ },
+ "checks": {
+  "steel_per_min": {
+   "value": 33.0,
+   "baseline": 0.0,
+   "target": 30,
+   "frac": 1.0,
+   "time_to_target_s": 900.4,
+   "error": null
+  },
+  "steel_finished_per_min": {
+   "value": 0.0,
+   "baseline": null,
+   "target": 30,
+   "frac": 0.0,
+   "time_to_target_s": 900.4,
+   "error": null
+  },
+  "iron_per_min": {
+   "value": 266.5833333333333,
+   "baseline": 205.33333333333334,
+   "target": null,
+   "frac": null,
+   "time_to_target_s": null,
+   "error": null
+  },
+  "electric_drills": {
+   "value": 18.0,
+   "baseline": 18.0,
+   "target": null,
+   "frac": null,
+   "time_to_target_s": null,
+   "error": null
+  },
+  "furnaces": {
+   "value": 56.0,
+   "baseline": 37.0,
+   "target": null,
+   "frac": null,
+   "time_to_target_s": null,
+   "error": null
+  }
+ },
+ "score": 0.5,
+ "success": false,
+ "summary_end": {
+  "minutes": 121,
+  "entities": {
+   "burner-mining-drill": 30,
+   "electric-mining-drill": 18,
+   "stone-furnace": 56,
+   "assembling-machine-1": 8,
+   "lab": 2,
+   "steam-engine": 4,
+   "boiler": 2,
+   "offshore-pump": 2,
+   "transport-belt": 445,
+   "inserter": 82,
+   "long-handed-inserter": 9,
+   "small-electric-pole": 132,
+   "iron-chest": 41,
+   "wooden-chest": 1
+  },
+  "researched": [
+   "advanced-material-processing",
+   "automation",
+   "automation-2",
+   "automation-science-pack",
+   "electric-mining-drill",
+   "electronics",
+   "engine",
+   "fast-inserter",
+   "fluid-handling",
+   "gun-turret",
+   "lamp",
+   "logistic-science-pack",
+   "logistics",
+   "logistics-2",
+   "military",
+   "military-2",
+   "oil-gathering",
+   "steam-power",
+   "steel-processing",
+   "stone-wall"
+  ],
+  "research_count": 20,
+  "agents": [
+   "claude-1",
+   "claude-2",
+   "claude-3",
+   "claude-4",
+   "claude-5"
+  ],
+  "per_minute": {
+   "iron-plate": 266,
+   "steel-plate": 33,
+   "iron-gear-wheel": 26,
+   "coal": 24,
+   "iron-ore": 210,
+   "transport-belt": 52
+  },
+  "peaceful": true
+ },
+ "agents_end": {
+  "claude-1": {
+   "name": "claude-1",
+   "alive": true,
+   "position": [
+    26.1,
+    -15.6
+   ],
+   "queued": 0,
+   "stats": {
+    "busy_ticks": 3271,
+    "idle_ticks": 50977,
+    "crafting_ticks": 0
+   }
+  },
+  "claude-2": {
+   "name": "claude-2",
+   "alive": true,
+   "position": [
+    77.4,
+    14.8
+   ],
+   "queued": 0,
+   "stats": {
+    "busy_ticks": 3181,
+    "idle_ticks": 51067,
+    "crafting_ticks": 278
+   }
+  },
+  "claude-3": {
+   "name": "claude-3",
+   "alive": true,
+   "position": [
+    -22.5,
+    -40
+   ],
+   "queued": 0,
+   "stats": {
+    "busy_ticks": 1162,
+    "idle_ticks": 53086,
+    "crafting_ticks": 61
+   }
+  },
+  "claude-4": {
+   "name": "claude-4",
+   "alive": true,
+   "position": [
+    22.6,
+    66.9
+   ],
+   "queued": 0,
+   "stats": {
+    "busy_ticks": 0,
+    "idle_ticks": 54248,
+    "crafting_ticks": 0
+   }
+  },
+  "claude-5": {
+   "name": "claude-5",
+   "alive": true,
+   "position": [
+    27.2,
+    102.2
+   ],
+   "queued": 0,
+   "stats": {
+    "busy_ticks": 0,
+    "idle_ticks": 54248,
+    "crafting_ticks": 0
+   }
+  }
+ },
+ "drain_s": 90.1,
+ "behavior": {
+  "agents": {
+   "claude-1": {
+    "turns": 0,
+    "tool_calls": 31,
+    "tools": {
+     "act": 9,
+     "say": 3,
+     "update_task": 3,
+     "look": 2,
+     "find": 2,
+     "consult": 2,
+     "board": 2,
+     "wait": 2,
+     "map": 2,
+     "marks": 1,
+     "production": 1,
+     "roadmap": 1,
+     "inspect": 1
+    },
+    "act_ops": {
+     "insert": 11,
+     "place": 11,
+     "take": 5,
+     "connect": 5,
+     "move": 3,
+     "mine": 2,
+     "rotate": 1,
+     "craft": 1
+    },
+    "hand_logistics": 16,
+    "failures": 1,
+    "tool_secs": 854.0,
+    "turn_secs": 0.0,
+    "turns_ended_idle": 0,
+    "cost_usd": 0.0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "turn_errors": 0,
+    "thoughts": 0,
+    "turns_incomplete": 1,
+    "incomplete_secs": 1005.1,
+    "run_secs": 1006.6,
+    "tool_frac_of_run": 0.848,
+    "turn_frac_of_run": 0.0,
+    "model_secs": 0.0,
+    "mod_stats": {
+     "busy_ticks": 3271,
+     "idle_ticks": 50906,
+     "crafting_ticks": 0,
+     "idle_pct": 94.0,
+     "crafting_pct": 0.0
+    },
+    "sampled_busy_pct": 5.0,
+    "alive_at_end": true
+   },
+   "claude-2": {
+    "turns": 3,
+    "tool_calls": 46,
+    "tools": {
+     "act": 7,
+     "inspect": 7,
+     "find": 5,
+     "say": 4,
+     "look": 3,
+     "production": 3,
+     "status": 3,
+     "map": 3,
+     "update_task": 2,
+     "zone": 2,
+     "wait": 2,
+     "notes": 2,
+     "board": 1,
+     "marks": 1,
+     "work": 1
+    },
+    "act_ops": {
+     "place": 92,
+     "insert": 20,
+     "take": 9,
+     "move": 3,
+     "craft": 1,
+     "connect": 1
+    },
+    "hand_logistics": 29,
+    "failures": 0,
+    "tool_secs": 109.8,
+    "turn_secs": 266.0,
+    "turns_ended_idle": 2,
+    "cost_usd": 1.1497,
+    "input_tokens": 663714,
+    "output_tokens": 11806,
+    "turn_errors": 0,
+    "thoughts": 5,
+    "turns_incomplete": 1,
+    "incomplete_secs": 171.0,
+    "run_secs": 1006.6,
+    "tool_frac_of_run": 0.109,
+    "turn_frac_of_run": 0.264,
+    "model_secs": 156.2,
+    "mod_stats": {
+     "busy_ticks": 3181,
+     "idle_ticks": 50996,
+     "crafting_ticks": 278,
+     "idle_pct": 94.1,
+     "crafting_pct": 0.5
+    },
+    "sampled_busy_pct": 5.6,
+    "alive_at_end": true
+   },
+   "claude-3": {
+    "turns": 0,
+    "tool_calls": 43,
+    "tools": {
+     "inspect": 12,
+     "find": 5,
+     "act": 5,
+     "board": 4,
+     "say": 4,
+     "look": 3,
+     "wait": 3,
+     "map": 2,
+     "consult": 2,
+     "marks": 1,
+     "production": 1,
+     "update_task": 1
+    },
+    "act_ops": {
+     "place": 108,
+     "insert": 4,
+     "take": 3,
+     "craft": 2,
+     "mine": 1
+    },
+    "hand_logistics": 7,
+    "failures": 0,
+    "tool_secs": 855.2,
+    "turn_secs": 0.0,
+    "turns_ended_idle": 0,
+    "cost_usd": 0.0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "turn_errors": 0,
+    "thoughts": 1,
+    "turns_incomplete": 1,
+    "incomplete_secs": 985.0,
+    "run_secs": 1006.6,
+    "tool_frac_of_run": 0.85,
+    "turn_frac_of_run": 0.0,
+    "model_secs": 0.0,
+    "mod_stats": {
+     "busy_ticks": 1162,
+     "idle_ticks": 53015,
+     "crafting_ticks": 61,
+     "idle_pct": 97.9,
+     "crafting_pct": 0.1
+    },
+    "sampled_busy_pct": 1.7,
+    "alive_at_end": true
+   }
+  },
+  "total": {
+   "turns": 3,
+   "turns_incomplete": 3,
+   "tool_calls": 120,
+   "hand_logistics": 52,
+   "failures": 1,
+   "turns_ended_idle": 2,
+   "cost_usd": 1.1497,
+   "tool_secs": 1819.0,
+   "turn_secs": 266.0,
+   "input_tokens": 663714,
+   "output_tokens": 11806,
+   "char_idle_pct_mean": 95.3,
+   "sampled_busy_pct_mean": 4.1,
+   "act_ops": {
+    "place": 211,
+    "insert": 35,
+    "take": 17,
+    "connect": 6,
+    "move": 6,
+    "craft": 4,
+    "mine": 3,
+    "rotate": 1
+   }
+  }
+ },
+ "cost_usd": 1.1497,
+ "final_save": "/home/stephen/dev/factorio-slave/experiments/runs/20261018-013621-s3-steel-advisor-i2/final.zip",
+ "end": "2026-10-18 01:53:13",
+ "t_end": 1792306393.9283383
+}

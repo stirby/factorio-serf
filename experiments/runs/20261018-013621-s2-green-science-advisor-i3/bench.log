@@ -235,3 +235,5 @@ bench: 10.1 min: {'green_per_min_assemblers': 0.0, 'green_per_min': 0.0, 'red_pe
 bench: 11.1 min: {'green_per_min_assemblers': 0.0, 'green_per_min': 0.0, 'red_per_min': 0.0, 'green_consumed_per_min': 0.0, 'green_asm': 2.0, 'labs': 2.0}
 bench: 12.1 min: {'green_per_min_assemblers': 0.0, 'green_per_min': 0.0, 'red_per_min': 0.0, 'green_consumed_per_min': 0.0, 'green_asm': 2.0, 'labs': 2.0}
 01:48:38      crew claude-3 consults architect: Power plant at about (-30,-42): 2 boilers (-27,-42.5 fed by wooden chest -27.5,-39.5 via inserter; -31.5,-43 fed by my i
+01:48:53 architect 🔎 map {"x":22,"y":-50,"radius":14}
+{"run_id": "20261018-013621-s2-green-science-advisor-i3", "score": 0.0, "success": false, "elapsed_s": 733.5, "cost_usd": 0.0, "errors": [], "checks": {"green_per_min_assemblers": [0.0, 15], "green_per_min": [0.0, null], "red_per_min": [0.0, null], "green_consumed_per_min": [0.0, null], "green_asm": [2.0, null], "labs": [2.0, null]}}

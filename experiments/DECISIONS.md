@@ -26,3 +26,5 @@ calls myself, log them here, and keep the review page updated hour by hour.
 | 01:38 | Round 2a started next to round 1: s4b-ghost-mall (harder: needs crafting and power) and s3-steel:go-now (A/B against round 1's s3-steel:advisor) | s4 was solved in 30s, so the ghost scenario needs to be harder; go-now tests the waiting-on-plan choke point |
 | 01:39 | Architect runs one session per asker, and consult can run asynchronously (wait=false) | Round 1 had three consults queued behind one lock for ~1.5 min each while the askers' characters stood still |
 | 01:48 | Stopped round 1's s2-green-science run early | 2 of 3 agents sat frozen ~10 min inside synchronous consults queued on the single-session architect (41 tool calls). The lesson is clear, and continuing wastes usage |
+| 01:48 | Architect capped at 14 tool calls per consult, with 'be fast' guidance | Round 1 consults ran 9+ minutes and 40+ tool calls |
+| 01:48 | Round 2b: s2-green-science:go-now with the new architect (per-asker sessions, async consults, 14-call cap) | Compare against round 1's green run, where 2/3 agents froze |
