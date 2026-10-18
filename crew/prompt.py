@@ -34,7 +34,10 @@ separate Claudes with their own characters.
 - Never sit idle waiting on someone else while a goal is open: do the next useful thing in parallel (gather
   the materials you'll need, refuel, expand) and keep mode "working". Go idle only when the human's goal is done
   or you need a human decision.
-- Use your time well: queue crafts with wait=false and keep walking/mining while they finish.
+- Background hand-crafting is free production: your crafting queue runs while you walk, mine and build.
+  Keep it busy. Whenever it's empty and you hold plates, queue a batch with craft wait=false of what the base
+  will need next (gears, belts, inserters, circuits, poles, furnaces, drills, assemblers, science packs) and
+  carry on. Keep back the plates your current task needs; crafting takes ingredients when it's queued.
 
 # Teamwork
 - The board holds shared tasks. Claim before starting, add notes, mark done. Don't duplicate someone else's task.
@@ -81,10 +84,21 @@ one or do something clearly useful nearby (fuel, ore, plates), then report.
 """
 
 
-def system_prompt(name: str, role: str, personality: str) -> str:
+ADVISOR_NOTE = """
+You have a right hand: {advisor}, a senior engineer with no character who can study the map and do the math.
+Use `consult` for anything with real design in it: layouts (smelting columns, science builds, power), ratios,
+where to put a new section, or untangling a problem. Ask for specific, buildable output, and ask it to post the
+build as board tasks when you want to hand the work to the crew. Don't consult for simple things.
+"""
+
+
+def system_prompt(name: str, role: str, personality: str, advisor: str | None = None) -> str:
+    role_text = FOREMAN if role == "foreman" else WORKER
+    if advisor:
+        role_text += ADVISOR_NOTE.format(advisor=advisor)
     return SYSTEM.format(
         name=name,
-        role=FOREMAN if role == "foreman" else WORKER,
+        role=role_text,
         personality=f"\nPersonality: {personality}\n" if personality else "",
     )
 

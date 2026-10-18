@@ -5,6 +5,7 @@ import asyncio
 import logging
 
 from . import ui
+from .advisor import Advisor
 from .agent import Agent
 from .board import Board
 from . import config as config_mod
@@ -24,6 +25,7 @@ class Orchestrator:
         self.board = Board(cfg.state_dir / "board.json")
         self.agents: dict[str, Agent] = {}
         self.foreman: str | None = cfg.foreman_name()
+        self.advisor: Advisor | None = Advisor(cfg.advisor, self) if cfg.advisor else None
 
     async def start(self) -> None:
         ui.info(f"connecting to {self.cfg.server.host}:{self.cfg.server.rcon_port} ...")
@@ -34,6 +36,9 @@ class Orchestrator:
         for ac in self.cfg.agents:
             await self._add_agent(ac)
         names = ", ".join(self.agents)
+        if self.advisor:
+            ui.info(f"{self.foreman or 'nobody'} can consult {self.advisor.name} ({self.advisor.cfg.model}, "
+                    f"effort {self.advisor.cfg.effort})")
         ui.info(f"crew ready: {names}. Talk to them in game chat: @{next(iter(self.agents))} ..., @all ...")
         hello = self.agents[self.foreman or next(iter(self.agents))]
         try:
@@ -99,6 +104,8 @@ class Orchestrator:
     async def stop(self) -> None:
         for a in self.agents.values():
             await a.close()
+        if self.advisor:
+            await self.advisor.close()
 
     # ------------------------------------------------------------------ routing
     async def _on_chat(self, msg: dict) -> None:

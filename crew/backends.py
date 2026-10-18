@@ -32,12 +32,13 @@ class TurnStats:
 
 
 class ClaudeCodeBackend:
-    def __init__(self, agent: "Agent", system: str, workdir: Path):
+    def __init__(self, agent: "Agent", system: str, workdir: Path, tools=None):
         from claude_agent_sdk import ClaudeAgentOptions, create_sdk_mcp_server, tool
 
         self.agent = agent
+        tools = tools or TOOLS
         sdk_tools = []
-        for t in TOOLS:
+        for t in tools:
             def make(name):
                 async def handler(args):
                     out = await run_tool(agent, name, args)
@@ -51,7 +52,7 @@ class ClaudeCodeBackend:
             system_prompt=system,
             mcp_servers={"game": server},
             tools=[],  # no built-in Bash/Read/etc: this agent only plays the game
-            allowed_tools=[f"mcp__game__{t.name}" for t in TOOLS],
+            allowed_tools=[f"mcp__game__{t.name}" for t in tools],
             setting_sources=[],  # don't pick up the user's CLAUDE.md, hooks or settings
             model=cfg.model,
             effort=cfg.effort,
@@ -110,14 +111,15 @@ class ClaudeCodeBackend:
 class ApiBackend:
     RESET_AT_INPUT_TOKENS = 160_000
 
-    def __init__(self, agent: "Agent", system: str, workdir: Path):
+    def __init__(self, agent: "Agent", system: str, workdir: Path, tools=None):
         import anthropic
         self.anthropic = anthropic
         self.client = anthropic.AsyncAnthropic()
         self.agent = agent
         self.system = system
         self.messages: list = []
-        self.tools = [{"name": t.name, "description": t.description, "input_schema": t.schema} for t in TOOLS]
+        self.tools = [{"name": t.name, "description": t.description, "input_schema": t.schema}
+                      for t in (tools or TOOLS)]
         self.use_fallbacks = True
 
     async def start(self) -> None:
@@ -191,9 +193,9 @@ class ApiBackend:
         return stats
 
 
-def make_backend(agent: "Agent", system: str, workdir: Path):
+def make_backend(agent: "Agent", system: str, workdir: Path, tools=None):
     if agent.cfg.backend == "api":
-        return ApiBackend(agent, system, workdir)
+        return ApiBackend(agent, system, workdir, tools)
     if agent.cfg.backend in ("claude-code", "claude_code", "subscription"):
-        return ClaudeCodeBackend(agent, system, workdir)
+        return ClaudeCodeBackend(agent, system, workdir, tools)
     raise ValueError(f"unknown backend {agent.cfg.backend!r} (use claude-code or api)")

@@ -6,8 +6,11 @@ Added since: connect (A* belts/pipes/poles), follow, instant come/follow, forema
 water search with pump spots, fuel swap. Smoke test is at 40 checks.
 
 Live (2026-10-18 00:45): the user joined and played alongside a 5-agent crew (foreman on Opus, workers on Sonnet),
-under systemd, with a snapshot every 30 min and peaceful mode on. Corpse looting is pending: it's a mod change, so wait
-until the user disconnects.
+under systemd, with a snapshot every 30 min and peaceful mode on. Pending mod changes (wait until the user disconnects):
+(1) corpse looting;
+(2) count background (wait=false) crafts toward production stats and trigger techs when they complete
+(today only waited crafts are counted).
+Added: the architect advisor (consult tool, foreman only) and background-crafting habits.
 
 WAS NEXT: the user joins from their client (scripts/install-client-mod.sh with Factorio closed, connect to 127.0.0.1).
 

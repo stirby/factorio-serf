@@ -37,6 +37,7 @@ class CrewConfig:
     starter_kit: bool = True
     state_dir: Path = Path("~/.local/state/claude-crew").expanduser()
     source: Path | None = None  # crew.toml this came from (watched for live changes)
+    advisor: AgentConfig | None = None  # the foreman's characterless right hand
 
     def foreman_name(self) -> str | None:
         return next((a.name for a in self.agents if a.role == "foreman"), None)
@@ -99,6 +100,12 @@ def load(path: str | Path | None, overrides: dict | None = None) -> CrewConfig:
     cfg = CrewConfig(server=server, agents=agents,
                      spawn_near=raw.get("spawn_near"), starter_kit=raw.get("starter_kit", True))
     cfg.source = Path(path).expanduser().resolve() if path else None
+    adv = raw.get("advisor")
+    if adv and adv.get("enabled", True):
+        known = AgentConfig.__dataclass_fields__.keys()
+        merged = {"name": "architect", "model": "claude-opus-5-5", "effort": "high",
+                  "backend": defaults.get("backend", "claude-code"), **adv}
+        cfg.advisor = AgentConfig(**{k: v for k, v in merged.items() if k in known})
     if raw.get("state_dir"):
         cfg.state_dir = Path(raw["state_dir"]).expanduser()
     return cfg

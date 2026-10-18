@@ -157,6 +157,9 @@ async def _after(agent: "Agent", results: list[dict], running: list[int]) -> str
         top = dict(sorted(inv.items(), key=lambda kv: -kv[1])[:20])
         lines.append(f"you: pos {me['position']}, inventory {_j(top)}"
                      + (f", crafting {me['crafting']}" if me.get("crafting") else ""))
+        plates = sum(n for k, n in inv.items() if k.endswith("-plate"))
+        if not me.get("crafting") and plates >= 20:
+            lines.append("(your crafting queue is idle: queue something useful with craft wait=false)")
     except GameError as e:
         lines.append(f"(status unavailable: {e})")
     return "\n".join(lines)
@@ -305,6 +308,25 @@ TOOLS: list[Tool] = [
 ]
 
 BY_NAME = {t.name: t for t in TOOLS}
+
+
+async def t_consult(agent: "Agent", a: dict) -> str:
+    advisor = agent.orch.advisor
+    if not advisor:
+        return "no advisor is configured"
+    return await advisor.ask(agent, str(a.get("question", "")), str(a.get("context", "")))
+
+
+CONSULT = Tool("consult", "Ask your right-hand engineer (a separate senior Claude that can look at the map but not "
+               "act) for a design, layout, ratio calculation or multi-step plan. Give the goal and constraints; "
+               "it answers with buildable specifics (coordinates, directions, counts, order) and can post the "
+               "build steps as board tasks for the crew. It remembers earlier consults. Takes a minute or two.",
+               _obj({"question": {"type": "string"},
+                     "context": {"type": "string", "description": "what you already know/decided"}}, ["question"]),
+               t_consult)
+BY_NAME["consult"] = CONSULT
+
+READ_ONLY = ["look", "map", "find", "inspect", "recipes", "techs", "production", "board", "post_task", "update_task"]
 
 
 async def run_tool(agent: "Agent", name: str, args: dict) -> str:

@@ -15,6 +15,12 @@ model = "claude-sonnet-5-5"   # demo: "claude-opus-5-5"
 # effort = "medium"           # low | medium | high
 max_turns_per_hour = 120
 
+# Optional: the foreman's right hand. No character; consulted for designs/ratios/plans; can post board tasks.
+[advisor]
+name = "architect"
+model = "claude-opus-5-5"
+effort = "high"
+
 [[agent]]
 name = "claude-1"
 role = "foreman"
