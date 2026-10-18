@@ -263,7 +263,8 @@ TOOLS: list[Tool] = [
     Tool("map", "ASCII map of the area around you (or around x,y). Best for planning where to build.",
          _obj({"radius": {"type": "integer", "description": "default 12, max 24"}, **XY}), t_map),
     Tool("find", "Find the nearest entities/resources by prototype name (e.g. iron-ore, coal, crude-oil, "
-         "stone-furnace) or type (e.g. tree, resource, assembling-machine), searching outward.",
+         "stone-furnace) or type (e.g. tree, resource, assembling-machine), searching outward. "
+         "name='water' finds the nearest water and returns ready offshore_pump_spots (position + direction).",
          _obj({"name": {"type": "string"}, "type": {"type": "string"}, "limit": {"type": "integer"},
                "max_radius": {"type": "integer"}}), t_find),
     Tool("inspect", "Details of whatever is at x,y: inventories, recipe, progress, status, ore amount.",

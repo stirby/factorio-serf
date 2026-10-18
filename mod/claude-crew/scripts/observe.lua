@@ -205,8 +205,64 @@ function observe.map(a, radius, center)
   }
 end
 
+-- Valid offshore-pump spots (position + direction) on the shore near some water tiles.
+local function pump_spots(surface, force, tiles, want)
+  local spots, seen = {}, {}
+  local dirs = { "north", "east", "south", "west" }
+  for _, t in ipairs(tiles) do
+    for _, off in ipairs { { 0, 0 }, { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } } do
+      local pos = { x = t.position.x + off[1] + 0.5, y = t.position.y + off[2] + 0.5 }
+      local k = pos.x .. "," .. pos.y
+      if not seen[k] then
+        seen[k] = true
+        for _, dn in ipairs(dirs) do
+          if surface.can_place_entity { name = "offshore-pump", position = pos, direction = defines.direction[dn],
+                force = force, build_check_type = defines.build_check_type.manual } then
+            spots[#spots + 1] = { p = util.xy(pos), direction = dn }
+            break
+          end
+        end
+        if #spots >= want then return spots end
+      end
+    end
+  end
+  return spots
+end
+
+-- Nearest water (or any tile by name), with offshore-pump spots for water.
+local function find_tiles(a, args)
+  local c = a.char
+  local water = args.name == "water" or args.tile == "water"
+  local max_r = math.min(args.max_radius or 256, 512)
+  for _, r in ipairs { 32, 96, 192, 384, 512 } do
+    if r > max_r then r = max_r end
+    local f = { position = c.position, radius = r, limit = 4000 }
+    if water then f.collision_mask = "water_tile" else f.name = args.tile or args.name end
+    local tiles = c.surface.find_tiles_filtered(f)
+    if #tiles > 0 then
+      table.sort(tiles, function(x, y) return util.dist(x.position, c.position) < util.dist(y.position, c.position) end)
+      local out = {}
+      for i = 1, math.min(#tiles, args.limit or 3) do
+        local t = tiles[i]
+        out[i] = { n = t.name, p = util.xy({ x = t.position.x + 0.5, y = t.position.y + 0.5 }),
+          dist = math.floor(util.dist(t.position, c.position)) }
+      end
+      local res = { found = out, tiles_in_radius = #tiles, radius = r }
+      if water then
+        local near = {}
+        for i = 1, math.min(#tiles, 60) do near[i] = tiles[i] end
+        res.offshore_pump_spots = pump_spots(c.surface, c.force, near, 3)
+      end
+      return res
+    end
+    if r >= max_r then break end
+  end
+  return { found = {}, radius = max_r }
+end
+
 -- Nearest entities/resources by name or type, searched outward up to max_radius.
 function observe.find(a, args)
+  if args.name == "water" or args.tile then return find_tiles(a, args) end
   local c = a.char
   local max_r = math.min(args.max_radius or 256, 1024)
   local filter = { name = args.name, type = args.type, force = args.force }

@@ -320,6 +320,17 @@ H.place = {
       name = job.entity, position = job.pos, direction = job.dir, force = c.force,
       build_check_type = defines.build_check_type.manual,
     }
+    if not surface.can_place_entity(spec) and prototypes.entity[job.entity].type == "offshore-pump" then
+      -- Pumps only fit facing the water one way; try the others before giving up.
+      for _, dn in ipairs { "north", "east", "south", "west" } do
+        local s2 = { name = spec.name, position = spec.position, direction = defines.direction[dn], force = spec.force,
+          build_check_type = spec.build_check_type }
+        if surface.can_place_entity(s2) then
+          spec, job.dir = s2, s2.direction
+          break
+        end
+      end
+    end
     if not surface.can_place_entity(spec) then
       -- We may be standing on the spot; step aside once and retry.
       local proto = prototypes.entity[job.entity]
@@ -411,6 +422,20 @@ H.insert = {
     local count = math.min(args.count or have, have)
     if count <= 0 then return fail("no " .. args.item .. " in inventory") end
     local inserted = e.insert { name = args.item, count = count }
+    if inserted == 0 then
+      -- Like a player: swap out a different fuel that's sitting in the only fuel slot.
+      local fuel = e.get_fuel_inventory and e.get_fuel_inventory()
+      local proto = prototypes.item[args.item]
+      if fuel and fuel.valid and proto and proto.fuel_value > 0 then
+        for name, n in pairs(util.contents(fuel)) do
+          if name ~= args.item and not name:find("@") then
+            local moved = c.insert { name = name, count = n }
+            if moved > 0 then fuel.remove { name = name, count = moved } end
+          end
+        end
+        inserted = e.insert { name = args.item, count = count }
+      end
+    end
     if inserted == 0 then
       local fuel = e.get_fuel_inventory and e.get_fuel_inventory()
       local why = ""

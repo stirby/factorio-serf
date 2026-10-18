@@ -1,24 +1,107 @@
-# Claude Advisor for Factorio 2.0
+# Claude Crew
 
-Mods can't do network I/O, so it's two halves:
+Claude agents that play Factorio 2.0 (Space Age) **as players, alongside humans, in multiplayer**. You talk to
+them in game chat; they walk, mine, craft and build under the same rules you do, split work on a shared task
+board, and report back.
 
-- **Mod** (`claude-advisor_0.1.0.zip`): every game minute writes `script-output/claude-advisor/state.json` (research, entity counts, all-time item totals, alerts, inventories, evolution). Chat lines go to `chat.jsonl`; messages starting with `@claude` trigger a fresh snapshot. Registers `/claude_say` (RCON/admin only) to print to chat.
-- **Bridge** (`advisor.py`): tails those files, diffs totals into items/min plus deficits, asks Claude. Answers `@claude` questions immediately; every 5 min does a passive check and stays silent unless something is actionable.
+```
+otterplex: @all get a starter base going: automated iron and copper, then red science
+ claude-1: Plan: claude-2 takes iron (east patch [gps=75,58]), I take stone/copper/coal in the south.
+ claude-2: First iron drill+furnace running at [gps=77,62]. I need stone and coal for more.
+ claude-1: Added 4 more iron drill+furnace pairs at [gps=78,73]. Coal is the bottleneck: claude-2, please...
+```
 
-## Setup (Linux)
+## How it works
 
-1. Drop the zip in `~/.factorio/mods/`.
-2. Launch Factorio with `--rcon-port 27015 --rcon-password <pw>` (Steam launch options).
-3. Load your save via **Multiplayer → Host saved game** (RCON is only live when hosting; can be private, no other players needed). If RCON still doesn't answer, run a local headless server with the same flags and connect to it.
-4. Run the bridge:
-   ```
-   pip install anthropic
-   export ANTHROPIC_API_KEY=... FACTORIO_RCON_PASSWORD=<pw>
-   python3 advisor.py
-   ```
+```
+Factorio server (headless, or a game hosted from a client)
+  claude-crew mod (Lua): agent characters, job queue, pathfinding, observations, Crew panel
+        ▲  RCON: /crew {json}  ⇄  rcon.print(json)
+        ▼
+crew orchestrator (Python): game link · chat router · task board · one Claude loop per agent
+        ▲  tools: look, map, find, inspect, act, say, board, notes, status ...
+        ▼
+Claude: Agent SDK on your Claude login, or the API with a key. The model is set per agent.
+```
 
-Steam/Flatpak installs may put user data elsewhere; set `FACTORIO_SCRIPT_OUTPUT` if `~/.factorio/script-output` is wrong.
+- **Agents are real `character` entities** driven by script, not network clients (Factorio multiplayer is
+  lockstep, so a bot client would have to run the whole simulation). To you they look and act like players.
+- **Legit by default:** they pathfind and walk, hand-mine at normal speed, need the items in their inventory,
+  craft in real time, and must be within reach. A `claude-crew-cheat` map setting switches to teleport and
+  instant crafting.
+- **Why RCON:** mods can't open sockets or read files. RCON works on any server, and its commands go through
+  the game's deterministic input stream, so every player stays in sync.
+- **The mod does the heavy lifting:** multi-step jobs ("walk there and mine 20 iron"), A* belt/pipe/pole
+  routing, ASCII maps and compact observations. Each RCON round trip stays small and each tool call does a lot.
 
-## Knobs
+## Quick start (local)
 
-`CLAUDE_MODEL` (default `claude-sonnet-5-5`), `ADVISE_EVERY_SEC` (300). Snapshot interval is `SNAPSHOT_TICKS` in `control.lua`. Cost per call is small: state is summarized to top-25 rates, deficits and counts.
+```bash
+uv venv && uv pip install -e .              # Python 3.11+
+scripts/server.sh new my-map                # fresh map (Space Age if the headless build includes it)
+scripts/server.sh start my-map              # headless server on 127.0.0.1, RCON on 27015
+cp crew.example.toml crew.toml              # pick agents, models, personalities
+.venv/bin/crew up                           # agents spawn and say hello in chat
+```
+
+Then join from your game: run `scripts/install-client-mod.sh` once (with Factorio closed), start Factorio, and
+go to **Multiplayer → Connect to address → `127.0.0.1`**. Allow the mod sync when it asks. The headless server
+must be the same Factorio version as your client (`scripts/server.sh` expects it in `server/factorio`).
+
+Without a client you can still drive it: `crew say "@claude-1 build some iron smelting"`.
+
+## Playing with friends
+
+The crew attaches to any game where the host runs the mod and gives you RCON access:
+
+- **Dedicated server:** start it with `--rcon-port 27015 --rcon-password ...`, add `claude-crew` to its mods,
+  then `crew up --server host:27015 --password ...`.
+- **Hosting from your own client:** add `--rcon-port 27015 --rcon-password ...` to Factorio's launch options
+  (Steam → Properties), then **Multiplayer → Host saved game**. RCON only listens while hosting.
+- Every human player needs the mod, because Factorio requires everyone to run the same mods.
+
+## Talking to the crew
+
+| You say | What happens |
+|---|---|
+| `@claude-1 put a furnace line on that iron` | wakes claude-1 |
+| `@all ...` / `@crew ...` | the foreman plans on the board first, then everyone picks up tasks |
+| `claude-2, how much copper are we making?` | bare names work too |
+| `@claude-1 come here` / `follow me` | starts moving right away, no model call; the agent then acknowledges |
+| `@claude-2 stop` | cancels its jobs right away |
+| other chat | agents see it on their next turn but don't wake |
+
+The **Crew panel** (top left; `/crew-panel` toggles it) shows each agent's current job and status line.
+
+## Configuration (`crew.toml`)
+
+```toml
+[defaults]
+backend = "claude-code"     # your Claude Code login (subscription), or "api" (ANTHROPIC_API_KEY)
+model = "claude-sonnet-5-5" # for a demo: "claude-opus-5-5", or `crew up --model claude-opus-5-5`
+
+[[agent]]
+name = "claude-1"
+role = "foreman"
+personality = "Calm, dry humor, likes tidy layouts."
+```
+
+Each agent has `max_turns_per_hour` and `max_autonomous_turns` limits, so it can't run away with your usage.
+State (board, notes, transcripts) lives in `~/.local/state/claude-crew/`.
+
+## Development
+
+- `tests/smoke.py`: 40 checks of every mod action against a running server, no LLM involved
+  (run it on a scratch save, because it resets research).
+- `scripts/rc.py <op> '<json>'`: call the mod API directly. `scripts/server.sh log` shows the server log.
+- Gotcha we hit: hand-crafting by a character with no player doesn't count toward production stats or 2.0
+  trigger techs. The mod records agent crafts, builds and mining itself (`scripts/triggers.lua`).
+
+## Prior art
+
+[Factorio Learning Environment](https://github.com/JackHopkins/factorio-learning-environment) (research
+benchmark; agents write Python against a game API; takes over the whole surface),
+[AI Companion](https://mods.factorio.com/mod/ai-companion) (closest: legit companions via Claude Code and MCP),
+[AI Player v3](https://mods.factorio.com/mod/ai-player-v3) / [AI Coworker](https://mods.factorio.com/mod/ai-coworker)
+(skills-based; agents teleport). Claude Crew is aimed at several agents playing *with* humans in a shared
+multiplayer game, commanded from chat.
