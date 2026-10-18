@@ -9,6 +9,7 @@ import sys
 import time
 from pathlib import Path
 
+SAVE_NOTE = "run against the crew-test save; it resets research"
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from crew.rcon import Crew, GameError, Rcon  # noqa: E402
@@ -110,6 +111,16 @@ async def main():
     await give(crew, {"copper-plate": 10})
     res = await run(crew, [{"op": "craft", "recipe": "inserter", "count": 1}], timeout=60)
     check("intermediate auto-craft (inserter)", res[0]["ok"], res[0])
+
+    # trigger tech: crafting a lab unlocks automation-science-pack (agents' crafts must count)
+    await crew.call("eval", code="local f=game.forces.player f.technologies['automation-science-pack'].researched=false "
+                                 "storage.trigger_counts=nil return true")
+    await give(crew, {"iron-plate": 40, "copper-plate": 20})
+    res = await run(crew, [{"op": "craft", "recipe": "lab", "count": 1}], timeout=60)
+    w = await crew.call("eval", code="return game.forces.player.technologies['automation-science-pack'].researched")
+    check("agent craft fires trigger tech", res[0]["ok"] and w["result"] is True, (res[0], w))
+    poll = await crew.call("poll")
+    check("research_finished event", any(e["type"] == "research_finished" for e in poll.get("events", [])))
 
     # research
     res = await run(crew, [{"op": "research", "tech": "automation"}])

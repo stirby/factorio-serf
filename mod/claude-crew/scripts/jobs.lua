@@ -5,6 +5,7 @@
 local util = require("scripts.util")
 local movement = require("scripts.movement")
 local agents = require("scripts.agents")
+local triggers = require("scripts.triggers")
 
 local jobs = {}
 local H = {}
@@ -147,6 +148,7 @@ H.mine = {
       if job.target_name then
         if not job.resource then
           job.got = job.got + 1
+          triggers.note(c.force, nil, "mine-entity", job.target_name, 1)
           if job.positional or job.got >= (args.count or 1) then
             return ok("mined " .. job.got .. " " .. job.target_name, { mined = job.got })
           end
@@ -164,6 +166,10 @@ H.mine = {
           return ok("mined " .. job.got .. ", no more " .. (args.name or "") .. " nearby", { mined = job.got })
         end
         return fail("nothing minable" .. (args.name and (" named " .. args.name) or "") .. " found near " .. xystr(c.position))
+      end
+      if e.last_user and e.last_user.valid and not args.force_pickup then
+        return fail(e.name .. " at " .. xystr(e.position) .. " was built by " .. e.last_user.name
+          .. "; only pick it up if a human asked you to (then pass force_pickup=true)")
       end
       job.target_name = e.name
       job.resource = e.type == "resource"
@@ -257,7 +263,7 @@ H.craft = {
       return fail("cannot hand-craft " .. recipe.name .. " (category " .. recipe.category .. ")")
     end
     job.item, job.want = first.name, c.get_item_count(first.name) + started * (first.amount or 1)
-    job.started_n, job.asked = started, count
+    job.started_n, job.asked, job.per = started, count, first.amount or 1
     if args.wait == false then return ok("queued " .. started .. "x " .. recipe.name) end
   end,
   tick = function(a, job)
@@ -266,6 +272,7 @@ H.craft = {
       if c.crafting_queue_size > 0 and c.get_item_count(job.item) >= job.want then
         -- Our part is done; other queued crafts keep going.
       end
+      triggers.note(c.force, c.surface, "craft-item", job.item, job.started_n * (job.per or 1))
       local msg = "crafted " .. job.started_n .. "x " .. job.args.recipe
       if job.started_n < job.asked then msg = msg .. " (only had ingredients for " .. job.started_n .. " of " .. job.asked .. ")" end
       return ok(msg, { have = c.get_item_count(job.item) })
@@ -335,8 +342,16 @@ H.place = {
       for _, e in pairs(found) do
         if e.type ~= "resource" then blockers[#blockers + 1] = e.name .. "@" .. xystr(e.position) end
       end
-      local why = #blockers > 0 and ("blocked by " .. table.concat(blockers, ", ", 1, math.min(#blockers, 4)))
-          or "invalid spot (water, wrong tile, or needs a resource underneath)"
+      local why
+      if #blockers > 0 then
+        why = "blocked by " .. table.concat(blockers, ", ", 1, math.min(#blockers, 4))
+      elseif proto.type == "mining-drill" then
+        why = "a mining drill needs ore under it (check the map for the patch)"
+      elseif proto.type == "offshore-pump" then
+        why = "an offshore pump must be placed at the edge of water, facing it"
+      else
+        why = "invalid spot (water, cliff or wrong tile)"
+      end
       return fail("cannot place " .. job.entity .. " at " .. xystr(job.pos) .. ": " .. why)
     end
     ::place::
@@ -346,8 +361,28 @@ H.place = {
     }
     if not created then return fail("create_entity failed for " .. job.entity) end
     if not util.cheat() then c.remove_item { name = args.name, count = 1 } end
-    return ok("placed " .. created.name .. " at " .. xystr(created.position),
-      { entity = created.name, position = util.xy(created.position), unit_number = created.unit_number })
+    if created.unit_number then storage.built_by[created.unit_number] = a.name end
+    triggers.note(c.force, surface, "build-entity", created.name, 1)
+    local data = { entity = created.name, position = util.xy(created.position), unit_number = created.unit_number }
+    local msg = "placed " .. created.name .. " at " .. xystr(created.position)
+    if created.type == "mining-drill" then
+      data.drops_at = util.xy(created.drop_position)
+      msg = msg .. " (output drops at " .. xystr(created.drop_position) .. ")"
+      -- mining_target isn't set until the drill's first update, so count ore under its footprint instead.
+      local ores = surface.find_entities_filtered { area = created.bounding_box, type = "resource" }
+      if #ores == 0 then
+        msg = msg .. " WARNING: no resource under it"
+      else
+        local total, name = 0, ores[1].name
+        for _, o in pairs(ores) do total = total + o.amount end
+        data.ore, data.ore_amount = name, total
+        msg = msg .. " on " .. #ores .. " tiles of " .. name .. " (" .. total .. " ore)"
+      end
+    elseif created.type == "inserter" then
+      data.from, data.to = util.xy(created.pickup_position), util.xy(created.drop_position)
+      msg = msg .. " (takes from " .. xystr(created.pickup_position) .. ", drops to " .. xystr(created.drop_position) .. ")"
+    end
+    return ok(msg, data)
   end,
 }
 

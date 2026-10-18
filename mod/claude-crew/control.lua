@@ -5,14 +5,24 @@ local agents = require("scripts.agents")
 local movement = require("scripts.movement")
 local jobs = require("scripts.jobs")
 local observe = require("scripts.observe")
+local panel = require("scripts.panel")
+local triggers = require("scripts.triggers")
 
 local CHAT_KEEP = 300
 
 script.on_init(agents.init)
 script.on_configuration_changed(agents.init)
 
+-- Bump when agents.init gains new storage keys; checked from storage so it stays multiplayer-deterministic.
+local SCHEMA = 2
+
 script.on_event(defines.events.on_tick, function()
+  if storage.schema ~= SCHEMA then
+    agents.init()
+    storage.schema = SCHEMA
+  end
   jobs.tick()
+  if game.tick % 30 == 0 then panel.refresh() end
   if game.tick % 60 == 0 then
     agents.respawn_tick()
     movement.gc()
@@ -20,6 +30,16 @@ script.on_event(defines.events.on_tick, function()
 end)
 
 script.on_event(defines.events.on_script_path_request_finished, movement.on_path)
+
+script.on_event(defines.events.on_research_finished, function(e)
+  local t = e.research
+  local unlocks = {}
+  for _, eff in pairs(t.prototype.effects or {}) do
+    if eff.type == "unlock-recipe" then unlocks[#unlocks + 1] = eff.recipe end
+  end
+  agents.event { type = "research_finished", tech = t.name, unlocks = unlocks }
+  triggers.recheck(t.force)
+end)
 
 script.on_event(defines.events.on_entity_died, function(e) agents.on_died(e.entity) end,
   { { filter = "type", type = "character" } })
@@ -69,6 +89,12 @@ end
 
 API.cancel = function(req)
   jobs.cancel(agent_of(req), req.reason)
+  return {}
+end
+
+API.status = function(req)
+  local a = agent_of(req)
+  a.status_text = tostring(req.text or ""):sub(1, 140)
   return {}
 end
 
@@ -125,6 +151,16 @@ API.inspect = function(req)
   return { entities = out }
 end
 
+-- Dev/testing: chat as if a player said it (RCON only). Shows in game chat too.
+API.chat = function(req, from_player)
+  if from_player then error("chat injection is RCON-only") end
+  local name, msg = tostring(req.player or "tester"), tostring(req.message or "")
+  game.print("[color=0.7,0.7,0.7]" .. name .. " (via console):[/color] " .. msg)
+  local chat = storage.chat
+  chat[#chat + 1] = { tick = game.tick, player = name, message = msg, position = req.position }
+  return {}
+end
+
 -- Everything new since the last poll: player chat, job results per agent, agent events.
 API.poll = function()
   local results = {}
@@ -171,6 +207,10 @@ commands.add_command("crew", "Claude Crew API (RCON/admin). Takes JSON.", functi
   else
     rcon.print(reply)
   end
+end)
+
+commands.add_command("crew-panel", "Show or hide the Claude Crew panel.", function(cmd)
+  if cmd.player_index then panel.toggle(game.get_player(cmd.player_index)) end
 end)
 
 remote.add_interface("claude-crew", {

@@ -35,7 +35,17 @@ local function entity_info(e)
     local src = util.contents(e.get_inventory(defines.inventory.crafter_input))
     if next(src) then d.input = src end
   end
-  if e.type == "mining-drill" and e.mining_target then d.mining = e.mining_target.name end
+  if e.type == "mining-drill" then
+    if e.mining_target then d.mining = e.mining_target.name end
+    d.drops_at = util.xy(e.drop_position)
+  end
+  if e.type == "inserter" then
+    d.from, d.to = util.xy(e.pickup_position), util.xy(e.drop_position)
+  end
+  if e.unit_number then
+    local by = storage.built_by and storage.built_by[e.unit_number]
+    if by then d.by = by elseif e.last_user then d.by = e.last_user.name end
+  end
   if e.type == "character" then
     local who = storage.by_unit[e.unit_number]
     d.n = who and ("agent:" .. who) or (e.player and ("player:" .. e.player.name) or "character")

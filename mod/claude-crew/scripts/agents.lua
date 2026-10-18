@@ -20,6 +20,7 @@ function agents.init()
   storage.events = storage.events or {}
   storage.path_results = storage.path_results or {}
   storage.next_job_id = storage.next_job_id or 1
+  storage.built_by = storage.built_by or {}
 end
 
 function agents.get(name)
@@ -95,7 +96,16 @@ function agents.spawn(args)
     local p = util.find_player(args.near_player)
     if p and p.connected then surface, near = p.surface, p.position end
   end
+  local fresh = not a.kit_given
   create_char(a, surface, near or default_spawn(surface))
+  if fresh and args.starter_kit ~= false then
+    -- Same kit freeplay gives a new player.
+    for name, n in pairs { ["iron-plate"] = 8, ["wood"] = 1, ["burner-mining-drill"] = 1, ["stone-furnace"] = 1,
+      ["pistol"] = 1, ["firearm-magazine"] = 10 } do
+      a.char.insert { name = name, count = n }
+    end
+  end
+  a.kit_given = true
   a.dead_until = nil
   agents.event { type = "spawned", agent = name, position = util.xy(a.char.position) }
   return a

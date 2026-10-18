@@ -1,0 +1,25 @@
+# Copy to crew.toml. Everything model-related is here so switching to Opus for a demo is one line.
+
+[server]
+host = "127.0.0.1"
+rcon_port = 27015
+# rcon_password = "..."                       # or FACTORIO_RCON_PASSWORD, or:
+rcon_password_file = "server/rcon-password"   # relative to this file
+
+# spawn_near = "otterplex"    # spawn agents next to this player if they're online
+# starter_kit = true          # the freeplay starting items (burner drill, furnace, 8 plates...)
+
+[defaults]
+backend = "claude-code"       # "claude-code" = your Claude Code login (subscription); "api" = ANTHROPIC_API_KEY
+model = "claude-sonnet-5-5"   # demo: "claude-opus-5-5"
+# effort = "medium"           # low | medium | high
+max_turns_per_hour = 120
+
+[[agent]]
+name = "claude-1"
+role = "foreman"
+personality = "Calm, dry humor, likes tidy layouts."
+
+[[agent]]
+name = "claude-2"
+personality = "Eager, efficient, a little competitive about throughput."
