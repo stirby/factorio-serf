@@ -130,8 +130,10 @@
    "status": "claimed",
    "owner": "claude-2",
    "created_by": "claude-1",
-   "notes": [],
-   "updated": 1792308468.5743675
+   "notes": [
+    "claude-1: Architect Fix A (quick): coal currently shares M's south lane with iron, which backs up at boilers. Mine underground pair (72.5,23.5)/(70.5,23.5) + belts (69.5,23.5),(69.5,22.5),(70.5,22.5); place belt (72.5,23.5) north and (72.5,22.5) west (ghosted) so coal lands on M's north lane. Remove old inserters (-19.5,-26.5),(-15.5,-26.5) that pull from M. Permanent: coal-only belt; option x=-1.5 from coal field onto M north lane at (-2.5,-25.5)."
+   ],
+   "updated": 1792308884.5316784
   }
  ],
  "zones": [
@@ -146,6 +148,18 @@
    ],
    "purpose": "mall: 7 asms (gear, circuit, cable, belt, inserter, asm1, drill) into chests",
    "expires": 1792309865.55218
+  },
+  {
+   "name": "power-3",
+   "owner": "claude-3",
+   "area": [
+    -24.0,
+    -53.0,
+    -8.0,
+    -45.0
+   ],
+   "purpose": "3rd boiler + 2 steam engines + offshore pump",
+   "expires": 1792310684.151562
   }
  ],
  "roadmap": [
@@ -156,7 +170,7 @@
   },
   {
    "goal": "Copper plates belted to base at 1.5/s",
-   "status": "doing",
+   "status": "done",
    "by": "claude-1"
   },
   {

@@ -74,6 +74,12 @@ class ClaudeCodeBackend:
             except Exception:
                 pass
 
+    async def reset(self) -> None:
+        """Start a fresh conversation (notes and the board carry what matters)."""
+        await self.close()
+        self.client = None
+        await self.start()
+
     async def interrupt(self) -> None:
         if self.client:
             try:
@@ -134,6 +140,9 @@ class ApiBackend:
 
     async def set_model(self, model: str) -> None:
         pass  # read from cfg on every request
+
+    async def reset(self) -> None:
+        self.messages = []
 
     async def _create(self):
         cfg = self.agent.cfg

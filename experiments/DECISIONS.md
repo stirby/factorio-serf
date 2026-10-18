@@ -35,3 +35,5 @@ calls myself, log them here, and keep the review page updated hour by hour.
 | 02:25 | Blueprint library wired in: designs and stamp tools (clear-area check that counts existing ghosts), and the architect prefers proven designs | 48/48 design x rotation validations passed; stamping replaces per-entity coordinate reasoning |
 | 02:28 | place supports underground-belt type=input/output and reports pairing | In round 2b claude-1 couldn't pair undergrounds and re-placed them in both orders |
 | 02:28 | New rule: measure with production before reporting a rate or marking a milestone done | claude-1 reported '15/min green' while the scorer measured 5/min from starved assemblers |
+| 02:28 | error_max_turns (a long turn hitting the 60-step cap) now continues immediately, with no backoff | In the research rush, agents at their most productive were put to sleep for 60-120s, 5 times in 30 min |
+| 02:28 | Round 4: s3-research-rush:go-now (A/B against round 3) and s3-mall:go-now, with all fixes and the blueprint library | Measures the combined effect of the night's changes on progress speed |

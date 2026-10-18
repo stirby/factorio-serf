@@ -64,8 +64,10 @@
    "status": "claimed",
    "owner": "claude-3",
    "created_by": "claude-1",
-   "notes": [],
-   "updated": 1792307175.6249006
+   "notes": [
+    "claude-3: Plastic running (chem 10.5,-56.5) -> belt -> chest (-6.5,-28.5). Sulfur plant (6.5,-56.5) awaiting research. Coal chest 13.5,-56.5 hand-filled (~600)."
+   ],
+   "updated": 1792308905.9877014
   },
   {
    "id": 7,
@@ -143,11 +145,13 @@
    "id": 13,
    "title": "Iron core expansion +5 plates/s: 10 elec drills + 16-furnace column x58-64 + plate trunk x=63.5 to y=-25.5 (ghosts laid)",
    "detail": "All 248 ghosts are laid; run build_ghosts. FIRST mine 10 idle burner entities in the rich core (keep their plates/coal): furnaces (86,62), (89,62), (96,62), (86,65), (89,65), (96,65) and burner drills (91,62), (94,62), (91,65), (94,65). DRILLS: north row (83.5/86.5/89.5/92.5/95.5, 62.5) facing S, south row (83.5/87.5/91.5/95.5/99.5, 66.5) facing N. Both drop onto belt O at y=64.5. The north row is powered by the existing y=60.5 poles; the south row by new poles (85.5/89.5/93.5/97.5, 66.5). ORE BELT O: y=64.5 runs WEST from x=99.5 to 59.5, with an underground pair (68.5 in, 66.5 out) passing under the x=67.5 coal belt; it feeds onto the east lane of F at (58.5,64.5). COAL: MANUAL SWAP: mine the coal belt tile (67.5,69.5) and place a north-facing splitter at (67.0,69.5). Its west output follows the ghost belts west along y=68.5 to x=58.5, then (57.5,68.5) N, (57.5,67.5) N, (57.5,66.5) E, feeding coal onto F's west lane. FURNACE COLUMN: F at x=58.5 runs NORTH from y=67.5 to 31.5. 16 stone furnaces at (61, 62/60/.../32). Burner inserters at (59.5, 61.5..31.5) facing W take from F. Electric inserters at (62.5, 61.5..31.5) facing W drop plates onto P. Poles (62.5, 62.5/58.5/.../30.5), linked to the grid via (68.5,58.5) and (73.5,57.5). PLATE TRUNK P: x=63.5 runs NORTH from y=61.5 to -24.5, with an underground pair (-1.5 in, -3.5 out) under the y=-2.5 belt, and feeds onto the y=-25.5 iron main line from the south. BRING: 10 electric-mining-drill, 16 stone-furnace (80 stone; brick won't work), 16 burner-inserter (put 2 coal in each), 16 inserter, 171 transport-belt, 4 underground-belt, 15 small poles, 1 splitter. Power +1 MW.",
-   "status": "claimed",
+   "status": "done",
    "owner": "claude-1",
    "created_by": "claude-1",
-   "notes": [],
-   "updated": 1792308289.3708456
+   "notes": [
+    "claude-1: Running: 10 drills, 16 furnaces smelting, plates go up x=63.5 into y=-25.5. Tip: with this tool, place the OUTPUT underground facing opposite the flow direction."
+   ],
+   "updated": 1792308941.0454838
   }
  ],
  "zones": [
@@ -182,7 +186,7 @@
   },
   {
    "goal": "Iron 4/s + copper 3/s smelted onto the bus",
-   "status": "todo",
+   "status": "done",
    "by": "claude-1"
   },
   {

@@ -18,6 +18,8 @@ if TYPE_CHECKING:
 
 log = logging.getLogger("crew.agent")
 
+CONTEXT_RESET_TOKENS = 80_000  # average context per step that triggers a fresh session
+
 
 class Agent:
     def __init__(self, cfg: AgentConfig, orch: "Orchestrator"):
@@ -49,6 +51,7 @@ class Agent:
         self.idle_since = time.time()
         self.last_free_wake = 0.0
         self.retired = False
+        self.fresh = False
         from .tools import CONSULT, TOOLS
         tools = list(TOOLS)
         if not orch.cfg.flag("work_tool"):
@@ -238,6 +241,11 @@ class Agent:
             except Exception:
                 work = ""
             prompt = briefing(self, events, work)
+            if self.fresh:
+                self.fresh = False
+                prompt = ("(Fresh session: your earlier conversation was cleared to keep things fast. Your notes, "
+                          "the roadmap and the board below are your memory; check `look`/`board` if unsure.)\n"
+                          + prompt)
             self._record("prompt", text=prompt)
             ui.turn_start(self.name, events)
             self.in_turn, self.mode_set_this_turn = True, False
@@ -266,6 +274,16 @@ class Agent:
                 await asyncio.sleep(delay)
             elif stats:
                 self.error_streak = 0
+            if stats and stats.steps and stats.input_tokens / max(stats.steps, 1) > CONTEXT_RESET_TOKENS:
+                # Every step re-reads the whole context; past this size it's mostly cost, not memory.
+                self._record("reset", avg_context=round(stats.input_tokens / stats.steps))
+                ui.info(f"{self.name}: context ~{stats.input_tokens // stats.steps // 1000}k tokens/step; "
+                        "starting a fresh session (notes and board carry over)")
+                try:
+                    await self.backend.reset()
+                    self.fresh = True
+                except Exception as e:
+                    log.warning("%s: session reset failed: %r", self.name, e)
             if stats:
                 self.total_cost += stats.cost_usd
                 self._record("turn", secs=round(time.time() - t0, 1), steps=stats.steps, cost=stats.cost_usd,
