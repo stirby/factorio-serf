@@ -10,7 +10,8 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MODS="${FACTORIO_USER_DIR:-$HOME/.factorio}/mods"
 VER="$(python3 -c "import json;print(json.load(open('$ROOT/mod/claude-crew/info.json'))['version'])")"
 [ -d "$MODS" ] || { echo "no mods folder at $MODS (set FACTORIO_USER_DIR)"; exit 1; }
-if pgrep -x factorio >/dev/null; then
+# Only the game client matters here, not a headless server (ours or anyone's).
+if pgrep -ax factorio | grep -v -- "--start-server" | grep -q .; then
   echo "Factorio is running. Quit it first (it rewrites mod-list.json on exit)."; exit 1
 fi
 rm -rf "$MODS/claude-crew" "$MODS"/claude-crew_*.zip
