@@ -91,5 +91,14 @@
    "foreman_first": false,
    "pipeline_default": false
   }
+ },
+ "effort-medium": {
+  "advisor": false,
+  "experiment": {
+   "foreman_first": false
+  },
+  "defaults": {
+   "effort": "medium"
+  }
  }
 }

@@ -22,6 +22,25 @@ def load(run: str) -> tuple[Path, dict]:
     return d, res
 
 
+def time_split(rows: list[dict], span: float) -> str:
+    """Where an agent's wall time went: inside wait, inside act (character working), other tools, model thinking
+    between tool calls, and outside turns."""
+    buckets = collections.Counter()
+    pend, last_res = None, None
+    for r in rows:
+        if r["kind"] == "tool":
+            if last_res is not None:
+                buckets["model"] += r["t"] - last_res
+            pend = (r["name"] if r["name"] in ("wait", "act", "consult") else "other tools", r["t"])
+        elif r["kind"] == "result" and pend:
+            buckets[pend[0]] += r["t"] - pend[1]
+            last_res, pend = r["t"], None
+        elif r["kind"] in ("turn", "prompt"):
+            last_res = None
+    buckets["between turns"] = max(span - sum(buckets.values()), 0)
+    return ", ".join(f"{k} {v / 60:.1f}m ({100 * v / max(span, 1):.0f}%)" for k, v in buckets.most_common() if v >= 1)
+
+
 def digest(run: str, chat_n: int = 14) -> str:
     d, res = load(run)
     out = [f"# {d.name}"]
@@ -57,6 +76,7 @@ def digest(run: str, chat_n: int = 14) -> str:
         turns = [r for r in rows if r["kind"] == "turn"]
         span = rows[-1]["t"] - rows[0]["t"]
         out.append(f"\n## {name}: {span / 60:.1f} min, {len(turns)} turns, {sum(tools.values())} tool calls")
+        out.append("time: " + time_split(rows, span))
         out.append("tools: " + ", ".join(f"{k}{'*' if k in NEW_TOOLS else ''}={v}" for k, v in tools.most_common()))
         out.append("act ops: " + ", ".join(f"{k}{'*' if k in NEW_OPS else ''}={v}" for k, v in ops.most_common()))
         if consults:

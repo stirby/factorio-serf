@@ -211,6 +211,18 @@ async def main():
     res = await run(crew, [{"op": "blueprint", "string": bp["result"], "x": gx, "y": gy + 6}])
     check("blueprint string ghosts", res[0]["ok"] and res[0]["data"]["ghosts"] == 2, res[0])
 
+    # undergrounds in a layout pair up (exit listed first), then an abandoned plan is cleared in one action
+    ux, uy = gx + 0.5, gy + 12.5
+    ug = [{"name": "underground-belt", "x": ux, "y": uy - 4, "direction": "north"},
+          {"name": "underground-belt", "x": ux, "y": uy, "direction": "north"}]
+    res = await run(crew, [{"op": "blueprint", "entities": ug}])
+    kinds = await crew.call("eval", code=f"local o={{}} for _,g in pairs(game.surfaces.nauvis.find_entities_filtered"
+                                         f"{{type='entity-ghost',position={{{ux},{uy - 2}}},radius=3}}) do "
+                                         "o[#o+1]=g.belt_to_ground_type end table.sort(o) return table.concat(o,',')")
+    check("layout undergrounds paired", kinds["result"] == "input,output", kinds)
+    res = await run(crew, [{"op": "clear_ghosts", "x": ux, "y": uy - 2, "radius": 4}])
+    check("clear_ghosts removes a plan", res[0]["ok"] and res[0]["data"]["removed"] == 2, res[0])
+
     # logistics marks
     m = await crew.call("mark", agent=A, kind="requester", x=gx + 6.5, y=gy + 0.5, text="test depot",
                         requests={"iron-plate": 50})
