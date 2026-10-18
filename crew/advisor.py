@@ -140,6 +140,9 @@ class Advisor:
             finally:
                 view.log_thought = orig
             self.total_cost += stats.cost_usd
+            if stats.steps and stats.input_tokens / stats.steps > 80_000:
+                await backend.reset()  # the board and roadmap carry the shared context; old consults are cost
+                self.record("reset", asker=asker.name)
             self.record("turn", asker=asker.name, secs=round(time.time() - t0, 1), steps=stats.steps,
                         cost=stats.cost_usd, error=stats.error)
             ui.turn_end(self.name, time.time() - t0, stats, self.total_cost)

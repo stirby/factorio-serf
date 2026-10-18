@@ -78,5 +78,11 @@
   "experiment": {
    "pipeline_prompt": false
   }
+ },
+ "go-now-noadvisor": {
+  "advisor": false,
+  "experiment": {
+   "foreman_first": false
+  }
  }
 }

@@ -45,3 +45,5 @@ calls myself, log them here, and keep the review page updated hour by hour.
 | 03:30 | Round 4 result recorded as worse: +6 techs at 56 min vs 39 min (cost $35 vs $18.50), though it ended stronger (14 labs, ~58 science/min) | Honest A/B; the losses trace to the blackout and teammate conflicts, not the blueprint library |
 | 03:30 | The s3-mall score is untrustworthy (reassigning idle assemblers scores 1.0 in 61s) and needs output-based checks | Scorer gaming found |
 | 03:30 | Round 6: s3-research-rush:go-now with alerts, teammate guards and the context reset (third A/B point after rounds 3 and 4) | Tests whether the infrastructure and conflict fixes recover the lost time |
+| 03:31 | Rate checks use a rolling window of at least one game minute | The final sample is seconds after the previous one and read 0, so round 5's blue science scored 0.5 despite 14/min |
+| 03:31 | Round 5 recorded: blue science 10/min by minute 25 and 14/min at the end (target 6); +6 techs in 51 min; ~$34 | Later-game progress works from S5 |
