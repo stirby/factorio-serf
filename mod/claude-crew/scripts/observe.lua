@@ -70,12 +70,72 @@ function observe.self(a)
   }
 end
 
+-- Belt lines as groups (connected via belt_neighbours): length, ends, items, and whether they're backed up.
+local BELT_TYPES = { ["transport-belt"] = true, ["underground-belt"] = true, ["splitter"] = true }
+
+local function belt_groups(belts)
+  local idx, parent = {}, {}
+  for i, b in ipairs(belts) do idx[b.unit_number] = i parent[i] = i end
+  local function find(i)
+    while parent[i] ~= i do parent[i] = parent[parent[i]] i = parent[i] end
+    return i
+  end
+  for i, b in ipairs(belts) do
+    local okN, nb = pcall(function() return b.belt_neighbours end)
+    if okN and nb then
+      for _, list in pairs { nb.inputs or {}, nb.outputs or {} } do
+        for _, o in pairs(list) do
+          local j = idx[o.unit_number]
+          if j then parent[find(i)] = find(j) end
+        end
+      end
+    end
+  end
+  local groups = {}
+  for i, b in ipairs(belts) do
+    local r = find(i)
+    local g = groups[r]
+    if not g then g = { n = 0, items = {}, starts = {}, ends = {}, full = 0 } groups[r] = g end
+    g.n = g.n + 1
+    local okN, nb = pcall(function() return b.belt_neighbours end)
+    local ins = okN and nb and nb.inputs or {}
+    local outs = okN and nb and nb.outputs or {}
+    local in_group_in, in_group_out = false, false
+    for _, o in pairs(ins) do if idx[o.unit_number] then in_group_in = true end end
+    for _, o in pairs(outs) do if idx[o.unit_number] then in_group_out = true end end
+    if not in_group_in and #g.starts < 3 then g.starts[#g.starts + 1] = util.xy(b.position) end
+    if not in_group_out and #g.ends < 3 then g.ends[#g.ends + 1] = util.xy(b.position) end
+    local load = 0
+    for li = 1, 2 do
+      local okL, line = pcall(b.get_transport_line, li)
+      if okL and line then
+        for _, it in pairs(line.get_contents()) do
+          g.items[it.name] = (g.items[it.name] or 0) + it.count
+          load = load + it.count
+        end
+      end
+    end
+    if load >= 7 then g.full = g.full + 1 end -- a yellow belt tile holds 8 items when compressed
+  end
+  local out = {}
+  for _, g in pairs(groups) do
+    local state = "empty"
+    local total = 0
+    for _, n in pairs(g.items) do total = total + n end
+    if total > 0 then state = g.full >= g.n * 0.8 and "backed up" or "flowing" end
+    out[#out + 1] = { tiles = g.n, from = g.starts, to = g.ends, items = next(g.items) and g.items or nil, state = state }
+  end
+  table.sort(out, function(x, y) return x.tiles > y.tiles end)
+  return out
+end
+
 function observe.nearby(a, radius)
   local c = a.char
   radius = math.min(radius or 16, 64)
   local pos = c.position
   local list = c.surface.find_entities_filtered { position = pos, radius = radius }
   local ents, counts, res, trees, rocks, enemies = {}, {}, {}, { n = 0 }, { n = 0 }, { n = 0 }
+  local belts = {}
   local function nearest(bucket, e)
     bucket.n = bucket.n + 1
     local d = util.dist(e.position, pos)
@@ -97,6 +157,7 @@ function observe.nearby(a, radius)
         nearest(enemies, e)
       elseif not SKIP[t] and e.force.name ~= "neutral" then
         counts[e.name] = (counts[e.name] or 0) + 1
+        if BELT_TYPES[t] then belts[#belts + 1] = e end
         if not NOISY[t] then
           ents[#ents + 1] = { e = e, d = util.dist(e.position, pos) }
         end
@@ -113,6 +174,7 @@ function observe.nearby(a, radius)
     radius = radius,
     entities = out,
     entity_counts = next(counts) and counts or nil,
+    belt_lines = #belts > 0 and belt_groups(belts) or nil,
     more_entities = #ents > 40 and (#ents - 40) or nil,
     resources = next(resources) and resources or nil,
     trees = brief(trees),

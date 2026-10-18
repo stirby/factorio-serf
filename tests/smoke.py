@@ -171,6 +171,9 @@ async def main():
     belts = await crew.call("eval", code=f"return #game.surfaces.nauvis.find_entities_filtered{{name='transport-belt',"
                                          f"area={{{{{bx - 5},{by - 4}}},{{{bx + 8},{by + 5}}}}}}}")
     check("connect placed belts", belts["result"] >= 10, (belts, bad))
+    nb = await crew.call("nearby", agent=A, radius=24)
+    lines = nb.get("belt_lines") or []
+    check("belt lines grouped", any(l["tiles"] >= 10 for l in lines), lines[:3])
     res = await run(crew, [{"op": "connect", "item": "small-electric-pole", "from": [bx - 3.5, by - 3.5],
                             "to": [bx + 12.5, by - 3.5]}], timeout=60)
     check("connect poles spaced", res[0]["ok"] and 2 <= res[0]["data"]["count"] <= 4, res[0])
