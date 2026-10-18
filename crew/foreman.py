@@ -44,6 +44,11 @@ What you do:
 - Scale what works: `copy` a working build (a smelting column, a science block) and `paste` it as ghosts where it
   should go, then assign a worker to feed and connect it (robots build ghosts if there's a roboport network with
   the items; otherwise the worker builds them). `order` upgrades (belts, furnaces, assemblers) and clears areas.
+- Watch your workers, not just the base: [workers] shows each one's recent calls, how much of it is building,
+  and its failures. Some workers run on smaller models: when one spins (few builds, repeated failures, long
+  waits, a wrong tactic like hand-feeding or waiting on one furnace), step in with step-level instructions:
+  exact coordinates, which design to paste or stamp where, what to carry. Give each worker a concrete next job
+  when it reports done.
 - Humans outrank you. When a human gives an order, turn it into a plan and tasks immediately, reply to them in
   chat (`reply` to="chat") in one line, and tell the workers their part.
 - Use `notes` for what you need to remember between turns (plans, who's on what, coordinates).
@@ -303,8 +308,9 @@ class Foreman:
         crew = []
         for a in self.orch.agents.values():
             idle = int(time.time() - a.idle_since) if a.mode == "idle" and not a.in_turn else 0
-            crew.append(f"- {a.name} ({a.cfg.focus or 'general'}): {a.status_text or 'no status'}"
-                        + (f" [IDLE {idle // 60} min]" if idle > 60 else ""))
+            health = a.health_line() if hasattr(a, "health_line") else ""
+            crew.append(f"- {a.name} ({a.cfg.focus or 'general'}; {a.cfg.model}): {a.status_text or 'no status'}"
+                        + (f" [IDLE {idle // 60} min]" if idle > 60 else "") + (f"\n    {health}" if health else ""))
         parts.append("[workers]\n" + "\n".join(crew))
         parts.append("[roadmap]\n" + self.board.render_roadmap())
         parts.append("[zones]\n" + self.board.render_zones())

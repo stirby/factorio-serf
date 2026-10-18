@@ -53,6 +53,8 @@ class Agent:
         self.retired = False
         self.fresh = False
         self.last_vitals = 0.0
+        self.recent_calls: deque = deque(maxlen=200)
+        self.recent_fails: deque = deque(maxlen=8)
         from .tools import CONSULT, TOOLS
         from .late_tools import LATE_TOOLS
         tools = list(TOOLS) + LATE_TOOLS
@@ -209,10 +211,29 @@ class Agent:
     def log_tool(self, name: str, args: dict) -> None:
         ui.tool(self.name, name, args)
         self._record("tool", name=name, args=args)
+        self.recent_calls.append((time.time(), name))
 
     def log_tool_result(self, name: str, out: str) -> None:
         ui.tool_result(self.name, name, out)
         self._record("result", name=name, out=out)
+        for line in out.splitlines():
+            if "FAILED" in line and "skipped" not in line:
+                self.recent_fails.append((time.time(), line.strip()[:160]))
+
+    def health_line(self) -> str:
+        """For the foreman: is this worker productive? Share of recent calls that act, recent failures."""
+        now = time.time()
+        calls = [n for t, n in self.recent_calls if now - t < 600]
+        acts = sum(n in ("act", "stamp", "paste", "order") for n in calls)
+        waits = sum(n == "wait" for n in calls)
+        fails = [f for t, f in self.recent_fails if now - t < 600]
+        last_act = max((t for t, n in self.recent_calls if n == "act"), default=0)
+        s = f"last 10 min: {len(calls)} calls, {acts} build/act, {waits} waits"
+        if last_act:
+            s += f", last act {int(now - last_act)}s ago"
+        if fails:
+            s += f", {len(fails)} failures (latest: {fails[-1]})"
+        return s
 
     def log_thought(self, text: str) -> None:
         ui.thought(self.name, text)
