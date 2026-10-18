@@ -186,6 +186,51 @@ async def main():
     await crew.call("despawn", agent="smoke-buddy")
     await crew.call("poll")
 
+    # ghosts from an explicit layout, then build them
+    me = await crew.call("self", agent=A)
+    gx, gy = round(me["position"][0]) - 12, round(me["position"][1]) + 10
+    await give(crew, {"stone-furnace": 3, "iron-chest": 2})
+    layout = [{"name": "stone-furnace", "x": gx, "y": gy}, {"name": "stone-furnace", "x": gx + 3, "y": gy},
+              {"name": "iron-chest", "x": gx + 6.5, "y": gy + 0.5}, {"name": "iron-chest", "x": gx + 8.5, "y": gy + 0.5},
+              {"name": "stone-furnace", "x": gx + 11, "y": gy}, {"name": "stone-furnace", "x": gx + 14, "y": gy}]
+    res = await run(crew, [{"op": "blueprint", "entities": layout}])
+    check("layout ghosts placed", res[0]["ok"] and res[0]["data"]["ghosts"] == 6, res[0])
+    g = await crew.call("ghosts", x=gx, y=gy, radius=30)
+    check("ghosts op counts", g["count"] == 6 and g["needs"].get("stone-furnace") == 4, g)
+    res = await run(crew, [{"op": "build_ghosts", "x": gx, "y": gy, "radius": 30}], timeout=120)
+    check("build_ghosts builds what it has items for", res[0]["ok"] and res[0]["data"]["built"] >= 5, res[0])
+
+    # blueprint string round trip: export a small blueprint in game, import it elsewhere as ghosts
+    bp = await crew.call("eval", code="local inv=game.create_inventory(1) local st=inv[1] st.set_stack{name='blueprint'} "
+                                      "st.set_blueprint_entities{{entity_number=1,name='wooden-chest',position={0.5,0.5}},"
+                                      "{entity_number=2,name='wooden-chest',position={2.5,0.5}}} local s=st.export_stack() "
+                                      "inv.destroy() return s")
+    res = await run(crew, [{"op": "blueprint", "string": bp["result"], "x": gx, "y": gy + 6}])
+    check("blueprint string ghosts", res[0]["ok"] and res[0]["data"]["ghosts"] == 2, res[0])
+
+    # logistics marks
+    m = await crew.call("mark", agent=A, kind="requester", x=gx + 6.5, y=gy + 0.5, text="test depot",
+                        requests={"iron-plate": 50})
+    ml = (await crew.call("marks"))["marks"]
+    mine = next(x for x in ml if x["id"] == m["id"])
+    check("requester mark reports missing", mine.get("missing", {}).get("iron-plate") == 50, mine)
+    await crew.call("unmark", id=m["id"])
+
+    # background crafts count toward production stats once they finish
+    before = await crew.call("eval", code="return game.forces.player.get_item_production_statistics(game.surfaces.nauvis)"
+                                          ".get_input_count('iron-gear-wheel')")
+    await give(crew, {"iron-plate": 20})
+    await run(crew, [{"op": "craft", "recipe": "iron-gear-wheel", "count": 5, "wait": False}])
+    await asyncio.sleep(5)
+    after = await crew.call("eval", code="return game.forces.player.get_item_production_statistics(game.surfaces.nauvis)"
+                                         ".get_input_count('iron-gear-wheel')")
+    check("background crafts counted", after["result"] - before["result"] >= 5, (before, after))
+
+    # idle/busy stats exposed
+    lst = {x["name"]: x for x in (await crew.call("list"))["agents"]}
+    st = lst[A].get("stats") or {}
+    check("agent stats", st.get("busy_ticks", 0) > 0 and "idle_ticks" in st, st)
+
     # map / nearby / find / recipes / techs / production
     m = await crew.call("map", agent=A, radius=8)
     check("map 17 rows", len(m["rows"]) == 17 and any("@" in row for row in m["rows"]))
@@ -211,6 +256,10 @@ async def main():
     check("respawned", me["alive"], me)
     poll = await crew.call("poll")
     check("death/respawn events", {"died", "respawned"} <= {e["type"] for e in poll.get("events", [])}, poll.get("events"))
+
+    # loot the corpse we left behind
+    res = await run(crew, [{"op": "loot"}], timeout=120)
+    check("loot corpse", res[0]["ok"] and "looted" in res[0]["msg"], res[0])
 
     # cheat mode
     await crew.call("eval", code="settings.global['claude-crew-cheat'] = {value=true} return true")

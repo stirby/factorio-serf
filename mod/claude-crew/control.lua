@@ -7,6 +7,7 @@ local jobs = require("scripts.jobs")
 local observe = require("scripts.observe")
 local panel = require("scripts.panel")
 local triggers = require("scripts.triggers")
+local marks = require("scripts.marks")
 
 local CHAT_KEEP = 300
 
@@ -76,7 +77,7 @@ API.list = function()
   local out = {}
   for name, a in pairs(storage.agents) do
     out[#out + 1] = { name = name, alive = agents.alive(a) and true or false, position = agents.alive(a) and util.xy(a.char.position) or nil,
-      job = jobs.describe(a.job), queued = #a.queue }
+      job = jobs.describe(a.job), queued = #a.queue, stats = a.stats }
   end
   return { agents = out }
 end
@@ -108,6 +109,30 @@ API.observe = function(req)
   local out = { self = observe.self(a), world = observe.world(a) }
   if req.nearby ~= false then out.nearby = observe.nearby(a, req.radius) end
   return out
+end
+
+API.mark = function(req)
+  local a = live(req)
+  local m = marks.add(a.char.surface, a.name, req)
+  return { id = m.id }
+end
+API.unmark = function(req) marks.remove(req.id) return {} end
+API.marks = function() return { marks = marks.list() } end
+
+-- Ghosts waiting to be built: count and the items they need, near a point (or the whole map).
+API.ghosts = function(req)
+  local surface = game.surfaces.nauvis
+  local f = { type = "entity-ghost", force = "player" }
+  if req.x then f.position, f.radius = { req.x, req.y }, req.radius or 64 end
+  local need, n, nearest = {}, 0, nil
+  for _, g in pairs(surface.find_entities_filtered(f)) do
+    n = n + 1
+    for _, it in pairs(g.ghost_prototype.items_to_place_this or {}) do
+      need[it.name] = (need[it.name] or 0) + (it.count or 1)
+    end
+    nearest = nearest or util.xy(g.position)
+  end
+  return { count = n, needs = need, example = nearest }
 end
 
 API.self = function(req) return observe.self(live(req)) end

@@ -38,7 +38,7 @@ class Orchestrator:
             await self._add_agent(ac)
         names = ", ".join(self.agents)
         if self.advisor:
-            ui.info(f"{self.foreman or 'nobody'} can consult {self.advisor.name} ({self.advisor.cfg.model}, "
+            ui.info(f"{self.cfg.advisor_for} can consult {self.advisor.name} ({self.advisor.cfg.model}, "
                     f"effort {self.advisor.cfg.effort})")
         ui.info(f"crew ready: {names}. Talk to them in game chat: @{next(iter(self.agents))} ..., @all ...")
         hello = self.agents[self.foreman or next(iter(self.agents))]

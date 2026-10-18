@@ -10,6 +10,7 @@ local route = require("scripts.route")
 
 local jobs = {}
 local H = {}
+local account_crafts -- defined with the engine below
 
 local function ok(msg, data) return { ok = true, msg = msg, data = data } end
 local function fail(msg, data) return { ok = false, msg = msg, data = data } end
@@ -278,7 +279,7 @@ H.craft = {
       if c.crafting_queue_size > 0 and c.get_item_count(job.item) >= job.want then
         -- Our part is done; other queued crafts keep going.
       end
-      triggers.note(c.force, c.surface, "craft-item", job.item, job.started_n * (job.per or 1))
+      account_crafts(a) -- credit stats/triggers now, not on the next 30-tick sweep
       local msg = "crafted " .. job.started_n .. "x " .. job.args.recipe
       if job.started_n < job.asked then msg = msg .. " (only had ingredients for " .. job.started_n .. " of " .. job.asked .. ")" end
       return ok(msg, { have = c.get_item_count(job.item) })
@@ -580,6 +581,22 @@ H.connect = {
     local to = util.pos(args.to or { args.to_x, args.to_y })
     if not (from and from.x and to and to.x) then return fail("connect needs from=[x,y] and to=[x,y]") end
     if util.dist(from, to) > 250 then return fail("too far to route in one go (max ~250 tiles); split it") end
+    -- Endpoints often land on a machine edge; slide them to the nearest free tile.
+    local function free_tile(p)
+      for r = 0, 2 do
+        for dx = -r, r do
+          for dy = -r, r do
+            if math.max(math.abs(dx), math.abs(dy)) == r then
+              local q = { x = math.floor(p.x) + dx + 0.5, y = math.floor(p.y) + dy + 0.5 }
+              if c.surface.can_place_entity { name = ent.name, position = q, force = c.force,
+                    build_check_type = defines.build_check_type.manual } then return q end
+            end
+          end
+        end
+      end
+      return p
+    end
+    from, to = free_tile(from), free_tile(to)
     local path, err = route.find(c.surface, from, to, { entity = ent.name, force = c.force })
     if not path then return fail("can't route " .. item .. ": " .. err) end
 
@@ -653,6 +670,184 @@ H.follow = {
   end,
 }
 
+------------------------------------------------------------------------- ghosts / blueprints / loot
+local function ghost_item(g)
+  for _, it in pairs(g.ghost_prototype.items_to_place_this or {}) do return it.name, it.count or 1 end
+end
+
+-- Ghosts on the agent's force in an area, nearest first.
+local function find_ghosts(a, args)
+  local c = a.char
+  local center = util.pos(args.position or (args.x and { args.x, args.y })) or c.position
+  local list = c.surface.find_entities_filtered { type = "entity-ghost", force = c.force, position = center,
+    radius = math.min(args.radius or 32, 128) }
+  table.sort(list, function(x, y) return util.dist(x.position, c.position) < util.dist(y.position, c.position) end)
+  return list, center
+end
+
+-- Build ghosts (a human's plan, a blueprint, or an architect layout) with items from inventory.
+H.build_ghosts = {
+  start = function(a, job) job.built, job.skip = 0, {} end,
+  tick = function(a, job)
+    local c, args = a.char, job.args
+    local g = job.target
+    if not (g and g.valid) then
+      job.target, job.move = nil, nil
+      local missing = {}
+      local list = find_ghosts(a, args)
+      for _, cand in ipairs(list) do
+        if not job.skip[cand.unit_number] then
+          local item, n = ghost_item(cand)
+          if item and (util.cheat() or c.get_item_count(item) >= n) then
+            g = cand
+            break
+          elseif item then
+            missing[item] = (missing[item] or 0) + n
+          end
+        end
+      end
+      if not g then
+        local left = 0
+        for _, cand in ipairs(list) do if not job.skip[cand.unit_number] then left = left + 1 end end
+        if left == 0 then return ok("built " .. job.built .. " ghosts; none left here", { built = job.built }) end
+        return ok("built " .. job.built .. " ghosts; " .. left .. " left need items you don't have",
+          { built = job.built, left = left, missing = missing })
+      end
+      if args.limit and job.built >= args.limit then return ok("built " .. job.built .. " ghosts", { built = job.built }) end
+      job.target = g
+    end
+    local near = approach(a, job, g.position, c.build_distance - 0.5)
+    if near == nil then return nil end
+    if type(near) == "table" then
+      job.skip[g.unit_number] = true
+      job.target = nil
+      return nil
+    end
+    local item, n = ghost_item(g)
+    local name, pos = g.ghost_name, g.position
+    local _, ent = g.revive { raise_revive = true }
+    if not ent then
+      -- Usually we're standing on it: step aside once, else skip it.
+      if not job.stepped then
+        job.stepped = true
+        job.side = { goal = { x = pos.x + 2.5, y = pos.y + 2.5 }, radius = 0.5 }
+      end
+      if job.side then
+        local r = movement.tick(c, job.side)
+        if r == nil then return nil end
+        job.side = nil
+        return nil
+      end
+      job.skip[g.unit_number] = true
+      job.target, job.stepped = nil, nil
+      return nil
+    end
+    job.stepped = nil
+    if not util.cheat() and item then c.remove_item { name = item, count = n } end
+    if ent.unit_number then storage.built_by[ent.unit_number] = a.name end
+    triggers.note(c.force, c.surface, "build-entity", name, 1)
+    job.built = job.built + 1
+    job.target = nil
+    return nil
+  end,
+}
+
+-- Lay ghosts from a blueprint string, or from an explicit layout {name, x, y, direction, recipe}. Instant, like
+-- a player placing a blueprint; then build_ghosts (by anyone) turns them into buildings.
+local function needed_items(ghosts)
+  local need = {}
+  for _, g in pairs(ghosts) do
+    if g.valid then
+      local item, n = ghost_item(g)
+      if item then need[item] = (need[item] or 0) + n end
+    end
+  end
+  return need
+end
+
+H.blueprint = {
+  start = function(a, job)
+    local c, args = a.char, job.args
+    local ghosts = {}
+    if args.string then
+      local inv = game.create_inventory(1)
+      local stack = inv[1]
+      stack.set_stack { name = "blueprint" }
+      local res = stack.import_stack(args.string)
+      if res ~= 0 or not stack.is_blueprint or not stack.is_blueprint_setup() then
+        inv.destroy()
+        return fail("that's not a valid single-blueprint string")
+      end
+      local pos = util.pos(args.position or { args.x, args.y })
+      if not (pos and pos.x) then inv.destroy() return fail("blueprint needs x,y") end
+      ghosts = stack.build_blueprint { surface = c.surface, force = c.force, position = pos,
+        direction = util.parse_dir(args.direction), build_mode = defines.build_mode.forced, raise_built = true }
+      inv.destroy()
+    elseif args.entities then
+      local failed = 0
+      for _, e in ipairs(args.entities) do
+        local item = prototypes.item[e.name or ""]
+        local ent = item and item.place_result
+        local ename = ent and ent.name or e.name
+        local p = { x = e.x or e[1], y = e.y or e[2] }
+        local spec = { name = "entity-ghost", inner_name = ename, position = p, direction = util.parse_dir(e.direction),
+          force = c.force, expires = false }
+        local okp, g = pcall(c.surface.create_entity, spec)
+        if okp and g then
+          if e.recipe then pcall(function() g.set_recipe(e.recipe) end) end
+          ghosts[#ghosts + 1] = g
+        else
+          failed = failed + 1
+        end
+      end
+      if failed > 0 and #ghosts == 0 then return fail("no ghosts placed (" .. failed .. " invalid entries)") end
+    else
+      return fail("blueprint needs string=<blueprint string> + x,y, or entities=[{name,x,y,direction}]")
+    end
+    local need = needed_items(ghosts)
+    return ok("placed " .. #ghosts .. " ghosts; to build them you need " .. helpers.table_to_json(need)
+      .. " (then use build_ghosts)", { ghosts = #ghosts, needs = need })
+  end,
+}
+
+-- Take everything back from the nearest character corpse (yours after dying).
+H.loot = {
+  start = function(a, job)
+    local c = a.char
+    local p = util.pos(job.args.position or (job.args.x and { job.args.x, job.args.y })) or c.position
+    local list = c.surface.find_entities_filtered { type = "character-corpse", position = p, radius = 256 }
+    table.sort(list, function(x, y) return util.dist(x.position, p) < util.dist(y.position, p) end)
+    job.target = list[1]
+    if not job.target then return fail("no corpse nearby") end
+  end,
+  tick = function(a, job)
+    local c, e = a.char, job.target
+    if not e.valid then return fail("corpse is gone") end
+    local near = approach(a, job, e.position, c.reach_distance - 0.5)
+    if near == nil then return nil end
+    if type(near) == "table" then return near end
+    local taken = 0
+    for i = 1, e.get_max_inventory_index() do
+      local inv = e.get_inventory(i)
+      if inv and inv.valid then
+        for name, n in pairs(util.contents(inv)) do
+          if not name:find("@") then
+            local got = c.insert { name = name, count = n }
+            if got > 0 then inv.remove { name = name, count = got } taken = taken + got end
+          end
+        end
+      end
+    end
+    local left = 0
+    for i = 1, e.get_max_inventory_index() do
+      local inv = e.get_inventory(i)
+      if inv and inv.valid then left = left + inv.get_item_count() end
+    end
+    if left == 0 then e.destroy() end
+    return ok("looted " .. taken .. " items" .. (left > 0 and (", " .. left .. " left (inventory full)") or ""))
+  end,
+}
+
 ---------------------------------------------------------------------- engine
 local function finish(a, job, res)
   local h = H[job.op]
@@ -703,9 +898,38 @@ local function run(fn, a, job)
   return res
 end
 
+-- Hand-crafts by playerless characters don't count natively. Diff each agent's crafting queue and credit
+-- whatever left it (waited or background crafts alike).
+account_crafts = function(a)
+  local c = a.char
+  local now = {}
+  for _, item in pairs(c.crafting_queue or {}) do now[item.recipe] = (now[item.recipe] or 0) + item.count end
+  local prev = a.craft_snap or {}
+  for recipe, n in pairs(prev) do
+    local done = n - (now[recipe] or 0)
+    if done > 0 then
+      local r = prototypes.recipe[recipe]
+      local prod = r and r.products[1]
+      if prod and prod.type == "item" then
+        triggers.note(c.force, c.surface, "craft-item", prod.name, done * (prod.amount or 1))
+      end
+    end
+  end
+  a.craft_snap = now
+end
+
 function jobs.tick()
+  local tick30 = game.tick % 30 == 0
   for _, a in pairs(storage.agents) do
     if agents.alive(a) then
+      local st = a.stats
+      if not st then
+        st = { busy_ticks = 0, idle_ticks = 0, crafting_ticks = 0 }
+        a.stats = st
+      end
+      if a.job or #a.queue > 0 then st.busy_ticks = st.busy_ticks + 1 else st.idle_ticks = st.idle_ticks + 1 end
+      if a.char.crafting_queue_size > 0 then st.crafting_ticks = st.crafting_ticks + 1 end
+      if tick30 then account_crafts(a) end
       -- Start as many instant jobs as possible this tick; stop at the first long one.
       local guard = 0
       while not a.job and #a.queue > 0 and guard < 20 do

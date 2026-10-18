@@ -151,6 +151,7 @@ function agents.on_died(entity)
   a.char = nil
   a.queue = {}
   a.job = nil
+  a.craft_snap = nil
   a.dead_until = game.tick + RESPAWN_TICKS
   agents.event { type = "died", agent = name, position = util.xy(entity.position) }
   game.print("[color=red]" .. name .. " died.[/color] Respawning in " .. RESPAWN_TICKS / 60 .. "s.")
