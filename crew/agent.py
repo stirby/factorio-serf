@@ -223,7 +223,7 @@ class Agent:
         now = time.time()
         while self.turn_times and now - self.turn_times[0] > 3600:
             self.turn_times.popleft()
-        return len(self.turn_times) < self.cfg.max_turns_per_hour
+        return len(self.turn_times) < self.cfg.max_turns_per_hour and self.orch.spend_ok()
 
     async def _loop(self) -> None:
         while True:
@@ -241,8 +241,9 @@ class Agent:
             events = leftovers + events
 
             if not self._budget_ok():
-                ui.info(f"{self.name}: hourly turn budget reached; pausing")
-                await self.link.call("status", agent=self.name, text="paused: hourly turn budget reached")
+                why = "spend cap" if not self.orch.spend_ok() else "turn budget"
+                ui.info(f"{self.name}: hourly {why} reached; pausing")
+                await self.link.call("status", agent=self.name, text=f"paused: hourly {why} reached")
                 await asyncio.sleep(60)
                 self.inbox.put_nowait(first)
                 continue
@@ -302,6 +303,7 @@ class Agent:
                     log.warning("%s: session reset failed: %r", self.name, e)
             if stats:
                 self.total_cost += stats.cost_usd
+                self.orch.record_spend(stats.cost_usd)
                 self._record("turn", secs=round(time.time() - t0, 1), steps=stats.steps, cost=stats.cost_usd,
                              input_tokens=stats.input_tokens, output_tokens=stats.output_tokens, error=stats.error)
                 ui.turn_end(self.name, time.time() - t0, stats, self.total_cost)

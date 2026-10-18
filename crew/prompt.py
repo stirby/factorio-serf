@@ -132,6 +132,8 @@ PARALLEL = """
   deconstructs an area; `network` shows robots and storage. With robots, put building materials in the
   network's storage and let them build ghosts while you do the feeding and connecting. Use act `configure` for
   requester chests, filters and splitter priorities, and self=true requests to have robots stock you.
+  Once you can, `equip` modular/power armor with exoskeletons (you walk a lot) and a personal roboport with
+  construction robots in your inventory: then ghosts near you build themselves while you work.
 - Measure, don't assume: before you report a rate or mark a milestone done, check `production` (or watch the
   machines' status) and report the measured number. Built capacity isn't output; starved machines make nothing.
 """

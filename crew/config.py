@@ -44,6 +44,7 @@ class CrewConfig:
     advisor_for: str = "all"  # "all" or "foreman"
     foreman: AgentConfig | None = None  # characterless lead every worker can ask without waiting
     flags: dict = field(default_factory=dict)  # [experiment] toggles for A/B runs
+    usd_per_hour: float | None = None  # [budget] usd_per_hour: hard cap on spend over the last hour (all models)
 
     def flag(self, name: str, default: bool = True) -> bool:
         return bool(self.flags.get(name, default))
@@ -142,6 +143,8 @@ def load(path: str | Path | None, overrides: dict | None = None) -> CrewConfig:
                   "backend": defaults.get("backend", "claude-code"), **adv}
         cfg.advisor = AgentConfig(**{k: v for k, v in merged.items() if k in known})
         cfg.advisor_for = adv.get("for", "all")
+    if raw.get("budget", {}).get("usd_per_hour"):
+        cfg.usd_per_hour = float(raw["budget"]["usd_per_hour"])
     fm = raw.get("foreman")
     if fm and fm.get("enabled", True):
         known = AgentConfig.__dataclass_fields__.keys()

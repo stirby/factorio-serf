@@ -672,6 +672,58 @@ H.configure = {
   end,
 }
 
+-- Wear armor and fill its equipment grid from your inventory, like a player does. Exoskeletons make you faster;
+-- a personal roboport plus construction robots in your inventory builds ghosts around you while you walk.
+H.equip = {
+  start = function(a, job)
+    local c, args = a.char, job.args
+    local main = c.get_inventory(defines.inventory.character_main)
+    local done = {}
+    local worn = c.get_inventory(defines.inventory.character_armor)[1]
+    if args.armor and worn.valid_for_read and worn.name == args.armor then
+      done[#done + 1] = "already wearing " .. args.armor
+    elseif args.armor then
+      if main.get_item_count(args.armor) < 1 then return fail("no " .. args.armor .. " in your inventory") end
+      local slot = c.get_inventory(defines.inventory.character_armor)
+      local old = slot[1].valid_for_read and slot[1].name or nil
+      if old then
+        if main.insert(slot[1]) < 1 then return fail("no room to take off your " .. old) end
+        slot[1].clear()
+      end
+      main.remove { name = args.armor, count = 1 }
+      slot.insert { name = args.armor, count = 1 }
+      done[#done + 1] = "wearing " .. args.armor
+    end
+    local list = args.equipment or (args.item and { args.item }) or {}
+    if #list > 0 then
+      local grid = c.grid
+      if not grid then return fail("your armor has no equipment grid (wear modular or power armor first)") end
+      for _, name in ipairs(list) do
+        local item = prototypes.item[name]
+        local eq = item and item.place_as_equipment_result
+        if not eq then return fail(name .. " isn't equipment") end
+        if main.get_item_count(name) < 1 then return fail("no " .. name .. " in your inventory") end
+        local placed = grid.put { name = eq.name }
+        if not placed then return fail("no room in the armor grid for " .. name .. " (" .. #done .. " done)") end
+        main.remove { name = name, count = 1 }
+        done[#done + 1] = name
+      end
+    end
+    if #done == 0 then return fail("equip needs armor=<armor item> and/or equipment=[items]") end
+    local grid = c.grid
+    local summary = ""
+    if grid then
+      summary = " (grid " .. grid.width .. "x" .. grid.height .. ", " .. #grid.equipment .. " pieces"
+      local okE, pct = pcall(function()
+        return grid.battery_capacity > 0 and math.floor(100 * grid.available_in_batteries / grid.battery_capacity) or nil
+      end)
+      if okE and pct then summary = summary .. ", battery " .. pct .. "%" end
+      summary = summary .. ")"
+    end
+    return ok("equipped: " .. table.concat(done, ", ") .. summary)
+  end,
+}
+
 -- The red X in a chest's inventory: only the first `slots` slots accept items from inserters (0 = none).
 H.limit = {
   start = function(a, job)

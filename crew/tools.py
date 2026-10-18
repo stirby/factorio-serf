@@ -55,6 +55,8 @@ Ops and their fields:
   configure   x y requests={item:count} | filter=item|none [blacklist] | output_priority/input_priority=left|right|none
               requester/buffer chest requests, inserter filters (fast/bulk inserters), splitter filter/priorities;
               self=true requests={...} sets your own logistic requests (robots deliver once you're in a network)
+  equip       armor=<armor item> and/or equipment=[items]       wear armor and fill its grid: exoskeletons for speed,
+              personal-roboport + construction robots in inventory to build ghosts around you, batteries + power
   limit       x y slots                                         chest limit (the red X): inserters fill only the
               first N slots; slots=none clears it. Stops a chest hoarding what others need
   connect     item=<transport-belt|pipe|small-electric-pole|...> from=[x,y] to=[x,y] [end_direction] [join]
@@ -474,7 +476,7 @@ TOOLS: list[Tool] = [
          "what you were doing first. If a human messages you, it returns early.",
          _obj({"actions": {"type": "array", "items": {"type": "object", "properties": {
              "op": {"type": "string", "enum": ["move", "mine", "craft", "place", "insert", "take", "set_recipe",
-                                               "rotate", "research", "limit", "configure", "connect", "follow", "build_ghosts", "blueprint", "clear_ghosts", "loot", "wait"]}}, "required": ["op"],
+                                               "rotate", "research", "limit", "configure", "equip", "connect", "follow", "build_ghosts", "blueprint", "clear_ghosts", "loot", "wait"]}}, "required": ["op"],
              "additionalProperties": True}},
              "wait": {"description": "true | false | 'until_last'"}, "replace": {"type": "boolean"}}, ["actions"]),
          t_act),

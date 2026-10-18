@@ -73,7 +73,8 @@ async def main():
         said.append(text)
     orch = SimpleNamespace(cfg=SimpleNamespace(state_dir=tmp, agents=[w1.cfg, w2.cfg], flag=lambda *a: True),
                            board=Board(tmp / "board.json"), link=FakeLink(),
-                           agents={"claude-1": w1, "claude-2": w2}, announce=announce)
+                           agents={"claude-1": w1, "claude-2": w2}, announce=announce,
+                           spend_ok=lambda: True, record_spend=lambda usd: None)
     orch.foreman_brain = None
 
     gate = asyncio.Event()

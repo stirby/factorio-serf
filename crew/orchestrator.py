@@ -30,6 +30,20 @@ class Orchestrator:
         self.foreman: str | None = cfg.foreman_name()
         self.advisor: Advisor | None = Advisor(cfg.advisor, self) if cfg.advisor else None
         self.foreman_brain: Foreman | None = Foreman(cfg.foreman, self) if cfg.foreman else None
+        self.spend: list[tuple[float, float]] = []  # (time, usd) per finished turn, every model
+
+    def record_spend(self, usd: float) -> None:
+        if usd:
+            self.spend.append((time.time(), usd))
+
+    def spent_last_hour(self) -> float:
+        cutoff = time.time() - 3600
+        self.spend = [s for s in self.spend if s[0] > cutoff]
+        return sum(u for _, u in self.spend)
+
+    def spend_ok(self) -> bool:
+        cap = self.cfg.usd_per_hour
+        return not cap or self.spent_last_hour() < cap
 
     async def start(self) -> None:
         ui.info(f"connecting to {self.cfg.server.host}:{self.cfg.server.rcon_port} ...")

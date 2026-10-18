@@ -229,7 +229,7 @@ class Foreman:
         now = time.time()
         while self.turn_times and now - self.turn_times[0] > 3600:
             self.turn_times.popleft()
-        return len(self.turn_times) < self.cfg.max_turns_per_hour
+        return len(self.turn_times) < self.cfg.max_turns_per_hour and self.orch.spend_ok()
 
     async def _loop(self) -> None:
         while True:
@@ -266,6 +266,7 @@ class Foreman:
                 self.last_turn = time.time()
             if stats:
                 self.total_cost += stats.cost_usd
+                self.orch.record_spend(stats.cost_usd)
                 self.record("turn", secs=round(time.time() - t0, 1), steps=stats.steps, cost=stats.cost_usd,
                             error=stats.error, input_tokens=stats.input_tokens)
                 ui.turn_end(self.name, time.time() - t0, stats, self.total_cost)

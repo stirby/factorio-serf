@@ -57,7 +57,15 @@ function observe.self(a)
   local c = a.char
   local q = {}
   for _, item in pairs(c.crafting_queue or {}) do q[#q + 1] = item.recipe .. " x" .. item.count end
+  local armor
+  local slot = c.get_inventory(defines.inventory.character_armor)
+  if slot and slot[1] and slot[1].valid_for_read then
+    local eq = {}
+    for _, e in pairs(c.grid and c.grid.equipment or {}) do eq[e.name] = (eq[e.name] or 0) + 1 end
+    armor = { name = slot[1].name, equipment = eq }
+  end
   return {
+    armor = armor,
     name = a.name,
     surface = c.surface.name,
     position = util.xy(c.position),
