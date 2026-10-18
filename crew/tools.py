@@ -214,7 +214,7 @@ async def t_act(agent: "Agent", a: dict) -> str:
     ids = d["job_ids"]
     agent.pending_jobs.update(ids)
     agent.note_activity(f"{len(ids)} action(s): " + ", ".join(x.get("op", "?") for x in actions))
-    mode = a.get("wait", True)
+    mode = a.get("wait", "until_last" if agent.orch.cfg.flag("pipeline_default") else True)
     if mode is False or mode == "false":
         return f"queued jobs {ids}; you'll be told when they finish"
     leave = 1 if mode == "until_last" and len(ids) > 1 else 0
@@ -458,11 +458,12 @@ TOOLS: list[Tool] = [
          "something (e.g. craft 10 copper plates); others need science packs in labs.",
          _obj({"filter": {"type": "string"}}), t_techs),
     Tool("production", "Items per minute produced/consumed by the whole base on your surface.", _obj({}), t_production),
-    Tool("act", ACTION_DOC + "\nwait=true (default) blocks until the actions finish (up to ~75s) and returns results "
-         "plus your position and inventory. wait='until_last' returns as soon as only the last action is still "
-         "running, so you can plan and queue the next batch while your character keeps working; this is the best "
-         "default for multi-step work. wait=false returns immediately. New actions queue behind running ones; "
-         "replace=true cancels what you were doing first. If a human messages you, it returns early.",
+    Tool("act", ACTION_DOC + "\nwait='until_last' (default) returns as soon as only the last action is still "
+         "running, with results so far plus your position and inventory, so you plan and queue the next batch "
+         "while your character keeps working. wait=true blocks until all finish (up to ~75s): use it when the next "
+         "step depends on the last action's result. wait=false returns immediately. Results of jobs you didn't "
+         "wait for arrive with your next tool call. New actions queue behind running ones; replace=true cancels "
+         "what you were doing first. If a human messages you, it returns early.",
          _obj({"actions": {"type": "array", "items": {"type": "object", "properties": {
              "op": {"type": "string", "enum": ["move", "mine", "craft", "place", "insert", "take", "set_recipe",
                                                "rotate", "research", "connect", "follow", "build_ghosts", "blueprint", "loot", "wait"]}}, "required": ["op"],
@@ -586,8 +587,26 @@ async def run_tool(agent: "Agent", name: str, args: dict) -> str:
         out = f"lost connection to the game ({e}); try again in a few seconds"
     except (KeyError, ValueError, TypeError, json.JSONDecodeError) as e:
         out = f"bad arguments for {name}: {e!r}"
+    done = drain_finished(agent)
+    if done:
+        out += "\n\n" + done
     extra = agent.drain_interrupts()
     if extra:
         out += "\n\n" + extra
     agent.log_tool_result(name, out)
     return out
+
+
+def drain_finished(agent: "Agent") -> str:
+    """Jobs that finished while the model was busy with other tool calls: failures in full, successes counted."""
+    fin = getattr(agent, "finished", None)
+    if not fin:
+        return ""
+    results = list(fin.values())
+    fin.clear()
+    agent.pending_jobs.difference_update(r["id"] for r in results)
+    bad = [r for r in results if not r.get("ok")]
+    good = len(results) - len(bad)
+    lines = [f"[earlier jobs] {good} finished OK" + (f", {len(bad)} FAILED:" if bad else "")]
+    lines += _fmt_results(bad[:6])
+    return "\n".join(lines)

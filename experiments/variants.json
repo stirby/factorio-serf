@@ -84,5 +84,12 @@
   "experiment": {
    "foreman_first": false
   }
+ },
+ "no-pipeline-default": {
+  "advisor": false,
+  "experiment": {
+   "foreman_first": false,
+   "pipeline_default": false
+  }
  }
 }
