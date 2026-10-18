@@ -140,9 +140,20 @@ def sparkline(tl: list[dict], minutes: float, key: str, ymax: float) -> str:
             f"<polyline points='{' '.join(pts)}' class='ln'/></svg>")
 
 
+def invalid_runs() -> dict[str, str]:
+    p = EXP / "invalid_runs.txt"
+    out = {}
+    for line in (p.read_text().splitlines() if p.exists() else []):
+        if line.strip() and not line.startswith("#"):
+            rid, _, why = line.partition("  ")
+            out[rid.strip()] = why.strip()
+    return out
+
+
 def progress_panel(since: float) -> str:
     """One row per research run since `since`: score, cost, and science/min over time."""
     rows = []
+    invalid = invalid_runs()
     for d in sorted((EXP / "runs").glob("*")):
         tlp, rp = d / "timeline.jsonl", d / "result.json"
         if not tlp.exists() or d.name.endswith("-dry"):
@@ -165,7 +176,11 @@ def progress_panel(since: float) -> str:
         arch_cost = sum(r.get("cost") or 0 for r in jl(arch) if r.get("kind") == "turn") if arch.exists() else 0
         cost = (res.get("cost_usd") or 0) + arch_cost
         status = (f"score {res.get('score')} · ${cost:.0f}" + (f" (architect ${arch_cost:.0f})" if arch_cost else "")
-                  if res else f"running · {tl[-1].get('elapsed', 0) / 60:.0f} min in")
+                  if res else (f"stopped at {tl[-1].get('elapsed', 0) / 60:.0f} min (no result)"
+                               if time.time() - (tl[-1].get("t") or 0) > 900 else
+                               f"running · {tl[-1].get('elapsed', 0) / 60:.0f} min in"))
+        if d.name in invalid:
+            status = "INVALID: " + invalid[d.name]
         hit6 = next((s.get("elapsed") for s, v in zip(tl, vals) if techs and isinstance(v.get("techs_researched"), (int, float))
                      and v["techs_researched"] - techs[0] >= 6), None)
         facts = [(f"+{techs[-1] - techs[0]:.0f} techs" + (f" (6th at {hit6 / 60:.0f} min)" if hit6 else "")) if len(techs) > 1 else "",
@@ -184,6 +199,7 @@ def progress_panel(since: float) -> str:
 
 def render(out: Path, since: float) -> None:
     hours = collect(since)
+    invalid = invalid_runs()
     findings = (EXP / "findings.md").read_text() if (EXP / "findings.md").exists() else ""
     esc = html.escape
     sections = []
@@ -195,7 +211,7 @@ def render(out: Path, since: float) -> None:
         if d.get("runs"):
             rows = "".join(
                 f"<tr><td class='n'>{time.strftime('%H:%M', time.localtime(t))}</td><td>{esc(str(r.get('scenario', '')))}</td>"
-                f"<td>{esc(str(r.get('variant', '')))}</td><td>{esc(fmt_scores(r))}</td><td>{esc(fmt_behavior(r))}</td></tr>"
+                f"<td>{esc(str(r.get('variant', '')))}</td><td>{esc(('INVALID: ' + invalid[r['run_id']]) if r.get('run_id') in invalid else fmt_scores(r))}</td><td>{esc(fmt_behavior(r))}</td></tr>"
                 for t, r in sorted(d["runs"], key=lambda x: x[0]))
             items.append("<div class='tbl'><table><thead><tr><th>end</th><th>scenario</th><th>variant</th><th>scores</th>"
                          f"<th>behavior</th></tr></thead><tbody>{rows}</tbody></table></div>")

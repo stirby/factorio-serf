@@ -1,0 +1,4 @@
+# run_id  reason (shown on the review page instead of the score)
+20261018-043547-s3-research-rush-go-now-noadvisor-i22  stopped at ~11 min: subscription usage limit
+20261018-043547-s3-research-rush-go-now-noadvisor-i23  stopped at ~11 min: subscription usage limit
+20261018-044232-s6-bots-go-now-noadvisor-i25  stopped at ~11 min: subscription usage limit
