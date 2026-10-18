@@ -73,8 +73,26 @@ class Orchestrator:
                     pass
                 self.agents[name].pending_jobs.clear()
             ui.info(f"hard stop for {', '.join(sorted(r.targets))}")
+        if r.direct and player != "tester":
+            action = ({"op": "follow", "player": player} if r.direct == "follow"
+                      else {"op": "move", "player": player, "radius": 3})
+            for name in r.targets:
+                try:
+                    await self.link.call("act", agent=name, actions=[action], replace=True)
+                except GameError as e:
+                    log.warning("direct %s for %s failed: %s", r.direct, name, e)
+            ui.info(f"{', '.join(sorted(r.targets))}: {r.direct} {player} (instant)")
+            line += f" [already done for you: you started to {r.direct} {player}; just acknowledge]"
+        planner_first = self.foreman in r.targets and len(r.targets) > 1 and not r.stop
         for name, agent in self.agents.items():
-            agent.hear(line, wake=name in r.targets)
+            if planner_first and name != self.foreman:
+                # Let the foreman plan first; others see the message now and get nudged once the plan exists.
+                agent.hear(line, wake=False)
+                asyncio.get_running_loop().call_later(20, agent.nudge,
+                                                     f"(follow-up) {player} asked the whole crew: \"{text}\". "
+                                                     f"Check the board for the foreman's plan and your task.")
+            else:
+                agent.hear(line, wake=name in r.targets)
 
     def agent_said(self, speaker: str, text: str) -> None:
         r = route(text, [n for n in self.agents], self.foreman)

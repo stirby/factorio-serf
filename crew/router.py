@@ -11,6 +11,8 @@ import re
 from dataclasses import dataclass
 
 ALL_WORDS = {"all", "crew", "everyone", "team", "yall", "y'all"}
+COME = re.compile(r"\b(come here|come to me|over here|get over here|come back)\b", re.I)
+FOLLOW = re.compile(r"\b(follow me|follow along|stick with me|tag along)\b", re.I)
 STOP_WORDS = re.compile(r"^\s*(stop|halt|freeze|cancel|abort)\b[\s!.]*$", re.I)
 
 
@@ -19,6 +21,7 @@ class Routed:
     targets: set[str]  # agents to wake
     message: str
     stop: bool  # "@x stop" style hard stop: cancel jobs immediately, before the model even sees it
+    direct: str | None = None  # "come" | "follow": start moving right away, no model call needed
 
 
 def route(text: str, agent_names: list[str], foreman: str | None) -> Routed:
@@ -44,4 +47,7 @@ def route(text: str, agent_names: list[str], foreman: str | None) -> Routed:
         targets.update([foreman] if foreman else agent_names)
 
     body = re.sub(r"@[\w\-']+[,:]?\s*", "", text).strip()
-    return Routed(targets=targets, message=text, stop=bool(targets) and bool(STOP_WORDS.match(body)))
+    direct = None
+    if targets:
+        direct = "follow" if FOLLOW.search(body) else "come" if COME.search(body) else None
+    return Routed(targets=targets, message=text, stop=bool(targets) and bool(STOP_WORDS.match(body)), direct=direct)

@@ -17,6 +17,7 @@ from crew.rcon import Crew, GameError, Rcon  # noqa: E402
 A = "smoke-bot"
 passed, failed = [], []
 events = []  # every poll drains events; keep them for checks
+allres = []  # every job result seen, for diagnosing failures
 
 
 def check(name, cond, info=""):
@@ -34,7 +35,20 @@ async def run(crew, actions, timeout=90):
         events.extend(poll.get("events") or [])
         for r in (poll.get("results") or {}).get(A, []):
             got[r["id"]] = r
+            allres.append(r)
     return [got.get(i, {"ok": False, "msg": "timeout"}) for i in ids]
+
+
+async def wait_idle(crew, timeout=90):
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        poll = await crew.call("poll")
+        events.extend(poll.get("events") or [])
+        allres.extend((poll.get("results") or {}).get(A, []))
+        me = next(x for x in (await crew.call("list"))["agents"] if x["name"] == A)
+        if not me.get("job") and not me.get("queued"):
+            return
+        await asyncio.sleep(0.5)
 
 
 async def give(crew, items):
@@ -143,6 +157,34 @@ async def main():
     poll = await crew.call("poll")
     rs = (poll.get("results") or {}).get(A, [])
     check("cancel long move", any(x["id"] == ids[0] and "cancel" in x["msg"] for x in rs), rs)
+
+    # connect: route a belt around the assembler between two points
+    me = await crew.call("self", agent=A)
+    await give(crew, {"transport-belt": 40, "small-electric-pole": 10})
+    res = await run(crew, [{"op": "connect", "item": "transport-belt", "from": [bx - 3.5, by + 0.5],
+                            "to": [bx + 6.5, by + 0.5], "end_direction": "east"}], timeout=120)
+    check("connect routes around obstacle", res[0]["ok"] and res[0]["data"]["count"] > 10, res[0])
+    # the generated place jobs show up as results after the connect job
+    n0 = len(allres)
+    await wait_idle(crew)
+    bad = [r for r in allres[n0:] if not r["ok"]][:3]
+    belts = await crew.call("eval", code=f"return #game.surfaces.nauvis.find_entities_filtered{{name='transport-belt',"
+                                         f"area={{{{{bx - 5},{by - 4}}},{{{bx + 8},{by + 5}}}}}}}")
+    check("connect placed belts", belts["result"] >= 10, (belts, bad))
+    res = await run(crew, [{"op": "connect", "item": "small-electric-pole", "from": [bx - 3.5, by - 3.5],
+                            "to": [bx + 12.5, by - 3.5]}], timeout=60)
+    check("connect poles spaced", res[0]["ok"] and 2 <= res[0]["data"]["count"] <= 4, res[0])
+
+    # follow another agent, then cancel
+    await crew.call("spawn", name="smoke-buddy", position=[bx - 10, by + 8], starter_kit=False)
+    ids = (await crew.call("act", agent=A, actions=[{"op": "follow", "agent": "smoke-buddy", "distance": 2}]))["job_ids"]
+    await asyncio.sleep(6)
+    lst = {x["name"]: x for x in (await crew.call("list"))["agents"]}
+    pa, pb = lst[A]["position"], lst["smoke-buddy"]["position"]
+    check("follow closes distance", ((pa[0] - pb[0]) ** 2 + (pa[1] - pb[1]) ** 2) ** 0.5 < 4, (pa, pb))
+    await crew.call("cancel", agent=A)
+    await crew.call("despawn", agent="smoke-buddy")
+    await crew.call("poll")
 
     # map / nearby / find / recipes / techs / production
     m = await crew.call("map", agent=A, radius=8)

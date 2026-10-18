@@ -6,6 +6,7 @@ local util = require("scripts.util")
 local movement = require("scripts.movement")
 local agents = require("scripts.agents")
 local triggers = require("scripts.triggers")
+local route = require("scripts.route")
 
 local jobs = {}
 local H = {}
@@ -48,14 +49,19 @@ local function entity_at(a, args, opts)
   end
   local p = util.pos(args.position or { args.x, args.y })
   if not (p and p.x and p.y) then return nil end
-  local cands = surface.find_entities_filtered { position = p, radius = opts.radius or 0.7, name = args.name }
+  -- Prefer whatever's footprint contains the point (agents often give a tile corner or center of a 2x2),
+  -- then the nearest center within 1.5 tiles.
+  local cands = surface.find_entities_filtered { position = p, radius = opts.radius or 1.5, name = args.name }
   local best, bd
   for _, e in pairs(cands) do
     local t = e.type
     local skip = t == "character" or t == "character-corpse" or t == "item-entity"
         or (not opts.any and (t == "resource" or t == "tree" or t == "simple-entity"))
     if not skip and e.name ~= "entity-ghost" then
-      local d = util.dist(e.position, p)
+      local bb = e.bounding_box
+      local inside = p.x >= bb.left_top.x - 0.25 and p.x <= bb.right_bottom.x + 0.25
+          and p.y >= bb.left_top.y - 0.25 and p.y <= bb.right_bottom.y + 0.25
+      local d = util.dist(e.position, p) - (inside and 100 or 0)
       if not bd or d < bd then best, bd = e, d end
     end
   end
@@ -405,7 +411,15 @@ H.insert = {
     local count = math.min(args.count or have, have)
     if count <= 0 then return fail("no " .. args.item .. " in inventory") end
     local inserted = e.insert { name = args.item, count = count }
-    if inserted == 0 then return fail(e.name .. " won't accept " .. args.item) end
+    if inserted == 0 then
+      local fuel = e.get_fuel_inventory and e.get_fuel_inventory()
+      local why = ""
+      if fuel and fuel.valid and prototypes.item[args.item] and prototypes.item[args.item].fuel_value > 0 then
+        local f = util.contents(fuel)
+        if next(f) then why = " (fuel slot already holds " .. helpers.table_to_json(f) .. "; burn it down or take it out)" end
+      end
+      return fail(e.name .. " won't accept " .. args.item .. why)
+    end
     if not util.cheat() then c.remove_item { name = args.item, count = inserted } end
     return ok("inserted " .. inserted .. " " .. args.item .. " into " .. e.name .. " at " .. xystr(e.position),
       { inserted = inserted })
@@ -518,6 +532,99 @@ H.say = {
   start = function(a, job)
     agents.say(a, tostring(job.args.text or ""))
     return ok("said")
+  end,
+}
+
+------------------------------------------------------------------------- connect / follow
+local VEC_DIR = { ["1,0"] = "east", ["-1,0"] = "west", ["0,1"] = "south", ["0,-1"] = "north" }
+
+local function new_job(op, args)
+  local job = { id = storage.next_job_id, op = op, args = args }
+  storage.next_job_id = storage.next_job_id + 1
+  return job
+end
+
+-- Route a belt / pipe / pole line between two points around obstacles, then queue the placements.
+H.connect = {
+  start = function(a, job)
+    local args, c = job.args, a.char
+    local item = args.item or args.name or "transport-belt"
+    local ent = prototypes.item[item] and prototypes.item[item].place_result
+    if not ent then return fail(tostring(item) .. " is not placeable") end
+    local from = util.pos(args.from or { args.from_x, args.from_y })
+    local to = util.pos(args.to or { args.to_x, args.to_y })
+    if not (from and from.x and to and to.x) then return fail("connect needs from=[x,y] and to=[x,y]") end
+    if util.dist(from, to) > 250 then return fail("too far to route in one go (max ~250 tiles); split it") end
+    local path, err = route.find(c.surface, from, to, { entity = ent.name, force = c.force })
+    if not path then return fail("can't route " .. item .. ": " .. err) end
+
+    local places = {}
+    if ent.type == "electric-pole" then
+      local reach = 7.5
+      pcall(function() reach = ent.get_max_wire_distance() end)
+      local step = math.max(1, math.floor(reach) - 1)
+      for i = 1, #path, step do places[#places + 1] = { pos = path[i] } end
+      if places[#places].pos ~= path[#path] then places[#places + 1] = { pos = path[#path] } end
+    else
+      for i, p in ipairs(path) do
+        local dir
+        if ent.supports_direction then
+          local nxt = path[i + 1]
+          if nxt then
+            dir = VEC_DIR[(nxt.x - p.x) .. "," .. (nxt.y - p.y)]
+          else
+            dir = args.end_direction or (places[#places] and places[#places].dir) or "north"
+          end
+        end
+        places[#places + 1] = { pos = p, dir = dir }
+      end
+    end
+
+    local have = c.get_item_count(item)
+    if not util.cheat() and have < #places then
+      return fail("route needs " .. #places .. " " .. item .. " but you have " .. have,
+        { needed = #places, have = have })
+    end
+    for i, pl in ipairs(places) do
+      table.insert(a.queue, i, new_job("place", { name = item, x = pl.pos.x, y = pl.pos.y, direction = pl.dir }))
+    end
+    return ok("routed " .. #path .. " tiles; placing " .. #places .. " " .. item .. " from " .. xystr(path[1])
+      .. " to " .. xystr(path[#path]), { count = #places, start = util.xy(path[1]), finish = util.xy(path[#path]) })
+  end,
+}
+
+-- Stay near a player or agent until cancelled (or `seconds` pass, default 5 minutes).
+H.follow = {
+  start = function(a, job)
+    job.until_tick = game.tick + math.min(job.args.seconds or 300, 1800) * 60
+    job.dist = job.args.distance or 3
+  end,
+  tick = function(a, job)
+    if game.tick >= job.until_tick then return ok("stopped following (time up)") end
+    local target
+    if job.args.player then
+      local p = util.find_player(job.args.player)
+      if not (p and p.connected) then return fail("player " .. job.args.player .. " is not online") end
+      if p.surface ~= a.char.surface then return fail(job.args.player .. " is on another surface") end
+      target = p.position
+    elseif job.args.agent then
+      local o = storage.agents[job.args.agent]
+      if not (o and agents.alive(o)) then return fail("agent " .. job.args.agent .. " not found") end
+      target = o.char.position
+    else
+      return fail("follow needs player or agent")
+    end
+    local d = util.dist(a.char.position, target)
+    if d <= job.dist then
+      if job.move then movement.stop(a.char) job.move = nil end
+      return nil
+    end
+    if not job.move or util.dist(job.move.goal, target) > 3 then
+      job.move = { goal = { x = target.x, y = target.y }, radius = job.dist }
+    end
+    local r = movement.tick(a.char, job.move)
+    if r and r ~= "arrived" then job.move = nil end -- retry next tick from wherever we are
+    return nil
   end,
 }
 

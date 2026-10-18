@@ -48,6 +48,9 @@ Ops and their fields:
   set_recipe  x y recipe                                        assembler recipe
   rotate      x y [direction] | [reverse=true]
   research    tech                                              add a lab tech to the research queue
+  connect     item=<transport-belt|pipe|small-electric-pole|...> from=[x,y] to=[x,y] [end_direction]
+              routes a line around obstacles and places it (belts point along the route; poles spaced to reach)
+  follow      player=<name> | agent=<name> [distance=3] [seconds=300]   stay near them until stopped
   wait        seconds
 Coordinates: tile (x,y) spans x..x+1; 1x1 and 3x3 entities sit at .5 centers, 2x2 at integer corners (the game snaps).
 Directions: inserters TAKE from the side they face and drop on the opposite side; drills drop one tile in front
@@ -276,7 +279,7 @@ TOOLS: list[Tool] = [
          "doing first. If a human messages you while you wait, it returns early so you can answer.",
          _obj({"actions": {"type": "array", "items": {"type": "object", "properties": {
              "op": {"type": "string", "enum": ["move", "mine", "craft", "place", "insert", "take", "set_recipe",
-                                               "rotate", "research", "wait"]}}, "required": ["op"],
+                                               "rotate", "research", "connect", "follow", "wait"]}}, "required": ["op"],
              "additionalProperties": True}},
              "wait": {"type": "boolean"}, "replace": {"type": "boolean"}}, ["actions"]), t_act),
     Tool("wait", "Wait for your running jobs to finish (or just wait). Returns early if a human messages you.",

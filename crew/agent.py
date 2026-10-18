@@ -80,6 +80,13 @@ class Agent:
             self.ambient.append(line)
             del self.ambient[:-30]
 
+    def nudge(self, event: str) -> None:
+        """Delayed follow-up; skipped if the agent already got busy (e.g. from a task assignment)."""
+        if not self.in_turn and self.inbox.empty() and self.mode != "working":
+            self.inbox.put_nowait(event)
+        elif self.in_turn:
+            self._interrupts.append(event)
+
     def on_result(self, r: dict) -> None:
         if r["id"] not in self.pending_jobs:
             return
