@@ -1,0 +1,319 @@
+{
+ "run_id": "dry-s4-selftest",
+ "scenario": "s4-ghost-build",
+ "variant": "baseline",
+ "instance": 3,
+ "stage": "stage-20261018-011343-live-final-3opus",
+ "dry": true,
+ "minutes_planned": 0.0,
+ "errors": [],
+ "start": "2026-10-18 01:21:49",
+ "t_start": 1792304509.4970121,
+ "git": {
+  "commit": "402a779",
+  "dirty_files": [
+   "M crew/tools.py"
+  ]
+ },
+ "mod_version": "0.1.0",
+ "setup": {
+  "x": 44,
+  "y": 37,
+  "n": 36,
+  "placed": 36,
+  "base_center": [
+   54,
+   41
+  ],
+  "dist": 10
+ },
+ "baseline": {
+  "tick": 384921,
+  "values": {
+   "ghosts_built_frac": 0.0,
+   "ghosts_built_dir_frac": 0.0,
+   "ghosts_remaining": 36.0
+  },
+  "errors": {}
+ },
+ "targets": {
+  "ghosts_built_frac": 1.0,
+  "ghosts_built_dir_frac": null,
+  "ghosts_remaining": null
+ },
+ "summary_start": {
+  "minutes": 106,
+  "entities": {
+   "burner-mining-drill": 30,
+   "electric-mining-drill": 18,
+   "stone-furnace": 37,
+   "assembling-machine-1": 8,
+   "lab": 2,
+   "steam-engine": 4,
+   "boiler": 2,
+   "offshore-pump": 2,
+   "transport-belt": 275,
+   "inserter": 43,
+   "small-electric-pole": 116,
+   "iron-chest": 25,
+   "wooden-chest": 1
+  },
+  "researched": [
+   "automation",
+   "automation-science-pack",
+   "electric-mining-drill",
+   "electronics",
+   "logistic-science-pack",
+   "logistics",
+   "steam-power",
+   "steel-processing"
+  ],
+  "research_count": 8,
+  "agents": [
+   "claude-1",
+   "claude-2",
+   "claude-3",
+   "claude-4",
+   "claude-5"
+  ],
+  "per_minute": {
+   "iron-plate": 208,
+   "coal": 135,
+   "iron-ore": 210
+  },
+  "researching": "gun-turret",
+  "peaceful": true
+ },
+ "goal": "@all build the ghosts I placed near [gps=44,37]: a 2-wide stone furnace column (36 ghosts: 12 stone furnaces, 12 inserters, 12 belts). Place each building exactly on its ghost, same direction. Report in chat when done.",
+ "selftest": {
+  "revived": 36
+ },
+ "elapsed_s": 0.0,
+ "final": {
+  "tick": 384932,
+  "values": {
+   "ghosts_built_frac": 1.0,
+   "ghosts_built_dir_frac": 1.0,
+   "ghosts_remaining": 0.0
+  },
+  "errors": {}
+ },
+ "checks": {
+  "ghosts_built_frac": {
+   "value": 1.0,
+   "baseline": 0.0,
+   "target": 1.0,
+   "frac": 1.0,
+   "time_to_target_s": null,
+   "error": null
+  },
+  "ghosts_built_dir_frac": {
+   "value": 1.0,
+   "baseline": 0.0,
+   "target": null,
+   "frac": null,
+   "time_to_target_s": null,
+   "error": null
+  },
+  "ghosts_remaining": {
+   "value": 0.0,
+   "baseline": 36.0,
+   "target": null,
+   "frac": null,
+   "time_to_target_s": null,
+   "error": null
+  }
+ },
+ "score": 1.0,
+ "success": true,
+ "summary_end": {
+  "minutes": 106,
+  "entities": {
+   "burner-mining-drill": 30,
+   "electric-mining-drill": 18,
+   "stone-furnace": 49,
+   "assembling-machine-1": 8,
+   "lab": 2,
+   "steam-engine": 4,
+   "boiler": 2,
+   "offshore-pump": 2,
+   "transport-belt": 287,
+   "inserter": 55,
+   "small-electric-pole": 116,
+   "iron-chest": 25,
+   "wooden-chest": 1
+  },
+  "researched": [
+   "automation",
+   "automation-science-pack",
+   "electric-mining-drill",
+   "electronics",
+   "logistic-science-pack",
+   "logistics",
+   "steam-power",
+   "steel-processing"
+  ],
+  "research_count": 8,
+  "agents": [
+   "claude-1",
+   "claude-2",
+   "claude-3",
+   "claude-4",
+   "claude-5"
+  ],
+  "per_minute": {
+   "iron-plate": 208,
+   "coal": 135,
+   "iron-ore": 210
+  },
+  "researching": "gun-turret",
+  "peaceful": true
+ },
+ "agents_end": {
+  "claude-1": {
+   "name": "claude-1",
+   "alive": true,
+   "position": [
+    -9.7,
+    -23.4
+   ],
+   "queued": 0,
+   "stats": {
+    "busy_ticks": 0,
+    "idle_ticks": 35,
+    "crafting_ticks": 0
+   }
+  },
+  "claude-2": {
+   "name": "claude-2",
+   "alive": true,
+   "position": [
+    -11.6,
+    -27.5
+   ],
+   "queued": 0,
+   "stats": {
+    "busy_ticks": 0,
+    "idle_ticks": 35,
+    "crafting_ticks": 0
+   }
+  },
+  "claude-3": {
+   "name": "claude-3",
+   "alive": true,
+   "position": [
+    -24.8,
+    -31.4
+   ],
+   "queued": 0,
+   "stats": {
+    "busy_ticks": 0,
+    "idle_ticks": 35,
+    "crafting_ticks": 0
+   }
+  },
+  "claude-4": {
+   "name": "claude-4",
+   "alive": true,
+   "position": [
+    22.6,
+    66.9
+   ],
+   "queued": 0,
+   "stats": {
+    "busy_ticks": 0,
+    "idle_ticks": 35,
+    "crafting_ticks": 0
+   }
+  },
+  "claude-5": {
+   "name": "claude-5",
+   "alive": true,
+   "position": [
+    27.2,
+    102.2
+   ],
+   "queued": 0,
+   "stats": {
+    "busy_ticks": 0,
+    "idle_ticks": 35,
+    "crafting_ticks": 0
+   }
+  }
+ },
+ "behavior": {
+  "agents": {
+   "claude-1": {
+    "turns": 0,
+    "tool_calls": 0,
+    "tools": {},
+    "act_ops": {},
+    "hand_logistics": 0,
+    "failures": 0,
+    "tool_secs": 0.0,
+    "turn_secs": 0.0,
+    "turns_ended_idle": 0,
+    "cost_usd": 0.0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "turn_errors": 0,
+    "thoughts": 0,
+    "missing": true,
+    "mod_stats": {
+     "busy_ticks": 0,
+     "idle_ticks": 11,
+     "crafting_ticks": 0,
+     "idle_pct": 100.0,
+     "crafting_pct": 0.0
+    },
+    "sampled_busy_pct": null,
+    "alive_at_end": true
+   },
+   "claude-2": {
+    "turns": 0,
+    "tool_calls": 0,
+    "tools": {},
+    "act_ops": {},
+    "hand_logistics": 0,
+    "failures": 0,
+    "tool_secs": 0.0,
+    "turn_secs": 0.0,
+    "turns_ended_idle": 0,
+    "cost_usd": 0.0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "turn_errors": 0,
+    "thoughts": 0,
+    "missing": true,
+    "mod_stats": {
+     "busy_ticks": 0,
+     "idle_ticks": 11,
+     "crafting_ticks": 0,
+     "idle_pct": 100.0,
+     "crafting_pct": 0.0
+    },
+    "sampled_busy_pct": null,
+    "alive_at_end": true
+   }
+  },
+  "total": {
+   "turns": 0,
+   "tool_calls": 0,
+   "hand_logistics": 0,
+   "failures": 0,
+   "turns_ended_idle": 0,
+   "cost_usd": 0.0,
+   "tool_secs": 0.0,
+   "turn_secs": 0.0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "char_idle_pct_mean": 100.0,
+   "sampled_busy_pct_mean": null,
+   "act_ops": {}
+  }
+ },
+ "cost_usd": 0.0,
+ "final_save": "/home/stephen/dev/factorio-slave/experiments/runs/dry-s4-selftest/final.zip",
+ "end": "2026-10-18 01:21:53",
+ "t_end": 1792304513.1406898
+}

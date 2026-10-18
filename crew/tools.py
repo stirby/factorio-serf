@@ -51,6 +51,11 @@ Ops and their fields:
   connect     item=<transport-belt|pipe|small-electric-pole|...> from=[x,y] to=[x,y] [end_direction]
               routes a line around obstacles and places it (belts point along the route; poles spaced to reach)
   follow      player=<name> | agent=<name> [distance=3] [seconds=300]   stay near them until stopped
+  build_ghosts [x y radius=32] [limit]       build ghosts (planned buildings) near a point with items you carry;
+              reports what's missing. Ghosts placed by humans are their plans: build them first.
+  blueprint   string=<blueprint string> x y [direction]  |  entities=[{name,x,y,direction,recipe}]
+              lay ghosts (instant, like placing a blueprint); then build_ghosts. Good for big builds.
+  loot        [x y]                                         take everything back from the nearest corpse
   wait        seconds
 Coordinates: tile (x,y) spans x..x+1; 1x1 and 3x3 entities sit at .5 centers, 2x2 at integer corners (the game snaps).
 Directions: inserters TAKE from the side they face and drop on the opposite side; drills drop one tile in front
@@ -283,6 +288,67 @@ async def t_roadmap(agent: "Agent", a: dict) -> str:
     return agent.board.render_roadmap()
 
 
+async def t_mark(agent: "Agent", a: dict) -> str:
+    if a.get("remove") is not None:
+        await agent.link.call("unmark", id=int(a["remove"]))
+        return "mark removed"
+    _num(a, "x", "y")
+    kw = {k: a[k] for k in ("kind", "x", "y", "text", "requests") if k in a}
+    m = await agent.link.call("mark", agent=agent.name, **kw)
+    return f"mark #{m['id']} placed; everyone sees it on the map"
+
+
+def _fmt_marks(marks: list[dict]) -> str:
+    lines = []
+    for m in marks:
+        line = f"#{m['id']} {m['kind']} [gps={m['p'][0]},{m['p'][1]}] {m['text']} (by {m['by']})"
+        if m.get("missing"):
+            line += f" NEEDS {_j(m['missing'])}"
+        elif m.get("contents") and m["kind"] in ("provider", "storage"):
+            top = dict(sorted(m["contents"].items(), key=lambda kv: -kv[1])[:8])
+            line += f" has {_j(top)}"
+        if m.get("warning"):
+            line += f" ({m['warning']})"
+        lines.append(line)
+    return "\n".join(lines) or "(no marks)"
+
+
+async def open_work(agent: "Agent") -> str:
+    """What needs doing right now, in the order an idle logistic robot would pick it up."""
+    parts = []
+    try:
+        marks = (await agent.link.call("marks"))["marks"]
+    except GameError:
+        marks = []
+    req = [m for m in marks if m["kind"] == "requester" and m.get("missing")]
+    if req:
+        parts.append("Unfilled requests (deliver from providers, your inventory, or craft):\n" + _fmt_marks(req))
+    try:
+        g = await agent.link.call("ghosts")
+        if g.get("count"):
+            parts.append(f"Unbuilt ghosts: {g['count']} (e.g. at [gps={g['example'][0]},{g['example'][1]}]), "
+                         f"items needed: {_j(g['needs'])}")
+    except GameError:
+        pass
+    tasks = [t for t in agent.board.active() if t.status == "open" or t.owner == agent.name]
+    if tasks:
+        parts.append("Tasks: " + "; ".join(f"#{t.id} {t.title}" + (f" @{t.owner}" if t.owner else " (open)")
+                                         for t in tasks[:8]))
+    nxt = [m for m in agent.board.roadmap if m["status"] != "done"][:2]
+    if nxt:
+        parts.append("Roadmap next: " + "; ".join(m["goal"] for m in nxt))
+    return "\n".join(parts)
+
+
+async def t_work(agent: "Agent", a: dict) -> str:
+    w = await open_work(agent)
+    return w or "nothing open: pick the biggest bottleneck you can see (use production) and fix it"
+
+
+async def t_marks(agent: "Agent", a: dict) -> str:
+    return _fmt_marks((await agent.link.call("marks"))["marks"])
+
+
 async def t_notes(agent: "Agent", a: dict) -> str:
     agent.set_notes(str(a.get("text", "")))
     return "notes saved (shown to you at the start of every turn)"
@@ -328,7 +394,7 @@ TOOLS: list[Tool] = [
          "replace=true cancels what you were doing first. If a human messages you, it returns early.",
          _obj({"actions": {"type": "array", "items": {"type": "object", "properties": {
              "op": {"type": "string", "enum": ["move", "mine", "craft", "place", "insert", "take", "set_recipe",
-                                               "rotate", "research", "connect", "follow", "wait"]}}, "required": ["op"],
+                                               "rotate", "research", "connect", "follow", "build_ghosts", "blueprint", "loot", "wait"]}}, "required": ["op"],
              "additionalProperties": True}},
              "wait": {"description": "true | false | 'until_last'"}, "replace": {"type": "boolean"}}, ["actions"]),
          t_act),
@@ -346,14 +412,23 @@ TOOLS: list[Tool] = [
     Tool("update_task", "Update a board task: status claimed|done|blocked|cancelled|open, a progress note, "
          "or reassign.", _obj({"id": {"type": "integer"}, "status": {"type": "string"}, "note": {"type": "string"},
                                "assignee": {"type": "string"}}, ["id"]), t_update_task),
-    Tool("zone", "Claim an area of the map as yours to build in (so parallel builders don't collide), e.g. "
-         "name='iron-smelting' area=[x1,y1,x2,y2] purpose='iron plates -> depot'. release=true frees it. "
-         "Shows all zones.", _obj({"name": {"type": "string"}, "area": {"type": "array", "items": {"type": "number"}},
+    Tool("zone", "Claim a construction site: the area you're about to build in, so parallel builders don't place "
+         "on top of each other. e.g. name='iron-column-2' area=[x1,y1,x2,y2] purpose='12 furnaces'. Claims lapse "
+         "after 30 min (claim again to renew); release=true frees it when you're done. Not territory: anyone may "
+         "expand anywhere that isn't an active site.", _obj({"name": {"type": "string"}, "area": {"type": "array", "items": {"type": "number"}},
                                    "purpose": {"type": "string"}, "release": {"type": "boolean"}}, ["name"]), t_zone),
     Tool("roadmap", "The crew's shared milestones. goals=[...] sets the list (lead's job; keep existing wording to "
          "keep status); mark=<index> status=doing|done updates one. With no args, shows it.",
          _obj({"goals": {"type": "array", "items": {"type": "string"}}, "mark": {"type": "integer"},
                "status": {"type": "string", "enum": ["todo", "doing", "done"]}}), t_roadmap),
+    Tool("mark", "Annotate the world for everyone, like logistic chests: kind=provider (shared surplus, take "
+         "freely), requester (requests={item: count} to be delivered here), storage (overflow) or note "
+         "(any label, e.g. 'main bus starts here'). Shows on the map for humans too. remove=<id> deletes one.",
+         _obj({"kind": {"type": "string", "enum": ["provider", "requester", "storage", "note"]}, **XY,
+               "text": {"type": "string"}, "requests": {"type": "object"}, "remove": {"type": "integer"}}), t_mark),
+    Tool("marks", "All world marks with live chest contents and unfilled requests.", _obj({}), t_marks),
+    Tool("work", "What needs doing now: unfilled requests, unbuilt ghosts, open tasks, next roadmap goals. "
+         "Call it whenever you're between jobs instead of waiting for direction.", _obj({}), t_work),
     Tool("notes", "Replace your private notes: plans, coordinates of things you built, what's left to do. "
          "They're shown to you at the start of every turn, so keep them current and short.",
          _obj({"text": {"type": "string"}}, ["text"]), t_notes),
@@ -382,8 +457,26 @@ CONSULT = Tool("consult", "Ask your right-hand engineer (a separate senior Claud
                t_consult)
 BY_NAME["consult"] = CONSULT
 
+async def t_plan_ghosts(agent: "Agent", a: dict) -> str:
+    ents = a.get("entities")
+    if isinstance(ents, str):
+        ents = json.loads(ents)
+    if not ents:
+        return "entities=[{name,x,y,direction,recipe}] required"
+    d = await agent.link.call("act", agent=agent.name, actions=[{"op": "blueprint", "entities": ents}])
+    fut = agent.link.job_future(d["job_ids"][0])
+    r = await asyncio.wait_for(fut, 20)
+    return f"{'OK' if r.get('ok') else 'FAILED'} {r.get('msg', '')}"
+
+
+PLAN_GHOSTS = Tool("plan_ghosts", "Lay your design in the world as ghosts (planned buildings everyone can see and "
+                   "build with build_ghosts). entities=[{name: item name, x, y, direction, recipe}]. Check the "
+                   "spots are free first. The result lists the items needed to build it.",
+                   _obj({"entities": {"type": "array", "items": {"type": "object"}}}, ["entities"]), t_plan_ghosts)
+BY_NAME["plan_ghosts"] = PLAN_GHOSTS
+
 READ_ONLY = ["look", "map", "find", "inspect", "recipes", "techs", "production", "board", "post_task", "update_task",
-             "roadmap"]
+             "roadmap", "marks", "work", "plan_ghosts"]
 
 
 async def run_tool(agent: "Agent", name: str, args: dict) -> str:

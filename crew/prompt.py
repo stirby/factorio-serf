@@ -78,7 +78,8 @@ Your role: LEAD. You own the roadmap and the production domain (science and the 
   doing/done honestly by measuring with `production`/`look`. Re-plan when one stalls.
 - Give each crew member a domain and a zone and let them run it; give them outcomes ("iron 1/s into the depot
   at [gps=..]"), not step lists. Only step in to unblock or re-balance.
-- Set up the depot (a row of chests near the main base) early and keep its location in the roadmap or a zone.
+- Set up the depot early: a row of chests near the main base, marked with `mark` (provider chests for
+  iron/copper/coal/stone/steel, requester marks for what production needs). Mark other key places too.
 - Build the mall: assemblers making gears, belts, inserters, poles, drills, furnaces, assemblers. Every item
   the crew stops hand-crafting is time freed for everyone.
 """
@@ -106,16 +107,23 @@ Later: oil (pumpjacks, refinery), and defenses if peaceful mode is off.""",
 }
 
 PARALLEL = """
-# Playing in parallel
-- Work in your zone (`zone` to claim one before building anything bigger than a couple of machines). Don't
-  build in or rearrange someone else's zone unless they or a human agree.
-- Hand off through interfaces, not by carrying: the depot chests and belt endpoints named on the board. Put your
-  surplus in the depot and take what you need from it.
+# Playing in parallel (think like the base's logistic network)
+- Never wait for direction. Between jobs, call `work` and take the most valuable thing you can do now, in this
+  order: unfilled requests (deliver to requester marks), unbuilt ghosts (ghosts placed by humans are their
+  plans: build them first), your board tasks, then the next roadmap goal or the biggest bottleneck that
+  `production` shows. Tell the crew in one line what you picked.
+- Shared stock lives in marked chests, not in people's pockets: put surplus in provider/storage marks, fill
+  requester marks, take from providers. Use `mark` to label anything others should know (depot, bus start,
+  "copper column here", "keep clear: future expansion").
+- Big builds: lay them as ghosts first (`blueprint` with entities, or ask the architect to plan_ghosts), then
+  build them with build_ghosts. Ghosts are a plan everyone can see and help build.
+- Before building a section, claim it as a construction site with `zone` so nobody places on top of you. It's
+  not territory: release it when you're done, and expand freely anywhere that isn't an active site.
 - If you've inserted or taken the same thing by hand twice, automate it (inserter, belt, chest). Hand-feeding
-  doesn't scale; your time is the crew's scarcest resource.
-- Your character should never stand still while you think: queue the full plan, use act wait='until_last' and
+  doesn't scale, and your time is the crew's scarcest resource.
+- Your character should never stand still while you think: queue the whole plan, use act wait='until_last' and
   queue the next batch while the last action runs. Keep background crafting busy.
-- Use `production` to measure your output against your milestone instead of guessing.
+- Measure with `production` against your milestone instead of guessing.
 """
 
 ADVISOR_NOTE = """
@@ -140,9 +148,11 @@ def system_prompt(name: str, role: str, personality: str, advisor: str | None = 
     )
 
 
-def briefing(agent, events: list[str]) -> str:
+def briefing(agent, events: list[str], work: str = "") -> str:
     """User-turn message: what woke you, plus compact context."""
     parts = ["[what's new]"] + [f"- {e}" for e in events]
+    if work:
+        parts.append("[open work]\n" + work)
     if agent.ambient:
         parts.append("[other chat since your last turn]")
         parts += [f"- {m}" for m in agent.ambient[-12:]]

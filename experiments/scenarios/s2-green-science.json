@@ -1,0 +1,21 @@
+{
+  "name": "s2-green-science",
+  "stage": "stage-20261018-011343-live-final-3opus",
+  "minutes": 45,
+  "agents": [
+    {"name": "claude-1", "role": "foreman", "focus": "production"},
+    {"name": "claude-2", "role": "worker", "focus": "resources"},
+    {"name": "claude-3", "role": "worker", "focus": "infrastructure"}
+  ],
+  "goal": "@all Automate green science (logistic-science-pack) to 0.25/s (15 per minute) with assemblers fed by belts and inserters, and feed it with red science into the labs automatically. No hand-feeding. Report in chat when it runs on its own.",
+  "score": [
+    {"name": "green_per_min_assemblers", "lua": "finished('logistic-science-pack')", "rate": true, "target": 15,
+     "note": "packs finished by assemblers per game minute (hand-crafted excluded)"},
+    {"name": "green_per_min", "lua": "st.get_flow_count{name='logistic-science-pack', category='input', precision_index=defines.flow_precision_index.one_minute, count=true}",
+     "note": "production stats; includes hand-crafting"},
+    {"name": "red_per_min", "lua": "pm('automation-science-pack')"},
+    {"name": "green_consumed_per_min", "lua": "pm('logistic-science-pack', 'output')", "note": "consumed (labs)"},
+    {"name": "green_asm", "lua": "making('logistic-science-pack')"},
+    {"name": "labs", "lua": "count('lab')"}
+  ]
+}

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 import logging
 
 from . import ui
@@ -51,6 +52,7 @@ class Orchestrator:
             asyncio.create_task(self._watch_config(), name="config-watch")
         asyncio.create_task(progress.metrics_loop(self.link.call, self.cfg.state_dir / "metrics.jsonl"),
                             name="metrics")
+        asyncio.create_task(self._idle_sweep(), name="idle-sweep")
 
     async def _add_agent(self, ac: AgentConfig) -> Agent:
         existing = {a["name"]: a for a in (await self.link.call("list"))["agents"]}
@@ -152,6 +154,25 @@ class Orchestrator:
                 continue
             wake = name in r.targets and agent.allow_peer_wake()
             agent.hear(f'{speaker} (crew): "{text}"', wake=wake, urgent=False)
+
+    async def _idle_sweep(self) -> None:
+        """Agents idle for a while get woken with whatever work is open (requests, ghosts, tasks, roadmap)."""
+        from .tools import open_work
+        while True:
+            await asyncio.sleep(30)
+            now = time.time()
+            for agent in list(self.agents.values()):
+                if (agent.in_turn or not agent.inbox.empty() or agent.mode != "idle"
+                        or now - agent.idle_since < 90 or now - agent.last_free_wake < 180):
+                    continue
+                try:
+                    work = await open_work(agent)
+                except Exception:
+                    continue
+                if work:
+                    agent.last_free_wake = now
+                    agent.inbox.put_nowait("(idle check) You've been idle; there's open work. Pick the most valuable "
+                                           "item you can do now, tell the crew in one line, and do it.")
 
     async def _snapshot(self, label: str) -> None:
         try:

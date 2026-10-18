@@ -46,6 +46,8 @@ class Agent:
         self.last_position = None
         self.total_cost = 0.0
         self.error_streak = 0
+        self.idle_since = time.time()
+        self.last_free_wake = 0.0
         self.retired = False
         tools = None
         if orch.advisor and (orch.cfg.advisor_for == "all" or cfg.role == "foreman"):
@@ -226,7 +228,12 @@ class Agent:
                 continue
             self.turn_times.append(time.time())
 
-            prompt = briefing(self, events)
+            try:
+                from .tools import open_work
+                work = await open_work(self)
+            except Exception:
+                work = ""
+            prompt = briefing(self, events, work)
             self._record("prompt", text=prompt)
             ui.turn_start(self.name, events)
             self.in_turn, self.mode_set_this_turn = True, False
@@ -266,6 +273,8 @@ class Agent:
                 continue
             if not self.mode_set_this_turn:
                 self.mode = "idle"
+            if self.mode == "idle":
+                self.idle_since = time.time()
             if self.mode == "working":
                 self.autonomous += 1
                 if self.autonomous > self.cfg.max_autonomous_turns:

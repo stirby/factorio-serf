@@ -1,0 +1,10 @@
+{
+  "_doc": "Variant = changes on top of a scenario. Keys: model (all agents), backend, advisor (true | {name, model, effort, for}), agents (count or list), agent_overrides ({index-or-name: {model, role, focus, ...}}), defaults ([defaults] keys, e.g. max_turns_per_hour, effort), toml (deep-merged into the generated crew.toml, for new crew flags).",
+  "baseline": {"advisor": false},
+  "advisor": {"advisor": true},
+  "advisor-foreman": {"advisor": {"name": "architect", "model": "claude-opus-5-5", "effort": "high", "for": "foreman"}},
+  "haiku": {"model": "claude-haiku-5-5", "advisor": false},
+  "sonnet": {"model": "claude-sonnet-5-5", "advisor": false},
+  "opus": {"model": "claude-opus-5-5", "advisor": false},
+  "opus-lead": {"advisor": false, "agent_overrides": {"0": {"model": "claude-opus-5-5"}}}
+}

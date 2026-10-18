@@ -381,7 +381,7 @@ class Bench:
         rcon = Rcon(self.inst.host, self.inst.rcon_port, self.inst.password)
         try:
             await rcon.connect()
-            crew = Crew(rcon)
+            crew = self.crew = Crew(rcon)
             self.result["mod_version"] = (await crew.call("ping")).get("version")
             await self._reset_agents(crew)
             setup = {}
@@ -390,12 +390,7 @@ class Bench:
                 setup = setup.get("result") if isinstance(setup, dict) else setup
             self.result["setup"] = setup
             scorer = Scorer(crew, self.scn.get("score", []))
-            base = await scorer.sample()
-            await asyncio.sleep(2)
-            base2 = await scorer.sample()  # second sample so rate checks have a starting point
-            for k, v in base2["values"].items():
-                if v is not None or k not in base["values"]:
-                    base["values"][k] = v
+            base = await scorer.sample()  # rate checks have no baseline value; this sample is their start point
             scorer.set_baseline(base)
             self.result["baseline"] = base
             self.result["targets"] = scorer.targets
@@ -532,7 +527,7 @@ class Bench:
             pass
         for n in orch.agents:  # characters stay; make sure they stop moving
             try:
-                await asyncio.wait_for(Crew(orch.link.rcon).call("cancel", agent=n, reason="bench over"), 10)
+                await asyncio.wait_for(self.crew.call("cancel", agent=n, reason="bench over"), 10)
             except Exception:  # noqa: BLE001
                 pass
 
@@ -551,8 +546,8 @@ class Bench:
             self._err("final save", e)
 
 
-def record(result: dict) -> dict:
-    """One line for experiments/results.jsonl."""
+def record(result: dict, append: bool = True) -> dict:
+    """One line for experiments/results.jsonl (appended unless append=False)."""
     beh = (result.get("behavior") or {}).get("total") or {}
     line = {k: result.get(k) for k in ("run_id", "scenario", "variant", "instance", "stage", "dry", "start", "end",
                                        "elapsed_s", "score", "success", "stopped_early", "interrupted", "cost_usd")}
@@ -562,7 +557,8 @@ def record(result: dict) -> dict:
                                                 "char_idle_pct_mean", "sampled_busy_pct_mean", "tool_secs", "turn_secs")}
     line["models"] = sorted({a.get("model") for a in ((result.get("config") or {}).get("agents") or []) if a.get("model")})
     line["errors"] = result.get("errors")
-    append_jsonl(RESULTS, line)
+    if append:
+        append_jsonl(RESULTS, line)
     return line
 
 

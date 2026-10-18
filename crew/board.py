@@ -19,12 +19,16 @@ class Task:
     updated: float = field(default_factory=time.time)
 
 
+ZONE_TTL = 30 * 60  # construction-site claims lapse unless renewed
+
+
 @dataclass
 class Zone:
     name: str
     owner: str
     area: list[float]  # x1, y1, x2, y2
     purpose: str = ""
+    expires: float = 0.0
 
 
 class Board:
@@ -56,13 +60,22 @@ class Board:
 
     def claim_zone(self, by: str, name: str, area: list[float], purpose: str) -> tuple[Zone, list[str]]:
         x1, y1, x2, y2 = min(area[0], area[2]), min(area[1], area[3]), max(area[0], area[2]), max(area[1], area[3])
+        self._expire()
         overlaps = [z.name + f" ({z.owner})" for z in self.zones.values()
                     if z.name != name and z.owner != by
                     and not (x2 <= z.area[0] or x1 >= z.area[2] or y2 <= z.area[1] or y1 >= z.area[3])]
-        z = Zone(name=name, owner=by, area=[x1, y1, x2, y2], purpose=purpose)
+        z = Zone(name=name, owner=by, area=[x1, y1, x2, y2], purpose=purpose, expires=time.time() + ZONE_TTL)
         self.zones[name] = z
         self._save()
         return z, overlaps
+
+    def _expire(self) -> None:
+        now = time.time()
+        gone = [n for n, z in self.zones.items() if z.expires and z.expires < now]
+        for n in gone:
+            del self.zones[n]
+        if gone:
+            self._save()
 
     def release_zone(self, name: str) -> bool:
         if self.zones.pop(name, None):
@@ -88,10 +101,13 @@ class Board:
         return m
 
     def render_zones(self) -> str:
+        self._expire()
         if not self.zones:
-            return "(no zones claimed)"
+            return "(no active construction sites)"
         return "\n".join(f"{z.name} @{z.owner} [{z.area[0]:.0f},{z.area[1]:.0f} .. {z.area[2]:.0f},{z.area[3]:.0f}]"
-                         + (f" -- {z.purpose}" if z.purpose else "") for z in self.zones.values())
+                         + (f" -- {z.purpose}" if z.purpose else "")
+                         + (f" ({max(0, int((z.expires - time.time()) / 60))} min left)" if z.expires else "")
+                         for z in self.zones.values())
 
     def render_roadmap(self) -> str:
         if not self.roadmap:
