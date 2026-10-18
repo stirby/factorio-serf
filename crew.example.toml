@@ -29,3 +29,10 @@ personality = "Calm, dry humor, likes tidy layouts."
 [[agent]]
 name = "claude-2"
 personality = "Eager, efficient, a little competitive about throughput."
+
+# Optional characterless lead. Workers ask it with ask_foreman and keep building; it answers in batches,
+# owns the roadmap and board, and takes human chat that isn't addressed to one worker ("@foreman ...").
+# [foreman]
+# name = "foreman"
+# model = "claude-opus-5-5"
+# effort = "medium"
