@@ -472,7 +472,9 @@ class Bench:
                 self.result["drain_s"] = await self._drain(orch)
                 await self._stop_orch(orch)
                 orch = None
-            self.result["behavior"] = behavior(self.state, names, t0, time.time(), list_start, list_end, busy)
+            # Characterless leads (foreman, architect) count toward cost and time like the workers.
+            leads = [n for n in ("foreman", "architect") if (self.state / "agents" / n / "transcript.jsonl").exists()]
+            self.result["behavior"] = behavior(self.state, names + leads, t0, time.time(), list_start, list_end, busy)
             self.result["cost_usd"] = self.result["behavior"]["total"]["cost_usd"]
             if not a.no_final_save:
                 await self._final_save(rcon)

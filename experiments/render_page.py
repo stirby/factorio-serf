@@ -173,7 +173,9 @@ def progress_panel(since: float) -> str:
         used = [v["science_packs_used"] for v in vals if isinstance(v.get("science_packs_used"), (int, float))]
         peak = max((v.get(key) or 0 for v in vals), default=0)
         arch = d / "state" / "agents" / "architect" / "transcript.jsonl"
-        arch_cost = sum(r.get("cost") or 0 for r in jl(arch) if r.get("kind") == "turn") if arch.exists() else 0
+        counted = "architect" in ((res.get("behavior") or {}).get("agents") or {})
+        arch_cost = (sum(r.get("cost") or 0 for r in jl(arch) if r.get("kind") == "turn")
+                     if arch.exists() and not counted else 0)
         cost = (res.get("cost_usd") or 0) + arch_cost
         status = (f"score {res.get('score')} · ${cost:.0f}" + (f" (architect ${arch_cost:.0f})" if arch_cost else "")
                   if res else (f"stopped at {tl[-1].get('elapsed', 0) / 60:.0f} min (no result)"

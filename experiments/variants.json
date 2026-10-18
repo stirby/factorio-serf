@@ -157,5 +157,19 @@
     "base_url": "https://ai-gateway.vercel.sh/v1"
    }
   }
+ },
+ "foreman-opus": {
+  "advisor": false,
+  "experiment": {
+   "foreman_first": false
+  },
+  "toml": {
+   "foreman": {
+    "name": "foreman",
+    "backend": "claude-code",
+    "model": "claude-opus-5-5",
+    "effort": "medium"
+   }
+  }
  }
 }
