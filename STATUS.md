@@ -1,4 +1,12 @@
-# Status (2026-10-18)
+# Status (2026-10-18, late)
+
+Milestone: two Sonnet agents took an empty Space Age map to automation research in ~20 game-minutes
+(e2e-4 + e2e-5 on save `crew-e2e4`). The review page for the user: https://claude.ai/artifact/VZzanDrygAnMR6Z3ZRKFNR
+Added since: connect (A* belts/pipes/poles), follow, instant come/follow, foreman-first planning,
+water search with pump spots, fuel swap. Smoke test is at 40 checks.
+
+NEXT: the user joins from their client (scripts/install-client-mod.sh with Factorio closed, connect to 127.0.0.1).
+
 
 ## Working
 - **Mod** `mod/claude-crew`: agent characters (name tag, color, speech bubble, death/respawn, freeplay starter kit),
