@@ -32,7 +32,7 @@ class TurnStats:
 
 
 class ClaudeCodeBackend:
-    def __init__(self, agent: "Agent", system: str, workdir: Path, tools=None):
+    def __init__(self, agent: "Agent", system: str, workdir: Path, tools=None, max_steps: int = MAX_STEPS_PER_TURN):
         from claude_agent_sdk import ClaudeAgentOptions, create_sdk_mcp_server, tool
 
         self.agent = agent
@@ -57,7 +57,7 @@ class ClaudeCodeBackend:
             model=cfg.model,
             effort=cfg.effort,
             cwd=str(workdir),
-            max_turns=MAX_STEPS_PER_TURN,
+            max_turns=max_steps,
             stderr=lambda line: log.debug("[%s cli] %s", agent.name, line),
         )
         self.client = None
@@ -111,8 +111,9 @@ class ClaudeCodeBackend:
 class ApiBackend:
     RESET_AT_INPUT_TOKENS = 160_000
 
-    def __init__(self, agent: "Agent", system: str, workdir: Path, tools=None):
+    def __init__(self, agent: "Agent", system: str, workdir: Path, tools=None, max_steps: int = MAX_STEPS_PER_TURN):
         import anthropic
+        self.max_steps = max_steps
         self.anthropic = anthropic
         self.client = anthropic.AsyncAnthropic()
         self.agent = agent
@@ -155,7 +156,7 @@ class ApiBackend:
             prompt = "(new conversation; your notes carry over what you knew)\n" + prompt
         self.messages.append({"role": "user", "content": prompt})
         last_input = 0
-        for _ in range(MAX_STEPS_PER_TURN):
+        for _ in range(self.max_steps):
             try:
                 resp = await self._create()
             except self.anthropic.RateLimitError:
@@ -193,9 +194,9 @@ class ApiBackend:
         return stats
 
 
-def make_backend(agent: "Agent", system: str, workdir: Path, tools=None):
+def make_backend(agent: "Agent", system: str, workdir: Path, tools=None, max_steps: int = MAX_STEPS_PER_TURN):
     if agent.cfg.backend == "api":
-        return ApiBackend(agent, system, workdir, tools)
+        return ApiBackend(agent, system, workdir, tools, max_steps)
     if agent.cfg.backend in ("claude-code", "claude_code", "subscription"):
-        return ClaudeCodeBackend(agent, system, workdir, tools)
+        return ClaudeCodeBackend(agent, system, workdir, tools, max_steps)
     raise ValueError(f"unknown backend {agent.cfg.backend!r} (use claude-code or api)")

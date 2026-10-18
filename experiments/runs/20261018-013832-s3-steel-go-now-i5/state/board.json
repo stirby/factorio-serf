@@ -1,0 +1,71 @@
+{
+ "tasks": [
+  {
+   "id": 1,
+   "title": "STEEL-A: steel furnace row + input inserters (x8..27, y-26.5..-28.5)",
+   "detail": "Inline steel smelters on the north side of the main iron belt (y=-25.5, flows west to the depot). Take from the depot: 10 stone-furnace, 10 inserter, 5 small-electric-pole, 300 coal.\n1) 10 stone furnaces (2x2) at (9,-28) (11,-28) (13,-28) (15,-28) (17,-28) (19,-28) (21,-28) (23,-28) (25,-28) (27,-28). They cover tiles x8..27, y-29..-27.\n2) 10 input inserters, direction SOUTH (they take from the belt at y-25.5 and drop north into the furnace): (8.5,-26.5) (10.5,-26.5) (12.5,-26.5) (14.5,-26.5) (16.5,-26.5) (18.5,-26.5) (20.5,-26.5) (22.5,-26.5) (24.5,-26.5) (26.5,-26.5).\n3) 5 poles in the same row: (9.5,-26.5) (13.5,-26.5) (17.5,-26.5) (21.5,-26.5) (25.5,-26.5). They auto-link to the existing pole at (10.5,-24.5).\n4) Insert 30 coal into each furnace. Coal lasts about 22 min per 30 coal (1.35/min per furnace), so refill until a coal belt exists.\nFurnaces pick the steel recipe automatically from the iron plates. Don't touch the existing poles at (0.5,-26.5) and (6.5,-26.5).",
+   "status": "done",
+   "owner": "claude-1",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-1: 10 furnaces, 10 input inserters, 5 poles placed, 30 coal each."
+   ],
+   "updated": 1792305944.2551463
+  },
+  {
+   "id": 2,
+   "title": "STEEL-B: steel output inserters + steel belt to depot steel chest (-11.5,-29.5)",
+   "detail": "Output side of the STEEL-A row. Take from the depot: 11 inserter, 5 small-electric-pole, 41 transport-belt.\n1) 10 output inserters, direction SOUTH (they take from the furnace at y-28.5 and drop north onto the belt at y-30.5): (8.5,-29.5) (10.5,-29.5) (12.5,-29.5) (14.5,-29.5) (16.5,-29.5) (18.5,-29.5) (20.5,-29.5) (22.5,-29.5) (24.5,-29.5) (26.5,-29.5).\n2) 5 poles: (9.5,-29.5) (13.5,-29.5) (17.5,-29.5) (21.5,-29.5) (25.5,-29.5). Each links to the STEEL-A pole 3 tiles south.\n3) Steel belt: from (27.5,-30.5) to (-9.5,-30.5), all facing WEST (38 belts, row is clear). Then (-10.5,-30.5) facing NORTH, (-10.5,-31.5) facing WEST, (-11.5,-31.5) facing WEST (end of the belt).\n4) End inserter at (-11.5,-30.5), direction NORTH (takes from the belt end at (-11.5,-31.5) and drops south into the existing depot steel chest at (-11.5,-29.5)). The pole at (-13.5,-28.5) powers it.\nResult: 0.625 steel/s goes into the provider-mark depot chest.",
+   "status": "done",
+   "owner": "claude-2",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-2: 10 output inserters (south) at y=-29.5 x8.5..26.5, poles at 9.5/13.5/21.5/25.5 y-29.5 + 17.5,-31.5 (17.5,-29.5 was blocked by a character). Belt y=-30.5 x27.5\u2192-9.5 west, then up to (-11.5,-31.5), end inserter (-11.5,-30.5) into steel chest. All powered."
+   ],
+   "updated": 1792305995.532371
+  },
+  {
+   "id": 3,
+   "title": "STEEL-C: FIX iron belt corner (71.5,-25.5), refuel iron column, expand iron +4 drills +6 furnaces",
+   "detail": "This is the critical path. The iron plate belt (x71.5 going north from the furnaces at x74,y26-46) dead-ends: the corner belt at (71.5,-25.5) faces NORTH into empty ground, so the y-25.5 line to the depot is empty and the furnaces hold about 95 plates each.\nTake from the depot: 4 electric-mining-drill, 6 stone-furnace, 12 inserter, 12 transport-belt, 8 small-electric-pole, 680 coal.\n1) FIRST: rotate the belt at (71.5,-25.5) so it faces WEST. Check that plates start moving west.\n2) Coal: the 11 iron furnaces at (74,26),(74,28)...(74,46) have only about 11 coal each (about 8 min left). Insert 40 coal into each.\n3) Extend the ore belt: place transport belts facing NORTH from (76.5,24.5) to (76.5,13.5) (12 belts).\n4) 6 new iron furnaces at (74,24) (74,22) (74,20) (74,18) (74,16) (74,14), plus 30 coal each.\n5) For each new furnace at Y = 24,22,20,18,16,14, place 2 inserters at row Y-0.5 (23.5, 21.5, 19.5, 17.5, 15.5, 13.5), both direction EAST, the same as the existing ones: an input inserter at (75.5,Y-0.5) takes ore from x76, and an output inserter at (72.5,Y-0.5) takes from the furnace and drops on x71.\n6) Poles: (72.5,20.5) (75.5,20.5) (72.5,16.5) (75.5,16.5) (72.5,12.5) (75.5,12.5).\n7) 4 electric drills on the NORTH side of the ore belt y=56.5, facing SOUTH: (79.5,54.5) (82.5,54.5) (85.5,54.5) (88.5,54.5). Poles at (80.5,51.5) and (86.5,51.5), linked from the existing pole (75.5,51.5).\nResult: iron goes from 205 to about 315 plates/min. Steel uses 187/min and the depot gets about 128/min.",
+   "status": "claimed",
+   "owner": "claude-3",
+   "created_by": "claude-1",
+   "notes": [],
+   "updated": 1792305892.1461804
+  }
+ ],
+ "zones": [],
+ "roadmap": [
+  {
+   "goal": "Iron plates flowing to depot automatically (fix corner at 71,-25)",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Steel 0.5/s sustained from belt-fed furnace row at x8-27,y-28",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Steel delivered by belt into depot chest [-11.5,-29.5]",
+   "status": "done",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Iron smelting expanded to ~315 plates/min",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Coal delivered by belt to all furnaces (no hand refuel)",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Red+green science automated into labs",
+   "status": "todo",
+   "by": "claude-1"
+  }
+ ]
+}

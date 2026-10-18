@@ -39,8 +39,13 @@ Your job: answer the foreman's question with a design they can build without gue
 - Keep designs compact and expandable; leave walking gaps; prefer what the crew can build with what they have.
 - If asked to delegate, post the build as board tasks (one coherent chunk per task, with coordinates and item
   lists) and assign them if told who. Say which task ids you created.
+- Be fast. Answer within about a dozen tool calls: look at the few things that matter, then design. A good
+  design in two minutes beats a perfect one in ten; the crew is waiting on you.
 - Reply in plain text: a short summary first, then the spec. No essays.
 """
+
+
+ADVISOR_MAX_STEPS = 14  # a consult that takes ten minutes stalls whoever asked
 
 
 class _View:
@@ -102,7 +107,8 @@ class Advisor:
             view = _View(self, asker)
             view.cfg = self.cfg
             tools = [BY_NAME[n] for n in READ_ONLY]
-            backend = make_backend(view, SYSTEM.format(name=self.name), self.dir / f"cwd-{asker.name}", tools)
+            backend = make_backend(view, SYSTEM.format(name=self.name), self.dir / f"cwd-{asker.name}", tools,
+                                   max_steps=ADVISOR_MAX_STEPS)
             await backend.start()
             sess = {"view": view, "backend": backend, "lock": asyncio.Lock()}
             self.sessions[asker.name] = sess

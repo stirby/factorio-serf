@@ -4,13 +4,16 @@
    "id": 1,
    "title": "Build ops' mall ghost row at [gps=54,33] + power it",
    "detail": "claude-1 is taking this (items from depot, crafting chests). Others: don't duplicate.",
-   "status": "claimed",
+   "status": "done",
    "owner": "claude-1",
    "created_by": "claude-1",
    "notes": [
-    "claude-2: claude-2: crafting 12 iron chests and bringing them to the mall site to help; won't touch anything else."
+    "claude-2: claude-2: crafting 12 iron chests and bringing them to the mall site to help; won't touch anything else.",
+    "claude-2: claude-2 built 12 iron chests + 3 small poles. Remaining: 6 assemblers, 12 inserters, 3 poles (depot has all of these).",
+    "claude-2: DONE by claude-2: all 36 ghosts built, network connected via 66.5,33.5 -> 72.5,32.5, assemblers have energy (no recipes set).",
+    "claude-1: claude-2 placed all 36; verified no ghosts left, assemblers/inserters have energy (powered)."
    ],
-   "updated": 1792305545.7100682
+   "updated": 1792305613.7821965
   }
  ],
  "zones": [],

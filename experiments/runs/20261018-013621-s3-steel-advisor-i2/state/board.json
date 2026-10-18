@@ -1,0 +1,102 @@
+{
+ "tasks": [
+  {
+   "id": 1,
+   "title": "STEEL-1: Fix iron plate belt corner at 71.5,-25.5 + refuel iron smelter",
+   "detail": "Do this first. Nothing reaches the depot right now. The plate belt runs north on x=71.5 (y 45 -> -25) and then west on y=-25.5 to the depot. The corner belt at [71.5,-25.5] faces NORTH into nothing, so the y=-25.5 belt is empty and all 11 iron furnaces at x=74 (y 26..46) are stuck at full_output with 100 plates each.\n1) Walk to [71.5,-25.5] and rotate that belt to face WEST, so it feeds [70.5,-25.5]. Watch plates start moving west.\n2) Stopgap fuel: the iron furnaces at [74,26],[74,28]...[74,46] (11 of them) only hold about 10 coal each, which is about 7 min once they restart. Bring 440 coal from the depot coal chest [-9.5,-29.5] and insert 40 into each furnace (about 30 min). The real fix is the separate coal-line task.\n3) Check that plates reach the depot: the belt at [-5.5,-25.5] should carry about 3.4 plates/s on its south lane.\nBring: 440 coal.",
+   "status": "claimed",
+   "owner": "claude-1",
+   "created_by": "claude-1",
+   "notes": [],
+   "updated": 1792305887.1594799
+  },
+  {
+   "id": 2,
+   "title": "STEEL-2: Build 9 steel furnaces on the south side of the main plate belt (y=-25.5), x -9..17",
+   "detail": "Steel row, fed by the westbound plate belt at y=-25.5. Every tile below is free. The existing pole at [10.5,-24.5] stays; build around it. Inserter direction = the side it picks from.\nFurnace X list: -8,-5,-2,1,4,7,10,13,16 (pitch 3, 1-tile gap between furnaces).\na) 9 stone-furnace at [X,-23]: [-8,-23] [-5,-23] [-2,-23] [1,-23] [4,-23] [7,-23] [10,-23] [13,-23] [16,-23].\nb) 9 input inserter at y=-24.5, x = -8.5,-5.5,-2.5,0.5,3.5,6.5,9.5,12.5,15.5, direction NORTH (picks plates from the belt at -25.5, drops into the furnace).\nc) 9 output inserter at y=-21.5, same x (-8.5 ... 15.5), direction NORTH (picks steel from the furnace, drops onto the steel belt at y=-20.5).\nd) 9 long-handed-inserter at y=-21.5, x = -7.5,-4.5,-1.5,1.5,4.5,7.5,10.5,13.5,16.5, direction SOUTH (picks coal from the coal belt at y=-19.5, drops into the furnace tile at -23.5). Craft them: each one is 1 inserter + 1 gear + 1 iron plate.\ne) 5 small-electric-pole in the gaps at y=-23.5, x = -6.5,-0.5,5.5,11.5,14.5. The pole at -6.5 links to the existing [-5.5,-26.5]; each pole powers both furnaces next to it.\nBring from the depot: 9 stone-furnace [-9.5,-27.5], 27 inserter [-13.5,-27.5] (18 to place + 9 to craft into long-handed), 9 gears [-8.5,-29.5], 9 iron plate [-13.5,-29.5], 5 poles [-12.5,-27.5].\nOutput: 9 x 0.0625 = 0.5625 steel/s (34/min), using 2.81 plates/s.",
+   "status": "done",
+   "owner": "claude-2",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-2: All 9 furnaces, 18 inserters, 9 long-handed inserters and 5 poles are placed as specified, and everything is powered. They are idle until plates arrive on y=-25.5 and there's a coal belt at y=-19.5 and a steel belt at y=-20.5."
+   ],
+   "updated": 1792305933.4665916
+  },
+  {
+   "id": 3,
+   "title": "STEEL-3: Steel belt into the depot steel chest [-11.5,-29.5] + coal feed belt for the steel row",
+   "detail": "Pairs with STEEL-2 (furnaces at [X,-23], X=-8..16).\nSTEEL BELT (y=-20.5, flows west, then north under the main belt):\n- transport-belt facing WEST at y=-20.5 for x = 15.5 down to -9.5 (26 belts)\n- [-10.5,-20.5] N, [-10.5,-21.5] N, [-10.5,-22.5] N, [-10.5,-23.5] W, [-11.5,-23.5] N (5 belts)\n- underground-belt ENTRANCE at [-11.5,-24.5] facing N, EXIT at [-11.5,-27.5] facing N (passes under the main belt and the pole at [-11.5,-26.5]; claude-2 is standing on -27.5 right now)\n- inserter at [-11.5,-28.5] direction SOUTH (picks from the UG exit, drops into the steel chest [-11.5,-29.5]). Powered by the pole at [-13.5,-28.5].\nCOAL BELT (y=-19.5, flows east, dead-ends at the last furnace):\n- iron-chest at [-12.5,-19.5] = coal buffer (craft it from 8 plates)\n- inserter at [-11.5,-19.5] direction WEST (chest -> belt)\n- small-electric-pole at [-12.5,-20.5] (links to the STEEL-2 pole at [-6.5,-23.5], 6.7 tiles)\n- transport-belt facing EAST at y=-19.5 for x = -10.5 up to 16.5 (28 belts)\n- put 400 coal from [-9.5,-29.5] in the coal chest. The row burns 0.2 coal/s, so 400 coal is about 33 min until the coal line is automated.\nBring: 59 belts, 2 underground-belt, 2 inserter, 1 pole, 8 iron plate, 400 coal.\nDone when steel is counting up in [-11.5,-29.5] (about 34/min once all 9 furnaces run).",
+   "status": "claimed",
+   "owner": "claude-3",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-3: REVISED coal part (the steel-belt part is unchanged). The coal belt now flows WEST so the coal mainline in task #5 can plug into its east end later. Build: iron-chest (coal buffer) at [18.5,-19.5]; inserter at [17.5,-19.5] direction EAST (chest -> belt); small pole at [18.5,-20.5] (5 tiles to the [14.5,-23.5] pole); transport-belt facing WEST at y=-19.5 for x = 16.5 down to -7.5 (25 belts, dead-ends under the first long inserter). Skip the old chest/inserter/pole at [-12.5/-11.5,-19.5]. Only 400 coal is left in the depot [-9.5,-29.5]: put 200 in the coal buffer and leave 200 for the boilers (boiler [-31.5,-43] has NO fuel now; [-27,-42.5] has 5 + 37 in its wooden chest). Belts for this task: 31 steel + 25 coal = 56 (you carry 128)."
+   ],
+   "updated": 1792306072.331328
+  },
+  {
+   "id": 4,
+   "title": "PHASE 2 (foreman to assign, claude-4/5?): automate coal to the iron smelter + steel coal chest",
+   "detail": "Steel automation is only as good as its fuel. The 11 iron furnaces at x=74 y26..46 are hand-fuelled (0.25 coal/s), and the steel coal chest [-12.5,-19.5] needs 0.2 coal/s. The iron ore belt (y=56 westbound from x~100, then north on x=76.5) only uses its WEST lane; the EAST lane of x=76.5 is free. Plan: run a coal belt from the coal field (electric coal drills ~[33.5..44.5,103.5], current coal belt y=103.5 westbound at x 22..31) to the iron ore belt and side-load it onto the EAST lane of x=76.5 (e.g. enter from the east at about [77.5,50.5]). The iron input inserters at x=75.5 will then fuel the furnaces automatically. About 100 belts. Ask architect for an exact route before building. Do NOT put coal on the plate belt to the depot: it would clog the mall chests at [-15.5]/[-19.5,-27.5].",
+   "status": "open",
+   "owner": "claude-4",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-1: claude-4: you own coal automation. Outcome: coal on the east lane of the iron ore belt x=76.5 so the 11 iron furnaces self-fuel. Consult architect for route. claude-5 can help.",
+    "claude-3: EXACT ROUTE. Source: iron-chest [42.5,103.5] on the coal field, which the electric drills at [40.5,103.5] and [44.5,103.5] (1 coal/s) fill. 1) inserter at [42.5,102.5] direction SOUTH (picks from the chest, drops onto [42.5,101.5]). 2) small pole at [41.5,101.5] (4.1 tiles to the existing pole [42.5,105.5]). 3) belt: connect from [42.5,101.5] north along x=42.5 to [42.5,47.5], then east along y=47.5 to [77.5,47.5]. The LAST belt at [77.5,47.5] faces WEST and side-loads onto the EAST lane of the northbound ore belt [76.5,47.5], upstream of all 11 input inserters (y 25.5..45.5). It crosses no other belt; let connect go around trees. About 95 belts plus 1 inserter and 1 pole. Done when the iron furnaces at x=74 show their coal going up without anyone hand-feeding. Demand is 0.25 coal/s; the inserter gives about 0.83/s."
+   ],
+   "updated": 1792306076.2318828
+  },
+  {
+   "id": 5,
+   "title": "COAL-MAIN (for claude-5): Coal belt from the coal field to the steel row coal belt at [17.5,-19.5]",
+   "detail": "Meant for claude-5 (the board won't accept claude-5 as assignee). Removes the last hand-feed from the steel line (0.2 coal/s). Source: the westbound coal belt at y=103.5 (x 22..31), fed by the drill at [33.5,103.5] (0.5 coal/s). First clear the stump at [28,103]. If that belt is meant for something else, tell architect.\nRoute: make [24.5,103.5] face NORTH (belts x 31.5..25.5 keep facing west), then connect north along x=24.5 from y=102.5 to y=-19.5, then west along y=-19.5 to [19.5,-19.5]. Corridor x=24.5 is open ground plus trees between y 51..92 (let connect go around them). It crosses no belts. About 130 belts (depot chests [-12.5,-30.5] and [-6.5,-29.5]).\nHook-up (after STEEL-3): mine the stopgap coal chest [18.5,-19.5] and its inserter [17.5,-19.5] (keep the pole [18.5,-20.5]), then place belts [18.5,-19.5] W and [17.5,-19.5] W so the mainline runs straight into [16.5,-19.5].\nBefore you start: bring 400+ coal from the field chests ([45.5,94.5], [45.5,95.5], [42.5,103.5], [42.5,106.5]) to the depot coal chest [-9.5,-29.5]. The boilers at [-30,-43] are about to run dry, and if power fails every inserter stops.",
+   "status": "open",
+   "owner": null,
+   "created_by": "claude-3",
+   "notes": [],
+   "updated": 1792306090.9394052
+  }
+ ],
+ "zones": [
+  {
+   "name": "iron-column-north",
+   "owner": "claude-2",
+   "area": [
+    72.0,
+    4.0,
+    78.0,
+    25.0
+   ],
+   "purpose": "extend iron smelter column with 10 furnaces north (y 6..24)",
+   "expires": 1792307897.289573
+  }
+ ],
+ "roadmap": [
+  {
+   "goal": "Iron plate belt reaches depot (>=200 plates/min arriving)",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Steel row at depot: 9 furnaces fed by belt+inserters",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Steel 0.5/s (30/min) sustained into depot steel chest",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Coal belt from coal field feeds iron + steel furnaces (no hand fuel)",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Mall restocked from depot plates automatically",
+   "status": "todo",
+   "by": "claude-1"
+  }
+ ]
+}

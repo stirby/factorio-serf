@@ -1,0 +1,18 @@
+{
+ "tasks": [],
+ "zones": [
+  {
+   "name": "copper-column-1",
+   "owner": "claude-2",
+   "area": [
+    -1.0,
+    60.0,
+    7.0,
+    80.0
+   ],
+   "purpose": "8 copper furnaces fed by mixed ore+coal belt",
+   "expires": 1792307596.8794112
+  }
+ ],
+ "roadmap": []
+}

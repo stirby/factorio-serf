@@ -1,0 +1,3 @@
+BUILT/FIXED: iron column x=74 y25-47 (claude-3) output belt x=71.5 north -> y=-25.5 west to base; fixed corner at 71.5,-25.5.
+COPPER PLAN: claude-5 drills y=103.5 + coal drill 33.5,103.5 -> mixed belt west y=101.5 then north x=0.5, dead-ends 0.5,79.5. Build: extend belt x=0.5 north to 61.5; 8 furnaces center (3,62..76); input inserters x=1.5 (take west), output inserters x=4.5 -> output belt x=5.5 north to base (~-26). Tree at (3,74) to mine.
+Have 8 stone furnaces, 200 cu. Need 16 inserters, ~120 belts (claude-3 chest -12.5,-30.5 has 237 belts), poles.
