@@ -137,7 +137,8 @@ class Orchestrator:
                     log.warning("direct %s for %s failed: %s", r.direct, name, e)
             ui.info(f"{', '.join(sorted(r.targets))}: {r.direct} {player} (instant)")
             line += f" [already done for you: you started to {r.direct} {player}; just acknowledge]"
-        planner_first = self.foreman in r.targets and len(r.targets) > 1 and not r.stop
+        planner_first = (self.cfg.flag("foreman_first") and self.foreman in r.targets
+                         and len(r.targets) > 1 and not r.stop)
         for name, agent in self.agents.items():
             if planner_first and name != self.foreman:
                 # Let the foreman plan first; others see the message now and get nudged once the plan exists.

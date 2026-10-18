@@ -21,3 +21,4 @@ calls myself, log them here, and keep the review page updated hour by hour.
 | 01:35 | s4-ghost-build moved to S3, whose depot already holds the items | The Haiku test spent its whole run gathering materials, which tests the wrong thing |
 | 01:35 | Science scores count assembler output only; runs stop early when all targets are met | Hand-crafted packs aren't automation; early stop saves usage |
 | 01:35 | No more cd-chained shell commands; local allow rules added for this project | The user said never to ask for command approval |
+| 01:36 | Round 1: full system plus architect on s4-ghost-build, s3-steel and s2-green-science, 3 in parallel, all Opus | Baseline for the new mechanics before any A/B |

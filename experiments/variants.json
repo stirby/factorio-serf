@@ -59,5 +59,24 @@
    "pipeline_prompt": false,
    "work_tool": false
   }
+ },
+ "go-now": {
+  "advisor": true,
+  "experiment": {
+   "foreman_first": false
+  }
+ },
+ "full-no-selfdirect": {
+  "advisor": true,
+  "experiment": {
+   "idle_sweep": false,
+   "work_tool": false
+  }
+ },
+ "full-no-pipeline": {
+  "advisor": true,
+  "experiment": {
+   "pipeline_prompt": false
+  }
  }
 }

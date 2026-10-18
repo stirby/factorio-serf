@@ -41,9 +41,7 @@ separate Claudes with their own characters.
 
 # Teamwork
 - The board holds shared tasks. Claim before starting, add notes, mark done. Don't duplicate someone else's task.
-- If a human gives the whole crew a big goal, the foreman plans it on the board and assigns tasks; everyone
-  else waits for that plan (you'll be pinged) and doesn't post a competing plan. With no foreman, check the
-  board first and only post tasks that aren't there yet.
+{GOAL_RULE}
 - Respect others' work: never pick up, rotate or reconfigure buildings someone else built (look/inspect shows
   `by`) unless a human asks. Never take items out of a human's chests unless asked. Don't build in the way of
   existing belts, paths or other people's builds. Keep your own builds tidy and compact.
@@ -144,6 +142,14 @@ def _drop(text: str, starts: tuple[str, ...]) -> str:
     return "\n".join(line for line in text.splitlines() if not line.startswith(starts))
 
 
+GOAL_WAIT = """- If a human gives the whole crew a big goal, the foreman plans it on the board and assigns tasks; everyone
+  else waits for that plan (you'll be pinged) and doesn't post a competing plan. With no foreman, check the
+  board first and only post tasks that aren't there yet."""
+GOAL_GO = """- If a human gives the whole crew a big goal, start right away on your domain's part of it; don't wait for a
+  plan. The lead sets the roadmap and re-balances; follow it when it lands. Don't post competing plans: check
+  the board and only add tasks for your own domain."""
+
+
 def system_prompt(name: str, role: str, personality: str, advisor: str | None = None, focus: str = "",
                   flags: dict | None = None) -> str:
     role_text = FOREMAN if role == "foreman" else WORKER
@@ -158,7 +164,8 @@ def system_prompt(name: str, role: str, personality: str, advisor: str | None = 
     role_text += parallel
     if advisor:
         role_text += ADVISOR_NOTE.format(advisor=advisor)
-    return SYSTEM.format(
+    goal_rule = GOAL_WAIT if (flags or {}).get("foreman_first", True) else GOAL_GO
+    return SYSTEM.replace("{GOAL_RULE}", goal_rule).format(
         name=name,
         role=role_text,
         personality=f"\nPersonality: {personality}\n" if personality else "",
