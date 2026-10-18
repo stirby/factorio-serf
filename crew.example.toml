@@ -36,3 +36,14 @@ personality = "Eager, efficient, a little competitive about throughput."
 # name = "foreman"
 # model = "claude-opus-5-5"
 # effort = "medium"
+
+# Any agent (or [foreman]) can run on an OpenAI-compatible provider instead of Claude, e.g. DeepSeek through the
+# Vercel AI Gateway. Keys go in ~/.config/claude-crew/env (KEY=VALUE, chmod 600), never in this file:
+#   AI_GATEWAY_API_KEY=...        (the gateway default; set api_key_env to use another variable)
+# Cost is computed from the gateway's price list (US regional prices when listed).
+# [[agent]]
+# name = "claude-4"
+# backend = "openai"
+# base_url = "https://ai-gateway.vercel.sh/v1"
+# model = "deepseek/deepseek-v4-pro"       # or deepseek/deepseek-v4.1-flash-1017 (cheaper)
+# # api_key_env = "AI_GATEWAY_API_KEY"

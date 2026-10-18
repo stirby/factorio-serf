@@ -4,10 +4,16 @@
   Claude Code keeps the session and compacts it on its own.
 - ApiBackend: the Anthropic API with ANTHROPIC_API_KEY (pay per use). Append-only history; when it gets
   long, the agent starts a fresh conversation seeded with its notes.
+- OpenAIBackend: any OpenAI-compatible chat-completions endpoint (Vercel AI Gateway, OpenAI, local servers),
+  e.g. DeepSeek through the gateway. Same append-only history and reset; cost from the provider's price list.
 """
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
+import os
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -203,9 +209,221 @@ class ApiBackend:
         return stats
 
 
+GATEWAY_HOST = "ai-gateway.vercel.sh"
+_PRICES: dict[tuple[str, str], dict | None] = {}  # (base_url, model) -> per-token prices, fetched once
+_PRICE_LOCK = asyncio.Lock()
+
+
+def _rates(pricing: dict | None, now: float | None = None) -> dict | None:
+    """Per-token input/output/cache-read rates. US regional prices when listed (we run in the US), else the
+    default ones, doubled inside a listed peak window."""
+    if not pricing:
+        return None
+    region = (pricing.get("regional") or {}).get("us")
+    p = region or pricing
+    try:
+        r = {"input": float(p["input"]), "output": float(p["output"])}
+    except (KeyError, TypeError, ValueError):
+        return None
+    r["cache_read"] = float(p.get("input_cache_read") or r["input"])
+    peak = pricing.get("peak_pricing")
+    if peak and not region:
+        t = time.gmtime(now if now is not None else time.time())
+        minute, dow = t.tm_hour * 60 + t.tm_min, t.tm_wday + 1  # ISO: Monday = 1
+        for w in peak.get("windows") or []:
+            if (w.get("start_minute_utc", 0) <= minute < w.get("end_minute_utc", 1440)
+                    and dow in (w.get("days_of_week") or range(1, 8))):
+                m = float(peak.get("multiplier", 1))
+                r = {k: v * m for k, v in r.items()}
+                break
+    return r
+
+
+def _usage_cost(usage, rates: dict | None) -> float | None:
+    """Cost of one response: a provider-reported cost if there is one, else tokens x rates."""
+    if usage is None:
+        return 0.0
+    extra = getattr(usage, "model_extra", None) or {}
+    for k in ("cost", "cost_usd", "total_cost"):
+        if isinstance(extra.get(k), (int, float)):
+            return float(extra[k])
+    if not rates:
+        return None
+    prompt = usage.prompt_tokens or 0
+    details = getattr(usage, "prompt_tokens_details", None)
+    cached = min(getattr(details, "cached_tokens", 0) or 0, prompt)
+    return ((prompt - cached) * rates["input"] + cached * rates["cache_read"]
+            + (usage.completion_tokens or 0) * rates["output"])
+
+
+class OpenAIBackend:
+    """Chat-completions tool loop for OpenAI-compatible providers (DeepSeek etc. via the Vercel AI Gateway)."""
+    RESET_AT_INPUT_TOKENS = 160_000
+
+    def __init__(self, agent: "Agent", system: str, workdir: Path, tools=None, max_steps: int = MAX_STEPS_PER_TURN):
+        import openai
+        self.openai = openai
+        self.agent = agent
+        self.max_steps = max_steps
+        cfg = agent.cfg
+        self.base_url = cfg.base_url or None
+        env = cfg.api_key_env or ("AI_GATEWAY_API_KEY" if self.base_url and GATEWAY_HOST in self.base_url
+                                  else "OPENAI_API_KEY")
+        key = os.environ.get(env)
+        if not key:
+            raise ValueError(f"backend openai for {agent.name}: set {env} (e.g. in ~/.config/claude-crew/env)")
+        self.client = openai.AsyncOpenAI(api_key=key, base_url=self.base_url)
+        self.system = system
+        self.messages: list[dict] = []
+        self.tools = [{"type": "function", "function": {"name": t.name, "description": t.description,
+                                                        "parameters": t.schema}} for t in (tools or TOOLS)]
+        self.send_effort = True  # reasoning_effort, until the provider rejects it
+        self.keep_reasoning = True  # send reasoning fields back, until the provider rejects them
+        self._warned: set[str] = set()
+
+    def _warn_once(self, key: str, msg: str, *args) -> None:
+        if key not in self._warned:
+            self._warned.add(key)
+            log.warning(msg, *args)
+
+    async def start(self) -> None:
+        pass
+
+    async def close(self) -> None:
+        await self.client.close()
+
+    async def interrupt(self) -> None:
+        pass
+
+    async def set_model(self, model: str) -> None:
+        pass  # read from cfg on every request
+
+    async def reset(self) -> None:
+        self.messages = []
+
+    async def _rates(self) -> dict | None:
+        model = self.agent.cfg.model
+        key = (self.base_url or "", model)
+        if key not in _PRICES:
+            async with _PRICE_LOCK:
+                if key not in _PRICES:
+                    found = None
+                    try:
+                        page = await self.client.models.list()
+                        for m in page.data:
+                            if m.id == model:
+                                found = (getattr(m, "model_extra", None) or {}).get("pricing")
+                                break
+                    except Exception as e:
+                        log.warning("price list unavailable from %s: %r", self.base_url, e)
+                    _PRICES[key] = found
+        return _rates(_PRICES[key])
+
+    def _strip_reasoning(self) -> None:
+        for m in self.messages:
+            if m.get("role") == "assistant":
+                for k in [k for k in m if k.startswith("reasoning")]:
+                    del m[k]
+
+    async def _create(self):
+        cfg = self.agent.cfg
+        kw = dict(model=cfg.model, max_tokens=16000, tools=self.tools,
+                  messages=[{"role": "system", "content": self.system}] + self.messages)
+        if cfg.effort and self.send_effort:
+            kw["reasoning_effort"] = cfg.effort
+        for _ in range(3):
+            try:
+                return await self.client.chat.completions.create(**kw)
+            except self.openai.BadRequestError as e:
+                text = str(e.message).lower()
+                if "reasoning_effort" in kw and ("effort" in text or "reasoning" in text):
+                    self.send_effort = False
+                    kw.pop("reasoning_effort")
+                    self._warn_once("effort", "%s: provider rejected reasoning_effort (%s); continuing without",
+                                    self.agent.name, e.message)
+                elif self.keep_reasoning and "reasoning" in text:
+                    self.keep_reasoning = False
+                    self._strip_reasoning()
+                    kw["messages"] = [{"role": "system", "content": self.system}] + self.messages
+                    self._warn_once("reasoning", "%s: provider rejected reasoning in history (%s); stripping it",
+                                    self.agent.name, e.message)
+                else:
+                    raise
+        return await self.client.chat.completions.create(**kw)
+
+    async def turn(self, prompt: str) -> TurnStats:
+        stats = TurnStats()
+        if not self.messages:
+            prompt = "(new conversation; your notes carry over what you knew)\n" + prompt
+        self.messages.append({"role": "user", "content": prompt})
+        rates = await self._rates()
+        last_input = 0
+        for _ in range(self.max_steps):
+            try:
+                resp = await self._create()
+            except self.openai.RateLimitError:
+                stats.error = "rate limited"
+                break
+            except self.openai.APIStatusError as e:
+                stats.error = f"api error {e.status_code}: {e.message}"
+                break
+            except self.openai.APIConnectionError:
+                stats.error = "api connection error"
+                break
+            u = resp.usage
+            if u:
+                last_input = u.prompt_tokens or 0
+                stats.input_tokens += last_input
+                stats.output_tokens += u.completion_tokens or 0
+            cost = _usage_cost(u, rates)
+            if cost is None:
+                self._warn_once("cost", "%s: no price for %s; cost shows as $0", self.agent.name, self.agent.cfg.model)
+                cost = 0.0
+            stats.cost_usd += cost
+            if not resp.choices:
+                stats.error = "empty response"
+                break
+            choice = resp.choices[0]
+            msg = choice.message
+            # Keep the message as the provider sent it, so reasoning fields round-trip if the provider needs them.
+            kept = msg.model_dump(exclude_none=True)
+            for k in ("refusal", "annotations", "audio", "function_call"):
+                kept.pop(k, None)
+            if not self.keep_reasoning:
+                kept = {k: v for k, v in kept.items() if not k.startswith("reasoning")}
+            kept["role"] = "assistant"
+            kept.setdefault("content", "")
+            self.messages.append(kept)
+            if msg.content and msg.content.strip():
+                self.agent.log_thought(msg.content)
+            calls = msg.tool_calls or []
+            if not calls:
+                if choice.finish_reason == "length":
+                    stats.error = "output cut off (max_tokens)"
+                break
+            for tc in calls:
+                stats.steps += 1
+                name = tc.function.name
+                try:
+                    args = json.loads(tc.function.arguments or "{}")
+                    if not isinstance(args, dict):
+                        raise ValueError("arguments must be a JSON object")
+                except (json.JSONDecodeError, ValueError) as e:
+                    out = f"bad arguments for {name}: could not parse them as a JSON object ({e}); call it again"
+                else:
+                    out = await run_tool(self.agent, name, args)
+                self.messages.append({"role": "tool", "tool_call_id": tc.id, "content": out})
+        if last_input > self.RESET_AT_INPUT_TOKENS:
+            log.info("%s: context at %d tokens, starting a fresh conversation", self.agent.name, last_input)
+            self.messages = []
+        return stats
+
+
 def make_backend(agent: "Agent", system: str, workdir: Path, tools=None, max_steps: int = MAX_STEPS_PER_TURN):
     if agent.cfg.backend == "api":
         return ApiBackend(agent, system, workdir, tools, max_steps)
+    if agent.cfg.backend in ("openai", "openai-compatible", "gateway"):
+        return OpenAIBackend(agent, system, workdir, tools, max_steps)
     if agent.cfg.backend in ("claude-code", "claude_code", "subscription"):
         return ClaudeCodeBackend(agent, system, workdir, tools, max_steps)
-    raise ValueError(f"unknown backend {agent.cfg.backend!r} (use claude-code or api)")
+    raise ValueError(f"unknown backend {agent.cfg.backend!r} (use claude-code, api or openai)")

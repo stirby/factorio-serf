@@ -21,6 +21,8 @@ class AgentConfig:
     color: list[float] | None = None
     max_turns_per_hour: int = 120
     max_autonomous_turns: int = 40  # consecutive self-continued turns before it must check in
+    base_url: str | None = None  # backend "openai": any OpenAI-compatible endpoint (e.g. the Vercel AI Gateway)
+    api_key_env: str | None = None  # env var holding its key (default: AI_GATEWAY_API_KEY for the gateway, else OPENAI_API_KEY)
 
 
 @dataclass
@@ -63,8 +65,31 @@ def _password(raw: dict, base: Path) -> str:
     return ""
 
 
+ENV_FILE = Path("~/.config/claude-crew/env").expanduser()
+
+
+def load_env_file(path: Path = ENV_FILE) -> None:
+    """Provider keys live in a private KEY=VALUE file, not in crew.toml. Existing env vars win."""
+    try:
+        lines = path.read_text().splitlines()
+    except OSError:
+        return
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        k = k.strip().removeprefix("export ").strip()
+        v = v.strip()
+        if len(v) >= 2 and v[0] == v[-1] and v[0] in "\"'":
+            v = v[1:-1]
+        if k:
+            os.environ.setdefault(k, v)
+
+
 def load(path: str | Path | None, overrides: dict | None = None) -> CrewConfig:
     overrides = overrides or {}
+    load_env_file()
     raw: dict = {}
     base = Path.cwd()
     if path:

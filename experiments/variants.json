@@ -100,5 +100,62 @@
   "defaults": {
    "effort": "medium"
   }
+ },
+ "ds-pro-workers": {
+  "advisor": false,
+  "experiment": {
+   "foreman_first": false
+  },
+  "backend": "openai",
+  "model": "deepseek/deepseek-v4-pro",
+  "defaults": {
+   "base_url": "https://ai-gateway.vercel.sh/v1"
+  },
+  "toml": {
+   "foreman": {
+    "name": "foreman",
+    "backend": "claude-code",
+    "model": "claude-opus-5-5",
+    "effort": "medium"
+   }
+  }
+ },
+ "ds-flash-workers": {
+  "advisor": false,
+  "experiment": {
+   "foreman_first": false
+  },
+  "backend": "openai",
+  "model": "deepseek/deepseek-v4.1-flash-1017",
+  "defaults": {
+   "base_url": "https://ai-gateway.vercel.sh/v1"
+  },
+  "toml": {
+   "foreman": {
+    "name": "foreman",
+    "backend": "claude-code",
+    "model": "claude-opus-5-5",
+    "effort": "medium"
+   }
+  }
+ },
+ "ds-pro-all": {
+  "advisor": false,
+  "experiment": {
+   "foreman_first": false
+  },
+  "backend": "openai",
+  "model": "deepseek/deepseek-v4-pro",
+  "defaults": {
+   "base_url": "https://ai-gateway.vercel.sh/v1"
+  },
+  "toml": {
+   "foreman": {
+    "name": "foreman",
+    "backend": "openai",
+    "model": "deepseek/deepseek-v4-pro",
+    "base_url": "https://ai-gateway.vercel.sh/v1"
+   }
+  }
  }
 }
