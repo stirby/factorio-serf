@@ -104,14 +104,18 @@ async def t_production(agent: "Agent", a: dict) -> str:
     return _j(await agent.link.call("production", agent=agent.name))
 
 
-async def _wait_jobs(agent: "Agent", ids: list[int], timeout: float) -> tuple[list[dict], list[int]]:
-    """Wait for jobs; return early if a human addresses this agent. Returns (results, still_running)."""
+async def _wait_jobs(agent: "Agent", ids: list[int], timeout: float, leave: int = 0) -> tuple[list[dict], list[int]]:
+    """Wait for jobs; return early if a human addresses this agent, or once only `leave` jobs remain
+    (so the model can plan the next batch while the character finishes the current one).
+    Returns (results, still_running)."""
     futs = {i: agent.link.job_future(i) for i in ids}
     interrupt = asyncio.create_task(agent.interrupted.wait())
     try:
         pending = set(futs.values())
         deadline = asyncio.get_running_loop().time() + timeout
-        while pending:
+        while len(pending) > leave:
+            if any(f.done() and not f.result().get("ok") for f in futs.values()):
+                break  # a failure skips the rest; report it now
             left = deadline - asyncio.get_running_loop().time()
             if left <= 0:
                 break
@@ -179,17 +183,23 @@ async def t_act(agent: "Agent", a: dict) -> str:
     ids = d["job_ids"]
     agent.pending_jobs.update(ids)
     agent.note_activity(f"{len(ids)} action(s): " + ", ".join(x.get("op", "?") for x in actions))
-    if a.get("wait") is False:
+    mode = a.get("wait", True)
+    if mode is False or mode == "false":
         return f"queued jobs {ids}; you'll be told when they finish"
-    results, running = await _wait_jobs(agent, ids, min(float(a.get("timeout", ACT_WAIT_MAX)), ACT_WAIT_MAX))
-    return await _after(agent, results, running)
+    leave = 1 if mode == "until_last" and len(ids) > 1 else 0
+    results, running = await _wait_jobs(agent, ids, min(float(a.get("timeout", ACT_WAIT_MAX)), ACT_WAIT_MAX), leave)
+    out = await _after(agent, results, running)
+    if leave and running:
+        out += "\n(your last action is still running: queue the next batch now; it starts right after)"
+    return out
 
 
 async def t_wait(agent: "Agent", a: dict) -> str:
     secs = min(float(a.get("seconds", 30)), ACT_WAIT_MAX)
     ids = sorted(agent.pending_jobs)
     if ids:
-        results, running = await _wait_jobs(agent, ids, secs)
+        leave = max(int(a.get("until_queue_below", 1)) - 1, 0)
+        results, running = await _wait_jobs(agent, ids, secs, leave)
         return await _after(agent, results, running)
     try:
         await asyncio.wait_for(agent.interrupted.wait(), timeout=secs)
@@ -214,7 +224,9 @@ async def t_say(agent: "Agent", a: dict) -> str:
 
 
 async def t_board(agent: "Agent", a: dict) -> str:
-    return agent.board.render(for_agent=agent.name, limit=30)
+    b = agent.board
+    return (f"[roadmap]\n{b.render_roadmap()}\n[zones]\n{b.render_zones()}\n[tasks]\n"
+            + b.render(for_agent=agent.name, limit=30))
 
 
 async def t_post_task(agent: "Agent", a: dict) -> str:
@@ -238,6 +250,37 @@ async def t_update_task(agent: "Agent", a: dict) -> str:
         await agent.notify_peer(t.created_by, f"{agent.name} marked task #{t.id} {t.status}: {t.title}"
                                               + (f" ({a['note']})" if a.get("note") else ""), wake=False)
     return f"task #{t.id} is {t.status}" + (f" @{t.owner}" if t.owner else "")
+
+
+async def t_zone(agent: "Agent", a: dict) -> str:
+    if a.get("release"):
+        return "released" if agent.board.release_zone(a["name"]) else f"no zone {a['name']}"
+    area = a.get("area")
+    if isinstance(area, str):
+        area = json.loads(area)
+    if not area or len(area) != 4:
+        return "area must be [x1, y1, x2, y2]"
+    z, overlaps = agent.board.claim_zone(agent.name, a["name"], [float(v) for v in area], a.get("purpose", ""))
+    msg = f"zone {z.name} is yours: {z.area}"
+    if overlaps:
+        msg += f". WARNING: overlaps {', '.join(overlaps)}; agree with them or move it"
+    return msg + "\n[zones]\n" + agent.board.render_zones()
+
+
+async def t_roadmap(agent: "Agent", a: dict) -> str:
+    if a.get("goals"):
+        goals = a["goals"]
+        if isinstance(goals, str):
+            goals = json.loads(goals)
+        agent.board.set_roadmap(agent.name, [str(g) for g in goals])
+    if a.get("mark") is not None:
+        try:
+            m = agent.board.mark_milestone(int(a["mark"]), a.get("status", "done"))
+        except (IndexError, ValueError):
+            return "no such milestone"
+        if m["status"] == "done":
+            agent.orch.milestone_done(agent.name, m["goal"])
+    return agent.board.render_roadmap()
 
 
 async def t_notes(agent: "Agent", a: dict) -> str:
@@ -278,16 +321,21 @@ TOOLS: list[Tool] = [
          "something (e.g. craft 10 copper plates); others need science packs in labs.",
          _obj({"filter": {"type": "string"}}), t_techs),
     Tool("production", "Items per minute produced/consumed by the whole base on your surface.", _obj({}), t_production),
-    Tool("act", ACTION_DOC + "\nBy default this blocks until the actions finish (up to ~75s) and returns results "
-         "plus your position and inventory. wait=false returns immediately. replace=true cancels what you were "
-         "doing first. If a human messages you while you wait, it returns early so you can answer.",
+    Tool("act", ACTION_DOC + "\nwait=true (default) blocks until the actions finish (up to ~75s) and returns results "
+         "plus your position and inventory. wait='until_last' returns as soon as only the last action is still "
+         "running, so you can plan and queue the next batch while your character keeps working; this is the best "
+         "default for multi-step work. wait=false returns immediately. New actions queue behind running ones; "
+         "replace=true cancels what you were doing first. If a human messages you, it returns early.",
          _obj({"actions": {"type": "array", "items": {"type": "object", "properties": {
              "op": {"type": "string", "enum": ["move", "mine", "craft", "place", "insert", "take", "set_recipe",
                                                "rotate", "research", "connect", "follow", "wait"]}}, "required": ["op"],
              "additionalProperties": True}},
-             "wait": {"type": "boolean"}, "replace": {"type": "boolean"}}, ["actions"]), t_act),
-    Tool("wait", "Wait for your running jobs to finish (or just wait). Returns early if a human messages you.",
-         _obj({"seconds": {"type": "number", "description": "max 75"}}), t_wait),
+             "wait": {"description": "true | false | 'until_last'"}, "replace": {"type": "boolean"}}, ["actions"]),
+         t_act),
+    Tool("wait", "Wait for your running jobs (or just wait). until_queue_below=2 returns when one job is left, "
+         "so you can queue more without your character going idle. Returns early if a human messages you.",
+         _obj({"seconds": {"type": "number", "description": "max 75"},
+               "until_queue_below": {"type": "integer"}}), t_wait),
     Tool("stop", "Cancel all your queued and running actions.", _obj({"reason": {"type": "string"}}), t_stop),
     Tool("say", "Say something in game chat. Everyone sees it. Keep it short. Put locations as [gps=x,y].",
          _obj({"text": {"type": "string"}}, ["text"]), t_say),
@@ -298,6 +346,14 @@ TOOLS: list[Tool] = [
     Tool("update_task", "Update a board task: status claimed|done|blocked|cancelled|open, a progress note, "
          "or reassign.", _obj({"id": {"type": "integer"}, "status": {"type": "string"}, "note": {"type": "string"},
                                "assignee": {"type": "string"}}, ["id"]), t_update_task),
+    Tool("zone", "Claim an area of the map as yours to build in (so parallel builders don't collide), e.g. "
+         "name='iron-smelting' area=[x1,y1,x2,y2] purpose='iron plates -> depot'. release=true frees it. "
+         "Shows all zones.", _obj({"name": {"type": "string"}, "area": {"type": "array", "items": {"type": "number"}},
+                                   "purpose": {"type": "string"}, "release": {"type": "boolean"}}, ["name"]), t_zone),
+    Tool("roadmap", "The crew's shared milestones. goals=[...] sets the list (lead's job; keep existing wording to "
+         "keep status); mark=<index> status=doing|done updates one. With no args, shows it.",
+         _obj({"goals": {"type": "array", "items": {"type": "string"}}, "mark": {"type": "integer"},
+               "status": {"type": "string", "enum": ["todo", "doing", "done"]}}), t_roadmap),
     Tool("notes", "Replace your private notes: plans, coordinates of things you built, what's left to do. "
          "They're shown to you at the start of every turn, so keep them current and short.",
          _obj({"text": {"type": "string"}}, ["text"]), t_notes),
@@ -326,7 +382,8 @@ CONSULT = Tool("consult", "Ask your right-hand engineer (a separate senior Claud
                t_consult)
 BY_NAME["consult"] = CONSULT
 
-READ_ONLY = ["look", "map", "find", "inspect", "recipes", "techs", "production", "board", "post_task", "update_task"]
+READ_ONLY = ["look", "map", "find", "inspect", "recipes", "techs", "production", "board", "post_task", "update_task",
+             "roadmap"]
 
 
 async def run_tool(agent: "Agent", name: str, args: dict) -> str:

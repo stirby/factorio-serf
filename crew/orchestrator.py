@@ -5,6 +5,7 @@ import asyncio
 import logging
 
 from . import ui
+from . import progress
 from .advisor import Advisor
 from .agent import Agent
 from .board import Board
@@ -48,6 +49,8 @@ class Orchestrator:
             pass
         if self.cfg.source:
             asyncio.create_task(self._watch_config(), name="config-watch")
+        asyncio.create_task(progress.metrics_loop(self.link.call, self.cfg.state_dir / "metrics.jsonl"),
+                            name="metrics")
 
     async def _add_agent(self, ac: AgentConfig) -> Agent:
         existing = {a["name"]: a for a in (await self.link.call("list"))["agents"]}
@@ -150,6 +153,20 @@ class Orchestrator:
             wake = name in r.targets and agent.allow_peer_wake()
             agent.hear(f'{speaker} (crew): "{text}"', wake=wake, urgent=False)
 
+    async def _snapshot(self, label: str) -> None:
+        try:
+            e = await progress.snapshot(self.link.call, self.link.rcon.command, label)
+            ui.info(f"snapshot {e['save']} ({e.get('research_count')} techs, {e.get('minutes')} game-min)")
+        except Exception as ex:
+            log.warning("snapshot failed: %r", ex)
+
+    def milestone_done(self, by: str, goal: str) -> None:
+        ui.info(f"MILESTONE by {by}: {goal}")
+        asyncio.create_task(self._snapshot(f"milestone-{goal}"))
+        for name, agent in self.agents.items():
+            if name != by:
+                agent.hear(f"MILESTONE DONE ({by}): {goal}", wake=False)
+
     async def _on_result(self, agent: str, r: dict, claimed: bool) -> None:
         a = self.agents.get(agent)
         if a:
@@ -160,6 +177,7 @@ class Orchestrator:
             unlocks = ", ".join(ev.get("unlocks") or []) or "no new recipes"
             line = f"RESEARCH FINISHED: {ev['tech']} (unlocks: {unlocks})"
             ui.info(line)
+            asyncio.create_task(self._snapshot(f"research-{ev['tech']}"))
             planner = self.foreman or next(iter(self.agents), None)
             for name, agent in self.agents.items():
                 # Everyone learns about it; the planner gets woken to re-plan.

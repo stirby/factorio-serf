@@ -16,6 +16,7 @@ class AgentConfig:
     model: str = DEFAULT_MODEL
     effort: str | None = None  # low | medium | high
     role: str = "worker"  # worker | foreman
+    focus: str = ""  # domain: production | resources | infrastructure | free text
     personality: str = ""
     color: list[float] | None = None
     max_turns_per_hour: int = 120
@@ -37,7 +38,8 @@ class CrewConfig:
     starter_kit: bool = True
     state_dir: Path = Path("~/.local/state/claude-crew").expanduser()
     source: Path | None = None  # crew.toml this came from (watched for live changes)
-    advisor: AgentConfig | None = None  # the foreman's characterless right hand
+    advisor: AgentConfig | None = None  # characterless senior engineer the crew can consult
+    advisor_for: str = "all"  # "all" or "foreman"
 
     def foreman_name(self) -> str | None:
         return next((a.name for a in self.agents if a.role == "foreman"), None)
@@ -106,6 +108,7 @@ def load(path: str | Path | None, overrides: dict | None = None) -> CrewConfig:
         merged = {"name": "architect", "model": "claude-opus-5-5", "effort": "high",
                   "backend": defaults.get("backend", "claude-code"), **adv}
         cfg.advisor = AgentConfig(**{k: v for k, v in merged.items() if k in known})
+        cfg.advisor_for = adv.get("for", "all")
     if raw.get("state_dir"):
         cfg.state_dir = Path(raw["state_dir"]).expanduser()
     return cfg

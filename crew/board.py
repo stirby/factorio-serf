@@ -19,20 +19,85 @@ class Task:
     updated: float = field(default_factory=time.time)
 
 
+@dataclass
+class Zone:
+    name: str
+    owner: str
+    area: list[float]  # x1, y1, x2, y2
+    purpose: str = ""
+
+
 class Board:
+    """Tasks, zones (who builds where) and the roadmap (milestones), persisted as one JSON file."""
+
     def __init__(self, path: Path):
         self.path = path
         self.tasks: dict[int, Task] = {}
+        self.zones: dict[str, Zone] = {}
+        self.roadmap: list[dict] = []  # {"goal": str, "status": "todo|doing|done", "by": str}
         if path.exists():
             try:
-                for t in json.loads(path.read_text()):
+                raw = json.loads(path.read_text())
+                if isinstance(raw, list):  # old format: tasks only
+                    raw = {"tasks": raw}
+                for t in raw.get("tasks", []):
                     self.tasks[t["id"]] = Task(**t)
-            except (json.JSONDecodeError, TypeError):
+                for z in raw.get("zones", []):
+                    self.zones[z["name"]] = Zone(**z)
+                self.roadmap = raw.get("roadmap", [])
+            except (json.JSONDecodeError, TypeError, KeyError):
                 pass
 
     def _save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps([asdict(t) for t in self.tasks.values()], indent=1))
+        self.path.write_text(json.dumps({"tasks": [asdict(t) for t in self.tasks.values()],
+                                         "zones": [asdict(z) for z in self.zones.values()],
+                                         "roadmap": self.roadmap}, indent=1))
+
+    def claim_zone(self, by: str, name: str, area: list[float], purpose: str) -> tuple[Zone, list[str]]:
+        x1, y1, x2, y2 = min(area[0], area[2]), min(area[1], area[3]), max(area[0], area[2]), max(area[1], area[3])
+        overlaps = [z.name + f" ({z.owner})" for z in self.zones.values()
+                    if z.name != name and z.owner != by
+                    and not (x2 <= z.area[0] or x1 >= z.area[2] or y2 <= z.area[1] or y1 >= z.area[3])]
+        z = Zone(name=name, owner=by, area=[x1, y1, x2, y2], purpose=purpose)
+        self.zones[name] = z
+        self._save()
+        return z, overlaps
+
+    def release_zone(self, name: str) -> bool:
+        if self.zones.pop(name, None):
+            self._save()
+            return True
+        return False
+
+    def zone_at(self, x: float, y: float) -> Zone | None:
+        for z in self.zones.values():
+            if z.area[0] <= x <= z.area[2] and z.area[1] <= y <= z.area[3]:
+                return z
+        return None
+
+    def set_roadmap(self, by: str, goals: list[str]) -> None:
+        old = {m["goal"]: m for m in self.roadmap}
+        self.roadmap = [old.get(g, {"goal": g, "status": "todo", "by": by}) for g in goals]
+        self._save()
+
+    def mark_milestone(self, idx: int, status: str) -> dict:
+        m = self.roadmap[idx]
+        m["status"] = status
+        self._save()
+        return m
+
+    def render_zones(self) -> str:
+        if not self.zones:
+            return "(no zones claimed)"
+        return "\n".join(f"{z.name} @{z.owner} [{z.area[0]:.0f},{z.area[1]:.0f} .. {z.area[2]:.0f},{z.area[3]:.0f}]"
+                         + (f" -- {z.purpose}" if z.purpose else "") for z in self.zones.values())
+
+    def render_roadmap(self) -> str:
+        if not self.roadmap:
+            return "(no roadmap yet)"
+        mark = {"todo": " ", "doing": ">", "done": "x"}
+        return "\n".join(f"[{mark.get(m['status'], '?')}] {i}. {m['goal']}" for i, m in enumerate(self.roadmap))
 
     def post(self, by: str, title: str, detail: str = "", owner: str | None = None) -> Task:
         tid = max(self.tasks, default=0) + 1

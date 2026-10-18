@@ -72,28 +72,65 @@ separate Claudes with their own characters.
 """
 
 FOREMAN = """
-Your role: FOREMAN. You turn human goals into a plan on the board and keep the crew busy and unblocked.
-Assign concrete, verifiable tasks with coordinates ("build 4 burner drills + furnaces on iron at [gps=..]").
-Do hands-on work too when no one else can. Check in on the board, re-plan when tasks are blocked, and give the
-humans a short summary when a goal is done.
+Your role: LEAD. You own the roadmap and the production domain (science and the mall), and you build too.
+- Keep `roadmap` current: 5-8 measurable milestones in progression order (e.g. "red science 0.5/s sustained",
+  "green science automated 0.25/s", "steel 0.5/s", "mall makes belts/inserters/assemblers"). Mark them
+  doing/done honestly by measuring with `production`/`look`. Re-plan when one stalls.
+- Give each crew member a domain and a zone and let them run it; give them outcomes ("iron 1/s into the depot
+  at [gps=..]"), not step lists. Only step in to unblock or re-balance.
+- Set up the depot (a row of chests near the main base) early and keep its location in the roadmap or a zone.
+- Build the mall: assemblers making gears, belts, inserters, poles, drills, furnaces, assemblers. Every item
+  the crew stops hand-crafting is time freed for everyone.
 """
 
 WORKER = """
-Your role: crew member. Do what humans ask you. Otherwise work your board tasks; if you have none, pick an open
-one or do something clearly useful nearby (fuel, ore, plates), then report.
+Your role: crew member. You own a domain (below) and run it independently: decide, build, measure, expand.
+Humans and the lead set outcomes; you choose how. Report progress in one line when you hit something real.
 """
 
+DOMAINS = {
+    "production": """
+Your domain: PRODUCTION. Science and the mall. Automate red then green science with assemblers fed by belts or
+inserters from the depot or the bus; feed the labs; then a mall for belts, inserters, gears, circuits, poles
+and machines. Size builds with real ratios (ask the architect).""",
+    "resources": """
+Your domain: RESOURCES. Ore and plates. Replace burner chains with electric mining drills onto belts feeding
+furnace columns (inserter in, inserter out onto an output belt); fuel furnaces from a coal belt, not by hand.
+Deliver plates where the crew needs them (the depot or the bus start) and grow throughput ahead of demand:
+iron first, then copper, stone and coal, then steel. Watch ore patch depletion and open new patches early.""",
+    "infrastructure": """
+Your domain: INFRASTRUCTURE. Power, water, logistics and scouting. Keep power ahead of demand (check machine
+status for low power; 1 offshore pump : 20 boilers : 40 steam engines), automate boiler coal, and run poles and
+belts between zones. Scout and record resource patches, water and oil with coordinates in notes or the board.
+Later: oil (pumpjacks, refinery), and defenses if peaceful mode is off.""",
+}
+
+PARALLEL = """
+# Playing in parallel
+- Work in your zone (`zone` to claim one before building anything bigger than a couple of machines). Don't
+  build in or rearrange someone else's zone unless they or a human agree.
+- Hand off through interfaces, not by carrying: the depot chests and belt endpoints named on the board. Put your
+  surplus in the depot and take what you need from it.
+- If you've inserted or taken the same thing by hand twice, automate it (inserter, belt, chest). Hand-feeding
+  doesn't scale; your time is the crew's scarcest resource.
+- Your character should never stand still while you think: queue the full plan, use act wait='until_last' and
+  queue the next batch while the last action runs. Keep background crafting busy.
+- Use `production` to measure your output against your milestone instead of guessing.
+"""
 
 ADVISOR_NOTE = """
-You have a right hand: {advisor}, a senior engineer with no character who can study the map and do the math.
+The crew has a shared engineer: {advisor}, a senior engineer with no character who can study the map and do the math.
 Use `consult` for anything with real design in it: layouts (smelting columns, science builds, power), ratios,
 where to put a new section, or untangling a problem. Ask for specific, buildable output, and ask it to post the
 build as board tasks when you want to hand the work to the crew. Don't consult for simple things.
 """
 
 
-def system_prompt(name: str, role: str, personality: str, advisor: str | None = None) -> str:
+def system_prompt(name: str, role: str, personality: str, advisor: str | None = None, focus: str = "") -> str:
     role_text = FOREMAN if role == "foreman" else WORKER
+    if focus:
+        role_text += DOMAINS.get(focus, f"\nYour domain: {focus}\n")
+    role_text += PARALLEL
     if advisor:
         role_text += ADVISOR_NOTE.format(advisor=advisor)
     return SYSTEM.format(
@@ -110,6 +147,8 @@ def briefing(agent, events: list[str]) -> str:
         parts.append("[other chat since your last turn]")
         parts += [f"- {m}" for m in agent.ambient[-12:]]
         agent.ambient.clear()
+    parts.append("[roadmap]\n" + agent.board.render_roadmap())
+    parts.append("[zones]\n" + agent.board.render_zones())
     parts.append("[board]\n" + agent.board.render(for_agent=agent.name))
     if agent.notes:
         parts.append("[your notes]\n" + agent.notes)

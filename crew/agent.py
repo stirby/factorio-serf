@@ -48,11 +48,11 @@ class Agent:
         self.error_streak = 0
         self.retired = False
         tools = None
-        if cfg.role == "foreman" and orch.advisor:
+        if orch.advisor and (orch.cfg.advisor_for == "all" or cfg.role == "foreman"):
             from .tools import CONSULT, TOOLS
             tools = TOOLS + [CONSULT]
         self.backend = make_backend(self, system_prompt(cfg.name, cfg.role, cfg.personality,
-                                                        orch.advisor.name if tools else None),
+                                                        orch.advisor.name if tools else None, cfg.focus),
                                     self.dir / "cwd", tools)
         self._task: asyncio.Task | None = None
 
