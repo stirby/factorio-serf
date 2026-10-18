@@ -186,6 +186,40 @@ API.alerts = function(req)
   return { problems = out, checked = total, labs = labs, researching = force.current_research and force.current_research.name or nil }
 end
 
+-- The numbers a player keeps glancing at: research, lab utilisation, science and plate flow per minute.
+API.vitals = function(req)
+  local f, s = game.forces.player, game.surfaces.nauvis
+  local st = f.get_item_production_statistics(s)
+  local function pm(n, cat)
+    local ok, v = pcall(st.get_flow_count, { name = n, category = cat or "input",
+      precision_index = defines.flow_precision_index.one_minute, count = true })
+    return ok and math.floor(v + 0.5) or 0
+  end
+  local S = defines.entity_status
+  local labs, working, starved = 0, 0, 0
+  for _, e in pairs(s.find_entities_filtered { type = "lab", force = f }) do
+    labs = labs + 1
+    local okS, stt = pcall(function() return e.status end)
+    if okS and stt == S.working then working = working + 1
+    elseif okS and stt == S.missing_science_packs then starved = starved + 1 end
+  end
+  local r = f.current_research
+  local okQ, q = pcall(function() return #f.research_queue end)
+  local packs = { red = "automation-science-pack", green = "logistic-science-pack", blue = "chemical-science-pack",
+    purple = "production-science-pack", yellow = "utility-science-pack" }
+  local used, made = {}, {}
+  for k, n in pairs(packs) do
+    local u, m = pm(n, "output"), pm(n, "input")
+    if u > 0 then used[k] = u end
+    if m > 0 then made[k] = m end
+  end
+  return { research = r and r.name or nil, progress = r and math.floor(f.research_progress * 100) or nil,
+    queued = okQ and math.max(q - 1, 0) or nil, labs = labs, labs_working = working, labs_starved = starved,
+    science_used = used, science_made = made,
+    plates = { iron = pm("iron-plate"), copper = pm("copper-plate"), steel = pm("steel-plate"),
+      circuits = pm("electronic-circuit") } }
+end
+
 API.self = function(req) return observe.self(live(req)) end
 API.nearby = function(req) return observe.nearby(live(req), req.radius) end
 API.map = function(req) return observe.map(live(req), req.radius, util.pos(req.center)) end

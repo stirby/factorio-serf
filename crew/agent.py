@@ -52,6 +52,7 @@ class Agent:
         self.last_free_wake = 0.0
         self.retired = False
         self.fresh = False
+        self.last_vitals = 0.0
         from .tools import CONSULT, TOOLS
         tools = list(TOOLS)
         if not orch.cfg.flag("work_tool"):
@@ -237,8 +238,11 @@ class Agent:
             self.turn_times.append(time.time())
 
             try:
-                from .tools import open_work
+                from .tools import open_work, vitals_line
                 work = await open_work(self)
+                if self.orch.cfg.flag("vitals"):
+                    v = await vitals_line(self)
+                    work = v + ("\n" + work if work else "") if v else work
             except Exception:
                 work = ""
             prompt = briefing(self, events, work)

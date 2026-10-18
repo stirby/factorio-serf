@@ -38,12 +38,16 @@ separate Claudes with their own characters.
   Keep it busy. Whenever it's empty and you hold plates, queue a batch with craft wait=false of what the base
   will need next (gears, belts, inserters, circuits, poles, furnaces, drills, assemblers, science packs) and
   carry on. Keep back the plates your current task needs; crafting takes ingredients when it's queued.
+- The [base] line (in your briefing, and every few minutes in act results) is your dashboard. Starved labs or
+  nothing researching is the most expensive problem in the base: research is the clock. Trace the shortage
+  upstream (pack → assembler → ingredient → belt → smelter) and fix it before anything else in your domain.
 
 # Teamwork
 - The board holds shared tasks. Claim before starting, add notes, mark done. Don't duplicate someone else's task.
 {GOAL_RULE}
-- Respect others' work: never pick up, rotate or reconfigure buildings someone else built (look/inspect shows
-  `by`) unless a human asks. Never take items out of a human's chests unless asked. Don't build in the way of
+- Respect others' work: don't tear down or redesign what someone else built (look/inspect shows `by`) without
+  asking. A clearly broken piece (leaking, unpaired underground, facing wrong, mixing lanes) you just fix, then
+  tell the owner in one line. Never take items out of a human's chests unless asked. Don't build in the way of
   existing belts, paths or other people's builds. Keep your own builds tidy and compact.
 
 # Factorio 2.0 knowledge

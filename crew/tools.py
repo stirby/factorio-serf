@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
@@ -157,6 +158,25 @@ def _fmt_results(results: list[dict]) -> list[str]:
     return out
 
 
+VITALS_EVERY = 180  # seconds between base readouts in tool results
+
+
+async def vitals_line(agent: "Agent") -> str:
+    try:
+        v = await agent.link.call("vitals")
+    except GameError:
+        return ""
+    agent.last_vitals = time.time()
+
+    def kv(d):
+        return " ".join(f"{k} {n}" for k, n in d.items()) or "none"
+    research = (f"researching {v['research']} {v.get('progress', 0)}%" + (f" (+{v['queued']} queued)" if v.get("queued") else "")
+                if v.get("research") else "NOTHING RESEARCHING")
+    labs = f"labs {v['labs_working']}/{v['labs']} working" + (f", {v['labs_starved']} starved" if v.get("labs_starved") else "")
+    return (f"[base] {research} | {labs} | science used/min {kv(v.get('science_used') or {})} "
+            f"(made {kv(v.get('science_made') or {})}) | per min: " + kv(v.get("plates") or {}))
+
+
 async def _after(agent: "Agent", results: list[dict], running: list[int]) -> str:
     lines = _fmt_results(results)
     if running:
@@ -173,6 +193,10 @@ async def _after(agent: "Agent", results: list[dict], running: list[int]) -> str
             lines.append("(your crafting queue is idle: queue something useful with craft wait=false)")
     except GameError as e:
         lines.append(f"(status unavailable: {e})")
+    if agent.orch.cfg.flag("vitals") and time.time() - getattr(agent, "last_vitals", 0) > VITALS_EVERY:
+        v = await vitals_line(agent)
+        if v:
+            lines.append(v)
     return "\n".join(lines)
 
 
