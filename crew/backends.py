@@ -80,6 +80,10 @@ class ClaudeCodeBackend:
             except Exception:
                 pass
 
+    async def set_model(self, model: str) -> None:
+        if self.client:
+            await self.client.set_model(model)
+
     async def turn(self, prompt: str) -> TurnStats:
         from claude_agent_sdk import AssistantMessage, ResultMessage, TextBlock, ToolUseBlock
 
@@ -124,6 +128,9 @@ class ApiBackend:
 
     async def interrupt(self) -> None:
         pass
+
+    async def set_model(self, model: str) -> None:
+        pass  # read from cfg on every request
 
     async def _create(self):
         cfg = self.agent.cfg

@@ -7,7 +7,8 @@ import logging
 from . import ui
 from .agent import Agent
 from .board import Board
-from .config import CrewConfig
+from . import config as config_mod
+from .config import AgentConfig, CrewConfig
 from .game import GameLink
 from .rcon import GameError
 from .router import route
@@ -22,7 +23,7 @@ class Orchestrator:
         self.link = GameLink(cfg.server.host, cfg.server.rcon_port, cfg.server.rcon_password)
         self.board = Board(cfg.state_dir / "board.json")
         self.agents: dict[str, Agent] = {}
-        self.foreman: str | None = next((a.name for a in cfg.agents if a.role == "foreman"), None)
+        self.foreman: str | None = cfg.foreman_name()
 
     async def start(self) -> None:
         ui.info(f"connecting to {self.cfg.server.host}:{self.cfg.server.rcon_port} ...")
@@ -30,22 +31,8 @@ class Orchestrator:
         self.link.on_chat.append(self._on_chat)
         self.link.on_result.append(self._on_result)
         self.link.on_event.append(self._on_event)
-        existing = {a["name"]: a for a in (await self.link.call("list"))["agents"]}
         for ac in self.cfg.agents:
-            agent = Agent(ac, self)
-            self.agents[ac.name] = agent
-            kw = {"name": ac.name, "starter_kit": self.cfg.starter_kit}
-            if self.cfg.spawn_near:
-                kw["near_player"] = self.cfg.spawn_near
-            if ac.color:
-                kw["color"] = {"r": ac.color[0], "g": ac.color[1], "b": ac.color[2]}
-            if ac.name not in existing or not existing[ac.name].get("alive"):
-                sp = await self.link.call("spawn", **kw)
-                ui.info(f"spawned {ac.name} at {sp['position']} ({ac.backend}, {ac.model})")
-            else:
-                ui.info(f"{ac.name} already in game at {existing[ac.name].get('position')} ({ac.backend}, {ac.model})")
-        for agent in self.agents.values():
-            await agent.start()
+            await self._add_agent(ac)
         names = ", ".join(self.agents)
         ui.info(f"crew ready: {names}. Talk to them in game chat: @{next(iter(self.agents))} ..., @all ...")
         hello = self.agents[self.foreman or next(iter(self.agents))]
@@ -54,6 +41,60 @@ class Orchestrator:
                                  text=f"Claude Crew online ({names}). Address us with @name or @all.")
         except GameError:
             pass
+        if self.cfg.source:
+            asyncio.create_task(self._watch_config(), name="config-watch")
+
+    async def _add_agent(self, ac: AgentConfig) -> Agent:
+        existing = {a["name"]: a for a in (await self.link.call("list"))["agents"]}
+        agent = Agent(ac, self)
+        self.agents[ac.name] = agent
+        kw = {"name": ac.name, "starter_kit": self.cfg.starter_kit}
+        if self.cfg.spawn_near:
+            kw["near_player"] = self.cfg.spawn_near
+        if ac.color:
+            kw["color"] = {"r": ac.color[0], "g": ac.color[1], "b": ac.color[2]}
+        if ac.name not in existing or not existing[ac.name].get("alive"):
+            sp = await self.link.call("spawn", **kw)
+            ui.info(f"spawned {ac.name} at {sp['position']} ({ac.backend}, {ac.model})")
+        else:
+            ui.info(f"{ac.name} already in game at {existing[ac.name].get('position')} ({ac.backend}, {ac.model})")
+        await agent.start()
+        return agent
+
+    async def _watch_config(self) -> None:
+        """Apply crew.toml edits live: models, limits, new agents, removed agents."""
+        path = self.cfg.source
+        mtime = path.stat().st_mtime
+        while True:
+            await asyncio.sleep(3)
+            try:
+                m = path.stat().st_mtime
+                if m == mtime:
+                    continue
+                mtime = m
+                new = config_mod.load(path)
+            except Exception as e:
+                ui.info(f"crew.toml not applied ({e!r}); fix it and save again")
+                continue
+            wanted = {a.name: a for a in new.agents}
+            for name, ac in wanted.items():
+                if name in self.agents:
+                    for change in await self.agents[name].apply(ac):
+                        ui.info(f"{name}: {change}")
+                else:
+                    agent = await self._add_agent(ac)
+                    await agent.say(f"{name} reporting in. What should I work on?")
+            for name in [n for n in self.agents if n not in wanted]:
+                agent = self.agents.pop(name)
+                await agent.close()
+                try:
+                    await self.link.call("cancel", agent=name, reason="off duty")
+                    await self.link.call("status", agent=name, text="off duty")
+                except GameError:
+                    pass
+                ui.info(f"{name}: off duty (character stays in the game)")
+            self.cfg.agents = new.agents
+            self.foreman = new.foreman_name()
 
     async def stop(self) -> None:
         for a in self.agents.values():

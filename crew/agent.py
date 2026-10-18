@@ -45,6 +45,8 @@ class Agent:
         self.peer_wakes: deque[float] = deque()
         self.last_position = None
         self.total_cost = 0.0
+        self.error_streak = 0
+        self.retired = False
         self.backend = make_backend(self, system_prompt(cfg.name, cfg.role, cfg.personality), self.dir / "cwd")
         self._task: asyncio.Task | None = None
 
@@ -52,6 +54,21 @@ class Agent:
     async def start(self) -> None:
         await self.backend.start()
         self._task = asyncio.create_task(self._loop(), name=f"agent-{self.name}")
+
+    async def apply(self, cfg: AgentConfig) -> list[str]:
+        """Live config change. Returns what changed."""
+        changed = []
+        if cfg.model != self.cfg.model:
+            await self.backend.set_model(cfg.model)
+            changed.append(f"model {self.cfg.model} -> {cfg.model}")
+        for field in ("max_turns_per_hour", "max_autonomous_turns", "effort", "role", "personality"):
+            if getattr(cfg, field) != getattr(self.cfg, field):
+                changed.append(f"{field} -> {getattr(cfg, field)}")
+        if cfg.backend != self.cfg.backend:
+            changed.append("backend change needs a restart (ignored)")
+            cfg.backend = self.cfg.backend
+        self.cfg = cfg  # role/personality are baked into the running session's prompt; they apply on restart
+        return changed
 
     async def close(self) -> None:
         if self._task:
@@ -219,6 +236,15 @@ class Agent:
                 await asyncio.sleep(5)
             finally:
                 self.in_turn = False
+            if stats and stats.error:
+                # Usage limits, API trouble, etc.: back off instead of hammering.
+                self.error_streak += 1
+                delay = min(60 * 2 ** (self.error_streak - 1), 1800)
+                ui.info(f"{self.name}: turn error ({stats.error}); backing off {delay}s")
+                self.inbox.put_nowait("(continue) your last turn ended with an error; pick up where you left off.")
+                await asyncio.sleep(delay)
+            elif stats:
+                self.error_streak = 0
             if stats:
                 self.total_cost += stats.cost_usd
                 self._record("turn", secs=round(time.time() - t0, 1), steps=stats.steps, cost=stats.cost_usd,

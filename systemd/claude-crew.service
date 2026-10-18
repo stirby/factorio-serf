@@ -1,0 +1,15 @@
+[Unit]
+Description=Claude Crew orchestrator (Factorio agents)
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/dev/factorio-slave
+ExecStart=%h/dev/factorio-slave/.venv/bin/crew up
+Restart=always
+RestartSec=15
+KillSignal=SIGINT
+StandardOutput=append:%h/dev/factorio-slave/logs/live.log
+StandardError=append:%h/dev/factorio-slave/logs/live.log
+
+[Install]
+WantedBy=default.target

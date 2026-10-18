@@ -1,0 +1,7 @@
+[Unit]
+Description=Claude Crew: save a stage snapshot of the running game
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/dev/factorio-slave
+ExecStart=%h/dev/factorio-slave/.venv/bin/python scripts/snapshot.py auto

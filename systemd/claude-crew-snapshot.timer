@@ -1,0 +1,9 @@
+[Unit]
+Description=Claude Crew snapshot every 30 minutes
+
+[Timer]
+OnActiveSec=30min
+OnUnitActiveSec=30min
+
+[Install]
+WantedBy=timers.target

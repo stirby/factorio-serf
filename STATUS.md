@@ -5,7 +5,11 @@ Milestone: two Sonnet agents took an empty Space Age map to automation research 
 Added since: connect (A* belts/pipes/poles), follow, instant come/follow, foreman-first planning,
 water search with pump spots, fuel swap. Smoke test is at 40 checks.
 
-NEXT: the user joins from their client (scripts/install-client-mod.sh with Factorio closed, connect to 127.0.0.1).
+Live (2026-10-18 00:45): the user joined and played alongside a 5-agent crew (foreman on Opus, workers on Sonnet),
+under systemd, with a snapshot every 30 min and peaceful mode on. Corpse looting is pending: it's a mod change, so wait
+until the user disconnects.
+
+WAS NEXT: the user joins from their client (scripts/install-client-mod.sh with Factorio closed, connect to 127.0.0.1).
 
 
 ## Working

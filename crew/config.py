@@ -36,6 +36,10 @@ class CrewConfig:
     spawn_near: str | None = None  # player name to spawn next to, if online
     starter_kit: bool = True
     state_dir: Path = Path("~/.local/state/claude-crew").expanduser()
+    source: Path | None = None  # crew.toml this came from (watched for live changes)
+
+    def foreman_name(self) -> str | None:
+        return next((a.name for a in self.agents if a.role == "foreman"), None)
 
 
 def _password(raw: dict, base: Path) -> str:
@@ -94,6 +98,7 @@ def load(path: str | Path | None, overrides: dict | None = None) -> CrewConfig:
 
     cfg = CrewConfig(server=server, agents=agents,
                      spawn_near=raw.get("spawn_near"), starter_kit=raw.get("starter_kit", True))
+    cfg.source = Path(path).expanduser().resolve() if path else None
     if raw.get("state_dir"):
         cfg.state_dir = Path(raw["state_dir"]).expanduser()
     return cfg

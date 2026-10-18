@@ -86,8 +86,22 @@ role = "foreman"
 personality = "Calm, dry humor, likes tidy layouts."
 ```
 
+`crew.toml` is watched while the crew runs: change a model or a limit, or add or remove an `[[agent]]`, and it
+applies within a few seconds without a restart. A backend change still needs one. Removed agents go
+"off duty" and their characters stay in the game.
+
 Each agent has `max_turns_per_hour` and `max_autonomous_turns` limits, so it can't run away with your usage.
 State (board, notes, transcripts) lives in `~/.local/state/claude-crew/`.
+
+## Running unattended
+
+```bash
+ln -s $PWD/systemd/*.service $PWD/systemd/*.timer ~/.config/systemd/user/ && systemctl --user daemon-reload
+systemctl --user enable --now claude-crew.service claude-crew-snapshot.timer   # restarts on crash; logs to logs/live.log
+scripts/snapshot.py my-label     # save a named stage now; snapshots/manifest.jsonl records what the base had
+```
+
+Peaceful mode, if you want it: `scripts/rc.py eval '{"code":"game.surfaces.nauvis.peaceful_mode=true return 1"}'`.
 
 ## Development
 
