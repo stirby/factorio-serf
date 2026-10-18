@@ -1,0 +1,4 @@
+BUILT: coal drills (51.5,101.5),(49.5,97.5) -> coal belt to iron column; splitter (73,52.5): left -> x=72.5 north -> sideload east lane of plate belt x=71.5 at y=46.5 (coal rides belt M to boilers); right -> underground 75.5->77.5,y50.5 -> sideload ore belt x=76 at 77.5,49.5 (furnace fuel).
+Belt M: x=71.5 north -> y=-25.5 west -> -29.5 north -> -28.5 up to -42.5; burner inserters feed boilers at (-29.5,-42.5) west boiler,(-27.5,-40.5) east boiler; overflow chest (-28.5,-44.5) iron provider.
+Iron column 11 furnaces x=74 y26-46 (claude-3 built). 7 iron drills y=58.5 x81-99. Iron ~140/min.
+TODO: more coal drills (boilers 0.9/s at full); 3rd boiler; iron drills row 2 at y=54.5 facing south; mark overflow chest provider.

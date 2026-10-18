@@ -1,0 +1,552 @@
+#!/usr/bin/env python3
+"""Validate the stampable designs in crew/blueprints/ in a real game. No LLM involved.
+
+    .venv/bin/python tests/test_blueprints.py                      # every design, rotations 0 and 90
+    .venv/bin/python tests/test_blueprints.py --designs red-science-5 --rotations 0,90,180,270 --jobs 2
+    .venv/bin/python tests/test_blueprints.py --offline            # static checks only (no server)
+
+1. Static checks (crew.blueprint_lib.validate): grid snapping per footprint, overlaps, box, every rotation.
+2. In game: isolated headless instances (scripts/instance.py, ids 20-29, localhost; the stage save is copied, never
+   written) on --stage (default crew-test). Cases are spread over --jobs instances (one instance can host many
+   cases far apart). Each case gets its own force (own research and power network) and:
+   - finds a clear spot (surface.can_place_entity, manual build check, for the design AND the test harness, no
+     other non-neutral entity within 4 tiles); designs with an anchor (the offshore pump) search the shore;
+   - creates REAL entities with surface.create_entity at the stamped positions (and checks the game kept the
+     position, direction and recipe), sets recipes; with --ghosts it instead lays entity-ghosts with recipes and
+     revives them, which is what the mod's `blueprint` + `build_ghosts` ops do;
+   - harness, all outside the design: per input belt lane an infinity chest -> loader -> belt that side-loads that
+     lane; per output belt a loader into a steel chest (the count); chest inputs get an infinity chest; power from
+     an electric-energy-interface on its own pole at least 3 tiles away (so it can't power anything the design's
+     poles miss), wired to a design pole; for power designs the interface is a 1.8 MW load instead;
+   - research designs: the case force gets the test tech's prerequisites and that tech queued.
+3. Warm up, then measure for --measure seconds of game time: output items (or research units, or MW), and each
+   design entity's status every 10 s.
+PASS = measured >= 60% of the design's rated output, every entity placed where asked, and no entity in a bad
+status for most samples (any: no power/fuel/recipe/fluid; producers: also ingredient shortage, output full,
+missing packs).
+"""
+from __future__ import annotations
+
+import argparse
+import asyncio
+import json
+import math
+import sys
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "scripts"))
+from crew import blueprint_lib as bp  # noqa: E402
+from crew.rcon import Crew, Rcon  # noqa: E402
+
+PASS_FRACTION = 0.6
+FIRST_INSTANCE = 20
+SAMPLE_EVERY = 10.0
+
+ALWAYS_BAD = {"no_power", "low_power", "no_fuel", "no_recipe", "not_plugged_in_electric_network", "disabled",
+              "disabled_by_script", "marked_for_deconstruction", "no_input_fluid", "missing_required_fluid",
+              "fluid_ingredient_shortage", "low_input_fluid", "low_temperature", "networks_disconnected"}
+PRODUCER_BAD = {"item_ingredient_shortage", "no_ingredients", "full_output", "waiting_for_space_in_destination",
+                "no_research_in_progress", "missing_science_packs", "waiting_for_source_items", "no_minable_resources"}
+RECIPES = ["automation-science-pack", "logistic-science-pack", "inserter", "transport-belt", "iron-gear-wheel",
+           "electronic-circuit", "copper-cable", "iron-plate", "copper-plate", "stone-brick"]
+
+
+# ---------------------------------------------------------------------------- harness layout (design frame)
+def _left(d: str) -> str:
+    return bp.rotate_dir(d, 3)
+
+
+def _right(d: str) -> str:
+    return bp.rotate_dir(d, 1)
+
+
+def _add(p, d, n=1):
+    v = bp.VEC[d]
+    return (p[0] + v[0] * n, p[1] + v[1] * n)
+
+
+def _ent(name, tile, direction="north", **kw):
+    return {"name": name, "x": tile[0] + 0.5, "y": tile[1] + 0.5, "direction": direction, **kw}
+
+
+def harness_layout(design: dict) -> list[dict]:
+    """Test-only entities around the design, in the design's own (unrotated) frame."""
+    out: list[dict] = []
+    for port in design.get("inputs", []):
+        t = tuple(port["at"])
+        if port.get("kind") == "chest":
+            out.append(_ent("infinity-chest", t, role="source", item=port["item"]))
+            continue
+        d = bp.opposite(port["side"])          # items flow into the design
+        p = _add(t, d, -1)                     # feeder tile just outside, flowing in
+        out.append(_ent("transport-belt", p, d, role="feed"))
+        out.append(_ent("transport-belt", _add(p, d, -1), d, role="feed"))  # rear belt: keeps p straight (side-load)
+        for lane, item in port.get("lanes", {}).items():
+            side = _left(d) if lane == "left" else _right(d)
+            toward = bp.opposite(side)
+            out.append(_ent("transport-belt", _add(p, side, 1), toward, role="feed"))
+            out.append(_ent("loader-1x1", _add(p, side, 2), toward, role="feed", loader_type="output"))
+            out.append(_ent("infinity-chest", _add(p, side, 3), role="source", item=item))
+    for port in design.get("outputs", []):
+        if "at" not in port or port.get("kind") in ("power", "research"):
+            continue
+        d = port["side"]
+        t = tuple(port["at"])
+        out.append(_ent("loader-1x1", _add(t, d, 1), d, role="sink_loader", loader_type="input"))
+        out.append(_ent("steel-chest", _add(t, d, 2), role="sink",
+                        items=[port["item"]] + list(port.get("also", {}))))
+    if any(e["name"].endswith("electric-pole") for e in design["entities"]):
+        out += _power_spot(design, out)
+    return out
+
+
+def _power_spot(design: dict, harness: list[dict]) -> list[dict]:
+    """EEI + pole in a free corner, the pole >= 3 tiles outside the box so its supply area can't reach the design."""
+    w, h = design["size"]
+    used = set()
+    for e in harness:
+        used.update(bp.footprint_tiles(e))
+    load = any(p.get("kind") == "power" for p in design.get("outputs", []))
+    corners = [((-3, -3), (-4, -4)), ((w + 2, -3), (w + 4, -4)), ((-3, h + 2), (-4, h + 4)),
+               ((w + 2, h + 2), (w + 4, h + 4))]
+    if design.get("test", {}).get("anchor"):  # shore designs: the water is north of the pump, so go south
+        corners = corners[2:] + corners[:2]
+    for pole, eei in corners:
+        ents = [_ent("small-electric-pole", pole, role="power_pole"),
+                {"name": "electric-energy-interface", "x": eei[0], "y": eei[1], "direction": "north",
+                 "role": "load" if load else "power"}]
+        tiles = set()
+        for e in ents:
+            tiles.update(bp.footprint_tiles(e))
+        grown = {(x + dx, y + dy) for x, y in tiles for dx in (-1, 0, 1) for dy in (-1, 0, 1)}
+        if not grown & used:
+            return ents
+    raise RuntimeError(f"{design['name']}: no free corner for the power harness")
+
+
+def case_spec(name: str, rotation: int) -> dict:
+    """Design + harness entities rotated about the design origin (top-left of the rotated design at 0,0)."""
+    d = bp.get_design(name)
+    steps = bp.rotation_steps(rotation)
+    w, h = d["size"]
+    st = bp.stamp(name, 0, 0, rotation)
+    design_ents = st["entities"]
+    harness = []
+    for e in harness_layout(d):
+        x, y = bp.rotate_point(e["x"], e["y"], w, h, steps)
+        harness.append({**e, "x": x, "y": y, "direction": bp.rotate_dir(e["direction"], steps)})
+    tiles = [t for e in design_ents + harness for t in bp.footprint_tiles(e)]
+    xs, ys = [t[0] for t in tiles], [t[1] for t in tiles]
+    spec = {"name": name, "rotation": steps * 90, "design": design_ents, "harness": harness,
+            "box": [min(xs), min(ys), max(xs) + 1, max(ys) + 1], "test": d.get("test", {}),
+            "outputs": st["outputs"], "rw": st["size"][0], "rh": st["size"][1]}
+    anchor = d.get("test", {}).get("anchor")
+    if anchor:
+        a = next(e for e in design_ents if e["name"] == anchor)
+        spec["anchor"] = {"name": anchor, "x": a["x"], "y": a["y"], "direction": a["direction"]}
+    return spec
+
+
+# ---------------------------------------------------------------------------- Lua
+PRELUDE = r"""
+local s = game.surfaces.nauvis
+local D = defines.direction
+local function dir(n) return D[n or "north"] end
+local function fits(f, list, ox, oy)
+  for _, e in ipairs(list) do
+    if not s.can_place_entity { name = e.name, position = { ox + e.x, oy + e.y }, direction = dir(e.direction),
+        force = f, build_check_type = defines.build_check_type.manual } then return false end
+  end
+  return true
+end
+local function clear(spec, ox, oy, m)
+  local b = spec.box
+  for _, c in ipairs { { b[1], b[2] }, { b[3], b[2] }, { b[1], b[4] }, { b[3], b[4] } } do
+    if not s.is_chunk_generated { math.floor((ox + c[1]) / 32), math.floor((oy + c[2]) / 32) } then return false end
+  end
+  return s.count_entities_filtered { area = { { ox + b[1] - m, oy + b[2] - m }, { ox + b[3] + m, oy + b[4] + m } },
+    force = "neutral", invert = true } == 0
+end
+"""
+
+SETUP = PRELUDE + r"""
+s.peaceful_mode = true
+game.forces.enemy.kill_all_units()
+storage.bp_test = {}
+local c = game.forces.player.get_spawn_position(s)
+return { spawn = { c.x, c.y } }
+"""
+
+PLACE = PRELUDE + r"""
+local spec = helpers.json_to_table([==[%s]==])
+local fname = "bpt-" .. spec.case
+local f = game.forces[fname] or game.create_force(fname)
+for _, r in ipairs(spec.recipes) do if f.recipes[r] then f.recipes[r].enabled = true end end
+local all = {}
+for _, e in ipairs(spec.design) do all[#all + 1] = e end
+for _, e in ipairs(spec.harness) do all[#all + 1] = e end
+local C = spec.center
+local ox, oy
+if spec.anchor then
+  local tiles = s.find_tiles_filtered { position = C, radius = 400, collision_mask = "water_tile", limit = 40000 }
+  table.sort(tiles, function(a, b) return util.dist(a.position, C) < util.dist(b.position, C) end)
+  local tried = 0
+  for i = 1, #tiles do
+    local t = tiles[i]
+    for _, off in ipairs { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } } do
+      local px, py = t.position.x + off[1] + 0.5, t.position.y + off[2] + 0.5
+      if s.can_place_entity { name = spec.anchor.name, position = { px, py }, direction = dir(spec.anchor.direction),
+          force = f, build_check_type = defines.build_check_type.manual } then
+        tried = tried + 1
+        local cx, cy = px - spec.anchor.x, py - spec.anchor.y
+        if clear(spec, cx, cy, 4) and fits(f, all, cx, cy) then ox, oy = cx, cy break end
+      end
+    end
+    if ox then break end
+  end
+  if not ox then return { error = "no shore spot fits (tried " .. tried .. " pump spots)" } end
+else
+  local step = 3
+  for r = 0, 240, step do
+    local pts = { { 0, 0 } }
+    if r > 0 then
+      pts = {}
+      for d = -r, r, step do pts[#pts + 1] = { d, -r } pts[#pts + 1] = { d, r } end
+      for d = -r + step, r - step, step do pts[#pts + 1] = { -r, d } pts[#pts + 1] = { r, d } end
+    end
+    for _, pt in ipairs(pts) do
+      local cx, cy = math.floor(C[1] + pt[1]), math.floor(C[2] + pt[2])
+      if clear(spec, cx, cy, 4) and fits(f, all, cx, cy) then ox, oy = cx, cy break end
+    end
+    if ox then break end
+  end
+  if not ox then return { error = "no clear spot within 240 tiles" } end
+end
+-- types whose direction matters (2 = symmetric, either way along the axis is the same machine)
+local ORIENTED = { inserter = 1, ["transport-belt"] = 1, ["underground-belt"] = 1, splitter = 1, boiler = 1,
+  ["offshore-pump"] = 1, ["mining-drill"] = 1, ["loader-1x1"] = 1, generator = 2, pump = 1 }
+local reg = { force = fname, design = {}, engines = {} }
+local bad = {}
+local function make(e, is_design)
+  local want = { x = ox + e.x, y = oy + e.y }
+  local spec2 = { name = e.name, position = want, direction = dir(e.direction), force = f }
+  if e.loader_type then spec2.type = e.loader_type end
+  local ent
+  if spec.ghosts and is_design then  -- the agents' path: entity-ghost (+recipe), then revive
+    local okg, g = pcall(s.create_entity, { name = "entity-ghost", inner_name = e.name, position = want,
+      direction = dir(e.direction), force = f, expires = false })
+    if okg and g then
+      if e.recipe then pcall(function() g.set_recipe(e.recipe) end) end
+      local _, revived = g.revive { raise_revive = false }
+      ent = revived
+    end
+  else
+    ent = s.create_entity(spec2)
+  end
+  if not ent then bad[#bad + 1] = "could not create " .. e.name .. " at " .. want.x .. "," .. want.y return end
+  if math.abs(ent.position.x - want.x) > 0.01 or math.abs(ent.position.y - want.y) > 0.01 then
+    bad[#bad + 1] = e.name .. " asked at " .. want.x .. "," .. want.y .. " landed at " .. ent.position.x .. "," .. ent.position.y
+  end
+  local oriented = ORIENTED[ent.type]
+  if is_design and oriented and ent.direction ~= dir(e.direction)
+      and not (oriented == 2 and ent.direction == (dir(e.direction) + 8) %% 16) then
+    bad[#bad + 1] = e.name .. " at " .. want.x .. "," .. want.y .. " faces " .. util.DIR_NAMES[ent.direction] .. " not " .. e.direction
+  end
+  if e.recipe and not (spec.ghosts and is_design) then
+    local okr, err = pcall(function() ent.set_recipe(e.recipe) end)
+    if not okr then bad[#bad + 1] = "set_recipe " .. e.recipe .. ": " .. tostring(err) end
+  end
+  if e.recipe then
+    local r = ent.get_recipe()
+    if not (r and r.name == e.recipe) then bad[#bad + 1] = e.name .. " at " .. want.x .. "," .. want.y .. " has no recipe " .. e.recipe end
+  end
+  if is_design then
+    reg.design[#reg.design + 1] = ent
+    if ent.type == "generator" then reg.engines[#reg.engines + 1] = ent end
+    if ent.type == "electric-pole" then reg.pole = reg.pole or ent end
+  end
+  if e.role == "source" then ent.set_infinity_container_filter(1, { name = e.item, count = 100, mode = "exactly" }) end
+  if e.role == "sink" then reg.sink, reg.items = ent, e.items end
+  if e.role == "power_pole" then reg.hpole = ent end
+  if e.role == "power" then
+    ent.power_production = 1e9 / 60 ent.power_usage = 0 ent.electric_buffer_size = 1e9 / 30
+  elseif e.role == "load" then
+    ent.power_production = 0 ent.power_usage = 1.8e6 / 60 ent.electric_buffer_size = 1.8e6 / 60 * 4
+    reg.load = ent
+  end
+end
+for _, e in ipairs(spec.design) do make(e, true) end
+for _, e in ipairs(spec.harness) do make(e, false) end
+if reg.hpole and reg.pole then
+  local a = reg.hpole.get_wire_connector(defines.wire_connector_id.pole_copper, true)
+  a.connect_to(reg.pole.get_wire_connector(defines.wire_connector_id.pole_copper, true), false)
+end
+if spec.research then
+  local t = f.technologies[spec.research]
+  local function done(tt) for _, p in pairs(tt.prerequisites) do if not p.researched then done(p) p.researched = true end end end
+  done(t)
+  f.laboratory_speed_modifier = 0
+  local okq = pcall(function() f.add_research(t) end)
+  if not okq or not f.current_research then pcall(function() f.research_queue = { t } end) end
+  reg.tech = spec.research
+  reg.queued = f.current_research and f.current_research.name or "none"
+end
+storage.bp_test[spec.case] = reg
+return { origin = { ox, oy }, problems = bad, queued = reg.queued, n = #reg.design }
+"""
+
+SAMPLE = r"""
+local out = {}
+for case, c in pairs(storage.bp_test) do
+  local r = { tick = game.tick, st = {} }
+  if c.sink and c.sink.valid then
+    r.out = {}
+    for _, it in ipairs(c.items) do r.out[it] = c.sink.get_item_count(it) end
+  end
+  local f = game.forces[c.force]
+  if c.tech then
+    local t = f.technologies[c.tech]
+    r.units_total = t.research_unit_count
+    if t.researched then r.units = t.research_unit_count
+    elseif f.current_research and f.current_research.name == c.tech then r.units = f.research_progress * t.research_unit_count
+    else r.units = (t.saved_progress or 0) * t.research_unit_count end
+  end
+  if #c.engines > 0 then
+    local w = 0
+    for _, e in ipairs(c.engines) do if e.valid then w = w + e.energy_generated_last_tick * 60 end end
+    r.mw = w / 1e6
+  end
+  for i, e in ipairs(c.design) do
+    if e.valid and e.status then r.st["e" .. i] = util.STATUS_NAMES[e.status] or tostring(e.status) end
+  end
+  out[case] = r
+end
+return out
+"""
+
+
+async def ev(crew: Crew, code: str, timeout: float = 120):
+    res = await asyncio.wait_for(crew.call("eval", code=code), timeout)
+    return res.get("result") if isinstance(res, dict) else res
+
+
+# ---------------------------------------------------------------------------- one instance, several cases
+class Case:
+    def __init__(self, name: str, rotation: int, idx: int, ghosts: bool = False):
+        self.name, self.rotation, self.idx, self.ghosts = name, rotation, idx, ghosts
+        self.key = f"{idx}"
+        self.spec = case_spec(name, rotation)
+        self.test = self.spec["test"]
+        self.origin = None
+        self.problems: list[str] = []
+        self.samples: list[dict] = []
+        out = (self.spec["outputs"] or [{}])[0]
+        self.kind = out.get("kind", "items")
+        self.rated = float(out.get("rate", 0))
+        self.rates = {out["item"]: self.rated, **out.get("also", {})} if out.get("item") else {}
+        self.unit = {"items": "/s", "research": " units/s", "power": " MW"}.get(self.kind, "")
+        self.error: str | None = None
+
+    def place_lua(self, center) -> str:
+        spec = {"case": self.key, "design": self.spec["design"], "harness": self.spec["harness"],
+                "box": self.spec["box"], "center": center, "recipes": RECIPES,
+                "anchor": self.spec.get("anchor"), "research": self.test.get("research"), "ghosts": self.ghosts}
+        return PLACE % json.dumps(spec, separators=(",", ":"))
+
+    def producer(self, e: dict) -> bool:
+        for p in self.test.get("producers", []):
+            n, _, r = p.partition(":")
+            if e["name"] == n and (not r or e.get("recipe") == r):
+                return True
+        return False
+
+    def result(self) -> dict:
+        res = {"design": self.name, "rotation": self.rotation, "origin": self.origin, "rated": self.rated,
+               "mode": "ghosts" if self.ghosts else "create_entity",
+               "unit": self.unit, "problems": list(self.problems), "error": self.error}
+        if self.error or len(self.samples) < 2:
+            res.update(measured=None, ratio=0.0, ok=False)
+            if not self.error:
+                res["error"] = "not enough samples"
+            return res
+        a, b = self.samples[0], self.samples[-1]
+        dt = (b["tick"] - a["tick"]) / 60
+        if self.kind == "research":
+            measured = (b.get("units", 0) - a.get("units", 0)) / dt
+        elif self.kind == "power":
+            vals = [s.get("mw", 0) for s in self.samples]
+            measured = sum(vals) / len(vals)
+        else:
+            per = {it: ((b.get("out") or {}).get(it, 0) - (a.get("out") or {}).get(it, 0)) / dt for it in self.rates}
+            measured = per[next(iter(self.rates))]
+            res["per_item"] = {it: f"{v:.3g}/{self.rates[it]:g}" for it, v in per.items()}
+        bad: dict[int, list[str]] = {}
+        n = len(self.samples)
+        ents = self.spec["design"]
+        for i, e in enumerate(ents, 1):
+            sts = [s["st"].get(f"e{i}") for s in self.samples if isinstance(s.get("st"), dict)]
+            sts = [x for x in sts if x]
+            if not sts:
+                continue
+            badset = ALWAYS_BAD | (PRODUCER_BAD if self.producer(e) else set())
+            nb = sum(1 for x in sts if x in badset)
+            if nb * 2 > len(sts):
+                worst = max(set(sts), key=sts.count)
+                bad[i] = [e["name"], f"({e['x']},{e['y']})", f"{worst} {nb}/{len(sts)}"]
+        res["stuck"] = [" ".join(v) for v in bad.values()]
+        res["status_counts"] = self._status_counts()
+        res["measured"] = round(measured, 3)
+        res["ratio"] = round(measured / self.rated, 2) if self.rated else 0.0
+        if res.get("per_item"):  # every output item must make its own rate
+            res["ratio"] = round(min(per[it] / r for it, r in self.rates.items() if r), 2)
+        res["seconds"] = round(dt, 1)
+        res["samples"] = n
+        res["ok"] = (res["ratio"] >= PASS_FRACTION and not res["stuck"] and not res["problems"])
+        return res
+
+    def _status_counts(self) -> dict:
+        out: dict[str, dict[str, int]] = {}
+        for i, e in enumerate(self.spec["design"], 1):
+            for s in self.samples:
+                st = (s.get("st") or {}).get(f"e{i}") if isinstance(s.get("st"), dict) else None
+                if st:
+                    k = e["name"] + (":" + e["recipe"] if e.get("recipe") else "")
+                    out.setdefault(k, {})
+                    out[k][st] = out[k].get(st, 0) + 1
+        return out
+
+
+async def run_group(k: int, cases: list[Case], args) -> None:
+    from instance import Instance
+    inst = Instance(k, args.stage)
+    rcon = None
+    t0 = time.time()
+    try:
+        print(f"[i{k}] starting instance {k} on {args.stage} for {len(cases)} case(s)", flush=True)
+        await asyncio.to_thread(inst.start, 240)
+        rcon = Rcon(inst.host, inst.rcon_port, inst.password)
+        await rcon.connect()
+        crew = Crew(rcon)
+        setup = await ev(crew, SETUP)
+        center = setup["spawn"]
+        for c in cases:
+            r = await ev(crew, c.place_lua(center), 180)
+            if r.get("error"):
+                c.error = r["error"]
+                print(f"[i{k}] {c.name} rot {c.rotation}: {c.error}", flush=True)
+                continue
+            c.origin = r["origin"]
+            c.problems = r.get("problems") or []
+            print(f"[i{k}] placed {c.name} rot {c.rotation} at {c.origin} ({r.get('n')} entities)"
+                  + (f" research={r.get('queued')}" if c.test.get("research") else "")
+                  + (f" PROBLEMS {c.problems}" if c.problems else ""), flush=True)
+        live = [c for c in cases if not c.error]
+        warm = args.warmup if args.warmup is not None else max([c.test.get("warmup_s", 30) for c in live] or [0])
+        print(f"[i{k}] warming up {warm:.0f}s, then measuring {args.measure:.0f}s", flush=True)
+        await asyncio.sleep(warm)
+        end = time.time() + args.measure
+        while True:
+            snap = await ev(crew, SAMPLE)
+            for c in live:
+                if isinstance(snap, dict) and c.key in snap:
+                    c.samples.append(snap[c.key])
+            if time.time() >= end:
+                break
+            await asyncio.sleep(min(SAMPLE_EVERY, max(0.5, end - time.time())))
+    except Exception as e:  # noqa: BLE001
+        for c in cases:
+            c.error = c.error or f"instance {k}: {e!r}"[:300]
+        print(f"[i{k}] failed: {e!r}\n{inst.tail(15)}", flush=True)
+    finally:
+        if rcon:
+            await rcon.close()
+        await asyncio.to_thread(inst.stop)
+        print(f"[i{k}] stopped ({time.time() - t0:.0f}s)", flush=True)
+
+
+# ---------------------------------------------------------------------------- report
+def table(results: list[dict]) -> str:
+    rows = [("design", "rot", "origin", "measured", "rated", "%", "result", "notes")]
+    for r in results:
+        notes = r.get("error") or "; ".join((r.get("problems") or []) + (r.get("stuck") or []))
+        if r.get("per_item") and len(r["per_item"]) > 1:
+            notes = ("per item " + ", ".join(f"{k} {v}" for k, v in r["per_item"].items()) + " " + notes).strip()
+        meas = "-" if r.get("measured") is None else f"{r['measured']:.3g}{r['unit']}"
+        rows.append((r["design"], str(r["rotation"]), str(r.get("origin") or "-"), meas,
+                     f"{r['rated']:g}{r['unit']}", f"{round(100 * r['ratio'])}", "PASS" if r["ok"] else "FAIL",
+                     notes[:120]))
+    widths = [max(len(row[i]) for row in rows) for i in range(len(rows[0]) - 1)]
+    out = []
+    for row in rows:
+        out.append("  ".join(c.ljust(w) for c, w in zip(row[:-1], widths)) + "  " + row[-1])
+    return "\n".join(out)
+
+
+def offline_checks(designs: list[str]) -> list[str]:
+    probs = []
+    for n in designs:
+        probs += bp.validate(n)
+        d = bp.get_design(n)
+        for rot in (0, 90, 180, 270):  # harness must not collide with the design either
+            spec = case_spec(n, rot)
+            probs += [f"[{n} rot {rot} +harness] {p}" for p in bp.check_layout(spec["design"] + spec["harness"])]
+        if not d.get("description") or not d.get("entities"):
+            probs.append(f"[{n}] missing description/entities")
+    return probs
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--designs", help="comma list (default: all)")
+    ap.add_argument("--rotations", default="0,90")
+    ap.add_argument("--stage", default="crew-test", help="save in server/factorio/saves (copied, never written)")
+    ap.add_argument("--jobs", type=int, default=1, help="instances in parallel (ids 20..29)")
+    ap.add_argument("--first-instance", type=int, default=FIRST_INSTANCE, help="first instance id (20..29)")
+    ap.add_argument("--warmup", type=float, default=None, help="seconds before measuring (default: per design)")
+    ap.add_argument("--measure", type=float, default=90.0, help="seconds of measurement")
+    ap.add_argument("--offline", action="store_true", help="static checks only")
+    ap.add_argument("--ghosts", action="store_true",
+                    help="build the design the agents' way: entity-ghosts with recipes, then revive them")
+    ap.add_argument("--json", help="write results here")
+    ap.add_argument("-v", "--verbose", action="store_true", help="print status counts per case")
+    args = ap.parse_args()
+
+    designs = args.designs.split(",") if args.designs else bp.names()
+    probs = offline_checks(designs)
+    print(f"static checks: {len(designs)} designs x 4 rotations: " + ("OK" if not probs else f"{len(probs)} problems"))
+    for p in probs:
+        print("  " + p)
+    if probs:
+        return 1
+    if args.offline:
+        return 0
+
+    rots = [int(r) for r in args.rotations.split(",")]
+    cases = [Case(n, r, i, args.ghosts) for i, (n, r) in enumerate((n, r) for n in designs for r in rots)]
+    if not 20 <= args.first_instance <= 29:
+        ap.error("--first-instance must be 20..29")
+    jobs = max(1, min(args.jobs, 30 - args.first_instance, len(cases)))
+    groups = [cases[j::jobs] for j in range(jobs)]
+
+    async def go():
+        await asyncio.gather(*(run_group(args.first_instance + j, g, args) for j, g in enumerate(groups)))
+    asyncio.run(go())
+
+    results = [c.result() for c in cases]
+    print()
+    print(table(results))
+    if args.verbose:
+        for r in results:
+            print(f"\n{r['design']} rot {r['rotation']}: {json.dumps(r.get('status_counts'))}")
+    if args.json:
+        Path(args.json).write_text(json.dumps(results, indent=1))
+    ok = sum(r["ok"] for r in results)
+    print(f"\n{ok}/{len(results)} passed (pass = >= {int(PASS_FRACTION * 100)}% of rated output, nothing stuck)")
+    return 0 if ok == len(results) else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -31,3 +31,4 @@ calls myself, log them here, and keep the review page updated hour by hour.
 | 01:55 | Fixed the scorer: idle furnaces report their recipe via previous_recipe; steel is scored from production stats | Round 1 steel hit 33/min but scored 0.5 because idle steel furnaces were invisible |
 | 01:55 | New long-horizon scenario s3-research-rush (60 min, scored on techs completed and science consumed) | The truest measure of 'how fast they advance' is research progress over time |
 | 01:55 | Round 3: s3-research-rush:go-now (60 min), next to round 2b | Long-horizon progress measurement with all fixes in |
+| 01:56 | Delegated a validated blueprint library (smelting column, red/green science, lab row, steam power) to a background agent; each design is validated in a cheat-mode test world | Players stamp proven designs instead of hand-placing; per-entity coordinate reasoning is slow and error-prone |

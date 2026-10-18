@@ -1,0 +1,1 @@
+Built: copper smelter 6 furnaces (1,-14..-24) -> plates y=-23.5 -> UG 48.5 to science feeder. 2nd gear asm (52.5,-28.5) fed from M, output via UG 51.5->49.5 onto B1 north (gear) lane. TRICK: UG exit placed with direction OPPOSITE flow. Boiler coal by claude-2. Power 3.6MW. 1 elec coal drill (48.5,101.5). Next: watch power; red rate (was 3/min, gear-starved).

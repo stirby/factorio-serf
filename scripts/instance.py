@@ -63,6 +63,8 @@ def _run_sync(coro_fn, timeout: float):
 def _port_free(port: int, kind: int) -> bool:
     s = socket.socket(socket.AF_INET, kind)
     try:
+        # TIME_WAIT sockets left by a just-stopped server aren't a real conflict (the server can bind through them).
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind(("127.0.0.1", port))
         return True
     except OSError:

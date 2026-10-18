@@ -349,6 +349,35 @@ async def t_marks(agent: "Agent", a: dict) -> str:
     return _fmt_marks((await agent.link.call("marks"))["marks"])
 
 
+async def t_designs(agent: "Agent", a: dict) -> str:
+    from . import blueprint_lib
+    return ("Proven designs (validated in game). Stamp one with `stamp`, then build it with build_ghosts.\n"
+            + blueprint_lib.summary_text())
+
+
+async def t_stamp(agent: "Agent", a: dict) -> str:
+    from . import blueprint_lib
+    _num(a, "x", "y")
+    st = blueprint_lib.stamp(a["name"], a["x"], a["y"], a.get("rotation", 0), a.get("anchor"))
+    bb = st["bbox"]
+    (x1, y1), (x2, y2) = bb  # [[x1, y1], [x2, y2]]
+    chk = await agent.link.call("blockers", x1=x1, y1=y1, x2=x2, y2=y2)
+    if chk.get("blockers") or chk.get("water_tiles"):
+        return (f"area x {x1}..{x2}, y {y1}..{y2} isn't clear: "
+                + (f"blocked by {', '.join(chk['blockers'])}" if chk.get("blockers") else "")
+                + (f" {chk['water_tiles']} water tiles" if chk.get("water_tiles") else "")
+                + ". Pick another spot (map/find help) or rotate it.")
+    d = await agent.link.call("act", agent=agent.name, actions=[{"op": "blueprint", "entities": st["entities"]}])
+    r = await asyncio.wait_for(agent.link.job_future(d["job_ids"][0]), 20)
+    if not r.get("ok"):
+        return f"stamp failed: {r.get('msg')}"
+    note = ""
+    if chk.get("trees_or_rocks"):
+        note = f"\n{chk['trees_or_rocks']} trees/rocks are in the area; mine them if build_ghosts reports blocked ghosts."
+    return (f"stamped {a['name']} as {r.get('data', {}).get('ghosts')} ghosts.\n" + blueprint_lib.stamp_text(st)
+            + note + "\nNext: get the items (depot/craft) and build_ghosts there; then connect its inputs/outputs.")
+
+
 async def t_notes(agent: "Agent", a: dict) -> str:
     agent.set_notes(str(a.get("text", "")))
     return "notes saved (shown to you at the start of every turn)"
@@ -421,6 +450,14 @@ TOOLS: list[Tool] = [
          "keep status); mark=<index> status=doing|done updates one. With no args, shows it.",
          _obj({"goals": {"type": "array", "items": {"type": "string"}}, "mark": {"type": "integer"},
                "status": {"type": "string", "enum": ["todo", "doing", "done"]}}), t_roadmap),
+    Tool("designs", "List the crew's proven blueprint designs (smelting column, red/green science, lab row, "
+         "gears+circuits, steam power) with size, throughput, inputs/outputs and build materials.", _obj({}),
+         t_designs),
+    Tool("stamp", "Lay a proven design as ghosts at x,y (its top-left corner), rotation 0/90/180/270 or a direction. "
+         "Checks the area is clear first. For steam power use anchor='offshore-pump' with x,y and rotation from "
+         "find name=water's offshore_pump_spots. Then build_ghosts and hook up its inputs/outputs.",
+         _obj({"name": {"type": "string"}, **XY, "rotation": {}, "anchor": {"type": "string"}},
+              ["name", "x", "y"]), t_stamp),
     Tool("mark", "Annotate the world for everyone, like logistic chests: kind=provider (shared surplus, take "
          "freely), requester (requests={item: count} to be delivered here), storage (overflow) or note "
          "(any label, e.g. 'main bus starts here'). Shows on the map for humans too. remove=<id> deletes one.",
@@ -489,7 +526,7 @@ PLAN_GHOSTS = Tool("plan_ghosts", "Lay your design in the world as ghosts (plann
 BY_NAME["plan_ghosts"] = PLAN_GHOSTS
 
 READ_ONLY = ["look", "map", "find", "inspect", "recipes", "techs", "production", "board", "post_task", "update_task",
-             "roadmap", "marks", "work", "plan_ghosts"]
+             "roadmap", "marks", "work", "plan_ghosts", "designs", "stamp"]
 
 
 async def run_tool(agent: "Agent", name: str, args: dict) -> str:

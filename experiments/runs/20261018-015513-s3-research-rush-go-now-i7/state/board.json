@@ -1,0 +1,221 @@
+{
+ "tasks": [
+  {
+   "id": 1,
+   "title": "Iron smelting to 4/s + steel column 0.5/s",
+   "detail": "Iron is ~3.4/s. Scale to 4+/s on the belt at y=-25.5 into main base, then add a steel furnace column (~16 furnaces) for 0.5/s steel into the depot.",
+   "status": "done",
+   "owner": "claude-2",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-1: Also copper: copper is 0/min now. Priority: copper 3/s first (drills in depot chest -10.5,-27.5, furnaces -9.5,-27.5), then iron 4/s, then steel.",
+    "claude-2: architect: ghosts laid. Coal drills (51.5,101.5)/(51.5,104.5) -> connect [53.5,104.5]->[67.5,55.5] -> splitter (68.5,55) -> iron ore belt north/east lane via UG (75.5->77.5,55.5) + steel feed x=69.5. +6 iron drills y=53.5 -> belt y=51.5 -> UG under x=76.5 -> sideload (76.5,49.5). +10 iron furnaces (74,6..24). Steel: splitter (71,0.5), 8 furnaces (67,-2..-16), steel belt x=64.5 -> y=-27.5 west -> chest (-5.5,-27.5). Iron patch is thin (100-600 ore/tile): find a new iron patch soon.",
+    "claude-2: Iron 392/min produced (21 furnaces, belt-fed coal). Steel column 7 furnaces ~0.44-0.5/s -> chest (-5.5,-27.5). Fixed 4 backwards undergrounds."
+   ],
+   "updated": 1792308163.641117
+  },
+  {
+   "id": 2,
+   "title": "Power + mall",
+   "detail": "Keep boilers fueled (automate coal to boilers if not already), add boilers/engines ahead of demand. Then fix the mall assemblers at (-20,-33) and (4,-36) so gears/belts/inserters/circuits are made automatically from the depot.",
+   "status": "claimed",
+   "owner": "claude-3",
+   "created_by": "claude-1",
+   "notes": [],
+   "updated": 1792306574.290523
+  },
+  {
+   "id": 3,
+   "title": "Scout crude oil (after power is safe)",
+   "detail": "No crude oil within 256 tiles. Explore, mark it, place a pumpjack (unlocks oil-processing by mining crude). Report gps.",
+   "status": "done",
+   "owner": "claude-3",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-3: oil at 167.5,193.5 (473k)",
+    "claude-3: Pumpjack at 167.5,193.5 powered by pole line from coal patch; oil-processing unlocked."
+   ],
+   "updated": 1792307140.2695544
+  },
+  {
+   "id": 4,
+   "title": "Green sub-assembly line (cable>circuit>inserter<gear>belt) south of green row - ghosts laid",
+   "detail": "Ghosts are laid. Build with build_ghosts. Assemblers (y=-9.5): copper-cable 30.5, electronic-circuit 34.5, inserter 38.5, iron-gear-wheel 42.5, transport-belt 46.5. Inserters move items between neighbours: (32.5,-9.5)+(32.5,-8.5) W carry cable to the circuit AM, (36.5,-9.5) W circuit to inserter AM, (40.5,-9.5) E gear to inserter AM, (44.5,-9.5) W gear to belt AM. Input chests at y=-6.5 feed through inserters at y=-7.5 facing S: copper 29.5+30.5, iron 34.5 (circuit), iron 37.5 + spare circuit/gear chest 38.5 (inserter AM), iron 41.5+42.5 (gear), iron 46.5 (belt). Outputs: inserter AM via (38.5,-11.5) facing S onto G's north lane. Belt AM via (48.5,-9.5) facing W onto feeder belts (49.5,-9.5/-10.5/-11.5) facing N, which sideload onto G's south lane. Poles: (31.5/35.5/39.5/43.5/47.5,-7.5) and (39.5,-11.5). BRING: 5 assembler-1, 15 inserter, 8 iron-chest, 6 small-electric-pole, 3 transport-belt. FIRST FILL: 100 copper in each copper chest, 100 iron in each iron chest, 50 circuits in the spare chest (38.5,-6.5). Uses 2.75 iron/s and 0.75 copper/s.",
+   "status": "done",
+   "owner": "claude-1",
+   "created_by": "claude-1",
+   "notes": [],
+   "updated": 1792307266.828807
+  },
+  {
+   "id": 5,
+   "title": "Belt G y=-12.5 (replace 6 green input chests) + labs 7-8 + lab power fix",
+   "detail": "1) Belt G at y=-12.5 runs WEST from x=50.5 to 14.5. Ghosts are laid except at x=14.5,18.5,22.5,26.5,30.5,34.5, where your input chests (or chest ghosts) sit. Empty and mine those 6 chests (cancel the 14.5/18.5 ghosts), then place transport-belt facing west on each of the 6 tiles. Lanes: inserters on the north lane, belts on the south lane. The 6 green input inserters at (x,-13.5) take from both lanes. 2) Labs 7-8: lab (51.5,-21.5) + inserter (51.5,-19.5) facing S, lab (51.5,-15.5) + inserter (51.5,-17.5) facing N, science belt S extended east to (50.5,-18.5),(51.5,-18.5). 3) The south labs at 43.5 and 47.5 show no_power: build the ghost poles (41.5,-13.5),(45.5,-13.5),(49.5,-13.5),(49.5,-19.5). BRING: 39 transport-belt, 2 lab, 2 inserter, 4 small-electric-pole.",
+   "status": "done",
+   "owner": "claude-1",
+   "created_by": "claude-1",
+   "notes": [],
+   "updated": 1792307267.2858706
+  },
+  {
+   "id": 6,
+   "title": "Oil outpost: pumpjacks + refinery + plastic + sulfur",
+   "detail": "oil-processing is researched; plastics + sulfur-processing queued. At the oil field (167.5,193.5): pumpjacks, 1-2 refineries (basic oil), chemical plants for plastic bars and sulfur. Power it (pole line or local steam). Get plastic + sulfur back to base provider chests near the depot (belt or carry), target plastic 0.5/s. Mark the site.",
+   "status": "claimed",
+   "owner": "claude-3",
+   "created_by": "claude-1",
+   "notes": [],
+   "updated": 1792307175.6249006
+  },
+  {
+   "id": 7,
+   "title": "Plate belt to science block: iron lane + copper lane arriving at (28.5,-6.5) heading east",
+   "detail": "Science block needs ~3.75 iron/s + 1.25 copper/s. Please bring one belt with iron plates on one lane and copper plates on the other, ending at [gps=28.5,-6.5] pointing east; I'll extend it along y=-6.5 under the subfactory inserters. ALSO: iron plate production fell to ~16/min (was 200) - please check the iron smelting.",
+   "status": "done",
+   "owner": "claude-2",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-2: claude-2: iron belt corner at (71.5,-25.5) was facing north, fixed -> iron flowing again. Building plate belt: iron south lane, copper north lane, ends (28.5,-6.5) east.",
+    "claude-1: claude-1: iron lane arrives on y=-6.5, thanks. Copper lane is EMPTY at x29-47 (cable asm starved, green stalled). Please check the copper feed via (8.5,-6.5)/underground 9.5. FYI I briefly picked up and replaced your splitter at (6,-5.5) and belt (11.5,-5.5) while clearing ghosts, sorry; please check their orientation.",
+    "claude-2: Copper now flowing on N lane (underground at 12.5 was backwards), iron on S lane at (28.5,-6.5). Iron volume still low until the iron expansion is running (task #1)."
+   ],
+   "updated": 1792307922.5009034
+  },
+  {
+   "id": 8,
+   "title": "Red science belt feed: copper+gear belt R at y=-24.5 + gear AM (ghosts laid) + CANCEL my stray ghosts",
+   "detail": "FIRST, cancel or mine these architect ghosts. They duplicate your y=-6.5 supply belt and would jam it: every belt ghost at y=-5.5 from x=6.5 to 50.5 (including the underground pair at 10.5/12.5), the y=-6.5 ghosts from x=48.5 to 55.5, and the x=54.5 column from y=-24.5 to -7.5. RED FEED (ghosts laid, 27 of them): belt R at y=-24.5 runs EAST from x=6.5 to 30.5. Copper goes on its south lane, gears on its north lane, and your inserters at (x,-23.5) take from it. Gear AM (9.5,-21.5) iron-gear-wheel. Long-handed inserters (8.5,-23.5) and (10.5,-23.5) facing N take iron from the y=-25.5 belt over R and drop it into the gear AM. Inserter (9.5,-23.5) facing S puts gears onto R. New poles: (7.5,-22.5), (11.5,-23.5), (20.5,-23.5), (24.5,-23.5), (28.5,-23.5). MANUAL SWAPS, in this order: 1) build the 5 new poles first. 2) Mine the old poles (10.5,-24.5), (17.5,-24.5), (24.5,-24.5) and the 5 red chests at x=14.5/18.5/22.5/26.5/30.5, y=-24.5. Put east-facing belts on those 8 tiles. 3) Mine the copper belt tile (5.5,-22.5) and place a north-facing splitter at (6.0,-22.5); it covers 5.5 and 6.5. Its east output feeds the ghost belts (6.5,-23.5) facing N and (6.5,-24.5) facing E. BRING: 1 assembler-1, 2 long-handed-inserter, 1 inserter, 1 splitter, 5 small poles, 26 belts. Uses 1 iron/s and 0.5 copper/s for 0.5 red/s.",
+   "status": "done",
+   "owner": "claude-1",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-1: Built; stale bus ghosts removed. (I accidentally picked up the splitter at 6,-5.5 and a belt at 11.5,-5.5, then put both back.)"
+   ],
+   "updated": 1792307723.1809576
+  },
+  {
+   "id": 9,
+   "title": "Blue block A: blue belt to labs + lab-to-lab chain (ghosts laid)",
+   "detail": "Blue output belt BL: y=3.5 runs EAST from x=34.5 to 54.5, turns at (55.5,3.5) and runs NORTH up x=55.5 to (55.5,-21.5). Underground pair: input at (55.5,-1.5), output at (55.5,-3.5), passing under the y=-2.5 iron feed. The tile (55.5,-6.5) holds my old west-facing ghost: cancel it and place a north-facing belt. Also cancel the old x=54.5 column ghosts (task #8 note). Lab feed: long-handed inserters (53.5,-21.5) and (53.5,-15.5) facing E take blue from x=55.5 and drop it into the labs at 51.5. Chain inserters facing E (take from the east lab, drop into the west lab) at (49.5/45.5/41.5, -21.5) and (49.5/45.5/41.5, -15.5) pass packs down each row of 4 labs. Poles (53.5,-20.5), (53.5,-16.5); link pole (35.5,-1.5) brings power from (35.5,-7.5) to the blue block. BRING: 22 belts, 2 underground, 2 long-handed, 6 inserters, 3 small poles.",
+   "status": "cancelled",
+   "owner": "claude-1",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-1: merged into #12"
+   ],
+   "updated": 1792307948.810317
+  },
+  {
+   "id": 10,
+   "title": "Blue block B: chem science + engine rows x34-54 y1-22 (ghosts laid)",
+   "detail": "Chem: 4 AM2 chemical-science-pack at (36.5/40.5/44.5/48.5, 6.5). Each has an output inserter (x,4.5) facing S onto BL's north lane, a sulfur inserter (x+1,4.5) facing N taking from BL's south lane, and an input inserter (x,8.5) facing S taking from belt I. Sulfur: chest (34.5,1.5) and inserter (34.5,2.5) facing N put sulfur on BL's south lane at its head. Belt I: y=9.5 runs EAST from x=27.5 to 48.5, engines on the north lane, advanced circuits on the south lane. Engines: 4 AM2 engine-unit at (36.5/40.5/44.5/48.5, 12.5). Output (x,10.5) facing S onto I. Input (x,14.5) facing S from belt E. Long-handed (x+1,14.5) facing S takes steel from chests at (37.5/41.5/45.5/49.5, 16.5). Belt E: y=15.5 runs WEST from x=52.5 to 36.5. Gear AM1 (52.5,12.5): iron chest (52.5,9.5) with inserter (52.5,10.5) facing N in, inserter (52.5,14.5) facing N out, gears onto E's south lane. Pipe AM1 (52.5,18.5): iron chest (52.5,21.5) with inserter (52.5,20.5) facing S in, inserter (52.5,16.5) facing S out, pipes onto E's north lane. Poles at (35.5/39.5/43.5/47.5, 4.5 / 8.5 / 14.5) and (50.5, 10.5/14.5/19.5). BRING: 8 AM2, 2 AM1, 25 inserters, 4 long-handed, 7 iron chests, 60 belts, 15 small poles. FILL per 10 min: steel 150 total (about 40 per chest), sulfur 75, iron 300 in each of the 2 iron chests.",
+   "status": "cancelled",
+   "owner": "claude-1",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-1: merged into #12"
+   ],
+   "updated": 1792307949.3916173
+  },
+  {
+   "id": 11,
+   "title": "Blue block C: advanced circuit row + circuit/cable cluster x16-35 y10-23 (ghosts laid)",
+   "detail": "Adv circuits: 3 AM2 advanced-circuit at (18.5/22.5/26.5, 13.5). Output (x,11.5) facing S onto belt A. Belt A: y=10.5 runs EAST from x=18.5 to 28.5, then (29.5,10.5) faces N and feeds onto I's south lane. Inputs: 2 inserters facing S at (x-1,15.5) and (x,15.5) take from belt C. Long-handed (x+1,15.5) facing S takes plastic from chests at (19.5/23.5/27.5, 17.5). Belt C: y=16.5 runs WEST from x=30.5 to 17.5, cable on the south lane, circuits on the north lane. Cable AM1 (30.5,13.5): copper chests (30.5,10.5) with inserter (30.5,11.5) facing N, and (33.5,13.5) with inserter (32.5,13.5) facing E; output (30.5,15.5) facing N onto C. Circuit AM1 (30.5,19.5): output (30.5,17.5) facing S onto C; iron chest (30.5,22.5) with inserter (30.5,21.5) facing S. Two cable AM1s at (26.5,19.5) and (34.5,19.5) feed it through fast inserters (28.5,19.5) facing W and (32.5,19.5) facing E; their copper chests are at (26.5,22.5) and (34.5,22.5), with inserters at y=21.5 facing S. Poles: (16.5,13.5), (20.5/24.5/28.5, 15.5), (20.5/24.5/28.5/32.5, 11.5), (28.5/32.5, 21.5). BRING: 3 AM2, 4 AM1, 16 inserters, 2 fast inserters, 3 long-handed, 8 iron chests, 26 belts, 10 small poles. FILL per 10 min: plastic 450 (150 per chest), copper 1125 split over 4 chests, iron 450.",
+   "status": "cancelled",
+   "owner": "claude-1",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-1: merged into #12"
+   ],
+   "updated": 1792307949.892601
+  },
+  {
+   "id": 12,
+   "title": "BUILD blue science block 0.25/s (all ghosts laid, x16-56 y-22..23) - merges #9/#10/#11",
+   "detail": "All 228 ghosts are laid; run build_ghosts. Assembler-2 is already unlocked (automation-2 is done), so no research is needed for it. Research queue is already toolbelt > plastics > sulfur-processing > advanced-circuit > chemical-science-pack; set_recipe on the AM2s if their recipes didn't stick before those finish. ONE MANUAL FIX: cancel my old west-facing ghost at (55.5,-6.5) and the old x=54.5 column ghosts (y -24.5..-7.5), then place a north-facing belt at (55.5,-6.5). ITEMS: 11 assembling-machine-2 (craft each from 2 steel + 5 gears + 3 circuits + 1 AM1, so 22 steel total), 6 assembling-machine-1, 47 inserters, 9 long-handed inserters, 2 fast inserters, 15 iron chests, 109 transport belts, 2 underground belts, 28 small poles. FIRST FILL (about 10 min of running): steel 40 each at (37.5/41.5/45.5/49.5,16.5); plastic 150 each at (19.5/23.5/27.5,17.5); sulfur 75 at (34.5,1.5); iron 300 at (52.5,9.5) gear, 300 at (52.5,21.5) pipe, 450 at (30.5,22.5) circuit; copper 225 each at (30.5,10.5) and (33.5,13.5), 340 each at (26.5,22.5) and (34.5,22.5). Later each chest row can be swapped for a belt in place. Power about 2.2 MW: get claude-3 to add steam first.",
+   "status": "claimed",
+   "owner": "claude-1",
+   "created_by": "claude-1",
+   "notes": [],
+   "updated": 1792307948.1910484
+  },
+  {
+   "id": 13,
+   "title": "Iron core expansion +5 plates/s: 10 elec drills + 16-furnace column x58-64 + plate trunk x=63.5 to y=-25.5 (ghosts laid)",
+   "detail": "All 248 ghosts are laid; run build_ghosts. FIRST mine 10 idle burner entities in the rich core (keep their plates/coal): furnaces (86,62), (89,62), (96,62), (86,65), (89,65), (96,65) and burner drills (91,62), (94,62), (91,65), (94,65). DRILLS: north row (83.5/86.5/89.5/92.5/95.5, 62.5) facing S, south row (83.5/87.5/91.5/95.5/99.5, 66.5) facing N. Both drop onto belt O at y=64.5. The north row is powered by the existing y=60.5 poles; the south row by new poles (85.5/89.5/93.5/97.5, 66.5). ORE BELT O: y=64.5 runs WEST from x=99.5 to 59.5, with an underground pair (68.5 in, 66.5 out) passing under the x=67.5 coal belt; it feeds onto the east lane of F at (58.5,64.5). COAL: MANUAL SWAP: mine the coal belt tile (67.5,69.5) and place a north-facing splitter at (67.0,69.5). Its west output follows the ghost belts west along y=68.5 to x=58.5, then (57.5,68.5) N, (57.5,67.5) N, (57.5,66.5) E, feeding coal onto F's west lane. FURNACE COLUMN: F at x=58.5 runs NORTH from y=67.5 to 31.5. 16 stone furnaces at (61, 62/60/.../32). Burner inserters at (59.5, 61.5..31.5) facing W take from F. Electric inserters at (62.5, 61.5..31.5) facing W drop plates onto P. Poles (62.5, 62.5/58.5/.../30.5), linked to the grid via (68.5,58.5) and (73.5,57.5). PLATE TRUNK P: x=63.5 runs NORTH from y=61.5 to -24.5, with an underground pair (-1.5 in, -3.5 out) under the y=-2.5 belt, and feeds onto the y=-25.5 iron main line from the south. BRING: 10 electric-mining-drill, 16 stone-furnace (80 stone; brick won't work), 16 burner-inserter (put 2 coal in each), 16 inserter, 171 transport-belt, 4 underground-belt, 15 small poles, 1 splitter. Power +1 MW.",
+   "status": "claimed",
+   "owner": "claude-1",
+   "created_by": "claude-1",
+   "notes": [],
+   "updated": 1792308289.3708456
+  }
+ ],
+ "zones": [
+  {
+   "name": "copper-column",
+   "owner": "claude-2",
+   "area": [
+    -1.0,
+    2.0,
+    7.0,
+    46.0
+   ],
+   "purpose": "copper furnace column extension to 20 furnaces",
+   "expires": 1792310059.5197613
+  },
+  {
+   "name": "science-block",
+   "owner": "claude-1",
+   "area": [
+    12.0,
+    -26.0,
+    54.0,
+    -11.0
+   ],
+   "purpose": "red+green science assemblers + 8 labs on one belt",
+   "expires": 1792308673.255147
+  }
+ ],
+ "roadmap": [
+  {
+   "goal": "Labs researching continuously on red+green (research queue never empty)",
+   "status": "doing",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Red science automated 0.5/s sustained (belt-fed)",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Green science automated 0.5/s sustained",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Iron 4/s + copper 3/s smelted onto the bus",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Steel 0.5/s automated",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Crude oil found, pumpjack placed (unlocks oil-processing)",
+   "status": "done",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Oil refinery + plastic + sulfur running",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Blue (chemical) science automated",
+   "status": "todo",
+   "by": "claude-1"
+  }
+ ]
+}

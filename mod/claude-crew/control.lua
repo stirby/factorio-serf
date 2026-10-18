@@ -135,6 +135,27 @@ API.ghosts = function(req)
   return { count = n, needs = need, example = nearest }
 end
 
+-- What's in the way of building in an area: entities (trees/rocks are clearable by mining) and water tiles.
+API.blockers = function(req)
+  local surface = game.surfaces.nauvis
+  local area = { { req.x1, req.y1 }, { req.x2, req.y2 } }
+  local out, clearable = {}, 0
+  for _, e in pairs(surface.find_entities_filtered { area = area }) do
+    local t = e.type
+    if t ~= "resource" and t ~= "character" and t ~= "corpse" and t ~= "character-corpse" and t ~= "item-entity"
+        and t ~= "decorative" then
+      if t == "tree" or t == "simple-entity" then
+        clearable = clearable + 1
+      elseif #out < 12 then
+        local label = t == "entity-ghost" and ("ghost of " .. e.ghost_name) or e.name
+        out[#out + 1] = label .. "@" .. util.xy(e.position)[1] .. "," .. util.xy(e.position)[2]
+      end
+    end
+  end
+  local water = surface.count_tiles_filtered { area = area, collision_mask = "water_tile" }
+  return { blockers = out, trees_or_rocks = clearable, water_tiles = water }
+end
+
 API.self = function(req) return observe.self(live(req)) end
 API.nearby = function(req) return observe.nearby(live(req), req.radius) end
 API.map = function(req) return observe.map(live(req), req.radius, util.pos(req.center)) end

@@ -4,45 +4,158 @@
    "id": 1,
    "title": "Iron column at x=74 sustained 2/s to base belt y=-25.5",
    "detail": "Iron plate belt x=71.5 north -> y=-25.5 west to base. Keep furnaces fueled, ore fed, add furnaces/drills until ~120 iron/min reaches [gps=0,-26]. Fuel automation if possible.",
-   "status": "claimed",
+   "status": "done",
    "owner": "claude-2",
    "created_by": "claude-1",
    "notes": [
-    "claude-2: backlog draining; building coal drill at [51,101] + coal belt sideloaded onto ore belt x=76 so furnaces self-fuel"
+    "claude-2: backlog draining; building coal drill at [51,101] + coal belt sideloaded onto ore belt x=76 so furnaces self-fuel",
+    "claude-2: fixed dead-end corner at 71.5,-25.5; coal automated onto ore belt x=76 east lane. Measuring rate.",
+    "claude-2: iron 184/min produced, furnaces self-fueled from coal belt, surplus collects at provider chest (-28.5,-44.5). 5 coal drills feed furnaces+boilers. Planning iron line #2 with architect."
    ],
-   "updated": 1792306499.0875266
+   "updated": 1792307818.2261994
   },
   {
    "id": 2,
    "title": "Copper plates 1/s belted to base science block",
    "detail": "Need ~40 copper/min sustained (aim 60) on a belt reaching the science block near [gps=0,-30]. Nearest copper ore at [gps=5,88] (check for closer). Drills -> furnaces -> belt north to base, run it alongside the iron belt at y=-24.5 heading west. Lead will confirm exact delivery point.",
-   "status": "claimed",
+   "status": "cancelled",
    "owner": "claude-3",
    "created_by": "claude-1",
-   "notes": [],
-   "updated": 1792306491.818234
+   "notes": [
+    "claude-1: superseded by #6 (copper belt) and #7 (copper smelting)"
+   ],
+   "updated": 1792306896.0515327
+  },
+  {
+   "id": 3,
+   "title": "URGENT 1-min fix: iron belt corner (71.5,-25.5) points north (dead end). Rotate it to face WEST",
+   "detail": "Iron plates go north up x=71.5 from the x=74 furnace column. At (71.5,-25.5) the corner belt faces NORTH, so plates pile up at a dead end and never turn west onto the y=-25.5 belt. That's why the base belt is empty and all 11 furnaces show full_output (100 plates each). Fix: rotate (71.5,-25.5) to face west. Expected result: about 2.7 iron/s reaches the base along y=-25.5. After that, keep the y=-25.5 belt intact from x=71.5 west to x=33; it's belt M, the iron input for the science block.",
+   "status": "done",
+   "owner": "claude-3",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-3: rotated (71.5,-25.5) to west"
+   ],
+   "updated": 1792306834.1963217
+  },
+  {
+   "id": 4,
+   "title": "Science block: build ghosts x=9..56, y=-40..-26 (asms, inserters, poles, labs)",
+   "detail": "The ghosts are already placed. Build with build_ghosts. You need 12 assembling-machine-1, 4 lab, 24 inserter, 13 long-handed-inserter, 15 small-electric-pole. First mine the rocks at about (18.5,-38.5) and (19.5,-35.5).\nROW A, asm centers y=-28.5, iron from belt M at y=-25.5 via inserters at y=-26.5: gear 46.5 | inserter 42.5 | circuit 38.5 | cable 34.5. Direct insertion cable->circuit at (36.5,-28.5) and circuit->inserter at (40.5,-28.5).\nTop inserter row y=-30.5: gear output onto B1 (46.5). Inserter asm takes gears from B1 (42.5). Cable asm takes copper from B1 (34.5). Long inserter (41.5) puts inserters onto B2.\nROW B, asm centers y=-35.5: green 38.5 | belt 34.5 | green 30.5 | belt 26.5 | green 22.5 | red 18.5 | red 14.5 | red 10.5. The belt asms feed greens directly via (36.5,-35.5), (32.5,-35.5) and (24.5,-35.5). Bottom row y=-33.5: normal inserters take from B2 (inserters + iron), long inserters take from B1 (gears + copper). Top row y=-37.5: red output goes to S1 (y=-38.5) with normal inserters; green output goes to S2 (y=-39.5) with long inserters.\nLABS at y=-35.5, x=42.5/46.5/50.5/54.5. Each lab has a normal inserter (picks S1, red) and a long inserter (picks S2, green) at y=-37.5.\nGet assemblers by picking up the old chest-fed asms (claude-2 green build, claude-3 gear/belt asms) and the 2 asm1 in chest (-13.5,-36.5). Move the 2 existing labs and craft 2 new ones. Set the recipes per ghost.",
+   "status": "done",
+   "owner": "claude-1",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-1: all built; green 15/min measured; red gear-limited, claude-3 adding 2nd gear asm"
+   ],
+   "updated": 1792307805.3924646
+  },
+  {
+   "id": 5,
+   "title": "Science block belts: B1/B2 (west), S1/S2 (east), feeders. 163 belts, all ghosted",
+   "detail": "Ghosts are placed. Bring 163 transport-belt (claude-3's chest at (-12.5,-30.5) has 237).\nB1 y=-31.5, x=49.5 west to 9.5, facing WEST. Carries gears (N lane, from the gear asm) and copper (S lane, sideloaded from the south at x=48.5).\nB2 y=-32.5, x=51.5 west to 21.5, facing WEST. Carries inserters (N lane) and iron (S lane, sideloaded at x=50.5).\nS1 y=-38.5, x=9.5 east to 55.5, facing EAST (red packs). S2 y=-39.5, x=21.5 east to 55.5, facing EAST (green packs).\nIron feeder: inserter (50.5,-26.5) dir south takes from M onto belts (50.5,-27.5..-31.5) facing NORTH, which sideload into B2.\nCopper feeder: belts (48.5,-27.5..-30.5) facing NORTH sideload into B1 (claude-3 connects copper to its south end).\nThe tiles (49.5,-31.5) and (51.5,-32.5) must stay as straight 'dummy' belts behind the sideload points; that keeps each input on one lane.\nThen help with crafting: 13 long-handed-inserters (inserter + gear + plate each), 2 asm1, 2 labs.",
+   "status": "done",
+   "owner": "claude-2",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-2: all belt ghosts in science block built (166). Remaining ghosts need inserters/long-handed/asm/labs/poles. Crafting some next."
+   ],
+   "updated": 1792306846.593567
+  },
+  {
+   "id": 6,
+   "title": "Copper belt: copper field (0.5,78.5) north to the science block, crossing iron belt M by underground at x=48.5",
+   "detail": "The x=0.5 belt already runs north from y=94 to y=79 at the copper field. Extend it north along x=0.5 to (0.5,-22.5). Turn east along y=-22.5 to (47.5,-22.5). Then go north: (48.5,-22.5) and (48.5,-23.5) facing north, underground-belt entrance at (48.5,-24.5) facing north, exit at (48.5,-26.5) facing north. The exit feeds the ghost feeder (48.5,-27.5..-30.5), which sideloads into B1. This crosses belt M at y=-25.5, and the poles at y=-24.5 sit at x=45.5 and 52.5, so x=48.5 is clear.\nAbout 151 belts + 1 underground pair (craft: 10 iron + 5 belts gives 2). Use connect from [0.5,78.5] to [48.5,-23.5] if you like; it routes around obstacles.\nNeeded flow: 0.625 copper/s (38/min). One lane is plenty.",
+   "status": "done",
+   "owner": "claude-3",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-3: Copper ore from claude-5 drills goes on x=0.5 belt to a 6-furnace smelter at (1,-14..-24) at base (coal on the belt's other lane, fed from coal belt at (23,103)). Plates go x=-1.5 south, then underground east under the ore belt, up x=5.5, then onto claude-1's y=-23.5 line to the x=48.5 underground. Plates flowing."
+   ],
+   "updated": 1792307329.012643
+  },
+  {
+   "id": 7,
+   "title": "Copper smelting at (5,88): put \u22650.65 copper plate/s onto the x=0.5 belt + keep iron column fueled",
+   "detail": "For claude-4/claude-5 (at the ore fields; they can't be assigned on the board). Target 40+ copper plates/min onto the belt at x=0.5 (y=79..94). That's 4 stone furnaces (2 is the bare minimum at 0.3125/s each) fed by at least 3 burner drills (0.25/s each) or 2 electric drills. The furnaces at (5,91),(14,91),(5,94),(14,94) aren't next to the x=0.5 belt. Either add an output inserter (needs power) or a short belt to x=0.5, or build new furnaces right beside x=0.5 on the copper ore at x=1..4. Keep coal in the drills and furnaces. Also refuel the iron furnace column (x=74, y=26..46, about 10 coal each) and the boilers. First delivery: hand-carry about 150 copper plates to the base for about 65 circuits (long inserters, labs, asms).",
+   "status": "cancelled",
+   "owner": null,
+   "created_by": "claude-1",
+   "notes": [
+    "claude-1: copper now smelted at base by claude-3 at (1,-19)"
+   ],
+   "updated": 1792307290.9070253
+  },
+  {
+   "id": 8,
+   "title": "URGENT: boilers out of fuel - automate coal to boilers at (-27,-42.5) and (-31.5,-43)",
+   "detail": "Whole base power was down (both boilers no_fuel). I put a few coal in. Need a coal belt/inserter feed to both boilers (~10 coal/min each now, more as the science block adds 1.5MW; plan a 3rd boiler + 2 engines). Bring coal from the coal drills.",
+   "status": "done",
+   "owner": "claude-2",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-2: Coal rides belt M east lane from coal drills (3 drills, ~1.5/s, split with furnace fuel) to burner inserters at both boilers; verified coal backed up at boilers. Overflow chest (-28.5,-44.5) catches extra iron+coal. 3rd boiler not built yet."
+   ],
+   "updated": 1792307476.1160896
+  },
+  {
+   "id": 9,
+   "title": "Mall belts: IB (y=-17.5) + CRB (y=-16.5) + iron tap at (49.5,-24.5), per architect ghosts",
+   "detail": "Mall ghosts are laid in zone x8..51 y-24..-16. Please build the belt ghosts (~77 belts) and the iron tap inserter at (49.5,-24.5) + poles. Iron available at provider chest [gps=8,-27] (fed from M) and gears/copper at [gps=7,-31]. I'm crafting the 7 assemblers + inserters and will place them. Leave the cable asm (35.5,-20.5) for last.",
+   "status": "done",
+   "owner": "claude-3",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-3: All belt and pole ghosts built, plus the iron tap at (49.5,-24.5) (working). The ghosts left are 16 inserters, 4 long inserters and 3 iron chests, which claude-1 is crafting."
+   ],
+   "updated": 1792308107.7796721
+  },
+  {
+   "id": 10,
+   "title": "Iron to 4/s on belt M (science + mall now drain it empty)",
+   "detail": "M at base shows ~2 iron and 35 coal per 40 tiles: science block + mall consume all iron (~160/min produced). Please add furnaces/drills to the x=74 column (or a second column) to reach ~240 iron/min. Also note coal on M leaks into B2 and the mall belt; I'm adding coal sink chests at their ends.",
+   "status": "claimed",
+   "owner": "claude-2",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-2: iron line #2 (5 drills, 8 furnaces at x=83) nearly built, +150/min"
+   ],
+   "updated": 1792308218.3267632
   }
  ],
- "zones": [],
+ "zones": [
+  {
+   "name": "mall",
+   "owner": "claude-1",
+   "area": [
+    8.0,
+    -24.0,
+    51.0,
+    -16.0
+   ],
+   "purpose": "mall: 7 asms (gear, circuit, cable, belt, inserter, asm1, drill) into chests",
+   "expires": 1792309865.55218
+  }
+ ],
  "roadmap": [
   {
    "goal": "Iron plates belted to base at 2/s",
-   "status": "todo",
+   "status": "done",
    "by": "claude-1"
   },
   {
    "goal": "Copper plates belted to base at 1.5/s",
-   "status": "todo",
+   "status": "doing",
    "by": "claude-1"
   },
   {
    "goal": "Red science automated 0.25/s into labs",
-   "status": "todo",
+   "status": "done",
    "by": "claude-1"
   },
   {
    "goal": "Green science automated 0.25/s into labs (no hand-feeding)",
-   "status": "todo",
+   "status": "doing",
    "by": "claude-1"
   },
   {

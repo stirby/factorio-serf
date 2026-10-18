@@ -113,8 +113,10 @@ PARALLEL = """
 - Shared stock lives in marked chests, not in people's pockets: put surplus in provider/storage marks, fill
   requester marks, take from providers. Use `mark` to label anything others should know (depot, bus start,
   "copper column here", "keep clear: future expansion").
-- Big builds: lay them as ghosts first (`blueprint` with entities, or ask the architect to plan_ghosts), then
-  build them with build_ghosts. Ghosts are a plan everyone can see and help build.
+- Build like a player with a blueprint book: for standard sections (smelting, red/green science, labs, gears and
+  circuits, steam power) `stamp` a proven design from `designs` instead of placing buildings one by one, then
+  build_ghosts and connect its inputs and outputs. For anything custom, lay ghosts with `blueprint` entities (or
+  ask the architect), then build_ghosts. Ghosts are a plan everyone can see and help build.
 - Before building a section, claim it as a construction site with `zone` so nobody places on top of you. It's
   not territory: release it when you're done, and expand freely anywhere that isn't an active site.
 - If you've inserted or taken the same thing by hand twice, automate it (inserter, belt, chest). Hand-feeding
