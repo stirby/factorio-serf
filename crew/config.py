@@ -132,8 +132,13 @@ def load(path: str | Path | None, overrides: dict | None = None) -> CrewConfig:
         known = AgentConfig.__dataclass_fields__.keys()
         agents.append(AgentConfig(**{k: v for k, v in merged.items() if k in known}))
 
+    # These are top-level keys, but written after [server] they land inside it (TOML), so accept both.
+    srv = raw.get("server", {})
+
+    def top(key, default=None):
+        return raw.get(key, srv.get(key, default))
     cfg = CrewConfig(server=server, agents=agents,
-                     spawn_near=raw.get("spawn_near"), starter_kit=raw.get("starter_kit", True))
+                     spawn_near=top("spawn_near"), starter_kit=top("starter_kit", True))
     cfg.source = Path(path).expanduser().resolve() if path else None
     cfg.flags = dict(raw.get("experiment", {}))
     adv = raw.get("advisor")
@@ -154,6 +159,6 @@ def load(path: str | Path | None, overrides: dict | None = None) -> CrewConfig:
         for a in cfg.agents:  # the characters all work; the lead is the characterless foreman
             if a.role == "foreman":
                 a.role = "worker"
-    if raw.get("state_dir"):
-        cfg.state_dir = Path(raw["state_dir"]).expanduser()
+    if top("state_dir"):
+        cfg.state_dir = Path(top("state_dir")).expanduser()
     return cfg
