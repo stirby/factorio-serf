@@ -8,6 +8,7 @@ local observe = require("scripts.observe")
 local panel = require("scripts.panel")
 local triggers = require("scripts.triggers")
 local marks = require("scripts.marks")
+local late = require("scripts.late")
 
 local CHAT_KEEP = 300
 
@@ -226,6 +227,11 @@ API.vitals = function(req)
 end
 
 API.research = function(req) return jobs.research_direct(req) end
+API.diagnose = function(req) return late.diagnose(req) end
+API.copy = function(req) return late.copy(req) end
+API.paste = function(req) return late.paste(req) end
+API.order = function(req) return late.order(req) end
+API.network = function(req) return late.network(req) end
 
 API.self = function(req) return observe.self(live(req)) end
 API.nearby = function(req) return observe.nearby(live(req), req.radius) end

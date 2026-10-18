@@ -140,6 +140,9 @@ class Orchestrator:
         fm = self.foreman_brain
         r = route(text, list(self.agents) + ([fm.name] if fm else []), self.foreman)
         line = f'{player} (at {msg.get("position")}): "{text}"'
+        if fm and r.targets and not r.stop and not r.direct and set(r.targets) >= set(self.agents):
+            # "@all fix our iron" / "bots, ...": a crew-wide order goes to the lead, who assigns it; workers see it.
+            r.targets = {fm.name}
         if fm:
             if fm.name in r.targets:
                 r.targets.discard(fm.name)

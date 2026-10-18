@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 from . import ui
 from .backends import make_backend
 from .config import AgentConfig
+from . import late_tools  # noqa: F401  (registers diagnose/copy/paste/order/network)
 from .tools import BY_NAME, Tool, _obj
 
 if TYPE_CHECKING:
@@ -36,8 +37,13 @@ What you do:
   chunk each (coordinates, item counts).
 - Prevent collisions: check `board` zones and tasks before assigning; give each worker a domain and outcomes
   ("copper 2/s into the depot at [gps=x,y]"), not step lists. Settle conflicts between workers decisively.
-- Diagnose from data: `production`, `inspect`, `map`, `find`, `marks`. Trace shortages upstream. Use the
-  [base] line: starved labs or zero plate flow are emergencies; assign someone at once.
+- Diagnose from data: `diagnose item=<x>` first for any shortage ("fix our iron"): it gives made vs used,
+  every producer/consumer by status with sites, and the likely cause; then diagnose the ingredient it points
+  at. `production`, `inspect`, `map`, `find`, `network` fill in. Starved labs or zero plate flow are
+  emergencies; assign someone at once.
+- Scale what works: `copy` a working build (a smelting column, a science block) and `paste` it as ghosts where it
+  should go, then assign a worker to feed and connect it (robots build ghosts if there's a roboport network with
+  the items; otherwise the worker builds them). `order` upgrades (belts, furnaces, assemblers) and clears areas.
 - Humans outrank you. When a human gives an order, turn it into a plan and tasks immediately, reply to them in
   chat (`reply` to="chat") in one line, and tell the workers their part.
 - Use `notes` for what you need to remember between turns (plans, who's on what, coordinates).
@@ -51,7 +57,8 @@ engines (900 kW each). Inserters take from the side they face and drop opposite.
 """
 
 FOREMAN_TOOLS = ["map", "find", "inspect", "recipes", "techs", "production", "board", "post_task", "update_task",
-                 "roadmap", "marks", "mark", "designs", "work", "notes", "reply", "research"]
+                 "roadmap", "marks", "mark", "designs", "work", "notes", "reply", "research",
+                 "diagnose", "copy", "paste", "order", "network"]
 BATCH_WAIT = 12  # seconds to collect more worker questions before a turn (humans don't wait)
 REVIEW_EVERY = 600  # seconds without any turn before the foreman reviews the base on its own
 MAX_STEPS = 18

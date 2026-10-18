@@ -600,6 +600,78 @@ H.research = {
   end,
 }
 
+-- The settings a player clicks into a building: logistic requests (requester/buffer chests, or your own
+-- character with self=true), inserter filters, splitter filter and priorities.
+local function set_requests(point, requests)
+  if not point then return "no logistic requests on that" end
+  local section = point.sections_count > 0 and point.get_section(1) or point.add_section()
+  for i = section.filters_count, 1, -1 do section.clear_slot(i) end
+  local i = 0
+  for name, count in pairs(requests) do
+    if not prototypes.item[name] then return "unknown item " .. name end
+    i = i + 1
+    section.set_slot(i, { value = { name = name, quality = "normal", comparator = "=" }, min = tonumber(count) or 0 })
+  end
+  return nil, i
+end
+
+local function configure(e, args)
+  local done = {}
+  if args.requests then
+    local err, n = set_requests(e.get_requester_point and e.get_requester_point() or nil, args.requests)
+    if err then return nil, err end
+    done[#done + 1] = n .. " requests"
+  end
+  if args.filter ~= nil or args.filters then
+    local list = args.filters or (args.filter ~= "none" and { args.filter } or {})
+    if e.type == "inserter" then
+      if (e.filter_slot_count or 0) == 0 then return nil, e.name .. " has no filter slots (use a fast/bulk/stack inserter)" end
+      e.use_filters = #list > 0
+      for i = 1, e.filter_slot_count do e.set_filter(i, list[i] and { name = list[i] } or nil) end
+      if args.blacklist then e.inserter_filter_mode = "blacklist" else e.inserter_filter_mode = "whitelist" end
+      done[#done + 1] = "filter " .. (#list > 0 and table.concat(list, ",") or "cleared")
+    elseif e.type == "splitter" then
+      e.splitter_filter = list[1] and { name = list[1] } or nil
+      done[#done + 1] = "filter " .. (list[1] or "cleared")
+    else
+      return nil, e.name .. " has no filters"
+    end
+  end
+  if args.output_priority or args.input_priority then
+    if e.type ~= "splitter" then return nil, "priority is for splitters" end
+    if args.output_priority then e.splitter_output_priority = args.output_priority end
+    if args.input_priority then e.splitter_input_priority = args.input_priority end
+    done[#done + 1] = "priority in " .. e.splitter_input_priority .. " out " .. e.splitter_output_priority
+  end
+  if #done == 0 then return nil, "nothing to set: give requests={item:count}, filter=item|none, output_priority, input_priority" end
+  return table.concat(done, "; ")
+end
+
+H.configure = {
+  start = function(a, job)
+    if job.args.self then
+      local pt = a.char.get_requester_point()
+      if not pt then return fail("your character can't make logistic requests yet (research logistic-robotics)") end
+      local err, n = set_requests(pt, job.args.requests or {})
+      if err then return fail(err) end
+      return ok("set " .. n .. " personal logistic requests (robots bring them when you're in a network)")
+    end
+    job.target = entity_at(a, job.args)
+    if not job.target then return fail("no entity at " .. tostring(job.args.x) .. "," .. tostring(job.args.y)) end
+  end,
+  tick = function(a, job)
+    local c, e = a.char, job.target
+    if not e.valid then return fail("target is gone") end
+    local near = approach(a, job, e.position, c.reach_distance - 0.5)
+    if near == nil then return nil end
+    if type(near) == "table" then return near end
+    local okC, msg, err = pcall(configure, e, job.args)
+    if not okC then return fail("configure failed: " .. tostring(msg)) end
+    if not msg then return fail(err) end
+    return ok(e.name .. ": " .. msg)
+  end,
+}
+
 -- The red X in a chest's inventory: only the first `slots` slots accept items from inserters (0 = none).
 H.limit = {
   start = function(a, job)

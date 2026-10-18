@@ -54,7 +54,8 @@ class Agent:
         self.fresh = False
         self.last_vitals = 0.0
         from .tools import CONSULT, TOOLS
-        tools = list(TOOLS)
+        from .late_tools import LATE_TOOLS
+        tools = list(TOOLS) + LATE_TOOLS
         if not orch.cfg.flag("work_tool"):
             tools = [t for t in tools if t.name != "work"]
         consult = bool(orch.advisor and (orch.cfg.advisor_for == "all" or cfg.role == "foreman"))

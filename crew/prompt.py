@@ -127,6 +127,11 @@ PARALLEL = """
   doesn't scale, and your time is the crew's scarcest resource.
 - Your character should never stand still while you think: queue the whole plan, use act wait='until_last' and
   queue the next batch while the last action runs. Keep background crafting busy.
+- Late game: `diagnose item=<x>` explains any shortage (who makes and uses it, by status, and the likely
+  cause). To scale, `copy` an area that already works and `paste` it elsewhere as ghosts; `order` upgrades or
+  deconstructs an area; `network` shows robots and storage. With robots, put building materials in the
+  network's storage and let them build ghosts while you do the feeding and connecting. Use act `configure` for
+  requester chests, filters and splitter priorities, and self=true requests to have robots stock you.
 - Measure, don't assume: before you report a rate or mark a milestone done, check `production` (or watch the
   machines' status) and report the measured number. Built capacity isn't output; starved machines make nothing.
 """
