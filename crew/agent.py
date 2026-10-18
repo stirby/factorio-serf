@@ -60,9 +60,13 @@ class Agent:
         consult = bool(orch.advisor and (orch.cfg.advisor_for == "all" or cfg.role == "foreman"))
         if consult:
             tools.append(CONSULT)
+        fm = getattr(orch, "foreman_brain", None)
+        if fm:
+            from .foreman import ASK_FOREMAN
+            tools.append(ASK_FOREMAN)
         self.backend = make_backend(self, system_prompt(cfg.name, cfg.role, cfg.personality,
                                                         orch.advisor.name if consult else None, cfg.focus,
-                                                        orch.cfg.flags),
+                                                        orch.cfg.flags, foreman=fm.name if fm else None),
                                     self.dir / "cwd", tools)
         self._task: asyncio.Task | None = None
 

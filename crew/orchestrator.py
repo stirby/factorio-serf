@@ -10,6 +10,7 @@ from . import progress
 from .advisor import Advisor
 from .agent import Agent
 from .board import Board
+from .foreman import Foreman
 from . import config as config_mod
 from .config import AgentConfig, CrewConfig
 from .game import GameLink
@@ -28,6 +29,7 @@ class Orchestrator:
         self.agents: dict[str, Agent] = {}
         self.foreman: str | None = cfg.foreman_name()
         self.advisor: Advisor | None = Advisor(cfg.advisor, self) if cfg.advisor else None
+        self.foreman_brain: Foreman | None = Foreman(cfg.foreman, self) if cfg.foreman else None
 
     async def start(self) -> None:
         ui.info(f"connecting to {self.cfg.server.host}:{self.cfg.server.rcon_port} ...")
@@ -38,11 +40,15 @@ class Orchestrator:
         for ac in self.cfg.agents:
             await self._add_agent(ac)
         names = ", ".join(self.agents)
+        if self.foreman_brain:
+            await self.foreman_brain.start()
+            fm = self.foreman_brain.cfg
+            ui.info(f"foreman {fm.name} ({fm.model}, effort {fm.effort}) leads; workers ask it with ask_foreman")
         if self.advisor:
             ui.info(f"{self.cfg.advisor_for} can consult {self.advisor.name} ({self.advisor.cfg.model}, "
                     f"effort {self.advisor.cfg.effort})")
         ui.info(f"crew ready: {names}. Talk to them in game chat: @{next(iter(self.agents))} ..., @all ...")
-        hello = self.agents[self.foreman or next(iter(self.agents))]
+        hello = self.agents.get(self.foreman or "") or next(iter(self.agents.values()))
         try:
             await self.link.call("say", agent=hello.name,
                                  text=f"Claude Crew online ({names}). Address us with @name or @all.")
@@ -114,13 +120,32 @@ class Orchestrator:
             await a.close()
         if self.advisor:
             await self.advisor.close()
+        if self.foreman_brain:
+            await self.foreman_brain.close()
+
+    async def announce(self, speaker: str, text: str) -> None:
+        """Chat line from someone without a character (the foreman)."""
+        safe = text.replace("]==]", "] ==]")[:600]
+        try:
+            await self.link.call("eval", code=f"game.print({{'', '[color=1,0.8,0.3]{speaker}[/color]: ' .. [==[{safe}]==]}})")
+        except GameError as e:
+            log.warning("announce failed: %s", e)
+        for agent in self.agents.values():
+            agent.hear(f'{speaker} (foreman, chat): "{text}"', wake=False)
 
     # ------------------------------------------------------------------ routing
     async def _on_chat(self, msg: dict) -> None:
         text, player = msg.get("message", ""), msg.get("player", "?")
         ui.human(player, text)
-        r = route(text, list(self.agents), self.foreman)
+        fm = self.foreman_brain
+        r = route(text, list(self.agents) + ([fm.name] if fm else []), self.foreman)
         line = f'{player} (at {msg.get("position")}): "{text}"'
+        if fm:
+            if fm.name in r.targets:
+                r.targets.discard(fm.name)
+                fm.human(player, text)
+            elif r.targets:
+                fm.note(f"(chat to {', '.join(sorted(r.targets))}) {player}: \"{text}\"")
         if r.stop:
             for name in r.targets:
                 try:
@@ -152,7 +177,11 @@ class Orchestrator:
                 agent.hear(line, wake=name in r.targets)
 
     def agent_said(self, speaker: str, text: str) -> None:
-        r = route(text, [n for n in self.agents], self.foreman)
+        fm = self.foreman_brain
+        r = route(text, [n for n in self.agents] + ([fm.name] if fm else []), self.foreman)
+        if fm and fm.name in r.targets:
+            r.targets.discard(fm.name)
+            fm.ask(speaker, text)
         for name, agent in self.agents.items():
             if name == speaker:
                 continue
@@ -233,6 +262,8 @@ class Orchestrator:
                     continue
                 last[key] = now
                 ui.info(f"alert: {text}")
+                if self.foreman_brain:
+                    self.foreman_brain.note(f"(alert, sent to the {focus} owner) {text}")
                 for agent in self._owner(focus):
                     agent.wake(f"(alert) {text}", urgent=True)
 
@@ -249,6 +280,8 @@ class Orchestrator:
         for name, agent in self.agents.items():
             if name != by:
                 agent.hear(f"MILESTONE DONE ({by}): {goal}", wake=False)
+        if self.foreman_brain:
+            self.foreman_brain.note(f"MILESTONE DONE ({by}): {goal}")
 
     async def _on_result(self, agent: str, r: dict, claimed: bool) -> None:
         a = self.agents.get(agent)
@@ -261,6 +294,9 @@ class Orchestrator:
             line = f"RESEARCH FINISHED: {ev['tech']} (unlocks: {unlocks})"
             ui.info(line)
             asyncio.create_task(self._snapshot(f"research-{ev['tech']}"))
+            if self.foreman_brain:
+                self.foreman_brain.note(line + ". Re-plan: queue the next research and point the crew at it.",
+                                        wake=True)
             planner = self.foreman or next(iter(self.agents), None)
             for name, agent in self.agents.items():
                 # Everyone learns about it; the planner gets woken to re-plan.

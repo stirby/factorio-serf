@@ -157,8 +157,19 @@ GOAL_GO = """- If a human gives the whole crew a big goal, start right away on y
   the board and only add tasks for your own domain."""
 
 
+FOREMAN_NOTE = """
+The crew's lead is {foreman}, who has no character: it owns the roadmap and the board and decides who does what.
+- Use `ask_foreman` when you need a decision: priorities, where to build, which design, a clash with a teammate,
+  or what's next when your current job is done and `work` shows nothing obvious. It returns at once; keep your
+  character busy and the answer arrives in a later tool result. Put your proposal in the question so it can just
+  say yes. Don't ask about things you can decide within your own domain.
+- Its replies are directions: follow them unless a human says otherwise. Report big results to it in one line
+  (with ask_foreman or say) so the plan stays current.
+"""
+
+
 def system_prompt(name: str, role: str, personality: str, advisor: str | None = None, focus: str = "",
-                  flags: dict | None = None) -> str:
+                  flags: dict | None = None, foreman: str | None = None) -> str:
     role_text = FOREMAN if role == "foreman" else WORKER
     if focus:
         role_text += DOMAINS.get(focus, f"\nYour domain: {focus}\n")
@@ -171,6 +182,8 @@ def system_prompt(name: str, role: str, personality: str, advisor: str | None = 
     role_text += parallel
     if advisor:
         role_text += ADVISOR_NOTE.format(advisor=advisor)
+    if foreman:
+        role_text += FOREMAN_NOTE.format(foreman=foreman)
     goal_rule = GOAL_WAIT if (flags or {}).get("foreman_first", True) else GOAL_GO
     return SYSTEM.replace("{GOAL_RULE}", goal_rule).format(
         name=name,

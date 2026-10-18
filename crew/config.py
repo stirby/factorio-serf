@@ -40,12 +40,15 @@ class CrewConfig:
     source: Path | None = None  # crew.toml this came from (watched for live changes)
     advisor: AgentConfig | None = None  # characterless senior engineer the crew can consult
     advisor_for: str = "all"  # "all" or "foreman"
+    foreman: AgentConfig | None = None  # characterless lead every worker can ask without waiting
     flags: dict = field(default_factory=dict)  # [experiment] toggles for A/B runs
 
     def flag(self, name: str, default: bool = True) -> bool:
         return bool(self.flags.get(name, default))
 
     def foreman_name(self) -> str | None:
+        if self.foreman:
+            return self.foreman.name
         return next((a.name for a in self.agents if a.role == "foreman"), None)
 
 
@@ -114,6 +117,15 @@ def load(path: str | Path | None, overrides: dict | None = None) -> CrewConfig:
                   "backend": defaults.get("backend", "claude-code"), **adv}
         cfg.advisor = AgentConfig(**{k: v for k, v in merged.items() if k in known})
         cfg.advisor_for = adv.get("for", "all")
+    fm = raw.get("foreman")
+    if fm and fm.get("enabled", True):
+        known = AgentConfig.__dataclass_fields__.keys()
+        merged = {"name": "foreman", "model": defaults.get("model", "claude-opus-5-5"), "effort": "medium",
+                  "backend": defaults.get("backend", "claude-code"), "max_turns_per_hour": 60, **fm}
+        cfg.foreman = AgentConfig(**{k: v for k, v in merged.items() if k in known})
+        for a in cfg.agents:  # the characters all work; the lead is the characterless foreman
+            if a.role == "foreman":
+                a.role = "worker"
     if raw.get("state_dir"):
         cfg.state_dir = Path(raw["state_dir"]).expanduser()
     return cfg
