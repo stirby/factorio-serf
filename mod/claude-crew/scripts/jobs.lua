@@ -174,7 +174,9 @@ H.mine = {
     end
 
     local want = args.count or (job.resource and 10 or 1)
-    local reach = job.resource and c.resource_reach_distance or c.reach_distance
+    -- Ore, trees and rocks need mining range; buildings can be picked up from full reach.
+    local close = job.resource or e.type == "tree" or e.type == "simple-entity"
+    local reach = close and c.resource_reach_distance or c.reach_distance
     local near = approach(a, job, e.position, reach - 0.5)
     if near == nil then return nil end
     if type(near) == "table" then return near end
@@ -198,6 +200,7 @@ H.mine = {
     end
 
     c.update_selected_entity(e.position)
+    if c.selected ~= e then c.selected = e end
     c.mining_state = { mining = true, position = e.position }
     local prog = c.character_mining_progress
     if prog == job.last_progress then
@@ -234,7 +237,9 @@ H.craft = {
     local args, c = job.args, a.char
     local recipe = c.force.recipes[args.recipe or ""]
     if not recipe then return fail("unknown recipe " .. tostring(args.recipe)) end
-    if not recipe.enabled then return fail("recipe " .. recipe.name .. " is not researched yet") end
+    if not recipe.enabled then
+      return fail("recipe " .. recipe.name .. " is locked; see techs for what unlocks it")
+    end
     local count = args.count or 1
     local first = recipe.products[1]
     if util.cheat() then
@@ -457,6 +462,13 @@ H.research = {
     local tech = force.technologies[job.args.tech or ""]
     if not tech then return fail("unknown technology " .. tostring(job.args.tech)) end
     if tech.researched then return fail(tech.name .. " is already researched") end
+    if tech.prototype.research_trigger then
+      return fail(tech.name .. " is a trigger tech; it unlocks by doing: " .. tech.prototype.research_trigger.type
+        .. " (see techs)")
+    end
+    for _, q in pairs(force.research_queue or {}) do
+      if q.name == tech.name then return ok(tech.name .. " is already in the research queue") end
+    end
     if force.add_research(tech) then return ok("queued research " .. tech.name) end
     return fail("could not queue " .. tech.name .. " (missing prerequisites or queue full)")
   end,

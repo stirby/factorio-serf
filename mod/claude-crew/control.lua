@@ -55,7 +55,7 @@ API.despawn = function(req) agents.despawn(req.agent) return {} end
 API.list = function()
   local out = {}
   for name, a in pairs(storage.agents) do
-    out[#out + 1] = { name = name, alive = agents.alive(a), position = agents.alive(a) and util.xy(a.char.position) or nil,
+    out[#out + 1] = { name = name, alive = agents.alive(a) and true or false, position = agents.alive(a) and util.xy(a.char.position) or nil,
       job = jobs.describe(a.job), queued = #a.queue }
   end
   return { agents = out }

@@ -272,6 +272,16 @@ function observe.recipes(a, args)
   return out
 end
 
+local function trigger_text(t)
+  local trig = t.prototype.research_trigger
+  if not trig then return nil end
+  local what = trig.item and (type(trig.item) == "table" and trig.item.name or trig.item)
+      or trig.entity or trig.tile or ""
+  local n = trig.count and trig.count > 1 and (" x" .. trig.count) or ""
+  return trig.type .. " " .. tostring(what) .. n
+end
+
+-- Researchable now. 2.0 has trigger techs (craft/mine/build something) as well as lab techs.
 function observe.techs(a, args)
   local out = {}
   for name, t in pairs(a.char.force.technologies) do
@@ -279,9 +289,21 @@ function observe.techs(a, args)
       local ready = true
       for _, pre in pairs(t.prerequisites) do if not pre.researched then ready = false break end end
       if ready and (not args.filter or name:find(args.filter, 1, true)) then
-        local packs = {}
-        for _, ing in pairs(t.research_unit_ingredients) do packs[#packs + 1] = ing.name end
-        out[#out + 1] = { name = name, packs = packs, units = t.research_unit_count }
+        local d = { name = name }
+        local trig = trigger_text(t)
+        if trig then
+          d.unlock_by = trig
+        else
+          local packs = {}
+          for _, ing in pairs(t.research_unit_ingredients) do packs[#packs + 1] = ing.name end
+          d.packs, d.units = packs, t.research_unit_count
+        end
+        local unlocks = {}
+        for _, eff in pairs(t.prototype.effects or {}) do
+          if eff.type == "unlock-recipe" then unlocks[#unlocks + 1] = eff.recipe end
+        end
+        if #unlocks > 0 then d.unlocks = unlocks end
+        out[#out + 1] = d
       end
     end
   end

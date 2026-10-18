@@ -4,7 +4,8 @@ local util = require("scripts.util")
 
 local movement = {}
 
-local PATH_BOX = { { -0.35, -0.35 }, { 0.35, 0.35 } } -- a bit wider than the character, for clearance
+-- First try a box a bit wider than the character (clearance), then the real one.
+local PATH_BOXES = { { { -0.35, -0.35 }, { 0.35, 0.35 } }, { { -0.2, -0.2 }, { 0.2, 0.2 } } }
 local WAYPOINT_EPS = 0.45
 local STUCK_TICKS = 45
 local MAX_REPATHS = 4
@@ -16,10 +17,15 @@ end
 
 local function request(char, m)
   local proto = prototypes.entity["character"]
+  local attempt = m.attempt or 1
+  local start = char.position
+  if attempt > 1 then
+    start = char.surface.find_non_colliding_position("character", start, 3, 0.25) or start
+  end
   m.req = char.surface.request_path {
-    bounding_box = PATH_BOX,
+    bounding_box = PATH_BOXES[math.min(attempt, #PATH_BOXES)],
     collision_mask = proto.collision_mask,
-    start = char.position,
+    start = start,
     goal = m.goal,
     force = char.force,
     radius = math.max(m.radius - 0.3, 0.5),
@@ -75,7 +81,14 @@ function movement.tick(char, m)
       if not r.path then
         m.path_fails = (m.path_fails or 0) + 1
         if r.again and m.path_fails < 5 then return nil end -- pathfinder busy; ask again next tick
-        return "no path to " .. util.xy(m.goal)[1] .. "," .. util.xy(m.goal)[2]
+        m.attempt = (m.attempt or 1) + 1
+        if m.attempt <= 3 then
+          if m.attempt == 3 then m.radius = m.radius + 2 end -- last try: accept getting a bit closer only
+          return nil
+        end
+        local g = util.xy(m.goal)
+        local gen = char.surface.is_chunk_generated { math.floor(m.goal.x / 32), math.floor(m.goal.y / 32) }
+        return "no path to " .. g[1] .. "," .. g[2] .. (gen and " (blocked by water/cliffs/buildings?)" or " (that area isn't generated yet)")
       end
       m.path, m.idx = r.path, 1
     end
