@@ -78,3 +78,4 @@ calls myself, log them here, and keep the review page updated hour by hour.
 | 08:38 | Round 11 recorded (s6-bots): all 5 bot techs + roboport at 51 min, 11 construction robots at 54 min, +7 techs, 2494 packs, $40 | The crew can rush construction robots from a blue-science base in under an hour |
 | 08:38 | Time split now: model thinking 53-71% of each agent's hour, wait 5-19% (was 21-50%), act 22-39% | The wait fix worked; model latency is now the main lever |
 | 08:38 | Round 12: s3-research-rush go-now-noadvisor (repeat of round 10) + effort-medium, two at once | Variance check on round 10, and whether faster model steps speed up progress |
+| 08:38 | New stage S7 (stage-s7-bots-online, read-only) from round 11's final base: roboport and 11 construction robots, 39 techs | Next rung of the stage ladder (bots-era scenarios: build big blueprints with robots, scale science) |
