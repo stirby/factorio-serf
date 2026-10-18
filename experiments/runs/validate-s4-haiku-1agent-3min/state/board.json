@@ -1,0 +1,47 @@
+{
+ "tasks": [
+  {
+   "id": 1,
+   "title": "Stone + copper for furnace column at [gps=42,32]",
+   "detail": "Need 60 stone (for 12 stone furnaces) and 20 copper plates (for 12 inserter circuits). Stone patch near [gps=8,66], copper near [gps=5,88]. Drop into an iron chest; claude-1 will pick up. I (claude-1) am building the 36 ghosts at [gps=42,32] meanwhile: I have iron and gears, crafting belts + inserters.",
+   "status": "open",
+   "owner": null,
+   "created_by": "claude-1",
+   "notes": [],
+   "updated": 1792304669.325942
+  }
+ ],
+ "zones": [],
+ "roadmap": [
+  {
+   "goal": "Iron plates automated into depot chests (iron 1/s)",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Copper smelting automated (copper 0.5/s)",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Stone furnace column at [gps=42,32] running (12 furnaces)",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Red science automated 0.5/s",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Green science 0.25/s",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Mall makes belts/inserters/assemblers",
+   "status": "todo",
+   "by": "claude-1"
+  }
+ ]
+}

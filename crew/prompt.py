@@ -134,11 +134,28 @@ build as board tasks when you want to hand the work to the crew. Don't consult f
 """
 
 
-def system_prompt(name: str, role: str, personality: str, advisor: str | None = None, focus: str = "") -> str:
+PIPELINE_LINES = ("- Your character should never stand still while you think",
+                  "  queue the next batch while the last action runs")
+WORK_LINES = ("- Never wait for direction. Between jobs, call `work`", "  order: unfilled requests", "  plans: build them first",
+              "  `production` shows. Tell the crew")
+
+
+def _drop(text: str, starts: tuple[str, ...]) -> str:
+    return "\n".join(line for line in text.splitlines() if not line.startswith(starts))
+
+
+def system_prompt(name: str, role: str, personality: str, advisor: str | None = None, focus: str = "",
+                  flags: dict | None = None) -> str:
     role_text = FOREMAN if role == "foreman" else WORKER
     if focus:
         role_text += DOMAINS.get(focus, f"\nYour domain: {focus}\n")
-    role_text += PARALLEL
+    parallel = PARALLEL
+    flags = flags or {}
+    if not flags.get("pipeline_prompt", True):
+        parallel = _drop(parallel, PIPELINE_LINES)
+    if not flags.get("work_tool", True):
+        parallel = _drop(parallel, WORK_LINES)
+    role_text += parallel
     if advisor:
         role_text += ADVISOR_NOTE.format(advisor=advisor)
     return SYSTEM.format(

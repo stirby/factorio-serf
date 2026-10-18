@@ -1,0 +1,375 @@
+{
+ "run_id": "20261018-012232-s2-green-science-baseline-i2-dry",
+ "scenario": "s2-green-science",
+ "variant": "baseline",
+ "instance": 2,
+ "stage": "stage-20261018-011343-live-final-3opus",
+ "dry": true,
+ "minutes_planned": 1.2,
+ "errors": [],
+ "start": "2026-10-18 01:22:32",
+ "t_start": 1792304552.38223,
+ "git": {
+  "commit": "402a779",
+  "dirty_files": [
+   "M crew/agent.py",
+   " M crew/board.py",
+   " M crew/orchestrator.py",
+   " M crew/prompt.py",
+   " M crew/tools.py"
+  ]
+ },
+ "mod_version": "0.1.0",
+ "setup": {},
+ "baseline": {
+  "tick": 384933,
+  "values": {
+   "green_per_min_assemblers": null,
+   "green_per_min": 0.0,
+   "red_per_min": 0.0,
+   "green_consumed_per_min": 0.0,
+   "green_asm": 2.0,
+   "labs": 2.0
+  },
+  "errors": {},
+  "raw": {
+   "green_per_min_assemblers": 20.0
+  }
+ },
+ "targets": {
+  "green_per_min_assemblers": 15,
+  "green_per_min": null,
+  "red_per_min": null,
+  "green_consumed_per_min": null,
+  "green_asm": null,
+  "labs": null
+ },
+ "summary_start": {
+  "minutes": 106,
+  "entities": {
+   "burner-mining-drill": 30,
+   "electric-mining-drill": 18,
+   "stone-furnace": 37,
+   "assembling-machine-1": 8,
+   "lab": 2,
+   "steam-engine": 4,
+   "boiler": 2,
+   "offshore-pump": 2,
+   "transport-belt": 275,
+   "inserter": 43,
+   "small-electric-pole": 116,
+   "iron-chest": 25,
+   "wooden-chest": 1
+  },
+  "researched": [
+   "automation",
+   "automation-science-pack",
+   "electric-mining-drill",
+   "electronics",
+   "logistic-science-pack",
+   "logistics",
+   "steam-power",
+   "steel-processing"
+  ],
+  "research_count": 8,
+  "agents": [
+   "claude-1",
+   "claude-2",
+   "claude-3",
+   "claude-4",
+   "claude-5"
+  ],
+  "per_minute": {
+   "iron-plate": 208,
+   "coal": 135,
+   "iron-ore": 211
+  },
+  "researching": "gun-turret",
+  "peaceful": true
+ },
+ "goal": "@all Automate green science (logistic-science-pack) to 0.25/s (15 per minute) with assemblers fed by belts and inserters, and feed it with red science into the labs automatically. No hand-feeding. Report in chat when it runs on its own.",
+ "elapsed_s": 75.4,
+ "final": {
+  "tick": 389468,
+  "values": {
+   "green_per_min_assemblers": 0.0,
+   "green_per_min": 0.0,
+   "red_per_min": 0.0,
+   "green_consumed_per_min": 0.0,
+   "green_asm": 2.0,
+   "labs": 2.0
+  },
+  "errors": {},
+  "raw": {
+   "green_per_min_assemblers": 20.0
+  }
+ },
+ "checks": {
+  "green_per_min_assemblers": {
+   "value": 0.0,
+   "baseline": null,
+   "target": 15,
+   "frac": 0.0,
+   "time_to_target_s": null,
+   "error": null
+  },
+  "green_per_min": {
+   "value": 0.0,
+   "baseline": 0.0,
+   "target": null,
+   "frac": null,
+   "time_to_target_s": null,
+   "error": null
+  },
+  "red_per_min": {
+   "value": 0.0,
+   "baseline": 0.0,
+   "target": null,
+   "frac": null,
+   "time_to_target_s": null,
+   "error": null
+  },
+  "green_consumed_per_min": {
+   "value": 0.0,
+   "baseline": 0.0,
+   "target": null,
+   "frac": null,
+   "time_to_target_s": null,
+   "error": null
+  },
+  "green_asm": {
+   "value": 2.0,
+   "baseline": 2.0,
+   "target": null,
+   "frac": null,
+   "time_to_target_s": null,
+   "error": null
+  },
+  "labs": {
+   "value": 2.0,
+   "baseline": 2.0,
+   "target": null,
+   "frac": null,
+   "time_to_target_s": null,
+   "error": null
+  }
+ },
+ "score": 0.0,
+ "success": false,
+ "summary_end": {
+  "minutes": 108,
+  "entities": {
+   "burner-mining-drill": 30,
+   "electric-mining-drill": 18,
+   "stone-furnace": 37,
+   "assembling-machine-1": 8,
+   "lab": 2,
+   "steam-engine": 4,
+   "boiler": 2,
+   "offshore-pump": 2,
+   "transport-belt": 275,
+   "inserter": 43,
+   "small-electric-pole": 116,
+   "iron-chest": 25,
+   "wooden-chest": 1
+  },
+  "researched": [
+   "automation",
+   "automation-science-pack",
+   "electric-mining-drill",
+   "electronics",
+   "logistic-science-pack",
+   "logistics",
+   "steam-power",
+   "steel-processing"
+  ],
+  "research_count": 8,
+  "agents": [
+   "claude-1",
+   "claude-2",
+   "claude-3",
+   "claude-4",
+   "claude-5"
+  ],
+  "per_minute": {
+   "iron-plate": 133,
+   "coal": 135,
+   "iron-ore": 197
+  },
+  "researching": "gun-turret",
+  "peaceful": true
+ },
+ "agents_end": {
+  "claude-1": {
+   "name": "claude-1",
+   "alive": true,
+   "position": [
+    -9.7,
+    -23.4
+   ],
+   "queued": 0,
+   "stats": {
+    "busy_ticks": 0,
+    "idle_ticks": 4574,
+    "crafting_ticks": 0
+   }
+  },
+  "claude-2": {
+   "name": "claude-2",
+   "alive": true,
+   "position": [
+    -11.6,
+    -27.5
+   ],
+   "queued": 0,
+   "stats": {
+    "busy_ticks": 0,
+    "idle_ticks": 4574,
+    "crafting_ticks": 0
+   }
+  },
+  "claude-3": {
+   "name": "claude-3",
+   "alive": true,
+   "position": [
+    -24.8,
+    -31.4
+   ],
+   "queued": 0,
+   "stats": {
+    "busy_ticks": 0,
+    "idle_ticks": 4574,
+    "crafting_ticks": 0
+   }
+  },
+  "claude-4": {
+   "name": "claude-4",
+   "alive": true,
+   "position": [
+    22.6,
+    66.9
+   ],
+   "queued": 0,
+   "stats": {
+    "busy_ticks": 0,
+    "idle_ticks": 4574,
+    "crafting_ticks": 0
+   }
+  },
+  "claude-5": {
+   "name": "claude-5",
+   "alive": true,
+   "position": [
+    27.2,
+    102.2
+   ],
+   "queued": 0,
+   "stats": {
+    "busy_ticks": 0,
+    "idle_ticks": 4574,
+    "crafting_ticks": 0
+   }
+  }
+ },
+ "behavior": {
+  "agents": {
+   "claude-1": {
+    "turns": 0,
+    "tool_calls": 0,
+    "tools": {},
+    "act_ops": {},
+    "hand_logistics": 0,
+    "failures": 0,
+    "tool_secs": 0.0,
+    "turn_secs": 0.0,
+    "turns_ended_idle": 0,
+    "cost_usd": 0.0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "turn_errors": 0,
+    "thoughts": 0,
+    "missing": true,
+    "mod_stats": {
+     "busy_ticks": 0,
+     "idle_ticks": 4535,
+     "crafting_ticks": 0,
+     "idle_pct": 100.0,
+     "crafting_pct": 0.0
+    },
+    "sampled_busy_pct": 0.0,
+    "alive_at_end": true
+   },
+   "claude-2": {
+    "turns": 0,
+    "tool_calls": 0,
+    "tools": {},
+    "act_ops": {},
+    "hand_logistics": 0,
+    "failures": 0,
+    "tool_secs": 0.0,
+    "turn_secs": 0.0,
+    "turns_ended_idle": 0,
+    "cost_usd": 0.0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "turn_errors": 0,
+    "thoughts": 0,
+    "missing": true,
+    "mod_stats": {
+     "busy_ticks": 0,
+     "idle_ticks": 4535,
+     "crafting_ticks": 0,
+     "idle_pct": 100.0,
+     "crafting_pct": 0.0
+    },
+    "sampled_busy_pct": 0.0,
+    "alive_at_end": true
+   },
+   "claude-3": {
+    "turns": 0,
+    "tool_calls": 0,
+    "tools": {},
+    "act_ops": {},
+    "hand_logistics": 0,
+    "failures": 0,
+    "tool_secs": 0.0,
+    "turn_secs": 0.0,
+    "turns_ended_idle": 0,
+    "cost_usd": 0.0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "turn_errors": 0,
+    "thoughts": 0,
+    "missing": true,
+    "mod_stats": {
+     "busy_ticks": 0,
+     "idle_ticks": 4535,
+     "crafting_ticks": 0,
+     "idle_pct": 100.0,
+     "crafting_pct": 0.0
+    },
+    "sampled_busy_pct": 0.0,
+    "alive_at_end": true
+   }
+  },
+  "total": {
+   "turns": 0,
+   "tool_calls": 0,
+   "hand_logistics": 0,
+   "failures": 0,
+   "turns_ended_idle": 0,
+   "cost_usd": 0.0,
+   "tool_secs": 0.0,
+   "turn_secs": 0.0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "char_idle_pct_mean": 100.0,
+   "sampled_busy_pct_mean": 0.0,
+   "act_ops": {}
+  }
+ },
+ "cost_usd": 0.0,
+ "final_save": "/home/stephen/dev/factorio-slave/experiments/runs/20261018-012232-s2-green-science-baseline-i2-dry/final.zip",
+ "end": "2026-10-18 01:23:52",
+ "t_end": 1792304632.007463
+}

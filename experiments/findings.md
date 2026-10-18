@@ -1,0 +1,3 @@
+- **Setup done:** the live base is saved as the S2 fixture (106 game-min). The live crew is stopped, and every experiment runs on isolated servers.
+- **New mechanics:** building ghosts (yours, blueprint strings, architect layouts), logistics marks (provider/requester/storage/note), a `work` tool plus an idle sweep so agents never wait for direction, soft construction-site zones, corpse looting, background crafts counted, and per-agent idle stats. 48 smoke checks pass.
+- **Next:** the stage benchmark harness (being built in parallel), then A/B experiments on self-direction, ghosts, logistics and mid-game goals.

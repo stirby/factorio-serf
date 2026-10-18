@@ -1,0 +1,5 @@
+{
+ "name": "haiku",
+ "model": "claude-haiku-5-5",
+ "advisor": false
+}

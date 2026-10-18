@@ -52,7 +52,8 @@ class Orchestrator:
             asyncio.create_task(self._watch_config(), name="config-watch")
         asyncio.create_task(progress.metrics_loop(self.link.call, self.cfg.state_dir / "metrics.jsonl"),
                             name="metrics")
-        asyncio.create_task(self._idle_sweep(), name="idle-sweep")
+        if self.cfg.flag("idle_sweep"):
+            asyncio.create_task(self._idle_sweep(), name="idle-sweep")
 
     async def _add_agent(self, ac: AgentConfig) -> Agent:
         existing = {a["name"]: a for a in (await self.link.call("list"))["agents"]}

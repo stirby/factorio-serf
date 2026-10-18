@@ -1,0 +1,238 @@
+#!/usr/bin/env python3
+"""Render the overnight review page (hour-by-hour) from what the night already records:
+experiments/DECISIONS.md, git commits, experiments/results.jsonl, experiments/log.jsonl, snapshots/manifest.jsonl,
+and experiments/findings.md (hand-written headline findings).
+
+    .venv/bin/python experiments/render_page.py OUT.html [--since "2026-10-18 01:10"]
+"""
+from __future__ import annotations
+
+import html
+import json
+import re
+import subprocess
+import sys
+import time
+from collections import defaultdict
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+EXP = ROOT / "experiments"
+
+
+def jl(path: Path) -> list[dict]:
+    if not path.exists():
+        return []
+    out = []
+    for line in path.read_text().splitlines():
+        try:
+            out.append(json.loads(line))
+        except json.JSONDecodeError:
+            pass
+    return out
+
+
+def parse_since(argv) -> float:
+    if "--since" in argv:
+        return time.mktime(time.strptime(argv[argv.index("--since") + 1], "%Y-%m-%d %H:%M"))
+    return time.mktime(time.strptime("2026-10-18 01:10", "%Y-%m-%d %H:%M"))
+
+
+def hour_key(t: float) -> str:
+    return time.strftime("%H:00", time.localtime(t))
+
+
+def collect(since: float) -> dict[str, dict[str, list]]:
+    hours: dict[str, dict[str, list]] = defaultdict(lambda: defaultdict(list))
+    day = time.strftime("%Y-%m-%d", time.localtime(since))
+    # decisions: "| HH:MM | decision | why |"
+    if (EXP / "DECISIONS.md").exists():
+        for line in (EXP / "DECISIONS.md").read_text().splitlines():
+            m = re.match(r"\| (\d\d):(\d\d) \| (.+?) \| (.+?) \|$", line)
+            if m:
+                t = time.mktime(time.strptime(f"{day} {m.group(1)}:{m.group(2)}", "%Y-%m-%d %H:%M"))
+                if t < since - 3600:  # past midnight
+                    t += 86400
+                if t >= since:
+                    hours[hour_key(t)]["decisions"].append((t, m.group(3), m.group(4)))
+    # commits
+    try:
+        log = subprocess.run(["git", "-C", str(ROOT), "log", f"--since=@{int(since)}", "--format=%ct\t%s"],
+                             capture_output=True, text=True, timeout=10).stdout
+        for line in log.splitlines():
+            ts, subj = line.split("\t", 1)
+            hours[hour_key(int(ts))]["commits"].append((int(ts), subj))
+    except Exception:
+        pass
+    # runs
+    for r in jl(EXP / "results.jsonl"):
+        t = r.get("end_t") or r.get("t") or 0
+        if isinstance(t, str):
+            try:
+                t = time.mktime(time.strptime(t[:19], "%Y-%m-%d %H:%M:%S"))
+            except ValueError:
+                t = 0
+        if t >= since:
+            hours[hour_key(t)]["runs"].append((t, r))
+    # snapshots
+    for s in jl(ROOT / "snapshots" / "manifest.jsonl"):
+        try:
+            t = time.mktime(time.strptime(s["time"][:16], "%Y-%m-%d %H:%M"))
+        except (KeyError, ValueError):
+            continue
+        if t >= since:
+            hours[hour_key(t)]["snapshots"].append((t, s))
+    for e in jl(EXP / "log.jsonl"):
+        if e.get("kind") == "note" and e.get("t", 0) >= since:
+            hours[hour_key(e["t"])]["notes"].append((e["t"], e.get("text", "")))
+    return hours
+
+
+def fmt_scores(r: dict) -> str:
+    sc = r.get("scores") or {}
+    parts = []
+    if isinstance(sc, dict):
+        for k, v in sc.items():
+            if isinstance(v, dict):
+                val, tgt = v.get("value"), v.get("target")
+                parts.append(f"{k}: {val}" + (f" / {tgt}" if tgt is not None else ""))
+            else:
+                parts.append(f"{k}: {v}")
+    elif isinstance(sc, list):
+        for c in sc:
+            parts.append(f"{c.get('name')}: {c.get('value')}" + (f" / {c.get('target')}" if c.get('target') is not None else ""))
+    return "; ".join(parts)
+
+
+def fmt_behavior(r: dict) -> str:
+    b = r.get("behavior") or r.get("behavior_summary") or {}
+    if not isinstance(b, dict):
+        return ""
+    keys = [("idle_pct", "char idle"), ("hand_logistics", "hand insert/take"), ("failures", "failures"),
+            ("idle_turns", "idle turns"), ("cost", "~$")]
+    out = []
+    for k, label in keys:
+        if k in b:
+            v = b[k]
+            out.append(f"{label} {v:.0f}%" if k == "idle_pct" and isinstance(v, (int, float)) else f"{label} {v}")
+    return ", ".join(out)
+
+
+def render(out: Path, since: float) -> None:
+    hours = collect(since)
+    findings = (EXP / "findings.md").read_text() if (EXP / "findings.md").exists() else ""
+    esc = html.escape
+    sections = []
+    for h in sorted(hours):
+        d = hours[h]
+        items = []
+        if d.get("notes"):
+            items.append("<ul class='list'>" + "".join(f"<li>{esc(n)}</li>" for _, n in sorted(d["notes"])) + "</ul>")
+        if d.get("runs"):
+            rows = "".join(
+                f"<tr><td class='n'>{time.strftime('%H:%M', time.localtime(t))}</td><td>{esc(str(r.get('scenario', '')))}</td>"
+                f"<td>{esc(str(r.get('variant', '')))}</td><td>{esc(fmt_scores(r))}</td><td>{esc(fmt_behavior(r))}</td></tr>"
+                for t, r in sorted(d["runs"], key=lambda x: x[0]))
+            items.append("<div class='tbl'><table><thead><tr><th>end</th><th>scenario</th><th>variant</th><th>scores</th>"
+                         f"<th>behavior</th></tr></thead><tbody>{rows}</tbody></table></div>")
+        if d.get("decisions"):
+            items.append("<h3>Decisions</h3><ul class='list'>" + "".join(
+                f"<li><b>{esc(dec)}</b> <span class='d'>{esc(why)}</span></li>" for _, dec, why in sorted(d["decisions"])) + "</ul>")
+        if d.get("commits"):
+            items.append("<h3>Changes</h3><ul class='list'>" + "".join(
+                f"<li><span class='n'>{time.strftime('%H:%M', time.localtime(t))}</span> {esc(subj)}</li>"
+                for t, subj in sorted(d["commits"])) + "</ul>")
+        if d.get("snapshots"):
+            items.append("<h3>Snapshots</h3><ul class='list'>" + "".join(
+                f"<li><code>{esc(s['save'])}</code> {s.get('minutes', '?')} game-min, {s.get('research_count', len(s.get('researched', [])))} techs</li>"
+                for _, s in sorted(d["snapshots"], key=lambda x: x[0])) + "</ul>")
+        n_runs, n_commits = len(d.get("runs", [])), len(d.get("commits", []))
+        summary = f"{n_runs} run{'s' * (n_runs != 1)} · {n_commits} change{'s' * (n_commits != 1)} · {len(d.get('decisions', []))} decisions"
+        sections.append(f"<section class='panel'><div class='hh'><h2>{h}</h2><span class='chip'>{summary}</span></div>{''.join(items)}</section>")
+
+    page = TEMPLATE.replace("{{UPDATED}}", time.strftime("%Y-%m-%d %H:%M")) \
+        .replace("{{FINDINGS}}", md_to_html(findings) if findings else "<p class='sub'>First results land after the first benchmark runs.</p>") \
+        .replace("{{HOURS}}", "\n".join(reversed(sections)) or "<p class='sub'>Nothing logged yet.</p>")
+    out.write_text(page)
+
+
+def md_to_html(md: str) -> str:
+    esc = html.escape
+    out, in_list = [], False
+    for line in md.splitlines():
+        if line.startswith("- "):
+            if not in_list:
+                out.append("<ul class='list'>")
+                in_list = True
+            body = esc(line[2:])
+            body = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", body)
+            out.append(f"<li>{body}</li>")
+            continue
+        if in_list:
+            out.append("</ul>")
+            in_list = False
+        if line.startswith("### "):
+            out.append(f"<h3>{esc(line[4:])}</h3>")
+        elif line.strip():
+            out.append("<p>" + re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", esc(line)) + "</p>")
+    if in_list:
+        out.append("</ul>")
+    return "\n".join(out)
+
+
+TEMPLATE = """<title>Claude Crew Build Log</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one narrow column of game-UI panels, newest hour first; orange is the only accent. */
+:root {
+  --bg: #e9e6e1; --panel: #f7f5f2; --line: #cfc9bf; --fg: #26231f; --muted: #6b645a; --accent: #c76a00;
+  --chipbg: #ebe7e1;
+  --display: "Titillium Web", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #1d1b19; --panel: #2a2724; --line: #403b35; --fg: #ece7df; --muted: #a59d91; --accent: #ffa31a;
+  --chipbg: #2f2b27; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #1d1b19; --panel: #2a2724; --line: #403b35; --fg: #ece7df; --muted: #a59d91; --accent: #ffa31a;
+  --chipbg: #2f2b27; color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font-family: var(--display); font-size: 16px; line-height: 1.55; }
+.wrap { max-width: 900px; margin: 0 auto; padding-block: 28px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 18px; }
+h1 { font-weight: 700; font-size: 2rem; line-height: 1.15; margin: 0; text-wrap: balance; }
+h1 span { color: var(--accent); }
+h2 { font-size: 1.1rem; margin: 0; font-variant-numeric: tabular-nums; }
+h3 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 6px 0 0; }
+p { margin: 0; max-width: 70ch; }
+.sub { color: var(--muted); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 16px 20px;
+  display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.hh { display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; justify-content: space-between; }
+.chip { font-family: var(--mono); font-size: 0.74rem; padding: 2px 8px; border-radius: 3px; background: var(--chipbg);
+  color: var(--muted); white-space: nowrap; }
+ul.list { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: 4px; max-width: 75ch; }
+.d { color: var(--muted); }
+.n { font-family: var(--mono); font-size: 0.84rem; font-variant-numeric: tabular-nums; color: var(--muted); }
+code { font-family: var(--mono); font-size: 0.84em; background: var(--chipbg); padding: 1px 5px; border-radius: 3px; }
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; min-width: 600px; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+.lead { border-color: var(--accent); }
+</style>
+<div class="wrap">
+  <header style="display:flex;flex-direction:column;gap:6px">
+    <h1>Claude Crew <span>build log</span></h1>
+    <p class="sub">Overnight tuning: making three Opus players progress like real players, faster, with less idle time. Newest hour first. Updated {{UPDATED}}.</p>
+  </header>
+  <section class="panel lead"><h3>Headline findings</h3>{{FINDINGS}}</section>
+  {{HOURS}}
+  <footer class="sub" style="font-size:0.85rem">Private page. Built from the decision log, commits, benchmark results and snapshots.</footer>
+</div>
+"""
+
+if __name__ == "__main__":
+    render(Path(sys.argv[1]), parse_since(sys.argv))
+    print("rendered", sys.argv[1])

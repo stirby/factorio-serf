@@ -1,1 +1,3 @@
 bench: run 20261018-012232-s2-green-science-baseline-i2-dry on instance 2 (stage stage-20261018-011343-live-final-3opus)
+bench: 1.0 min: {'green_per_min_assemblers': 0.0, 'green_per_min': 0.0, 'red_per_min': 0.0, 'green_consumed_per_min': 0.0, 'green_asm': 2.0, 'labs': 2.0}
+{"run_id": "20261018-012232-s2-green-science-baseline-i2-dry", "score": 0.0, "success": false, "elapsed_s": 75.4, "cost_usd": 0.0, "errors": [], "checks": {"green_per_min_assemblers": [0.0, 15], "green_per_min": [0.0, null], "red_per_min": [0.0, null], "green_consumed_per_min": [0.0, null], "green_asm": [2.0, null], "labs": [2.0, null]}}

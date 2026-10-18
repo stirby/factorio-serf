@@ -1,1 +1,3 @@
 bench: run 20261018-012232-s4-ghost-build-baseline-i4-dry on instance 4 (stage stage-20261018-011343-live-final-3opus)
+bench: 1.0 min: {'ghosts_built_frac': 0.0, 'ghosts_built_dir_frac': 0.0, 'ghosts_remaining': 36.0}
+{"run_id": "20261018-012232-s4-ghost-build-baseline-i4-dry", "score": 0.0, "success": false, "elapsed_s": 75.3, "cost_usd": 0.0, "errors": [], "checks": {"ghosts_built_frac": [0.0, 1.0], "ghosts_built_dir_frac": [0.0, null], "ghosts_remaining": [36.0, null]}}

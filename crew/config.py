@@ -40,6 +40,10 @@ class CrewConfig:
     source: Path | None = None  # crew.toml this came from (watched for live changes)
     advisor: AgentConfig | None = None  # characterless senior engineer the crew can consult
     advisor_for: str = "all"  # "all" or "foreman"
+    flags: dict = field(default_factory=dict)  # [experiment] toggles for A/B runs
+
+    def flag(self, name: str, default: bool = True) -> bool:
+        return bool(self.flags.get(name, default))
 
     def foreman_name(self) -> str | None:
         return next((a.name for a in self.agents if a.role == "foreman"), None)
@@ -102,6 +106,7 @@ def load(path: str | Path | None, overrides: dict | None = None) -> CrewConfig:
     cfg = CrewConfig(server=server, agents=agents,
                      spawn_near=raw.get("spawn_near"), starter_kit=raw.get("starter_kit", True))
     cfg.source = Path(path).expanduser().resolve() if path else None
+    cfg.flags = dict(raw.get("experiment", {}))
     adv = raw.get("advisor")
     if adv and adv.get("enabled", True):
         known = AgentConfig.__dataclass_fields__.keys()

@@ -1,0 +1,1 @@
+Lead. Building 36 ghosts at [gps=42,32] (12 furnaces, 12 inserters, 12 belts). Have 24 belts, 33 gears, 128 plates. Need: 60 stone (furnaces) and 20 copper plates (circuits for inserters). Stone at [gps=8,66], copper at [gps=5,88] (far south). Board task #1 posted. Mall area around [-15,-30] (claude-2/3 assemblers).

@@ -49,12 +49,16 @@ class Agent:
         self.idle_since = time.time()
         self.last_free_wake = 0.0
         self.retired = False
-        tools = None
-        if orch.advisor and (orch.cfg.advisor_for == "all" or cfg.role == "foreman"):
-            from .tools import CONSULT, TOOLS
-            tools = TOOLS + [CONSULT]
+        from .tools import CONSULT, TOOLS
+        tools = list(TOOLS)
+        if not orch.cfg.flag("work_tool"):
+            tools = [t for t in tools if t.name != "work"]
+        consult = bool(orch.advisor and (orch.cfg.advisor_for == "all" or cfg.role == "foreman"))
+        if consult:
+            tools.append(CONSULT)
         self.backend = make_backend(self, system_prompt(cfg.name, cfg.role, cfg.personality,
-                                                        orch.advisor.name if tools else None, cfg.focus),
+                                                        orch.advisor.name if consult else None, cfg.focus,
+                                                        orch.cfg.flags),
                                     self.dir / "cwd", tools)
         self._task: asyncio.Task | None = None
 
