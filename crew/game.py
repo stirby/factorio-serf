@@ -72,10 +72,11 @@ class GameLink:
                         claimed = bool(fut and not fut.done())
                         if claimed:
                             fut.set_result(r)
-                        else:
-                            self._recent[r["id"]] = r
-                            while len(self._recent) > 1000:
-                                self._recent.popitem(last=False)
+                        # Keep every result: a wait that timed out leaves no one holding the future, and the
+                        # next wait on that job must still resolve instead of sitting out its timeout.
+                        self._recent[r["id"]] = r
+                        while len(self._recent) > 1000:
+                            self._recent.popitem(last=False)
                         for cb in self.on_result:
                             await cb(agent, r, claimed)
                 for ev in data.get("events") or []:
@@ -93,7 +94,7 @@ class GameLink:
     def job_future(self, job_id: int) -> asyncio.Future:
         if job_id in self._recent:
             fut = asyncio.get_running_loop().create_future()
-            fut.set_result(self._recent.pop(job_id))
+            fut.set_result(self._recent[job_id])
             return fut
         fut = self._waiters.get(job_id)
         if not fut:

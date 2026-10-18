@@ -201,6 +201,9 @@ async def t_act(agent: "Agent", a: dict) -> str:
     return out
 
 
+IDLE_WAIT_MAX = 20  # seconds a wait may last when the character has nothing at all to do
+
+
 async def t_wait(agent: "Agent", a: dict) -> str:
     secs = min(float(a.get("seconds", 30)), ACT_WAIT_MAX)
     ids = sorted(agent.pending_jobs)
@@ -208,11 +211,24 @@ async def t_wait(agent: "Agent", a: dict) -> str:
         leave = max(int(a.get("until_queue_below", 1)) - 1, 0)
         results, running = await _wait_jobs(agent, ids, secs, leave)
         return await _after(agent, results, running)
+    crafting = False
+    try:
+        crafting = bool((await agent.link.call("self", agent=agent.name)).get("crafting"))
+    except GameError:
+        pass
+    if not crafting:
+        secs = min(secs, IDLE_WAIT_MAX)  # nothing running at all: the character is just standing there
     try:
         await asyncio.wait_for(agent.interrupted.wait(), timeout=secs)
     except asyncio.TimeoutError:
         pass
-    return f"waited up to {secs:.0f}s (no jobs running)"
+    out = f"waited {secs:.0f}s with no jobs running" + ("" if crafting else " and an empty crafting queue")
+    if crafting:
+        return out
+    work = await open_work(agent)
+    return (out + ". Your character is idle while you wait. Waiting for a consult or for production? Queue "
+            "crafts (wait=false) and do the next useful thing; you'll be interrupted when the answer lands."
+            + (f"\n[open work]\n{work}" if work else ""))
 
 
 async def t_stop(agent: "Agent", a: dict) -> str:

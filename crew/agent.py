@@ -224,6 +224,7 @@ class Agent:
                 self.autonomous = 0  # something external happened
             leftovers = [f"job #{r['id']} {r['op']} finished: {'OK' if r.get('ok') else 'FAILED'} {r.get('msg', '')}"
                          for r in self.finished.values()]
+            self.pending_jobs.difference_update(self.finished)
             self.finished.clear()
             events = leftovers + events
 

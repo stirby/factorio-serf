@@ -217,6 +217,14 @@ class Orchestrator:
                 k = "furnace:no_fuel" if "furnace:no_fuel" in p else "mining-drill:no_fuel"
                 add("fuel", "resources", f"FUEL: {nf} furnaces/drills are out of fuel (e.g. {where(k)}). "
                     "Get coal to them on a belt.")
+            starved = p.get("lab:starved", {}).get("n", 0)
+            if a.get("labs") and a.get("researching") and starved >= max(2, a["labs"] // 2):
+                feed = p.get("assembling-machine:starved")
+                add("labs-starved", "production", f"SCIENCE STARVED: {starved} of {a['labs']} labs are missing "
+                    f"science packs (e.g. {where('lab:starved')})."
+                    + (f" {feed['n']} science assembler(s) lack ingredients (e.g. {where('assembling-machine:starved')}): "
+                       "trace their inputs back to the shortage and fix the supply, not the symptom." if feed else
+                       " Science production can't keep up: add science assemblers or fix their output."))
             if a.get("labs") and not a.get("researching"):
                 add("research", "production", "LABS IDLE: nothing is being researched. Queue research now.")
             now = time.time()

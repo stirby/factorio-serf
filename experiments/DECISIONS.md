@@ -47,3 +47,9 @@ calls myself, log them here, and keep the review page updated hour by hour.
 | 03:30 | Round 6: s3-research-rush:go-now with alerts, teammate guards and the context reset (third A/B point after rounds 3 and 4) | Tests whether the infrastructure and conflict fixes recover the lost time |
 | 03:31 | Rate checks use a rolling window of at least one game minute | The final sample is seconds after the previous one and read 0, so round 5's blue science scored 0.5 despite 14/min |
 | 03:31 | Round 5 recorded: blue science 10/min by minute 25 and 14/min at the end (target 6); +6 techs in 51 min; ~$34 | Later-game progress works from S5 |
+| 03:31 | Architect sessions reset when context passes 80k/step | Round 5: architect $47 over 20 consults vs ~$10-12 per agent |
+| 03:31 | Round 7: s3-research-rush:go-now-noadvisor (no architect) | Is the architect worth its cost? Compare time to +6 techs and cost against rounds 3, 4 and 6 |
+| 04:35 | Round 6 recorded: +6 techs only at the 60-min mark, 55 science/min at the end, agents $30.7 + architect $54.6. Science was at 0/min for minutes ~21-27 (plate distribution broke) | Slower than round 3 (39 min); the architect cost more than all three agents together |
+| 04:40 | Bug fixed: a job result claimed by a timed-out act wait was lost, so every later `wait` sat out its full timeout on long-finished jobs. Round 6 agents spent 1455/1827/1724 s (25-45% of the hour) inside `wait` | Biggest single source of character idle time found so far; regression test tests/test_job_wait.py |
+| 04:40 | A `wait` with no jobs and an empty crafting queue lasts at most 20 s and returns the open-work list | Agents waited 60-75 s at a time for consults or production with the character doing nothing |
+| 04:41 | New alert: SCIENCE STARVED when half the labs lack packs; names the science assemblers that are short on ingredients | Round 6 had labs at 0 science/min for ~6 min and nobody noticed; checked on the S5 fixture |
