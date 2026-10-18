@@ -39,3 +39,4 @@ calls myself, log them here, and keep the review page updated hour by hour.
 | 02:28 | Round 4: s3-research-rush:go-now (A/B against round 3) and s3-mall:go-now, with all fixes and the blueprint library | Measures the combined effect of the night's changes on progress speed |
 | 02:36 | Agents start a fresh session when average context per step passes 80k tokens; notes, roadmap and board carry over | Round 2b cost $49 notional in 45 min; agents re-read 55-60k of context every step, and one agent's 11 turn restarts cost $37 |
 | 02:37 | S5 fixture (stage-s5-oil-plastics) taken from round 3's final save, plus scenario s5-blue-science | The agents' own output becomes the next rung of the stage ladder: 147 game-min, 47 electric drills, oil and plastics |
+| 02:37 | Round 5: s5-blue-science:go-now (first run with the context-size session reset) | Later-game progress, plus cost per hour under the new reset |

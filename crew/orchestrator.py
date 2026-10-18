@@ -52,6 +52,8 @@ class Orchestrator:
             asyncio.create_task(self._watch_config(), name="config-watch")
         asyncio.create_task(progress.metrics_loop(self.link.call, self.cfg.state_dir / "metrics.jsonl"),
                             name="metrics")
+        if self.cfg.flag("alerts"):
+            asyncio.create_task(self._alert_watch(), name="alerts")
         if self.cfg.flag("idle_sweep"):
             asyncio.create_task(self._idle_sweep(), name="idle-sweep")
 
@@ -175,6 +177,56 @@ class Orchestrator:
                     agent.last_free_wake = now
                     agent.inbox.put_nowait("(idle check) You've been idle; there's open work. Pick the most valuable "
                                            "item you can do now, tell the crew in one line, and do it.")
+
+    def _owner(self, focus: str) -> list:
+        """Agents whose domain matches, else the lead, else everyone."""
+        hit = [a for a in self.agents.values() if a.cfg.focus == focus]
+        if hit:
+            return hit
+        lead = self.agents.get(self.foreman or "")
+        return [lead] if lead else list(self.agents.values())
+
+    async def _alert_watch(self) -> None:
+        """Like the game's alert icons: notice outages and starvation and wake whoever owns that domain."""
+        last: dict[str, float] = {}
+        while True:
+            await asyncio.sleep(60)
+            try:
+                a = await self.link.call("alerts")
+            except Exception:
+                continue
+            p = a.get("problems") or {}
+            found = []
+
+            def add(key, focus, text):
+                found.append((key, focus, text))
+
+            def where(k):
+                at = p[k]["at"]
+                return ", ".join(f"[gps={x},{y}]" for x, y in at)
+            if "boiler:no_fuel" in p:
+                add("boiler", "infrastructure", f"POWER RISK: {p['boiler:no_fuel']['n']} boiler(s) out of fuel at "
+                    f"{where('boiler:no_fuel')}. Everything electric stops when steam runs out.")
+            low = sum(v["n"] for k, v in p.items() if k.endswith(":no_power") or k.endswith(":low_power"))
+            if low >= max(5, 0.1 * (a.get("checked") or 0)):
+                k = next(k for k in p if k.endswith("power"))
+                add("power", "infrastructure", f"BROWNOUT: {low} machines have no or low power (e.g. {where(k)}). "
+                    "Check boiler fuel and steam capacity.")
+            nf = p.get("furnace:no_fuel", {}).get("n", 0) + p.get("mining-drill:no_fuel", {}).get("n", 0)
+            if nf >= 4:
+                k = "furnace:no_fuel" if "furnace:no_fuel" in p else "mining-drill:no_fuel"
+                add("fuel", "resources", f"FUEL: {nf} furnaces/drills are out of fuel (e.g. {where(k)}). "
+                    "Get coal to them on a belt.")
+            if a.get("labs") and not a.get("researching"):
+                add("research", "production", "LABS IDLE: nothing is being researched. Queue research now.")
+            now = time.time()
+            for key, focus, text in found:
+                if now - last.get(key, 0) < 300:
+                    continue
+                last[key] = now
+                ui.info(f"alert: {text}")
+                for agent in self._owner(focus):
+                    agent.wake(f"(alert) {text}", urgent=True)
 
     async def _snapshot(self, label: str) -> None:
         try:

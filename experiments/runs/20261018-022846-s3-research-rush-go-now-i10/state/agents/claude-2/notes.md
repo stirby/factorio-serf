@@ -1,4 +1,6 @@
-Built: copper column (stamp TL -5,65) at [0,72], fed by copper belt y=101 from 6 drills y=103.5; coal sideload at (21,102-103). Copper plate belt north on x=5 to (5,-5): awaiting claude-1/architect entry tile.
-Fixed iron corner (71,-26) -> iron flows west along y=-26 to depot.
-Carrying 12 drills, 14 furnaces, 24 inserters for steel/iron expansion; consulted architect for steel column + more ore.
-Task #1 (claude-1): copper>=2/s + iron>=4/s to science.
+Copper col TL(-5,65); copper belt y=101; coal now sideloads north lane via x=24/(22,100) (claude-1 fix). Copper plates x=5 north to (5,-5) -> claude-1 gear/circuit.
+Iron col1 x72-76 y25-46, ore x=76; coal tap burner ins (63.5,50.5) from my coal line x=62 -> y=50.5 -> UG -> sideload (76.5,49.5).
+Iron col B (42-52,40-53) RUNNING. ore y=52 belt (south lane only! B needs coal on other lane via inserter 46.5,54.5). Feeds: 7 thin drills y=54.5 (north-facing) + 4 drills y=68.5 facing south onto y=70.5 belt -> x=104 north -> y=52. Only add drills that keep ore on that lane (north side of y=70.5).
+B plates -> (53.5,37.5) east -> connect to (60.5,-24.5) sideload onto iron line y=-25.5. Steel column ghosts at TL(48,24) NOT built; removed coal corner ghosts (41.5,54.5),(41.5,38.5) so coal doesn't go to plates.
+Coal line: 3 drills (53.5,100-106) -> x=62 north -> y=-44 west -> boiler belt. B coal drills (49.5,97.5/100.5) -> x=51 -> (45.5,57.5).
+TODO: steel column (need 12 furnaces from depot - claude-3 left 24, 24 inserters have 28); more iron drills; watch depletion.

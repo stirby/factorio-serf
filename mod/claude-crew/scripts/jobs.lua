@@ -174,6 +174,11 @@ H.mine = {
         end
         return fail("nothing minable" .. (args.name and (" named " .. args.name) or "") .. " found near " .. xystr(c.position))
       end
+      local mate = e.unit_number and storage.built_by[e.unit_number]
+      if mate and mate ~= a.name and not args.force_pickup then
+        return fail(e.name .. " at " .. xystr(e.position) .. " was built by " .. mate
+          .. "; ask them first (then pass force_pickup=true)")
+      end
       if e.last_user and e.last_user.valid and not args.force_pickup then
         return fail(e.name .. " at " .. xystr(e.position) .. " was built by " .. e.last_user.name
           .. "; only pick it up if a human asked you to (then pass force_pickup=true)")
@@ -628,6 +633,27 @@ H.connect = {
       end
     end
 
+    -- Don't silently feed a teammate's belt: check what the last tile points into and what points into the first.
+    if ent.type == "transport-belt" and not args.join and #places > 0 then
+      local function foreign_belt_at(p)
+        for _, e in pairs(c.surface.find_entities_filtered { position = p, radius = 0.3,
+          type = { "transport-belt", "underground-belt", "splitter" } }) do
+          local who = e.unit_number and storage.built_by[e.unit_number]
+          if who ~= a.name then return e, who or (e.last_user and e.last_user.name) or "someone" end
+        end
+      end
+      local last = places[#places]
+      local d = last.dir and defines.direction[last.dir]
+      local step = d and ({ [defines.direction.north] = { 0, -1 }, [defines.direction.south] = { 0, 1 },
+        [defines.direction.east] = { 1, 0 }, [defines.direction.west] = { -1, 0 } })[d]
+      if step then
+        local e, who = foreign_belt_at({ x = last.pos.x + step[1], y = last.pos.y + step[2] })
+        if e then
+          return fail("this line would feed into " .. who .. "'s belt at " .. xystr(e.position)
+            .. "; pick another end point, or pass join=true if that's intended")
+        end
+      end
+    end
     local have = c.get_item_count(item)
     if not util.cheat() and have < #places then
       return fail("route needs " .. #places .. " " .. item .. " but you have " .. have,

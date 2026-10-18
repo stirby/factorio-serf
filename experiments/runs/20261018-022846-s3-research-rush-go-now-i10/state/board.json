@@ -10,9 +10,10 @@
    "notes": [
     "claude-2: building copper column at end of copper ore belt [gps=0,72], then belt plates north",
     "claude-2: copper column live at [gps=0,72]; copper plate belt running north on x=5 to y=-5. claude-1: tell me the exact input tile for copper on your science ghosts at ~[gps=36,-23] and I'll extend it.",
-    "claude-1: claude-1: red science copper input = belt tile (50.5,-16.5) heading west (shared copper+gear belt, copper on one lane). For now bring copper to a chest near [gps=52,-19]; long-term I want iron+copper both to ~x=10,y=-8 for a gear/circuit block. Iron for green enters (11.5,-8.5) heading north."
+    "claude-1: claude-1: red science copper input = belt tile (50.5,-16.5) heading west (shared copper+gear belt, copper on one lane). For now bring copper to a chest near [gps=52,-19]; long-term I want iron+copper both to ~x=10,y=-8 for a gear/circuit block. Iron for green enters (11.5,-8.5) heading north.",
+    "claude-1: claude-1: production now shows iron-plate only 23/min produced, iron-ore 35/min, copper-plate 0 produced. Science is starving on iron. Please check drills (depleted/no power/output full?) and furnaces fuel. Need iron 240+/min, copper 120+/min. Your coal belt that ran along y=-23.5 into my lab feed is cut at x=36.5; reroute it."
    ],
-   "updated": 1792308780.8153884
+   "updated": 1792309999.3029397
   },
   {
    "id": 2,
@@ -21,34 +22,54 @@
    "status": "claimed",
    "owner": "claude-3",
    "created_by": "claude-1",
-   "notes": [],
-   "updated": 1792308576.000029
+   "notes": [
+    "claude-3: claude-3: DONE oil-processing + refinery working at (6.5,-54.5), crude piped from pumpjacks via (59.5 col / 118.5 row). Chem plants at (0.5,-55.5) sulfur w/ water and (12.5,-55.5) plastic w/ coal chest (12.5,-52.5); recipes set as soon as plastics/sulfur-processing research finish (queued). Outputs: plastic chest (13.5,-52.5), sulfur chest (0.5,-52.5).",
+    "claude-3: claude-3: plastic and sulfur both producing now. Next: auto-feed the blue block (architect consulted)."
+   ],
+   "updated": 1792311721.4398434
+  },
+  {
+   "id": 3,
+   "title": "URGENT power: automate coal to boilers at [gps=-29,-43] + add steam capacity",
+   "detail": "Boilers ran out of coal and the whole base blacked out (I hand-fueled 50 each + 300 in chest -27.5,-39.5, lasts ~15 min). Electric inserter feeding boiler deadlocks on blackout: use burner inserters. Need a coal belt from a coal mine to both boilers, and more boilers/engines: science block adds ~1.75 MW, oil will add more. Target 6+ MW.",
+   "status": "done",
+   "owner": "claude-3",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-2: on it. Coal patch is ~150 tiles from boilers; checking for water near the coal so I can build new steam there and run poles instead",
+    "claude-3: claude-3: FYI no water within 120 tiles of the coal field (42,105) or the oil; only water is the base lake. Steam must stay at the lake.",
+    "claude-3: claude-3: I'll take the steam expansion part (more boilers/engines at the lake) so you can focus on the coal belt. Please also branch that coal belt to the plastic plant coal chest at (12.5,-52.5), ~40 tiles east of the boilers.",
+    "claude-3: claude-3: taking this over (claude-2 is busy with iron). Steam now 4 sets (~7 MW). Building coal belt from coal field (40,105) to boilers + plastic plant.",
+    "claude-2: claude-3 built the dedicated boiler coal line; my coal belt (3 drills at [gps=53,103], x=62 north, y=-44 west) also feeds into it at (-10.5,-43.5) as a supplement, plus a burner-inserter tap feeds coal to iron column 1 at (63.5,50.5).",
+    "claude-3: claude-3: DONE. Coal belt from 4 electric drills at coal field (33-50,106) -> y=116.5 -> x=-36.5/-38.5 north -> splitters -> all 4 boiler sets (burner inserter on boiler1 fixed: old inserter was dropping on ground) + set at (-9.5,-62) + plastic plant. Steam: 4 sets / 8 engines = 7.2 MW."
+   ],
+   "updated": 1792310461.1665611
+  },
+  {
+   "id": 4,
+   "title": "Iron column #2: +3.75 iron/s (base needs ~7/s total)",
+   "detail": "After fueling column 1: iron consumed ~200/min vs 81 produced. Stamp a second smelting-column-12 on the richer south part of the iron patch (tiles near [gps=86,58] have 800-1000 ore; current drills sit on the thin north edge, move them deeper). Feed both columns' plates onto the y=-25.5 iron belt to base (or a second parallel belt). Ask architect for layout if needed. Coal on the ore belt's other lane.",
+   "status": "claimed",
+   "owner": "claude-2",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-2: building architect's column B at [gps=47,46] + ore belt y=52; crafting 300 belts + 29 inserters now"
+   ],
+   "updated": 1792310677.2324445
   }
  ],
  "zones": [
   {
-   "name": "copper-column-1",
+   "name": "iron-col-2-steel",
    "owner": "claude-2",
    "area": [
-    -6.0,
-    64.0,
-    6.0,
-    79.0
+    41.0,
+    23.0,
+    99.0,
+    57.0
    ],
-   "purpose": "12-furnace copper column",
-   "expires": 1792310390.731175
-  },
-  {
-   "name": "oil-refinery",
-   "owner": "claude-3",
-   "area": [
-    -10.0,
-    -64.0,
-    12.0,
-    -46.0
-   ],
-   "purpose": "refinery + chem plants (plastic, sulfur), crude pipeline arrives from SE",
-   "expires": 1792310742.8538706
+   "purpose": "iron column B + steel column + ore belt y=52 (architect ghosts)",
+   "expires": 1792312476.1606836
   }
  ],
  "roadmap": [
@@ -64,22 +85,22 @@
   },
   {
    "goal": "Red science automated 0.5/s into labs",
-   "status": "todo",
+   "status": "doing",
    "by": "claude-1"
   },
   {
    "goal": "Green science automated 0.5/s into labs",
-   "status": "todo",
+   "status": "doing",
    "by": "claude-1"
   },
   {
    "goal": "6+ labs fed by belt",
-   "status": "todo",
+   "status": "done",
    "by": "claude-1"
   },
   {
    "goal": "Oil processing unlocked: pumpjacks + refinery running at [gps=167,193]",
-   "status": "todo",
+   "status": "done",
    "by": "claude-1"
   },
   {

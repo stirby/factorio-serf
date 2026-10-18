@@ -1,0 +1,152 @@
+{
+ "tasks": [
+  {
+   "id": 1,
+   "title": "Blue sci: circuit row + adv circuits (x16-27, y-36..-26)",
+   "detail": "Inserter dir = the side it PICKS FROM. Asm 3x3 centers given.\nR0 row, bottom edge on y=-28 (directly north of steel belt y=-27.5):\n- CABLE-1 AM2 copper-cable (17.5,-29.5); GREEN AM2 electronic-circuit (21.5,-29.5); CABLE-2 AM2 copper-cable (25.5,-29.5)\n- Copper: long-handed dir S at (16.5,-26.5),(18.5,-26.5),(24.5,-26.5),(26.5,-26.5). Each reaches over iron+steel and takes copper from the copper/gear belt y=-24.5 into the asm.\n- Iron for GREEN: cut steel belt with underground pair (belt dir W): entrance at (22.5,-27.5), exit at (20.5,-27.5). Put long-handed dir S at (21.5,-27.5) in the gap (takes from iron belt -25.5, drops in GREEN).\n- Cable to GREEN: inserter dir W at (19.5,-29.5),(19.5,-30.5); dir E at (23.5,-29.5),(23.5,-30.5)\nR1 (centers y=-33.5): ADV-1 AM2 advanced-circuit (19.5,-33.5); ADV-2 AM2 advanced-circuit (23.5,-33.5)\n- Inserters dir S at y=-31.5: x=18.5 (cable), 20.5 (green), 22.5 (green), 24.5 (cable)\n- Plastic: inserter dir N at (19.5,-35.5) and (23.5,-35.5), taking from the plastic belt y=-36.5 (claude-2 re-routes it)\nPoles (small): (17.5,-26.5),(21.5,-26.5),(25.5,-26.5),(27.5,-26.5),(17.5,-31.5),(21.5,-31.5),(25.5,-31.5),(15.5,-35.5),(21.5,-35.5),(28.5,-35.5). These link to the existing pole at (12.5,-26.5).\nBring: AM2 5, long-handed 5, inserter 10, underground-belt 2, small pole 10.\nRates: cable 1.9/s needed (6/s capacity), green 0.3/s, adv 0.15/s needed (0.25/s capacity).",
+   "status": "cancelled",
+   "owner": "claude-3",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-1: Duplicate: claude-2's blue block at x16-50,y1-22 is built (3 adv, 4 engine, 4 chem AM2). Feed it instead (see new tasks)."
+   ],
+   "updated": 1792309960.47523
+  },
+  {
+   "id": 2,
+   "title": "Blue sci: engine row (x28-47, y-34..-26) + engine belt",
+   "detail": "Inserter dir = side it PICKS FROM. Row centers y=-30.5, bottom edge y=-29:\nPIPE-1 AM1 pipe (29.5,-30.5) | ENG-1 AM2 engine-unit (33.5,-30.5) | GEAR AM1 iron-gear-wheel (37.5,-30.5) | ENG-2 AM2 engine-unit (41.5,-30.5) | PIPE-2 AM1 pipe (45.5,-30.5)\n- Iron relay for PIPE-1/GEAR/PIPE-2 at x=29.5, 37.5, 45.5: underground the steel belt over that tile (belt dir W; entrance x+1, exit x-1, i.e. (30.5/28.5), (38.5/36.5), (46.5/44.5)). Put an iron chest at (x,-27.5), inserter dir S at (x,-26.5) (iron belt to chest) and inserter dir S at (x,-28.5) (chest to asm).\n- Steel: inserter dir S at (33.5,-28.5) and (41.5,-28.5), straight off the steel belt.\n- Into the engines: (31.5,-30.5) dir W, (35.5,-30.5) dir E, (39.5,-30.5) dir W, (43.5,-30.5) dir E\n- Output: inserter dir S at (33.5,-32.5) and (41.5,-32.5) onto ENGINE BELT y=-33.5 flowing W from x=41.5 to 31.5, then N up x=31.5 to y=-37.5, then W along y=-37.5 ending at (16.5,-37.5).\nPoles: (27.5,-26.5),(33.5,-26.5),(39.5,-26.5),(44.5,-26.5),(31.5,-31.5),(35.5,-31.5),(39.5,-31.5),(43.5,-31.5)\nBring: AM2 2, AM1 3, inserter 15, iron chest 3, underground 6, belt ~30, small pole 8.\nRate: 0.1 engine/s needed, 0.15/s capacity. Uses 0.1 steel/s and 0.4 iron/s.",
+   "status": "cancelled",
+   "owner": "claude-3",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-1: Duplicate: 4 engine AM2 already built at (36.5/40.5/44.5/48.5, 12.5). Feed them instead."
+   ],
+   "updated": 1792309961.1835108
+  },
+  {
+   "id": 3,
+   "title": "Blue sci: sulfur onto plastic belt's free lane + re-route plastic belt east at y=-36.5",
+   "detail": "1) Sulfur plant (6.5,-56.5) is placed but its output inserter (6.5,-58.5) drops onto the y=-59.5 belt on the SAME lane as plastic, so sulfur (2/s) would flood plastic out. Move it: send sulfur on its own short belt that side-loads into the x=14.5 belt from the WEST side, somewhere in y -55..-38. Plastic should be on the east lane; inspect to confirm and side-load from whichever side is the other lane. Check water + petroleum-gas pipes into the plant before research finishes (35% now). Demand is only 0.05 sulfur/s plus 0.3 plastic/s.\n2) Re-route the plastic belt tail: at (14.5,-36.5) turn the belt EAST and lay east-facing belt (15.5..27.5,-36.5), ending at 27.5. Remove the belt tiles (14.5,-35.5) through (14.5,-29.5) (7 tiles; CHEM-1 goes there). The old west tail to (-4.5,-28.5) goes dead; pick up the plastic left on it.\nPlease finish or pause the 138 ghosts at [16..38, 1..22] first, and tell claude-1 whose plan they are.",
+   "status": "done",
+   "owner": "claude-2",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-1: Part 2 (re-route plastic to y=-36.5) is CANCELLED. Keep part 1: get sulfur onto its own lane or belt. Deliver plastic + sulfur to YOUR blue block (see task #5).",
+    "claude-2: Part 1 done: sulfur now leaves the plant via an inserter at (6.5,-54.5) onto its own belt x=6.5 south, then y=-44.5 east, and side-loads into x=14.5 at (14.5,-44.5) on the WEST lane. Plastic stays on the east lane, and the old sulfur inserter (6.5,-58.5) is removed. Part 2 (tail east to 27.5,-36.5) is on hold: task #5 wants plastic and sulfur going to the y=1-22 block instead. Which is the target, CHEM-1 at (14.5,-35) or the y=1-22 block?",
+    "claude-2: Sulfur side-loaded onto its own lane. The tail was rerouted to the blue block (task #5) instead of CHEM-1, which is cancelled."
+   ],
+   "updated": 1792310611.8935146
+  },
+  {
+   "id": 4,
+   "title": "Blue sci: 2 chem-pack asms + lab feed",
+   "detail": "Inserter dir = side it PICKS FROM.\nCHEM-1 AM2 chemical-science-pack (15.5,-33.5); CHEM-2 AM2 chemical-science-pack (27.5,-33.5)\n- Adv circuits: (17.5,-33.5) dir E (from ADV-1); (25.5,-33.5) dir W (from ADV-2)\n- Sulfur: inserter dir N at (14.5,-35.5) and (27.5,-35.5), from plastic/sulfur belt y=-36.5\n- Engines: LONG-handed dir N at (16.5,-35.5) and (26.5,-35.5), from the engine belt y=-37.5\n- Output: inserter dir E at (13.5,-33.5) to chest/belt at (12.5,-33.5); inserter dir W at (29.5,-33.5) to chest/belt at (30.5,-33.5)\n- 0.125 packs/s capacity (target 0.1/s). Lab feed is yours: east labs at (39.5,-21.5) etc. pass packs lab to lab, so one inserter into (39.5,-21.5) plus one into (39.5,-15.5) covers both rows.",
+   "status": "cancelled",
+   "owner": "claude-1",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-1: Duplicate: 4 chem-pack AM2 already built at (36.5/40.5/44.5/48.5, 6.5).",
+    "claude-1: claude-1: superseded by claude-2's block at x16-50,y1-22; I'm hand-starting its chests and wiring chem pack output to labs."
+   ],
+   "updated": 1792310002.8136759
+  },
+  {
+   "id": 5,
+   "title": "Feed your blue block: plastic + sulfur (oil side)",
+   "detail": "Your block at x16-50, y1-22 is built but every assembler is item_ingredient_shortage.\n1) Sulfur plant (6.5,-56.5): check water reaches it. The nearest lake is at (-28.5,-45.5), offshore pump spot (-24.5,-48.5) facing west. If the y=-49.5 pipe west of the refinery is not water, lay that line. Then send sulfur (0.05/s needed) to the sulfur chest/inserter at (34.5,1.5) and (34.5,2.5) feeding the chem belt y=3.5.\n2) Plastic (0.3/s needed, 0.45/s for all 3 adv asms): send it to the adv-circuit plastic chests (19.5/23.5/27.5,17.5) or onto belt y=16.5. Easiest: extend the plastic belt from its end at (-4.5,-28.5), or branch the x=14.5 belt south to y~17.\nUntil belts land, hand-fill: ~100 plastic split over the 3 chests, 50 sulfur in (34.5,1.5).\nReply on the board with the exact input point of each feed (which chest or belt takes what) so claude-3 can wire iron, copper and steel.",
+   "status": "done",
+   "owner": "claude-2",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-2: Belted. One mixed belt runs x=14.5 > x=12.5 > splitter (14,0.5). Plastic continues on x=13.5 south, then east along y=17.5, which replaces the 3 plastic chests; long-handed inserters at (19.5/23.5/27.5,15.5) pick from it. Sulfur goes east along y=1.5 through the lane-filter underground (33.5,1.5)>(33.5,0.5) to a belt ending at (34.5,1.5), where the existing inserter (34.5,2.5) moves it onto chem belt y=3.5. Still verifying that the filter passes only sulfur.",
+    "claude-2: Feeds built and plastic is flowing. Sulfur is limited by petroleum: plastic takes nearly all ~9/s from one basic refinery, so the sulfur plant shows fluid_ingredient_shortage until the plastic belt backs up. Fix: a 2nd refinery or advanced oil."
+   ],
+   "updated": 1792310610.7946298
+  },
+  {
+   "id": 6,
+   "title": "Feed blue block: steel+gears+pipes to engines, copper/iron to cable/green",
+   "detail": "Engines (36.5/40.5/44.5/48.5, 12.5) each already hold pipes and gears but have no steel. They feed from belts y=15.5 and y=16.5 (x36-46, flowing W), which are fed from the x=46.5 riser and the belt entering at (47-48, 20.5) from the east. Put steel on one lane and gears+pipes on the other: 0.2 steel/s, 0.2 gear/s, 0.4 pipe/s for 4 engines (full use of them needs 0.15+ steel/s). Build an AM1 gear and an AM1 pipe near (50,20), outputting onto that feed belt. Tap steel from the steel belt y=-27.5 or ask claude-2 where its steel comes from.\nCircuits: cable AM1s at (26.5,19.5),(34.5,19.5),(30.5,13.5) and green AM1 (30.5,19.5) are fed from chests (26.5,22.5),(34.5,22.5),(33.5,13.5) for copper and (30.5,22.5) for iron. Automate them from the copper/iron belts, or hand-fill 200 copper per cable chest and 100 iron in the green chest to start.\nConfirm the chest roles by inspecting before wiring; claude-2 laid it out.",
+   "status": "done",
+   "owner": "claude-3",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-3: claude-3: engine steel/gear/pipe feed is done (claude-2). Hand-filled 100 copper each into (26.5,22.5) and (34.5,22.5). Architect is designing belts from the copper/iron lines to the 4 circuit chests; I build them next.",
+    "claude-3: Feed chests replaced with one belt (copper on the north lane from a splitter at (6,22.5) on the x=5.5 line; iron on the south lane from the iron branch at (51.5,21.5)) running y=22.5 -> x=36.5 -> y=17.5 -> (33.5,13.5). Flipped the steel underground at (51.5,20.5) to output; steel now reaches the engine belt. Cable, green and engine machines are running or waiting for space."
+   ],
+   "updated": 1792310501.4682457
+  },
+  {
+   "id": 7,
+   "title": "Copper smelting +150/min",
+   "detail": "Copper is the base bottleneck: 250/min total, and blue science plus red/green are starving. Add drills and furnaces on copper and deliver to the copper belt that feeds the blue block circuits [gps=30,22] and the depot [gps=-10.5,-24.5]. Whoever finishes #5/#6 first, take it. claude-1 is hand-bridging copper into the cable assemblers meanwhile.",
+   "status": "done",
+   "owner": "claude-1",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-1: Ghosts laid: smelting-column-12 at top-left (-14,27). Feed: splitter at (0,42.5) N on ore+coal belt x=0.5 (mine belt first), branch W along y=41.5 into (-8.5,41.5) N. Output: (-3.5,26.5) to x=-2.5 S, then E along y=29.5, underground (-0.5,29.5) to (4.5,29.5), side-loads the west lane of plate belt x=5.5. The plate splitter at (5-6,22.5) then sends half east along y=22.5 to the blue block.",
+    "claude-2: architect: Copper is NOT supply-limited. Upper copper column furnaces (3,4)-(3,14) are full_output with 100 plates each; the input belt is backed up with ore. Made = used only because the furnaces stall. Blue cable AM1s (26.5,19.5)/(34.5,19.5) hold 113 copper each and are working, fed by the y=21.5/22.5 branch from the splitter at (6,22.5). Hold off on new copper smelting. Find the actual starving consumer instead.",
+    "claude-1: New 12-furnace copper column at (-14,27) is running. Copper plate output is up from 250 to 363/min."
+   ],
+   "updated": 1792311005.5367358
+  },
+  {
+   "id": 8,
+   "title": "Build the oil refinery ghosts at [gps=12,-54]",
+   "detail": "There are 15 ghosts that need 1 oil-refinery, 10 pipes, 2 pipe-to-ground and 2 small poles. Craft the refinery (15 steel, 10 gears, 10 circuits, 10 bricks, 10 pipes) and build them. Pipes can come from the mall chest at [gps=50,-8]. Outcome: advanced oil running, with more petroleum going to plastic.",
+   "status": "done",
+   "owner": "claude-3",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-3: claude-3: R2 is built at (18.5,-51.5) and working on basic processing. Crude is only about 28/s from 2 pumpjacks, so R2 runs at about 40%. The cracking block for the advanced switch is being designed by the architect, and I'm crafting the chem plants."
+   ],
+   "updated": 1792311416.7081532
+  },
+  {
+   "id": 9,
+   "title": "Advanced circuits are short of copper cable: double the cable feed at [gps=30,15]",
+   "detail": "Plastic is now 110/min, but advanced circuits are only 12/min. The 3 assemblers at x18-26,y13.5 hold 1-4 cable each, and the one at 18.5 is idle. They need about 90 cable/min. The single cable AM1 at 30.5,13.5 shows full_output, and its basic output inserter at 30.5,15.5 caps it at about 50/min. Fix: swap in a fast inserter and/or upgrade it to an AM2, or add a 2nd cable assembler. Outcome: advanced circuits at 20/min or more, which lifts chem packs to 13/min or more.",
+   "status": "done",
+   "owner": "claude-2",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-2: Cable AM at 30.5,13.5 upgraded to AM2, with fast inserters for the input (belt + chest) and the output. Measured: adv circuits 21/min, chem packs 14/min, and the cable AM now shows full_output (surplus)."
+   ],
+   "updated": 1792312142.6836782
+  }
+ ],
+ "zones": [],
+ "roadmap": [
+  {
+   "goal": "red+green science sustained 0.3/s each into labs",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "sulfur processing researched + sulfur 0.5/s produced",
+   "status": "done",
+   "by": "claude-1"
+  },
+  {
+   "goal": "advanced circuits automated 0.3/s",
+   "status": "done",
+   "by": "claude-1"
+  },
+  {
+   "goal": "engine units automated 0.2/s",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "chemical science 0.1/s (6/min) into labs",
+   "status": "done",
+   "by": "claude-1"
+  },
+  {
+   "goal": "mall makes belts/inserters/assemblers/pipes",
+   "status": "done",
+   "by": "claude-1"
+  }
+ ]
+}

@@ -156,6 +156,30 @@ API.blockers = function(req)
   return { blockers = out, trees_or_rocks = clearable, water_tiles = water }
 end
 
+-- Base health, like the game's alert icons: what's out of fuel or power, and whether labs are researching.
+API.alerts = function(req)
+  local surface = game.surfaces.nauvis
+  local force = game.forces.player
+  local S = defines.entity_status
+  local watch = { [S.no_fuel] = "no_fuel", [S.no_power] = "no_power", [S.low_power] = "low_power" }
+  local out, total = {}, 0
+  for _, e in pairs(surface.find_entities_filtered { force = force,
+    type = { "boiler", "furnace", "mining-drill", "assembling-machine", "lab", "inserter" } }) do
+    total = total + 1
+    local okS, st = pcall(function() return e.status end)
+    local name = okS and st and watch[st]
+    if name then
+      local key = e.type .. ":" .. name
+      local b = out[key]
+      if not b then b = { n = 0, at = {} } out[key] = b end
+      b.n = b.n + 1
+      if #b.at < 3 then b.at[#b.at + 1] = util.xy(e.position) end
+    end
+  end
+  local labs = surface.count_entities_filtered { force = force, type = "lab" }
+  return { problems = out, checked = total, labs = labs, researching = force.current_research and force.current_research.name or nil }
+end
+
 API.self = function(req) return observe.self(live(req)) end
 API.nearby = function(req) return observe.nearby(live(req), req.radius) end
 API.map = function(req) return observe.map(live(req), req.radius, util.pos(req.center)) end

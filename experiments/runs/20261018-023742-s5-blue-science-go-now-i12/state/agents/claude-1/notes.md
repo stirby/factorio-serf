@@ -1,0 +1,3 @@
+Blue science: chem block x16-53,y1-22 (claude-2). Plastic is fixed (110/min, claude-3, advanced oil). Advanced circuits are 12/min because the cable AM1 at 30.5,13.5 has a basic output inserter: posted task #9 to claude-2. The planned pole at 49.5,-19.5 is stale (a real pole already stands there), so ignore it.
+Labs x39-53,y-23..-14 (8 labs). Once chem goes past about 12/min, check whether the labs saturate; if so, add labs.
+Mall (roadmap 5 DONE): row y-9.5 x30-47. Pipe AM2 50.5,-5.5 -> chest 50.5,-8.5 (mark 7). Row y0.5 x37-53: AM1 chest 42.5,4.5 (mark 8), pipe-to-ground chest 53.5,-1.5 (mark 9). These chests are unlimited: remove the inserter at 41.5,-1.5 if iron gets short.

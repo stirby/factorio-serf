@@ -50,7 +50,7 @@ Ops and their fields:
   set_recipe  x y recipe                                        assembler recipe
   rotate      x y [direction] | [reverse=true]
   research    tech                                              add a lab tech to the research queue
-  connect     item=<transport-belt|pipe|small-electric-pole|...> from=[x,y] to=[x,y] [end_direction]
+  connect     item=<transport-belt|pipe|small-electric-pole|...> from=[x,y] to=[x,y] [end_direction] [join]
               routes a line around obstacles and places it (belts point along the route; poles spaced to reach)
   follow      player=<name> | agent=<name> [distance=3] [seconds=300]   stay near them until stopped
   build_ghosts [x y radius=32] [limit]       build ghosts (planned buildings) near a point with items you carry;

@@ -242,6 +242,27 @@ async def main():
                            {"op": "place", "name": "underground-belt", "x": ux + 3, "y": uy, "direction": "east", "type": "output"}])
     check("underground pair", res[1]["ok"] and "paired" in res[1]["msg"] and "not paired" not in res[1]["msg"], res)
 
+    # teammate guards: don't mine another agent's build; don't route a belt into a teammate's belt by accident
+    me = await crew.call("self", agent=A)
+    tx, ty = round(me["position"][0]) + 0.5, round(me["position"][1]) + 14.5
+    await crew.call("spawn", name="smoke-mate", position=[tx - 2, ty], starter_kit=False)
+    await crew.call("eval", code="storage.agents['smoke-mate'].char.insert{name='transport-belt',count=5} return 1")
+    mate_ids = (await crew.call("act", agent="smoke-mate", actions=[
+        {"op": "place", "name": "transport-belt", "x": tx, "y": ty, "direction": "east"}]))["job_ids"]
+    await asyncio.sleep(2)
+    await crew.call("poll")
+    res = await run(crew, [{"op": "mine", "x": tx, "y": ty}])
+    check("won't mine a teammate's build", not res[0]["ok"] and "built by smoke-mate" in res[0]["msg"], res[0])
+    await give(crew, {"transport-belt": 20})
+    res = await run(crew, [{"op": "connect", "item": "transport-belt", "from": [tx - 8, ty], "to": [tx - 1, ty],
+                            "end_direction": "east"}])
+    check("connect won't feed a teammate's belt", not res[0]["ok"] and "feed into smoke-mate" in res[0]["msg"], res[0])
+    res = await run(crew, [{"op": "connect", "item": "transport-belt", "from": [tx - 8, ty], "to": [tx - 1, ty],
+                            "end_direction": "east", "join": True}], timeout=60)
+    check("connect join=true allowed", res[0]["ok"], res[0])
+    await wait_idle(crew)
+    await crew.call("despawn", agent="smoke-mate")
+
     # map / nearby / find / recipes / techs / production
     m = await crew.call("map", agent=A, radius=8)
     check("map 17 rows", len(m["rows"]) == 17 and any("@" in row for row in m["rows"]))
