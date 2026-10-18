@@ -1,26 +1,26 @@
 {
-  "name": "s4-ghost-build",
-  "stage": "stage-20261018-011343-live-final-3opus",
-  "minutes": 15,
-  "agents": 2,
-  "setup_lua": "local D=defines.direction\nlocal function layout(ox,oy)\n  local t={}\n  for i=0,5 do\n    t[#t+1]={name='stone-furnace',x=ox-2,y=oy+2*i+1,dir=D.north}\n    t[#t+1]={name='stone-furnace',x=ox+3,y=oy+2*i+1,dir=D.north}\n    t[#t+1]={name='inserter',x=ox-0.5,y=oy+2*i+0.5,dir=D.east}   -- picks from the belt (east), drops into the west furnace\n    t[#t+1]={name='inserter',x=ox+1.5,y=oy+2*i+0.5,dir=D.west}\n  end\n  for j=0,11 do t[#t+1]={name='transport-belt',x=ox+0.5,y=oy+j+0.5,dir=D.south} end\n  return t\nend\nlocal function water(a)\n  local ok,n=pcall(function() return s.count_tiles_filtered{area=a,collision_mask='water_tile'} end)\n  if ok then return n end\n  return s.count_tiles_filtered{area=a,name={'water','deepwater','water-green','deepwater-green','water-shallow','water-mud'}}\nend\nlocal function free(ox,oy)\n  local a={{ox-5,oy-3},{ox+6,oy+15}}  -- layout plus a margin for walking and poles\n  for _,c in pairs{{ox-5,oy-3},{ox+6,oy-3},{ox-5,oy+15},{ox+6,oy+15}} do\n    local ch={x=math.floor(c[1]/32),y=math.floor(c[2]/32)}\n    if not s.is_chunk_generated(ch) or not f.is_chunk_charted(s,ch) then return false end\n  end\n  if s.count_entities_filtered{area=a,type={'character','corpse'},invert=true}>0 then return false end  -- no trees, rocks, ore, buildings\n  if water(a)>0 then return false end\n  for _,g in pairs(layout(ox,oy)) do\n    if not s.can_place_entity{name=g.name,position={g.x,g.y},direction=g.dir,force=f} then return false end\n  end\n  return true\nend\n-- centre of the base: mean position of labs/assemblers/furnaces, else spawn\nlocal cx,cy,n=0,0,0\nfor _,e in pairs(s.find_entities_filtered{force='player',type={'lab','assembling-machine','furnace'}}) do cx=cx+e.position.x cy=cy+e.position.y n=n+1 end\nif n>0 then cx,cy=math.floor(cx/n),math.floor(cy/n) else local sp=f.get_spawn_position(s) cx,cy=math.floor(sp.x),math.floor(sp.y) end\nlocal ox,oy\nfor r=10,240,4 do\n  for d=-r,r,4 do\n    for _,c in pairs{{cx+d,cy-r},{cx+d,cy+r},{cx-r,cy+d},{cx+r,cy+d}} do\n      if free(c[1],c[2]) then ox,oy=c[1],c[2] break end\n    end\n    if ox then break end\n  end\n  if ox then break end\nend\nif not ox then error('no free spot for the ghost layout within 240 tiles of the base') end\nlocal L=layout(ox,oy)\nlocal placed=0\nfor _,g in pairs(L) do\n  local e=s.create_entity{name='entity-ghost',inner_name=g.name,position={g.x,g.y},direction=g.dir,force=f,expires=false}\n  if e then placed=placed+1 end\nend\nstorage.bench=storage.bench or {}\nstorage.bench.ghosts=L\nstorage.bench.area={{ox-3,oy},{ox+4,oy+12}}\nreturn {x=ox,y=oy+6,n=#L,placed=placed,base_center={cx,cy},dist=math.floor(math.sqrt((ox-cx)^2+(oy+6-cy)^2))}",
-  "selftest_lua": "local B=storage.bench local k=0 for _,gh in pairs(s.find_entities_filtered{area=B.area,name='entity-ghost'}) do if gh.revive() then k=k+1 end end return {revived=k}",
-  "goal": "@all build the ghosts I placed near [gps={x},{y}]: a 2-wide stone furnace column ({n} ghosts: 12 stone furnaces, 12 inserters, 12 belts). Place each building exactly on its ghost, same direction. Report in chat when done.",
-  "score": [
-    {
-      "name": "ghosts_built_frac",
-      "lua": "local B=storage.bench if not B or not B.ghosts then return 0 end\nlocal k=0\nfor _,g in pairs(B.ghosts) do\n  for _,e in pairs(s.find_entities_filtered{name=g.name,force='player',area={{g.x-0.3,g.y-0.3},{g.x+0.3,g.y+0.3}}}) do\n    if math.abs(e.position.x-g.x)<0.1 and math.abs(e.position.y-g.y)<0.1  then k=k+1 break end\n  end\nend\nreturn k/#B.ghosts",
-      "target": 1.0,
-      "note": "fraction of the layout with a real entity of the right name at the exact position"
-    },
-    {
-      "name": "ghosts_built_dir_frac",
-      "lua": "local B=storage.bench if not B or not B.ghosts then return 0 end\nlocal k=0\nfor _,g in pairs(B.ghosts) do\n  for _,e in pairs(s.find_entities_filtered{name=g.name,force='player',area={{g.x-0.3,g.y-0.3},{g.x+0.3,g.y+0.3}}}) do\n    if math.abs(e.position.x-g.x)<0.1 and math.abs(e.position.y-g.y)<0.1 and (g.name=='stone-furnace' or e.direction==g.dir) then k=k+1 break end\n  end\nend\nreturn k/#B.ghosts",
-      "note": "same, also requiring the right direction for inserters and belts"
-    },
-    {
-      "name": "ghosts_remaining",
-      "lua": "local B=storage.bench if not B or not B.area then return 0 end return s.count_entities_filtered{area=B.area,name='entity-ghost'}"
-    }
-  ]
+ "name": "s4-ghost-build",
+ "stage": "stage-s3-steel-oil-ready",
+ "minutes": 15,
+ "agents": 2,
+ "setup_lua": "local D=defines.direction\nlocal function layout(ox,oy)\n  local t={}\n  for i=0,5 do\n    t[#t+1]={name='stone-furnace',x=ox-2,y=oy+2*i+1,dir=D.north}\n    t[#t+1]={name='stone-furnace',x=ox+3,y=oy+2*i+1,dir=D.north}\n    t[#t+1]={name='inserter',x=ox-0.5,y=oy+2*i+0.5,dir=D.east}   -- picks from the belt (east), drops into the west furnace\n    t[#t+1]={name='inserter',x=ox+1.5,y=oy+2*i+0.5,dir=D.west}\n  end\n  for j=0,11 do t[#t+1]={name='transport-belt',x=ox+0.5,y=oy+j+0.5,dir=D.south} end\n  return t\nend\nlocal function water(a)\n  local ok,n=pcall(function() return s.count_tiles_filtered{area=a,collision_mask='water_tile'} end)\n  if ok then return n end\n  return s.count_tiles_filtered{area=a,name={'water','deepwater','water-green','deepwater-green','water-shallow','water-mud'}}\nend\nlocal function free(ox,oy)\n  local a={{ox-5,oy-3},{ox+6,oy+15}}  -- layout plus a margin for walking and poles\n  for _,c in pairs{{ox-5,oy-3},{ox+6,oy-3},{ox-5,oy+15},{ox+6,oy+15}} do\n    local ch={x=math.floor(c[1]/32),y=math.floor(c[2]/32)}\n    if not s.is_chunk_generated(ch) or not f.is_chunk_charted(s,ch) then return false end\n  end\n  if s.count_entities_filtered{area=a,type={'character','corpse'},invert=true}>0 then return false end  -- no trees, rocks, ore, buildings\n  if water(a)>0 then return false end\n  for _,g in pairs(layout(ox,oy)) do\n    if not s.can_place_entity{name=g.name,position={g.x,g.y},direction=g.dir,force=f} then return false end\n  end\n  return true\nend\n-- centre of the base: mean position of labs/assemblers/furnaces, else spawn\nlocal cx,cy,n=0,0,0\nfor _,e in pairs(s.find_entities_filtered{force='player',type={'lab','assembling-machine','furnace'}}) do cx=cx+e.position.x cy=cy+e.position.y n=n+1 end\nif n>0 then cx,cy=math.floor(cx/n),math.floor(cy/n) else local sp=f.get_spawn_position(s) cx,cy=math.floor(sp.x),math.floor(sp.y) end\nlocal ox,oy\nfor r=10,240,4 do\n  for d=-r,r,4 do\n    for _,c in pairs{{cx+d,cy-r},{cx+d,cy+r},{cx-r,cy+d},{cx+r,cy+d}} do\n      if free(c[1],c[2]) then ox,oy=c[1],c[2] break end\n    end\n    if ox then break end\n  end\n  if ox then break end\nend\nif not ox then error('no free spot for the ghost layout within 240 tiles of the base') end\nlocal L=layout(ox,oy)\nlocal placed=0\nfor _,g in pairs(L) do\n  local e=s.create_entity{name='entity-ghost',inner_name=g.name,position={g.x,g.y},direction=g.dir,force=f,expires=false}\n  if e then placed=placed+1 end\nend\nstorage.bench=storage.bench or {}\nstorage.bench.ghosts=L\nstorage.bench.area={{ox-3,oy},{ox+4,oy+12}}\nreturn {x=ox,y=oy+6,n=#L,placed=placed,base_center={cx,cy},dist=math.floor(math.sqrt((ox-cx)^2+(oy+6-cy)^2))}",
+ "selftest_lua": "local B=storage.bench local k=0 for _,gh in pairs(s.find_entities_filtered{area=B.area,name='entity-ghost'}) do if gh.revive() then k=k+1 end end return {revived=k}",
+ "goal": "@all build the ghosts I placed near [gps={x},{y}]: a 2-wide stone furnace column ({n} ghosts: 12 stone furnaces, 12 inserters, 12 belts). Place each building exactly on its ghost, same direction. Report in chat when done.",
+ "score": [
+  {
+   "name": "ghosts_built_frac",
+   "lua": "local B=storage.bench if not B or not B.ghosts then return 0 end\nlocal k=0\nfor _,g in pairs(B.ghosts) do\n  for _,e in pairs(s.find_entities_filtered{name=g.name,force='player',area={{g.x-0.3,g.y-0.3},{g.x+0.3,g.y+0.3}}}) do\n    if math.abs(e.position.x-g.x)<0.1 and math.abs(e.position.y-g.y)<0.1  then k=k+1 break end\n  end\nend\nreturn k/#B.ghosts",
+   "target": 1.0,
+   "note": "fraction of the layout with a real entity of the right name at the exact position"
+  },
+  {
+   "name": "ghosts_built_dir_frac",
+   "lua": "local B=storage.bench if not B or not B.ghosts then return 0 end\nlocal k=0\nfor _,g in pairs(B.ghosts) do\n  for _,e in pairs(s.find_entities_filtered{name=g.name,force='player',area={{g.x-0.3,g.y-0.3},{g.x+0.3,g.y+0.3}}}) do\n    if math.abs(e.position.x-g.x)<0.1 and math.abs(e.position.y-g.y)<0.1 and (g.name=='stone-furnace' or e.direction==g.dir) then k=k+1 break end\n  end\nend\nreturn k/#B.ghosts",
+   "note": "same, also requiring the right direction for inserters and belts"
+  },
+  {
+   "name": "ghosts_remaining",
+   "lua": "local B=storage.bench if not B or not B.area then return 0 end return s.count_entities_filtered{area=B.area,name='entity-ghost'}"
+  }
+ ]
 }

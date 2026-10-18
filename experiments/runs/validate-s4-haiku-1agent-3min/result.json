@@ -1,0 +1,337 @@
+{
+ "run_id": "validate-s4-haiku-1agent-3min",
+ "scenario": "s4-ghost-build",
+ "variant": "haiku",
+ "instance": 5,
+ "stage": "stage-20261018-011343-live-final-3opus",
+ "dry": false,
+ "minutes_planned": 3.0,
+ "errors": [],
+ "start": "2026-10-18 01:24:06",
+ "t_start": 1792304646.9244153,
+ "git": {
+  "commit": "2e4a608",
+  "dirty_files": []
+ },
+ "mod_version": "0.1.0",
+ "setup": {
+  "x": 44,
+  "y": 37,
+  "n": 36,
+  "placed": 36,
+  "base_center": [
+   54,
+   41
+  ],
+  "dist": 10
+ },
+ "baseline": {
+  "tick": 384918,
+  "values": {
+   "ghosts_built_frac": 0.0,
+   "ghosts_built_dir_frac": 0.0,
+   "ghosts_remaining": 36.0
+  },
+  "errors": {}
+ },
+ "targets": {
+  "ghosts_built_frac": 1.0,
+  "ghosts_built_dir_frac": null,
+  "ghosts_remaining": null
+ },
+ "summary_start": {
+  "minutes": 106,
+  "entities": {
+   "burner-mining-drill": 30,
+   "electric-mining-drill": 18,
+   "stone-furnace": 37,
+   "assembling-machine-1": 8,
+   "lab": 2,
+   "steam-engine": 4,
+   "boiler": 2,
+   "offshore-pump": 2,
+   "transport-belt": 275,
+   "inserter": 43,
+   "small-electric-pole": 116,
+   "iron-chest": 25,
+   "wooden-chest": 1
+  },
+  "researched": [
+   "automation",
+   "automation-science-pack",
+   "electric-mining-drill",
+   "electronics",
+   "logistic-science-pack",
+   "logistics",
+   "steam-power",
+   "steel-processing"
+  ],
+  "research_count": 8,
+  "agents": [
+   "claude-1",
+   "claude-2",
+   "claude-3",
+   "claude-4",
+   "claude-5"
+  ],
+  "per_minute": {
+   "iron-plate": 208,
+   "coal": 135,
+   "iron-ore": 210
+  },
+  "researching": "gun-turret",
+  "peaceful": true
+ },
+ "goal": "@all build the ghosts I placed near [gps=44,37]: a 2-wide stone furnace column (36 ghosts: 12 stone furnaces, 12 inserters, 12 belts). Place each building exactly on its ghost, same direction. Report in chat when done.",
+ "config": {
+  "agents": [
+   {
+    "name": "claude-1",
+    "role": "foreman",
+    "model": "claude-haiku-5-5"
+   }
+  ],
+  "advisor": null,
+  "defaults": {
+   "backend": "claude-code",
+   "model": "claude-haiku-5-5",
+   "max_turns_per_hour": 120
+  }
+ },
+ "t_agents_start": 1792304649.4079432,
+ "elapsed_s": 181.8,
+ "final": {
+  "tick": 395895,
+  "values": {
+   "ghosts_built_frac": 0.0,
+   "ghosts_built_dir_frac": 0.0,
+   "ghosts_remaining": 36.0
+  },
+  "errors": {}
+ },
+ "checks": {
+  "ghosts_built_frac": {
+   "value": 0.0,
+   "baseline": 0.0,
+   "target": 1.0,
+   "frac": 0.0,
+   "time_to_target_s": null,
+   "error": null
+  },
+  "ghosts_built_dir_frac": {
+   "value": 0.0,
+   "baseline": 0.0,
+   "target": null,
+   "frac": null,
+   "time_to_target_s": null,
+   "error": null
+  },
+  "ghosts_remaining": {
+   "value": 36.0,
+   "baseline": 36.0,
+   "target": null,
+   "frac": null,
+   "time_to_target_s": null,
+   "error": null
+  }
+ },
+ "score": 0.0,
+ "success": false,
+ "summary_end": {
+  "minutes": 109,
+  "entities": {
+   "burner-mining-drill": 30,
+   "electric-mining-drill": 18,
+   "stone-furnace": 37,
+   "assembling-machine-1": 8,
+   "lab": 2,
+   "steam-engine": 4,
+   "boiler": 2,
+   "offshore-pump": 2,
+   "transport-belt": 275,
+   "inserter": 43,
+   "small-electric-pole": 116,
+   "iron-chest": 25,
+   "wooden-chest": 1
+  },
+  "researched": [
+   "automation",
+   "automation-science-pack",
+   "electric-mining-drill",
+   "electronics",
+   "logistic-science-pack",
+   "logistics",
+   "steam-power",
+   "steel-processing"
+  ],
+  "research_count": 8,
+  "agents": [
+   "claude-1",
+   "claude-2",
+   "claude-3",
+   "claude-4",
+   "claude-5"
+  ],
+  "per_minute": {
+   "coal": 135,
+   "iron-ore": 2
+  },
+  "researching": "gun-turret",
+  "peaceful": true
+ },
+ "agents_end": {
+  "claude-1": {
+   "name": "claude-1",
+   "alive": true,
+   "position": [
+    7.2,
+    63.8
+   ],
+   "job": {
+    "id": 1603,
+    "op": "mine",
+    "secs": 73,
+    "got": 36
+   },
+   "queued": 0,
+   "stats": {
+    "busy_ticks": 5634,
+    "idle_ticks": 5364,
+    "crafting_ticks": 371
+   }
+  },
+  "claude-2": {
+   "name": "claude-2",
+   "alive": true,
+   "position": [
+    -11.6,
+    -27.5
+   ],
+   "queued": 0,
+   "stats": {
+    "busy_ticks": 0,
+    "idle_ticks": 10998,
+    "crafting_ticks": 0
+   }
+  },
+  "claude-3": {
+   "name": "claude-3",
+   "alive": true,
+   "position": [
+    -24.8,
+    -31.4
+   ],
+   "queued": 0,
+   "stats": {
+    "busy_ticks": 0,
+    "idle_ticks": 10998,
+    "crafting_ticks": 0
+   }
+  },
+  "claude-4": {
+   "name": "claude-4",
+   "alive": true,
+   "position": [
+    22.6,
+    66.9
+   ],
+   "queued": 0,
+   "stats": {
+    "busy_ticks": 0,
+    "idle_ticks": 10998,
+    "crafting_ticks": 0
+   }
+  },
+  "claude-5": {
+   "name": "claude-5",
+   "alive": true,
+   "position": [
+    27.2,
+    102.2
+   ],
+   "queued": 0,
+   "stats": {
+    "busy_ticks": 0,
+    "idle_ticks": 10998,
+    "crafting_ticks": 0
+   }
+  }
+ },
+ "behavior": {
+  "agents": {
+   "claude-1": {
+    "turns": 0,
+    "tool_calls": 22,
+    "tools": {
+     "find": 5,
+     "wait": 3,
+     "look": 2,
+     "act": 2,
+     "work": 1,
+     "marks": 1,
+     "inspect": 1,
+     "map": 1,
+     "post_task": 1,
+     "say": 1,
+     "roadmap": 1,
+     "notes": 1,
+     "board": 1,
+     "status": 1
+    },
+    "act_ops": {
+     "move": 2,
+     "take": 2,
+     "craft": 1,
+     "mine": 1
+    },
+    "hand_logistics": 2,
+    "failures": 0,
+    "tool_secs": 142.5,
+    "turn_secs": 0.0,
+    "turns_ended_idle": 0,
+    "cost_usd": 0.0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "turn_errors": 0,
+    "thoughts": 0,
+    "run_secs": 187.2,
+    "tool_frac_of_run": 0.761,
+    "turn_frac_of_run": 0.0,
+    "model_secs": 0.0,
+    "mod_stats": {
+     "busy_ticks": 5634,
+     "idle_ticks": 5343,
+     "crafting_ticks": 371,
+     "idle_pct": 48.7,
+     "crafting_pct": 3.4
+    },
+    "sampled_busy_pct": 52.8,
+    "alive_at_end": true
+   }
+  },
+  "total": {
+   "turns": 0,
+   "tool_calls": 22,
+   "hand_logistics": 2,
+   "failures": 0,
+   "turns_ended_idle": 0,
+   "cost_usd": 0.0,
+   "tool_secs": 142.5,
+   "turn_secs": 0.0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "char_idle_pct_mean": 48.7,
+   "sampled_busy_pct_mean": 52.8,
+   "act_ops": {
+    "move": 2,
+    "take": 2,
+    "craft": 1,
+    "mine": 1
+   }
+  }
+ },
+ "cost_usd": 0.0,
+ "final_save": "/home/stephen/dev/factorio-slave/experiments/runs/validate-s4-haiku-1agent-3min/final.zip",
+ "end": "2026-10-18 01:27:18",
+ "t_end": 1792304838.6130385
+}

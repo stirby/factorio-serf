@@ -19,7 +19,8 @@ s (nauvis), f (player force), st (item production stats), pm(item[, 'input'|'out
 count(entity), making(recipe) (assemblers set to it), finished(recipe) (sum of products_finished on them).
 rate=true: the value is cumulative and is scored as its increase per game minute over the last sample interval.
 target_mult_baseline=X: target = X * the value measured just after setup.
-Variants come from experiments/variants.json (or a path); see that file.
+Variants come from experiments/variants.json (or a path); see that file. A variant's "experiment" dict becomes the
+crew.toml [experiment] table (crew flags such as idle_sweep, pipeline_prompt, work_tool; all default true).
 """
 from __future__ import annotations
 
@@ -48,7 +49,7 @@ EXP = ROOT / "experiments"
 RUNS = EXP / "runs"
 RESULTS = EXP / "results.jsonl"
 LOG = EXP / "log.jsonl"
-DEFAULT_MODEL = "claude-sonnet-5-5"
+DEFAULT_MODEL = "claude-opus-5-5"
 
 PRELUDE = """local s=game.surfaces.nauvis local f=game.forces.player
 local st=f.get_item_production_statistics(s)
@@ -168,6 +169,8 @@ def crew_toml(inst: Instance, state_dir: Path, agents: list[dict], var: dict, mo
     if adv:
         d["advisor"] = adv if isinstance(adv, dict) else {"name": "architect", "model": "claude-opus-5-5",
                                                           "effort": "high"}
+    if var.get("experiment"):  # crew flags: [experiment] idle_sweep / pipeline_prompt / work_tool ...
+        d["experiment"] = dict(var["experiment"])
     return deep_merge(d, var.get("toml") or {})
 
 
@@ -260,9 +263,10 @@ def _actions(args) -> list[dict]:
 def transcript_metrics(path: Path, t_start: float, t_end: float) -> dict:
     m = {"turns": 0, "tool_calls": 0, "tools": Counter(), "act_ops": Counter(), "hand_logistics": 0,
          "failures": 0, "tool_secs": 0.0, "turn_secs": 0.0, "turns_ended_idle": 0, "cost_usd": 0.0,
-         "input_tokens": 0, "output_tokens": 0, "turn_errors": 0, "thoughts": 0}
+         "input_tokens": 0, "output_tokens": 0, "turn_errors": 0, "thoughts": 0, "turns_incomplete": 0,
+         "incomplete_secs": 0.0}
     open_tools: dict[str, list[float]] = defaultdict(list)
-    turn_mode = None
+    turn_mode, open_prompt = None, None
     if not path.exists():
         return {**m, "missing": True}
     for line in path.read_text(errors="replace").splitlines():
@@ -274,7 +278,7 @@ def transcript_metrics(path: Path, t_start: float, t_end: float) -> dict:
             continue  # transcripts append; only count this run's window
         k = r.get("kind")
         if k == "prompt":
-            turn_mode = None
+            turn_mode, open_prompt = None, r["t"]
         elif k == "tool":
             m["tool_calls"] += 1
             m["tools"][r.get("name")] += 1
@@ -298,6 +302,7 @@ def transcript_metrics(path: Path, t_start: float, t_end: float) -> dict:
             m["thoughts"] += 1
         elif k == "turn":
             m["turns"] += 1
+            open_prompt = None
             m["turn_secs"] += float(r.get("secs") or 0)
             m["cost_usd"] += float(r.get("cost") or 0)
             m["input_tokens"] += int(r.get("input_tokens") or 0)
@@ -305,6 +310,8 @@ def transcript_metrics(path: Path, t_start: float, t_end: float) -> dict:
             m["turn_errors"] += 1 if r.get("error") else 0
             if (turn_mode or "idle") == "idle":
                 m["turns_ended_idle"] += 1
+    if open_prompt is not None:  # a turn cut off when the run stopped: its cost is unknown (not in cost_usd)
+        m["turns_incomplete"], m["incomplete_secs"] = 1, round(max(0.0, t_end - open_prompt), 1)
     run_secs = max(1.0, t_end - t_start)
     m["tools"], m["act_ops"] = dict(m["tools"].most_common()), dict(m["act_ops"].most_common())
     m.update(tool_secs=round(m["tool_secs"], 1), turn_secs=round(m["turn_secs"], 1),
@@ -334,7 +341,7 @@ def behavior(state_dir: Path, names: list[str], t_start: float, t_end: float,
         m["sampled_busy_pct"] = round(100 * b[0] / b[1], 1) if b[1] else None
         m["alive_at_end"] = (list_end.get(n) or {}).get("alive")
         per[n] = m
-    keys = ("turns", "tool_calls", "hand_logistics", "failures", "turns_ended_idle", "cost_usd", "tool_secs",
+    keys = ("turns", "turns_incomplete", "tool_calls", "hand_logistics", "failures", "turns_ended_idle", "cost_usd", "tool_secs",
             "turn_secs", "input_tokens", "output_tokens")
     total = {k: round(sum(p[k] for p in per.values()), 4) for k in keys}
     idle = [p["mod_stats"]["idle_pct"] for p in per.values() if p.get("mod_stats") and p["mod_stats"]["idle_pct"] is not None]
@@ -416,7 +423,7 @@ class Bench:
                 from crew.orchestrator import Orchestrator
                 cfg = config_mod.load(self.dir / "crew.toml")
                 self.result["config"] = {"agents": agents, "advisor": cfg_d.get("advisor"),
-                                         "defaults": cfg_d["defaults"]}
+                                         "defaults": cfg_d["defaults"], "experiment": cfg_d.get("experiment")}
                 orch = Orchestrator(cfg)
 
                 async def no_snapshot(label: str) -> None:  # don't write the shared manifest or saves dir
@@ -440,6 +447,7 @@ class Bench:
             list_end = {x["name"]: x for x in (await crew.call("list"))["agents"]}
             self.result["agents_end"] = list_end
             if orch:
+                self.result["drain_s"] = await self._drain(orch)
                 await self._stop_orch(orch)
                 orch = None
             self.result["behavior"] = behavior(self.state, names, t0, time.time(), list_start, list_end, busy)
@@ -510,6 +518,16 @@ class Bench:
         if self.stop_evt.is_set():
             self.result["interrupted"] = True
 
+    async def _drain(self, orch) -> float:
+        """After scoring, let in-flight turns finish (up to --drain seconds) so their cost gets recorded.
+        Stops at the first moment no agent is mid-turn. The score is already taken, so this doesn't change it."""
+        t0 = time.time()
+        while time.time() - t0 < self.args.drain and not self.stop_evt.is_set():
+            if not any(getattr(x, "in_turn", False) for x in orch.agents.values()):
+                break
+            await asyncio.sleep(1)
+        return round(time.time() - t0, 1)
+
     async def _stop_orch(self, orch) -> None:
         try:
             await asyncio.wait_for(orch.stop(), 60)
@@ -553,8 +571,10 @@ def record(result: dict, append: bool = True) -> dict:
                                        "elapsed_s", "score", "success", "stopped_early", "interrupted", "cost_usd")}
     line["scores"] = {n: {k: c.get(k) for k in ("value", "target", "frac", "time_to_target_s")}
                       for n, c in ((result.get("checks") or {}).items())}
-    line["behavior"] = {k: beh.get(k) for k in ("turns", "tool_calls", "hand_logistics", "failures", "turns_ended_idle",
+    line["behavior"] = {k: beh.get(k) for k in ("turns", "turns_incomplete", "tool_calls", "hand_logistics", "failures", "turns_ended_idle",
                                                 "char_idle_pct_mean", "sampled_busy_pct_mean", "tool_secs", "turn_secs")}
+    line["advisor"] = bool((result.get("config") or {}).get("advisor"))
+    line["experiment"] = (result.get("config") or {}).get("experiment")
     line["models"] = sorted({a.get("model") for a in ((result.get("config") or {}).get("agents") or []) if a.get("model")})
     line["errors"] = result.get("errors")
     if append:
@@ -576,6 +596,8 @@ def main() -> None:
     p.add_argument("--selftest", action="store_true", help="with --dry: run the scenario's selftest_lua first")
     p.add_argument("--no-early-stop", action="store_true", help="keep going after all targets are met")
     p.add_argument("--no-final-save", action="store_true")
+    p.add_argument("--drain", type=float, default=90,
+                   help="after scoring, wait up to this many seconds for in-flight turns to finish (cost accounting)")
     p.add_argument("--no-record", action="store_true", help="don't append to experiments/results.jsonl / log.jsonl")
     p.add_argument("-v", "--verbose", action="store_true")
     a = p.parse_args()

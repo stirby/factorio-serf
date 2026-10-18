@@ -1,0 +1,42 @@
+{
+ "name": "s3-mall",
+ "stage": "stage-s3-steel-oil-ready",
+ "minutes": 30,
+ "agents": [
+  {
+   "name": "claude-1",
+   "role": "foreman",
+   "focus": "production"
+  },
+  {
+   "name": "claude-2",
+   "role": "worker",
+   "focus": "resources"
+  },
+  {
+   "name": "claude-3",
+   "role": "worker",
+   "focus": "infrastructure"
+  }
+ ],
+ "goal": "@all Build a mall: assemblers that automatically make transport belts, inserters, iron gears, small electric poles and assembling machines, outputting into provider-marked chests so nobody has to hand-craft them. Feed it from the depot or plate belts.",
+ "score": [
+  {
+   "name": "mall_assemblers",
+   "lua": "making('transport-belt') + making('inserter') + making('iron-gear-wheel') + making('small-electric-pole') + making('assembling-machine-1')",
+   "target": 5
+  },
+  {
+   "name": "belts_per_min",
+   "lua": "pm('transport-belt')"
+  },
+  {
+   "name": "inserters_per_min",
+   "lua": "pm('inserter')"
+  },
+  {
+   "name": "asm_made_per_min",
+   "lua": "pm('assembling-machine-1')"
+  }
+ ]
+}

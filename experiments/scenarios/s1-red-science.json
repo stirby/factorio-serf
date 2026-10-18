@@ -1,18 +1,41 @@
 {
-  "name": "s1-red-science",
-  "stage": "crew-e2e4",
-  "minutes": 30,
-  "agents": [
-    {"name": "claude-1", "role": "foreman", "focus": "production"},
-    {"name": "claude-2", "role": "worker", "focus": "resources"}
-  ],
-  "goal": "@all Automate red science (automation-science-pack) to 0.5/s (30 per minute) with assembling machines. Plates and gears must reach the science assemblers by belts and inserters: no hand-feeding of the science line. Report in chat when it runs on its own.",
-  "score": [
-    {"name": "red_per_min_assemblers", "lua": "finished('automation-science-pack')", "rate": true, "target": 30,
-     "note": "packs finished by assemblers per game minute (hand-crafted packs excluded)"},
-    {"name": "red_asm", "lua": "making('automation-science-pack')", "target": 5},
-    {"name": "red_per_min", "lua": "st.get_flow_count{name='automation-science-pack', category='input', precision_index=defines.flow_precision_index.one_minute, count=true}",
-     "note": "production stats; includes agent hand-crafting"},
-    {"name": "red_asm_working", "lua": "local k=0 for _,e in pairs(machines('automation-science-pack')) do if e.status==defines.entity_status.working then k=k+1 end end return k"}
-  ]
+ "name": "s1-red-science",
+ "stage": "stage-20261018-0044-automation-5agents",
+ "minutes": 30,
+ "agents": [
+  {
+   "name": "claude-1",
+   "role": "foreman",
+   "focus": "production"
+  },
+  {
+   "name": "claude-2",
+   "role": "worker",
+   "focus": "resources"
+  }
+ ],
+ "goal": "@all Automate red science (automation-science-pack) to 0.5/s (30 per minute) with assembling machines. Plates and gears must reach the science assemblers by belts and inserters: no hand-feeding of the science line. Report in chat when it runs on its own.",
+ "score": [
+  {
+   "name": "red_per_min_assemblers",
+   "lua": "finished('automation-science-pack')",
+   "rate": true,
+   "target": 30,
+   "note": "packs finished by assemblers per game minute (hand-crafted packs excluded)"
+  },
+  {
+   "name": "red_asm",
+   "lua": "making('automation-science-pack')",
+   "target": 5
+  },
+  {
+   "name": "red_per_min",
+   "lua": "st.get_flow_count{name='automation-science-pack', category='input', precision_index=defines.flow_precision_index.one_minute, count=true}",
+   "note": "production stats; includes agent hand-crafting"
+  },
+  {
+   "name": "red_asm_working",
+   "lua": "local k=0 for _,e in pairs(machines('automation-science-pack')) do if e.status==defines.entity_status.working then k=k+1 end end return k"
+  }
+ ]
 }
