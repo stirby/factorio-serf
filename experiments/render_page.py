@@ -118,6 +118,70 @@ def fmt_behavior(r: dict) -> str:
     return ", ".join(out)
 
 
+def sparkline(tl: list[dict], minutes: float, key: str, ymax: float) -> str:
+    """Science/min over the run as a line, with a tick each time a tech finishes."""
+    W, H = 300, 56
+    pts, ticks, last_techs = [], [], None
+    for s in tl:
+        v, e = s.get("values") or {}, s.get("elapsed")
+        if e is None:
+            continue
+        x = min(e / 60 / minutes, 1) * W
+        if isinstance(v.get(key), (int, float)):
+            pts.append(f"{x:.1f},{H - 4 - min(v[key] / ymax, 1) * (H - 8):.1f}")
+        t = v.get("techs_researched")
+        if isinstance(t, (int, float)):
+            if last_techs is not None and t > last_techs:
+                ticks.append(x)
+            last_techs = t
+    tick_svg = "".join(f"<line x1='{x:.1f}' y1='0' x2='{x:.1f}' y2='7' class='tk'/>" for x in ticks)
+    return (f"<svg viewBox='0 0 {W} {H}' class='spark' role='img' aria-label='{key} over the run'>"
+            f"<line x1='0' y1='{H - 4}' x2='{W}' y2='{H - 4}' class='ax'/>{tick_svg}"
+            f"<polyline points='{' '.join(pts)}' class='ln'/></svg>")
+
+
+def progress_panel(since: float) -> str:
+    """One row per research run since `since`: score, cost, and science/min over time."""
+    rows = []
+    for d in sorted((EXP / "runs").glob("*")):
+        tlp, rp = d / "timeline.jsonl", d / "result.json"
+        if not tlp.exists() or d.name.endswith("-dry"):
+            continue
+        tl = jl(tlp)
+        t0 = tl[0].get("t", 0) if tl else 0
+        if t0 < since:
+            continue
+        res = json.loads(rp.read_text()) if rp.exists() else {}
+        vals = [s.get("values") or {} for s in tl]
+        key = next((k for k in ("science_consumed_per_min", "blue_per_min_assemblers") if any(k in v for v in vals)), None)
+        if not key:
+            continue
+        scn = json.loads((d / "scenario.json").read_text()) if (d / "scenario.json").exists() else {}
+        minutes = float(res.get("minutes_planned") or scn.get("minutes") or 60)
+        techs = [v["techs_researched"] for v in vals if isinstance(v.get("techs_researched"), (int, float))]
+        used = [v["science_packs_used"] for v in vals if isinstance(v.get("science_packs_used"), (int, float))]
+        peak = max((v.get(key) or 0 for v in vals), default=0)
+        arch = d / "state" / "agents" / "architect" / "transcript.jsonl"
+        arch_cost = sum(r.get("cost") or 0 for r in jl(arch) if r.get("kind") == "turn") if arch.exists() else 0
+        cost = (res.get("cost_usd") or 0) + arch_cost
+        status = (f"score {res.get('score')} · ${cost:.0f}" + (f" (architect ${arch_cost:.0f})" if arch_cost else "")
+                  if res else f"running · {tl[-1].get('elapsed', 0) / 60:.0f} min in")
+        hit6 = next((s.get("elapsed") for s, v in zip(tl, vals) if techs and isinstance(v.get("techs_researched"), (int, float))
+                     and v["techs_researched"] - techs[0] >= 6), None)
+        facts = [(f"+{techs[-1] - techs[0]:.0f} techs" + (f" (6th at {hit6 / 60:.0f} min)" if hit6 else "")) if len(techs) > 1 else "",
+                 f"{used[-1] - used[0]:.0f} packs used" if len(used) > 1 else "",
+                 f"peak {peak:.0f}/min"]
+        name = d.name[16:]  # drop the timestamp
+        rows.append(f"<div class='prow'><div><div><b>{html.escape(name)}</b></div><div class='n'>"
+                    f"{html.escape(d.name[9:11] + ':' + d.name[11:13])} · {html.escape(status)} · "
+                    f"{html.escape(' · '.join(f for f in facts if f))}</div></div>"
+                    f"{sparkline(tl, minutes, key, 70)}</div>")
+    if not rows:
+        return ""
+    return ("<section class='panel'><h3>Progress over time</h3><p class='sub'>Science consumed per minute across "
+            "each run (scale 0-70/min); orange ticks mark finished techs.</p>" + "".join(reversed(rows)) + "</section>")
+
+
 def render(out: Path, since: float) -> None:
     hours = collect(since)
     findings = (EXP / "findings.md").read_text() if (EXP / "findings.md").exists() else ""
@@ -152,6 +216,7 @@ def render(out: Path, since: float) -> None:
 
     page = TEMPLATE.replace("{{UPDATED}}", time.strftime("%Y-%m-%d %H:%M")) \
         .replace("{{FINDINGS}}", md_to_html(findings) if findings else "<p class='sub'>First results land after the first benchmark runs.</p>") \
+        .replace("{{PROGRESS}}", progress_panel(since)) \
         .replace("{{HOURS}}", "\n".join(reversed(sections)) or "<p class='sub'>Nothing logged yet.</p>")
     out.write_text(page)
 
@@ -221,6 +286,14 @@ table { border-collapse: collapse; width: 100%; font-size: 0.9rem; min-width: 60
 th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
 th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
 .lead { border-color: var(--accent); }
+.prow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(140px, 300px); gap: 12px; align-items: center;
+  padding: 6px 0; border-bottom: 1px solid var(--line); }
+.prow:last-child { border-bottom: 0; }
+.spark { width: 100%; height: 56px; display: block; }
+.spark .ln { fill: none; stroke: var(--fg); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.spark .ax { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.spark .tk { stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; }
+@media (max-width: 520px) { .prow { grid-template-columns: 1fr; } }
 </style>
 <div class="wrap">
   <header style="display:flex;flex-direction:column;gap:6px">
@@ -228,6 +301,7 @@ th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; colo
     <p class="sub">Overnight tuning: making three Opus players progress like real players, faster, with less idle time. Newest hour first. Updated {{UPDATED}}.</p>
   </header>
   <section class="panel lead"><h3>Headline findings</h3>{{FINDINGS}}</section>
+  {{PROGRESS}}
   {{HOURS}}
   <footer class="sub" style="font-size:0.85rem">Private page. Built from the decision log, commits, benchmark results and snapshots.</footer>
 </div>
