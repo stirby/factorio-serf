@@ -1,26 +1,27 @@
-# Status (2026-10-17)
+# Status (2026-10-18)
 
-## Done
-- Headless server 2.0.77 (Space Age) in `server/` (gitignored). `scripts/server.sh start|stop|log|password`.
-  Save: `server/factorio/saves/crew-test.zip`, bound to 127.0.0.1, RCON 27015, password in `server/rcon-password`.
-  auto_pause is off, so agents act with nobody connected. Admin: otterplex.
-- Mod `mod/claude-crew` (symlinked into the server's mods dir):
-  agents as script-driven characters (name tag, color, speech bubble, death and respawn),
-  a per-agent job queue (move with pathfinding, mine, craft, place, insert, take, set_recipe, rotate, research, wait, say),
-  observe/self/nearby/map (ASCII)/find/world/recipes/techs/production/inspect, and poll (chat, job results, events).
-  RCON API: `/crew {"op":...}` returns JSON. Cheat-mode runtime setting.
-- `crew/rcon.py`: async RCON client and `Crew.call(op, **kw)`. `scripts/rc.py <op> '<json>'` is the dev CLI.
-- **Verified live:** spawn; walk 37 tiles by pathfinder; hand-mine 15 iron at legit speed; place furnace;
-  fuel and load it; hand-craft gears; place a burner drill and fuel it; take smelted plates.
+## Working
+- **Mod** `mod/claude-crew`: agent characters (name tag, color, speech bubble, death/respawn, freeplay starter kit),
+  job queue (move/mine/craft/place/insert/take/set_recipe/rotate/research/wait), observations
+  (look/map/find/inspect/techs/recipes/production), "built by" tracking (agents won't pick up human builds),
+  trigger-tech accounting (playerless characters' crafts/builds/mines don't count natively; the mod records them),
+  research-finished events, an in-game Crew panel (`/crew-panel` toggles it), and RCON JSON API `/crew {...}`.
+- **Orchestrator** `crew/` (`.venv/bin/crew up`): one Claude per agent, on the `claude-code` backend
+  (Agent SDK, your subscription) or `api` (ANTHROPIC_API_KEY). Chat router (@name, @all, bare names, "stop"),
+  shared task board, per-agent notes, working/idle autonomy with budgets, human messages interrupt long waits.
+  Config: `crew.toml` (see `crew.example.toml`); `--model claude-opus-5-5` for the demo.
+- **Tests:** `tests/smoke.py` (36 checks, no LLM; run on the crew-test save because it resets research).
+- **LLM e2e (Sonnet 5.5, subscription):** one agent built iron smelting from a single chat request in 80s.
+  Two agents split "iron + copper + electronics" via the board: 4 iron pairs and 3 copper pairs, unprompted
+  coordination, about $0.15 per agent-turn notional.
+
+## Fixed after e2e (not yet re-run with LLMs)
+- False "no ore under drill" warning (it made the agent move a drill that was fine).
+- Crew chatter no longer cuts waits short; only humans do.
+- Drill placement guidance (avoid patch edges); clearer placement errors.
+- Agents now learn when research finishes (they didn't know electronics had unlocked).
 
 ## Next
-1. Restart the server so it loads the `approach()` fix (stale `walking_to` in job status), then retest.
-   Untested: set_recipe, rotate, research, trees/rocks mining, place sidestep, death/respawn, cheat mode.
-2. Orchestrator `crew/`: per-agent Claude loop with tools mapped to the API, chat routing (`@claude-1`, `@all`),
-   job-result wakeups, shared task board, `crew.toml` (backend `claude-code` via Agent SDK on the subscription,
-   or `api`; model per agent, Opus 5.5 for the demo), CLI `crew up`.
-3. Scripted no-LLM tests via RCON, then an LLM end-to-end test ("make 20 iron plates").
-4. Install for the user's client: symlink the mod into `~/.factorio/mods` (it must match the server), then join 127.0.0.1.
-5. README and packaging.
-
-Old browser-made advisor: `legacy/`.
+1. Re-run the 2-agent e2e on a fresh map; push toward red science and automation research.
+2. Join test with the real client: put the mod in `~/.factorio/mods` (ask the user first), connect to 127.0.0.1.
+3. Demo polish: "@claude come here" (follow player), Q&A from data, README and install script.

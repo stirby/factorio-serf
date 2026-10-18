@@ -16,6 +16,7 @@ from crew.rcon import Crew, GameError, Rcon  # noqa: E402
 
 A = "smoke-bot"
 passed, failed = [], []
+events = []  # every poll drains events; keep them for checks
 
 
 def check(name, cond, info=""):
@@ -30,6 +31,7 @@ async def run(crew, actions, timeout=90):
     while len(got) < len(ids) and time.time() - t0 < timeout:
         await asyncio.sleep(0.5)
         poll = await crew.call("poll")
+        events.extend(poll.get("events") or [])
         for r in (poll.get("results") or {}).get(A, []):
             got[r["id"]] = r
     return [got.get(i, {"ok": False, "msg": "timeout"}) for i in ids]
@@ -119,8 +121,8 @@ async def main():
     res = await run(crew, [{"op": "craft", "recipe": "lab", "count": 1}], timeout=60)
     w = await crew.call("eval", code="return game.forces.player.technologies['automation-science-pack'].researched")
     check("agent craft fires trigger tech", res[0]["ok"] and w["result"] is True, (res[0], w))
-    poll = await crew.call("poll")
-    check("research_finished event", any(e["type"] == "research_finished" for e in poll.get("events", [])))
+    events.extend((await crew.call("poll")).get("events") or [])
+    check("research_finished event", any(e["type"] == "research_finished" for e in events), events)
 
     # research
     res = await run(crew, [{"op": "research", "tech": "automation"}])
