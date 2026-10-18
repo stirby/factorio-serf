@@ -32,6 +32,11 @@ end)
 
 script.on_event(defines.events.on_script_path_request_finished, movement.on_path)
 
+-- Entities built by construction robots (any force), so tests can tell whether the crew uses its bots.
+script.on_event(defines.events.on_robot_built_entity, function()
+  storage.robot_built = (storage.robot_built or 0) + 1
+end)
+
 script.on_event(defines.events.on_research_finished, function(e)
   local t = e.research
   local unlocks = {}
