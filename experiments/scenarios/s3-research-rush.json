@@ -49,6 +49,11 @@
    "name": "researching",
    "lua": "local c=f.current_research return c and 1 or 0",
    "note": "1 if a tech is in progress"
+  },
+  {
+   "name": "science_packs_used",
+   "lua": "st.get_output_count('automation-science-pack')+st.get_output_count('logistic-science-pack')+st.get_output_count('chemical-science-pack')",
+   "note": "lifetime packs consumed by labs; progress = value - baseline (robust to which techs were picked)"
   }
  ]
 }
