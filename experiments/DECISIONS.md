@@ -28,3 +28,6 @@ calls myself, log them here, and keep the review page updated hour by hour.
 | 01:48 | Stopped round 1's s2-green-science run early | 2 of 3 agents sat frozen ~10 min inside synchronous consults queued on the single-session architect (41 tool calls). The lesson is clear, and continuing wastes usage |
 | 01:48 | Architect capped at 14 tool calls per consult, with 'be fast' guidance | Round 1 consults ran 9+ minutes and 40+ tool calls |
 | 01:48 | Round 2b: s2-green-science:go-now with the new architect (per-asker sessions, async consults, 14-call cap) | Compare against round 1's green run, where 2/3 agents froze |
+| 01:55 | Fixed the scorer: idle furnaces report their recipe via previous_recipe; steel is scored from production stats | Round 1 steel hit 33/min but scored 0.5 because idle steel furnaces were invisible |
+| 01:55 | New long-horizon scenario s3-research-rush (60 min, scored on techs completed and science consumed) | The truest measure of 'how fast they advance' is research progress over time |
+| 01:55 | Round 3: s3-research-rush:go-now (60 min), next to round 2b | Long-horizon progress measurement with all fixes in |

@@ -244,7 +244,11 @@ class Scorer:
             v, t = final["values"].get(n), self.targets.get(n)
             frac = None
             if t is not None and isinstance(v, float):
-                frac = 1.0 if t <= 0 else round(min(v / t, 1.0), 4)
+                if c.get("target_delta"):  # progress from the starting value, not from zero
+                    b = self.baseline.get(n) or 0.0
+                    frac = round(max(0.0, min((v - b) / c["target_delta"], 1.0)), 4)
+                else:
+                    frac = 1.0 if t <= 0 else round(min(v / t, 1.0), 4)
             scores[n] = {"value": v, "baseline": self.baseline.get(n), "target": t, "frac": frac,
                          "time_to_target_s": self.reached.get(n), "error": final["errors"].get(n)}
             if t is not None:

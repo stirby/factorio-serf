@@ -157,3 +157,4 @@ bench: 5.0 min: {'green_per_min_assemblers': 0.0, 'green_per_min': 0.0, 'red_per
 01:54:53  claude-1 🔎 wait {"seconds":60}
 01:54:59  claude-2 🔎 update_task {"id":1,"status":"claimed","note":"backlog draining; building coal drill at [51…
 01:54:59  claude-2 🔎 map {"x":64,"y":75,"radius":24}
+bench: 6.0 min: {'green_per_min_assemblers': 0.0, 'green_per_min': 0.0, 'red_per_min': 0.0, 'green_consumed_per_min': 0.0, 'green_asm': 2.0, 'labs': 2.0}
