@@ -1958,3 +1958,5 @@ bench: all targets met; stopping early
 03:30:05  claude-1    ↳ #4451 craft: OK queued 6x inserter
 03:30:06  claude-1 🔎 wait {"seconds":75}
 03:30:07 architect 🔎 map {"x":48,"y":-18,"radius":9}
+03:30:09  claude-2 🔎 wait {"seconds":60}
+03:30:12 architect 🔎 map {"x":32,"y":11,"radius":20}

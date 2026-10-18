@@ -22,21 +22,34 @@
  "goal": "@all Build a mall: assemblers that automatically make transport belts, inserters, iron gears, small electric poles and assembling machines, outputting into provider-marked chests so nobody has to hand-craft them. Feed it from the depot or plate belts.",
  "score": [
   {
-   "name": "mall_assemblers",
-   "lua": "making('transport-belt') + making('inserter') + making('iron-gear-wheel') + making('small-electric-pole') + making('assembling-machine-1')",
+   "name": "belts_made_per_min",
+   "lua": "finished('transport-belt')",
+   "rate": true,
+   "target": 30,
+   "note": "made by assemblers (hand-crafting excluded)"
+  },
+  {
+   "name": "inserters_made_per_min",
+   "lua": "finished('inserter')",
+   "rate": true,
+   "target": 10
+  },
+  {
+   "name": "gears_made_per_min",
+   "lua": "finished('iron-gear-wheel')",
+   "rate": true,
+   "target": 30
+  },
+  {
+   "name": "poles_made_per_min",
+   "lua": "finished('small-electric-pole')",
+   "rate": true,
    "target": 5
   },
   {
-   "name": "belts_per_min",
-   "lua": "pm('transport-belt')"
-  },
-  {
-   "name": "inserters_per_min",
-   "lua": "pm('inserter')"
-  },
-  {
-   "name": "asm_made_per_min",
-   "lua": "pm('assembling-machine-1')"
+   "name": "mall_assemblers",
+   "lua": "making('transport-belt') + making('inserter') + making('iron-gear-wheel') + making('small-electric-pole') + making('assembling-machine-1')",
+   "note": "info only"
   }
  ]
 }
