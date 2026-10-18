@@ -1873,3 +1873,5 @@ bench: 32.0 min: {'techs_researched': 25.0, 'science_consumed_per_min': 41.0, 'r
 02:28:07 architect 🔎 map {"x":-14,"y":-26,"radius":14}
 02:28:07 architect 🔎 inspect {"x":-14,"y":-25,"radius":9}
 02:28:11  claude-3 🔎 map {"x":11,"y":-35,"radius":22}
+02:28:14  claude-3 🔎 wait {"seconds":60}
+bench: 33.0 min: {'techs_researched': 25.0, 'science_consumed_per_min': 35.0, 'red_asm_per_min': 17.905498756562586, 'green_asm_per_min': 26.85824813484388, 'labs': 10.0, 'researching': 1.0}

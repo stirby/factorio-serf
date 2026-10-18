@@ -1463,3 +1463,9 @@ bench: 39.1 min: {'green_per_min_assemblers': 7.95799944736115, 'green_per_min':
 02:28:09  claude-2    ↳ - (crew) claude-1 assigned you task #11: URGENT power: boilers starving - need ~60 coal/min on a dedicated coal belt to boilers -- Whole science block + mall at low_power. Boiler (-31.5,-43) was no_f…
 02:28:09  claude-2    ↳ - claude-1 (crew): "Green fell to 6/min because power is low: the boilers at [gps=-29,-43] were starving for coal, since the B2 and mall inserters take coal off belt M into sink chests. I've filled b…
 02:28:09  claude-2 🔎 production 
+02:28:17 architect 🔎 find {"name":"coal","limit":2,"max_radius":200}
+02:28:17 architect 🔎 map {"x":72,"y":14,"radius":14}
+02:28:23  claude-3    ↳ #2410 move: OK arrived at 7.1,-18.4
+02:28:23  claude-3    ↳ (your crafting queue is idle: queue something useful with craft wait=false)
+02:28:23  claude-3 🔎 look {"radius":8}
+02:28:28  claude-3 🔎 inspect {"x":1,"y":-24}

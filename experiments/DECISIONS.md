@@ -33,3 +33,5 @@ calls myself, log them here, and keep the review page updated hour by hour.
 | 01:55 | Round 3: s3-research-rush:go-now (60 min), next to round 2b | Long-horizon progress measurement with all fixes in |
 | 01:56 | Delegated a validated blueprint library (smelting column, red/green science, lab row, steam power) to a background agent; each design is validated in a cheat-mode test world | Players stamp proven designs instead of hand-placing; per-entity coordinate reasoning is slow and error-prone |
 | 02:25 | Blueprint library wired in: designs and stamp tools (clear-area check that counts existing ghosts), and the architect prefers proven designs | 48/48 design x rotation validations passed; stamping replaces per-entity coordinate reasoning |
+| 02:28 | place supports underground-belt type=input/output and reports pairing | In round 2b claude-1 couldn't pair undergrounds and re-placed them in both orders |
+| 02:28 | New rule: measure with production before reporting a rate or marking a milestone done | claude-1 reported '15/min green' while the scorer measured 5/min from starved assemblers |

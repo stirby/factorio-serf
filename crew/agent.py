@@ -253,6 +253,10 @@ class Agent:
                 await asyncio.sleep(5)
             finally:
                 self.in_turn = False
+            if stats and stats.error == "error_max_turns":
+                # A long, productive turn hit the step cap: not a failure. Keep going right away.
+                stats.error = None
+                self.inbox.put_nowait("(continue) you hit the step limit for one turn; carry on where you left off.")
             if stats and stats.error:
                 # Usage limits, API trouble, etc.: back off instead of hammering.
                 self.error_streak += 1
