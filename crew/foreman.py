@@ -65,7 +65,7 @@ FOREMAN_TOOLS = ["map", "find", "inspect", "recipes", "techs", "production", "bo
                  "roadmap", "marks", "mark", "designs", "work", "notes", "reply", "research",
                  "diagnose", "copy", "paste", "order", "network"]
 BATCH_WAIT = 12  # seconds to collect more worker questions before a turn (humans don't wait)
-REVIEW_EVERY = 600  # seconds without any turn before the foreman reviews the base on its own
+REVIEW_EVERY = 300  # seconds without any turn before the foreman reviews the base and its workers
 MAX_STEPS = 18
 
 
