@@ -204,10 +204,18 @@ class Scorer:
                 out["errors"][c["name"]] = str(e)[:300]
                 v = None
             if c.get("rate") and isinstance(v, float):
+                # Rate over a rolling window of at least one game minute, so a sample taken seconds after the
+                # previous one (e.g. the final one) doesn't read 0.
                 raw = v
-                p = self.prev.get(c["name"])
-                v = None if not p or tick <= p[1] else max(0.0, raw - p[0]) / ((tick - p[1]) / 3600)
-                self.prev[c["name"]] = (raw, tick)
+                hist = self.prev.setdefault(c["name"], [])
+                hist.append((raw, tick))
+                base = None
+                for r0, t0 in reversed(hist[:-1]):
+                    base = (r0, t0)
+                    if tick - t0 >= 3600:
+                        break
+                del hist[:-12]
+                v = None if not base or tick <= base[1] else max(0.0, raw - base[0]) / ((tick - base[1]) / 3600)
                 out.setdefault("raw", {})[c["name"]] = raw
             out["values"][c["name"]] = v
         return out
