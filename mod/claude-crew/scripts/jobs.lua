@@ -883,6 +883,32 @@ H.blueprint = {
   end,
 }
 
+-- Remove planned buildings (ghosts) in an area, like a deconstruction planner on ghosts: instant, no walking.
+-- Human players' ghosts are their plans, so those stay unless asked (force=true).
+H.clear_ghosts = {
+  start = function(a, job)
+    local c, args = a.char, job.args
+    local center = util.pos(args.position or (args.x and { args.x, args.y }))
+    if not (center and center.x) then return fail("clear_ghosts needs x,y (and radius, default 8)") end
+    local list = c.surface.find_entities_filtered { type = "entity-ghost", force = c.force, position = center,
+      radius = math.min(args.radius or 8, 64) }
+    local removed, kept = 0, 0
+    for _, g in pairs(list) do
+      if g.valid and (not args.name or g.ghost_name == args.name) then
+        local human = g.last_user and g.last_user.valid  -- agents build by script, so any last_user is a person
+        if human and not args.force then
+          kept = kept + 1
+        else
+          g.destroy()
+          removed = removed + 1
+        end
+      end
+    end
+    return ok("removed " .. removed .. " ghosts" .. (kept > 0 and ("; kept " .. kept .. " placed by a human (force=true to remove)") or ""),
+      { removed = removed, kept = kept })
+  end,
+}
+
 -- Take everything back from the nearest character corpse (yours after dying).
 H.loot = {
   start = function(a, job)

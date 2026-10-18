@@ -58,6 +58,8 @@ Ops and their fields:
               reports what's missing. Ghosts placed by humans are their plans: build them first.
   blueprint   string=<blueprint string> x y [direction]  |  entities=[{name,x,y,direction,recipe}]
               lay ghosts (instant, like placing a blueprint); then build_ghosts. Good for big builds.
+  clear_ghosts x y [radius=8] [name]        remove planned ghosts in an area at once (an abandoned plan, a wrong
+              layout); don't mine ghosts one by one
   loot        [x y]                                         take everything back from the nearest corpse
   wait        seconds
 Coordinates: tile (x,y) spans x..x+1; 1x1 and 3x3 entities sit at .5 centers, 2x2 at integer corners (the game snaps).
@@ -466,7 +468,7 @@ TOOLS: list[Tool] = [
          "what you were doing first. If a human messages you, it returns early.",
          _obj({"actions": {"type": "array", "items": {"type": "object", "properties": {
              "op": {"type": "string", "enum": ["move", "mine", "craft", "place", "insert", "take", "set_recipe",
-                                               "rotate", "research", "connect", "follow", "build_ghosts", "blueprint", "loot", "wait"]}}, "required": ["op"],
+                                               "rotate", "research", "connect", "follow", "build_ghosts", "blueprint", "clear_ghosts", "loot", "wait"]}}, "required": ["op"],
              "additionalProperties": True}},
              "wait": {"description": "true | false | 'until_last'"}, "replace": {"type": "boolean"}}, ["actions"]),
          t_act),
