@@ -37,6 +37,7 @@ BIN = INSTALL / "bin/x64/factorio"
 INSTANCES = ROOT / "server/instances"
 MOD_SRC = ROOT / "mod/claude-crew"
 GAME_PORT_BASE, RCON_PORT_BASE = 34200, 27100
+BENCH_SETTINGS = ROOT / "server/bench-mod-settings.dat"
 REQUIRED_MODS = ["base", "space-age", "quality", "elevated-rails", "claude-crew"]
 INGAME = "changing state from(CreatingGame) to(InGame)"
 
@@ -139,18 +140,12 @@ class Instance:
         if link.is_symlink() or link.exists():
             link.unlink()
         link.symlink_to(MOD_SRC)
-        try:
-            ml = json.loads((INSTALL / "mods/mod-list.json").read_text())
-        except (OSError, json.JSONDecodeError):
-            ml = {"mods": []}
-        have = {m["name"] for m in ml["mods"]}
-        ml["mods"] += [{"name": n, "enabled": True} for n in REQUIRED_MODS if n not in have]
-        for m in ml["mods"]:
-            if m["name"] in REQUIRED_MODS:
-                m["enabled"] = True
+        # Benchmarks run vanilla Space Age + the crew mod, whatever the live server has installed, so results stay
+        # comparable when the live server picks up the user's mods.
+        ml = {"mods": [{"name": n, "enabled": True} for n in REQUIRED_MODS]}
         (mods / "mod-list.json").write_text(json.dumps(ml, indent=2))
-        if (INSTALL / "mods/mod-settings.dat").exists():
-            shutil.copy2(INSTALL / "mods/mod-settings.dat", mods / "mod-settings.dat")
+        if BENCH_SETTINGS.exists():
+            shutil.copy2(BENCH_SETTINGS, mods / "mod-settings.dat")
         saves = self.dir / "saves"
         if saves.exists():
             shutil.rmtree(saves)
