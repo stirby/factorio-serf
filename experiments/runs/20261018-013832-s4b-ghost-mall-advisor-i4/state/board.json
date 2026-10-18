@@ -1,0 +1,18 @@
+{
+ "tasks": [
+  {
+   "id": 1,
+   "title": "Build ops' mall ghost row at [gps=54,33] + power it",
+   "detail": "claude-1 is taking this (items from depot, crafting chests). Others: don't duplicate.",
+   "status": "claimed",
+   "owner": "claude-1",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-2: claude-2: crafting 12 iron chests and bringing them to the mall site to help; won't touch anything else."
+   ],
+   "updated": 1792305545.7100682
+  }
+ ],
+ "zones": [],
+ "roadmap": []
+}

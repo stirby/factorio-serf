@@ -88,45 +88,52 @@ class Advisor:
         self.dir = orch.cfg.state_dir / "agents" / cfg.name
         self.dir.mkdir(parents=True, exist_ok=True)
         self.transcript = (self.dir / "transcript.jsonl").open("a")
-        self.lock = asyncio.Lock()
-        self.backend = None
-        self.view: _View | None = None
+        # One session per asker so consults run in parallel instead of queueing behind one lock.
+        self.sessions: dict[str, dict] = {}
         self.total_cost = 0.0
 
     def record(self, kind, **kw):
         self.transcript.write(json.dumps({"t": time.time(), "kind": kind, **kw}, default=str) + "\n")
         self.transcript.flush()
 
+    async def _session(self, asker: "Agent") -> dict:
+        sess = self.sessions.get(asker.name)
+        if sess is None:
+            view = _View(self, asker)
+            view.cfg = self.cfg
+            tools = [BY_NAME[n] for n in READ_ONLY]
+            backend = make_backend(view, SYSTEM.format(name=self.name), self.dir / f"cwd-{asker.name}", tools)
+            await backend.start()
+            sess = {"view": view, "backend": backend, "lock": asyncio.Lock()}
+            self.sessions[asker.name] = sess
+        return sess
+
     async def ask(self, asker: "Agent", question: str, context: str) -> str:
         if not question.strip():
             return "ask a question"
-        async with self.lock:  # one consult at a time; the session is shared
-            if self.backend is None:
-                self.view = _View(self, asker)
-                self.view.cfg = self.cfg
-                tools = [BY_NAME[n] for n in READ_ONLY]
-                self.backend = make_backend(self.view, SYSTEM.format(name=self.name), self.dir / "cwd", tools)
-                await self.backend.start()
-            self.view.name = asker.name
+        sess = await self._session(asker)
+        async with sess["lock"]:  # one consult at a time per asker
+            view, backend = sess["view"], sess["backend"]
             prompt = (f"{asker.name} asks: {question}\n" + (f"Context from {asker.name}: {context}\n" if context else "")
-                      + f"[board]\n{asker.board.render(limit=20)}\n[crew] {', '.join(self.orch.agents)}")
-            self.record("prompt", text=prompt)
+                      + f"[roadmap]\n{asker.board.render_roadmap()}\n[board]\n{asker.board.render(limit=20)}\n"
+                      + f"[crew] {', '.join(self.orch.agents)}")
+            self.record("prompt", asker=asker.name, text=prompt)
             ui.info(f"{asker.name} consults {self.name}: {question[:120]}")
             replies: list[str] = []
-            orig = self.view.log_thought
+            orig = view.log_thought
 
             def capture(text):
                 replies.append(text)
                 orig(text)
-            self.view.log_thought = capture
+            view.log_thought = capture
             t0 = time.time()
             try:
-                stats = await self.backend.turn(prompt)
+                stats = await backend.turn(prompt)
             finally:
-                self.view.log_thought = orig
+                view.log_thought = orig
             self.total_cost += stats.cost_usd
-            self.record("turn", secs=round(time.time() - t0, 1), steps=stats.steps, cost=stats.cost_usd,
-                        error=stats.error)
+            self.record("turn", asker=asker.name, secs=round(time.time() - t0, 1), steps=stats.steps,
+                        cost=stats.cost_usd, error=stats.error)
             ui.turn_end(self.name, time.time() - t0, stats, self.total_cost)
             answer = replies[-1] if replies else ""
             if stats.error and not answer:
@@ -134,6 +141,6 @@ class Advisor:
             return f"{self.name} says:\n{answer}"
 
     async def close(self):
-        if self.backend:
-            await self.backend.close()
+        for sess in self.sessions.values():
+            await sess["backend"].close()
         self.transcript.close()

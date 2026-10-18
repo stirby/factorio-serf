@@ -445,15 +445,28 @@ async def t_consult(agent: "Agent", a: dict) -> str:
     advisor = agent.orch.advisor
     if not advisor:
         return "no advisor is configured"
-    return await advisor.ask(agent, str(a.get("question", "")), str(a.get("context", "")))
+    q, ctx = str(a.get("question", "")), str(a.get("context", ""))
+    if a.get("wait") is False or a.get("wait") == "false":
+        async def background():
+            try:
+                ans = await advisor.ask(agent, q, ctx)
+            except Exception as e:
+                ans = f"{advisor.name} failed: {e!r}"
+            agent.wake(f"{advisor.name} answered your consult ({q[:80]}):\n{ans}", urgent=True)
+        asyncio.create_task(background())
+        return f"{advisor.name} is working on it; the answer arrives as a message. Keep your character busy meanwhile."
+    return await advisor.ask(agent, q, ctx)
 
 
-CONSULT = Tool("consult", "Ask your right-hand engineer (a separate senior Claude that can look at the map but not "
+CONSULT = Tool("consult", "Ask the crew's engineer (a separate senior Claude that can look at the map but not "
                "act) for a design, layout, ratio calculation or multi-step plan. Give the goal and constraints; "
-               "it answers with buildable specifics (coordinates, directions, counts, order) and can post the "
-               "build steps as board tasks for the crew. It remembers earlier consults. Takes a minute or two.",
+               "it answers with buildable specifics (coordinates, directions, counts, order), can lay the design as "
+               "ghosts and post build tasks. It remembers your earlier consults. Takes a minute or two, so prefer "
+               "wait=false: queue work for your character first, and the answer arrives as a message.",
                _obj({"question": {"type": "string"},
-                     "context": {"type": "string", "description": "what you already know/decided"}}, ["question"]),
+                     "context": {"type": "string", "description": "what you already know/decided"},
+                     "wait": {"type": "boolean", "description": "false = answer arrives later as a message"}},
+                    ["question"]),
                t_consult)
 BY_NAME["consult"] = CONSULT
 

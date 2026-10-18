@@ -22,3 +22,5 @@ calls myself, log them here, and keep the review page updated hour by hour.
 | 01:35 | Science scores count assembler output only; runs stop early when all targets are met | Hand-crafted packs aren't automation; early stop saves usage |
 | 01:35 | No more cd-chained shell commands; local allow rules added for this project | The user said never to ask for command approval |
 | 01:36 | Round 1: full system plus architect on s4-ghost-build, s3-steel and s2-green-science, 3 in parallel, all Opus | Baseline for the new mechanics before any A/B |
+| 01:37 | Added foreman_first flag and a 'go-now' variant (everyone starts their domain immediately on @all) | In round 1, claude-3 did one useful thing and then reported waiting on the foreman's plan while the foreman consulted the architect for ~2 min |
+| 01:38 | Round 2a started next to round 1: s4b-ghost-mall (harder: needs crafting and power) and s3-steel:go-now (A/B against round 1's s3-steel:advisor) | s4 was solved in 30s, so the ghost scenario needs to be harder; go-now tests the waiting-on-plan choke point |

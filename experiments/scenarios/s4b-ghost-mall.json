@@ -1,0 +1,32 @@
+{
+ "name": "s4b-ghost-mall",
+ "stage": "stage-s3-steel-oil-ready",
+ "minutes": 20,
+ "agents": 2,
+ "setup_lua": "local D=defines.direction\nlocal function layout(ox,oy)\n  -- a 6-assembler mall row: chest -> inserter -> assembler -> inserter -> chest, poles between machines\n  local t={}\n  for i=0,5 do\n    local x=ox+i*4\n    t[#t+1]={name='assembling-machine-1',x=x+0.5,y=oy+2.5,dir=D.north}\n    t[#t+1]={name='inserter',x=x+0.5,y=oy+0.5,dir=D.north}     -- takes from the input chest above, drops into the assembler\n    t[#t+1]={name='iron-chest',x=x+0.5,y=oy-0.5,dir=D.north}\n    t[#t+1]={name='inserter',x=x+0.5,y=oy+4.5,dir=D.north}     -- takes from the assembler, drops into the output chest below\n    t[#t+1]={name='iron-chest',x=x+0.5,y=oy+5.5,dir=D.north}\n    t[#t+1]={name='small-electric-pole',x=x+2.5,y=oy+2.5,dir=D.north}\n  end\n  return t\nend\nlocal function water(a)\n  local ok,n=pcall(function() return s.count_tiles_filtered{area=a,collision_mask='water_tile'} end)\n  if ok then return n end\n  return s.count_tiles_filtered{area=a,name={'water','deepwater','water-green','deepwater-green','water-shallow','water-mud'}}\nend\nlocal function free(ox,oy)\n  local a={{ox-3,oy-3},{ox+26,oy+9}}  -- layout plus a margin for walking and poles\n  for _,c in pairs{{ox-3,oy-3},{ox+26,oy-3},{ox-3,oy+9},{ox+26,oy+9}} do\n    local ch={x=math.floor(c[1]/32),y=math.floor(c[2]/32)}\n    if not s.is_chunk_generated(ch) or not f.is_chunk_charted(s,ch) then return false end\n  end\n  if s.count_entities_filtered{area=a,type={'character','corpse'},invert=true}>0 then return false end  -- no trees, rocks, ore, buildings\n  if water(a)>0 then return false end\n  for _,g in pairs(layout(ox,oy)) do\n    if not s.can_place_entity{name=g.name,position={g.x,g.y},direction=g.dir,force=f} then return false end\n  end\n  return true\nend\n-- centre of the base: mean position of labs/assemblers/furnaces, else spawn\nlocal cx,cy,n=0,0,0\nfor _,e in pairs(s.find_entities_filtered{force='player',type={'lab','assembling-machine','furnace'}}) do cx=cx+e.position.x cy=cy+e.position.y n=n+1 end\nif n>0 then cx,cy=math.floor(cx/n),math.floor(cy/n) else local sp=f.get_spawn_position(s) cx,cy=math.floor(sp.x),math.floor(sp.y) end\nlocal ox,oy\nfor r=10,240,4 do\n  for d=-r,r,4 do\n    for _,c in pairs{{cx+d,cy-r},{cx+d,cy+r},{cx-r,cy+d},{cx+r,cy+d}} do\n      if free(c[1],c[2]) then ox,oy=c[1],c[2] break end\n    end\n    if ox then break end\n  end\n  if ox then break end\nend\nif not ox then error('no free spot for the ghost layout within 240 tiles of the base') end\nlocal L=layout(ox,oy)\nlocal placed=0\nfor _,g in pairs(L) do\n  local e=s.create_entity{name='entity-ghost',inner_name=g.name,position={g.x,g.y},direction=g.dir,force=f,expires=false}\n  if e then placed=placed+1 end\nend\nstorage.bench=storage.bench or {}\nstorage.bench.ghosts=L\nstorage.bench.area={{ox-1,oy-1},{ox+24,oy+7}}\nreturn {x=ox+10,y=oy+2,n=#L,placed=placed,base_center={cx,cy},dist=math.floor(math.sqrt((ox-cx)^2+(oy+6-cy)^2))}",
+ "selftest_lua": "local B=storage.bench local k=0 for _,gh in pairs(s.find_entities_filtered{area=B.area,name='entity-ghost'}) do if gh.revive() then k=k+1 end end return {revived=k}",
+ "goal": "@all build the ghosts I placed near [gps={x},{y}]: a 6-assembler mall row ({n} ghosts: 6 assemblers, 12 inserters, 12 iron chests, 6 small poles). Some items aren't in the depot, so craft what's missing. Then power it from the nearest pole network. Report when it's built and powered.",
+ "score": [
+  {
+   "name": "ghosts_built_frac",
+   "lua": "local B=storage.bench if not B or not B.ghosts then return 0 end\nlocal k=0\nfor _,g in pairs(B.ghosts) do\n  for _,e in pairs(s.find_entities_filtered{name=g.name,force='player',area={{g.x-0.3,g.y-0.3},{g.x+0.3,g.y+0.3}}}) do\n    if math.abs(e.position.x-g.x)<0.1 and math.abs(e.position.y-g.y)<0.1  then k=k+1 break end\n  end\nend\nreturn k/#B.ghosts",
+   "target": 1.0,
+   "note": "fraction of the layout with a real entity of the right name at the exact position"
+  },
+  {
+   "name": "ghosts_built_dir_frac",
+   "lua": "local B=storage.bench if not B or not B.ghosts then return 0 end\nlocal k=0\nfor _,g in pairs(B.ghosts) do\n  for _,e in pairs(s.find_entities_filtered{name=g.name,force='player',area={{g.x-0.3,g.y-0.3},{g.x+0.3,g.y+0.3}}}) do\n    if math.abs(e.position.x-g.x)<0.1 and math.abs(e.position.y-g.y)<0.1 and (g.name=='stone-furnace' or e.direction==g.dir) then k=k+1 break end\n  end\nend\nreturn k/#B.ghosts",
+   "note": "same, also requiring the right direction for inserters and belts"
+  },
+  {
+   "name": "ghosts_remaining",
+   "lua": "local B=storage.bench if not B or not B.area then return 0 end return s.count_entities_filtered{area=B.area,name='entity-ghost'}"
+  },
+  {
+   "name": "mall_powered",
+   "lua": "local B=storage.bench local k=0 for _,e in pairs(s.find_entities_filtered{area=B.area,name='assembling-machine-1'}) do if e.status~=defines.entity_status.no_power then k=k+1 end end return k",
+   "target": 6,
+   "note": "assemblers in the layout that have power"
+  }
+ ]
+}
