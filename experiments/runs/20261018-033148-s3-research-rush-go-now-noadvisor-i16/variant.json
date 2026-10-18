@@ -1,0 +1,7 @@
+{
+ "name": "go-now-noadvisor",
+ "advisor": false,
+ "experiment": {
+  "foreman_first": false
+ }
+}

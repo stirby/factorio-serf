@@ -1,0 +1,591 @@
+{
+ "run_id": "20261018-033018-s3-research-rush-go-now-i14",
+ "scenario": "s3-research-rush",
+ "variant": "go-now",
+ "instance": 14,
+ "stage": "stage-s3-steel-oil-ready",
+ "dry": false,
+ "minutes_planned": 60.0,
+ "errors": [],
+ "start": "2026-10-18 03:30:18",
+ "t_start": 1792312218.3683858,
+ "git": {
+  "commit": "319b598",
+  "dirty_files": []
+ },
+ "mod_version": "0.1.0",
+ "setup": {},
+ "baseline": {
+  "tick": 384943,
+  "values": {
+   "techs_researched": 20.0,
+   "science_consumed_per_min": 0.0,
+   "red_asm_per_min": null,
+   "green_asm_per_min": null,
+   "labs": 2.0,
+   "researching": 0.0
+  },
+  "errors": {},
+  "raw": {
+   "red_asm_per_min": 161.0,
+   "green_asm_per_min": 20.0
+  }
+ },
+ "targets": {
+  "techs_researched": 26.0,
+  "science_consumed_per_min": null,
+  "red_asm_per_min": null,
+  "green_asm_per_min": null,
+  "labs": null,
+  "researching": null
+ },
+ "summary_start": {
+  "minutes": 106,
+  "entities": {
+   "burner-mining-drill": 30,
+   "electric-mining-drill": 18,
+   "stone-furnace": 37,
+   "assembling-machine-1": 8,
+   "lab": 2,
+   "steam-engine": 4,
+   "boiler": 2,
+   "offshore-pump": 2,
+   "transport-belt": 275,
+   "inserter": 43,
+   "small-electric-pole": 116,
+   "iron-chest": 41,
+   "wooden-chest": 1
+  },
+  "researched": [
+   "advanced-material-processing",
+   "automation",
+   "automation-2",
+   "automation-science-pack",
+   "electric-mining-drill",
+   "electronics",
+   "engine",
+   "fast-inserter",
+   "fluid-handling",
+   "gun-turret",
+   "lamp",
+   "logistic-science-pack",
+   "logistics",
+   "logistics-2",
+   "military",
+   "military-2",
+   "oil-gathering",
+   "steam-power",
+   "steel-processing",
+   "stone-wall"
+  ],
+  "research_count": 20,
+  "agents": [
+   "claude-1",
+   "claude-2",
+   "claude-3",
+   "claude-4",
+   "claude-5"
+  ],
+  "per_minute": {
+   "iron-plate": 206,
+   "coal": 135,
+   "iron-ore": 210
+  },
+  "peaceful": true
+ },
+ "goal": "@all Advance the tech tree as fast as you can. Keep the labs busy with automated red and green science, scale it up, and research toward oil processing and chemical (blue) science. Queue research yourselves. This is a long push: keep everyone productive and fix bottlenecks as they appear.",
+ "config": {
+  "agents": [
+   {
+    "name": "claude-1",
+    "role": "foreman",
+    "focus": "production",
+    "model": "claude-opus-5-5"
+   },
+   {
+    "name": "claude-2",
+    "role": "worker",
+    "focus": "resources",
+    "model": "claude-opus-5-5"
+   },
+   {
+    "name": "claude-3",
+    "role": "worker",
+    "focus": "infrastructure",
+    "model": "claude-opus-5-5"
+   }
+  ],
+  "advisor": {
+   "name": "architect",
+   "model": "claude-opus-5-5",
+   "effort": "high"
+  },
+  "defaults": {
+   "backend": "claude-code",
+   "model": "claude-opus-5-5",
+   "max_turns_per_hour": 120
+  },
+  "experiment": {
+   "foreman_first": false
+  }
+ },
+ "t_agents_start": 1792312221.9369678,
+ "elapsed_s": 3604.9,
+ "final": {
+  "tick": 601376,
+  "values": {
+   "techs_researched": 26.0,
+   "science_consumed_per_min": 55.0,
+   "red_asm_per_min": 13.93034825870647,
+   "green_asm_per_min": 29.85074626865672,
+   "labs": 14.0,
+   "researching": 1.0
+  },
+  "errors": {},
+  "raw": {
+   "red_asm_per_min": 994.0,
+   "green_asm_per_min": 576.0
+  }
+ },
+ "checks": {
+  "techs_researched": {
+   "value": 26.0,
+   "baseline": 20.0,
+   "target": 26.0,
+   "frac": 1.0,
+   "time_to_target_s": null,
+   "error": null
+  },
+  "science_consumed_per_min": {
+   "value": 55.0,
+   "baseline": 0.0,
+   "target": null,
+   "frac": null,
+   "time_to_target_s": null,
+   "error": null
+  },
+  "red_asm_per_min": {
+   "value": 13.93034825870647,
+   "baseline": null,
+   "target": null,
+   "frac": null,
+   "time_to_target_s": null,
+   "error": null
+  },
+  "green_asm_per_min": {
+   "value": 29.85074626865672,
+   "baseline": null,
+   "target": null,
+   "frac": null,
+   "time_to_target_s": null,
+   "error": null
+  },
+  "labs": {
+   "value": 14.0,
+   "baseline": 2.0,
+   "target": null,
+   "frac": null,
+   "time_to_target_s": null,
+   "error": null
+  },
+  "researching": {
+   "value": 1.0,
+   "baseline": 0.0,
+   "target": null,
+   "frac": null,
+   "time_to_target_s": null,
+   "error": null
+  }
+ },
+ "score": 1.0,
+ "success": true,
+ "summary_end": {
+  "minutes": 167,
+  "entities": {
+   "burner-mining-drill": 28,
+   "electric-mining-drill": 49,
+   "stone-furnace": 96,
+   "assembling-machine-1": 35,
+   "assembling-machine-2": 15,
+   "lab": 14,
+   "steam-engine": 12,
+   "boiler": 6,
+   "offshore-pump": 3,
+   "transport-belt": 1863,
+   "inserter": 338,
+   "burner-inserter": 1,
+   "long-handed-inserter": 1,
+   "fast-inserter": 1,
+   "small-electric-pole": 324,
+   "iron-chest": 71,
+   "pumpjack": 2,
+   "oil-refinery": 2,
+   "chemical-plant": 2
+  },
+  "researched": [
+   "advanced-material-processing",
+   "automation",
+   "automation-2",
+   "automation-science-pack",
+   "electric-energy-distribution-1",
+   "electric-mining-drill",
+   "electronics",
+   "engine",
+   "fast-inserter",
+   "fluid-handling",
+   "gun-turret",
+   "lamp",
+   "logistic-science-pack",
+   "logistics",
+   "logistics-2",
+   "military",
+   "military-2",
+   "oil-gathering",
+   "oil-processing",
+   "plastics",
+   "research-speed-1",
+   "steam-power",
+   "steel-axe",
+   "steel-processing",
+   "stone-wall",
+   "toolbelt"
+  ],
+  "research_count": 26,
+  "agents": [
+   "claude-1",
+   "claude-2",
+   "claude-3",
+   "claude-4",
+   "claude-5"
+  ],
+  "per_minute": {
+   "iron-plate": 383,
+   "copper-plate": 69,
+   "steel-plate": 22,
+   "iron-gear-wheel": 124,
+   "electronic-circuit": 40,
+   "automation-science-pack": 14,
+   "logistic-science-pack": 30,
+   "coal": 215,
+   "iron-ore": 468,
+   "copper-ore": 85,
+   "transport-belt": 30,
+   "inserter": 40
+  },
+  "researching": "sulfur-processing",
+  "peaceful": true
+ },
+ "agents_end": {
+  "claude-1": {
+   "name": "claude-1",
+   "alive": true,
+   "position": [
+    17.8,
+    -69.4
+   ],
+   "queued": 0,
+   "stats": {
+    "busy_ticks": 58315,
+    "idle_ticks": 158167,
+    "crafting_ticks": 53582
+   }
+  },
+  "claude-2": {
+   "name": "claude-2",
+   "alive": true,
+   "position": [
+    62.8,
+    49
+   ],
+   "job": {
+    "id": 3577,
+    "op": "wait",
+    "secs": 15
+   },
+   "queued": 0,
+   "stats": {
+    "busy_ticks": 51725,
+    "idle_ticks": 164757,
+    "crafting_ticks": 38194
+   }
+  },
+  "claude-3": {
+   "name": "claude-3",
+   "alive": true,
+   "position": [
+    -18.9,
+    -22.3
+   ],
+   "queued": 0,
+   "stats": {
+    "busy_ticks": 24466,
+    "idle_ticks": 192016,
+    "crafting_ticks": 21410
+   }
+  },
+  "claude-4": {
+   "name": "claude-4",
+   "alive": true,
+   "position": [
+    22.6,
+    66.9
+   ],
+   "queued": 0,
+   "stats": {
+    "busy_ticks": 0,
+    "idle_ticks": 216482,
+    "crafting_ticks": 0
+   }
+  },
+  "claude-5": {
+   "name": "claude-5",
+   "alive": true,
+   "position": [
+    27.2,
+    102.2
+   ],
+   "queued": 0,
+   "stats": {
+    "busy_ticks": 0,
+    "idle_ticks": 216482,
+    "crafting_ticks": 0
+   }
+  }
+ },
+ "drain_s": 90.1,
+ "behavior": {
+  "agents": {
+   "claude-1": {
+    "turns": 3,
+    "tool_calls": 287,
+    "tools": {
+     "act": 100,
+     "inspect": 42,
+     "wait": 24,
+     "say": 22,
+     "map": 12,
+     "look": 10,
+     "techs": 9,
+     "find": 8,
+     "mark": 8,
+     "production": 7,
+     "post_task": 6,
+     "consult": 6,
+     "work": 6,
+     "roadmap": 5,
+     "recipes": 4,
+     "notes": 4,
+     "board": 3,
+     "marks": 3,
+     "designs": 2,
+     "zone": 2,
+     "stop": 2,
+     "stamp": 1,
+     "status": 1
+    },
+    "act_ops": {
+     "place": 183,
+     "insert": 84,
+     "take": 72,
+     "craft": 54,
+     "mine": 46,
+     "build_ghosts": 24,
+     "move": 17,
+     "wait": 17,
+     "connect": 13,
+     "set_recipe": 12,
+     "research": 9,
+     "rotate": 1
+    },
+    "hand_logistics": 156,
+    "failures": 21,
+    "tool_secs": 2747.4,
+    "turn_secs": 2791.9,
+    "turns_ended_idle": 3,
+    "cost_usd": 6.7933,
+    "input_tokens": 12125522,
+    "output_tokens": 68601,
+    "turn_errors": 0,
+    "thoughts": 3,
+    "turns_incomplete": 1,
+    "incomplete_secs": 916.9,
+    "run_secs": 3711.6,
+    "tool_frac_of_run": 0.74,
+    "turn_frac_of_run": 0.752,
+    "model_secs": 44.5,
+    "mod_stats": {
+     "busy_ticks": 58315,
+     "idle_ticks": 158118,
+     "crafting_ticks": 53582,
+     "idle_pct": 73.1,
+     "crafting_pct": 24.8
+    },
+    "sampled_busy_pct": 25.7,
+    "alive_at_end": true
+   },
+   "claude-2": {
+    "turns": 5,
+    "tool_calls": 329,
+    "tools": {
+     "act": 96,
+     "wait": 45,
+     "inspect": 42,
+     "look": 30,
+     "map": 25,
+     "say": 23,
+     "production": 11,
+     "find": 9,
+     "status": 9,
+     "consult": 7,
+     "update_task": 7,
+     "notes": 7,
+     "work": 6,
+     "marks": 3,
+     "zone": 3,
+     "mark": 2,
+     "designs": 1,
+     "techs": 1,
+     "stop": 1,
+     "roadmap": 1
+    },
+    "act_ops": {
+     "place": 111,
+     "mine": 78,
+     "insert": 43,
+     "move": 39,
+     "craft": 38,
+     "take": 36,
+     "build_ghosts": 34,
+     "wait": 17,
+     "connect": 9,
+     "rotate": 4
+    },
+    "hand_logistics": 79,
+    "failures": 15,
+    "tool_secs": 2535.7,
+    "turn_secs": 3069.7,
+    "turns_ended_idle": 2,
+    "cost_usd": 10.2276,
+    "input_tokens": 14659396,
+    "output_tokens": 69134,
+    "turn_errors": 0,
+    "thoughts": 6,
+    "turns_incomplete": 1,
+    "incomplete_secs": 531.1,
+    "run_secs": 3711.6,
+    "tool_frac_of_run": 0.683,
+    "turn_frac_of_run": 0.827,
+    "model_secs": 534.0,
+    "mod_stats": {
+     "busy_ticks": 51725,
+     "idle_ticks": 164708,
+     "crafting_ticks": 38194,
+     "idle_pct": 76.1,
+     "crafting_pct": 17.6
+    },
+    "sampled_busy_pct": 23.6,
+    "alive_at_end": true
+   },
+   "claude-3": {
+    "turns": 5,
+    "tool_calls": 328,
+    "tools": {
+     "act": 81,
+     "inspect": 45,
+     "wait": 44,
+     "map": 32,
+     "say": 25,
+     "look": 21,
+     "find": 16,
+     "production": 10,
+     "notes": 6,
+     "consult": 6,
+     "update_task": 6,
+     "techs": 5,
+     "work": 5,
+     "zone": 4,
+     "stamp": 4,
+     "stop": 4,
+     "recipes": 3,
+     "marks": 3,
+     "status": 3,
+     "designs": 2,
+     "board": 2,
+     "roadmap": 1
+    },
+    "act_ops": {
+     "mine": 138,
+     "place": 84,
+     "take": 40,
+     "insert": 30,
+     "craft": 26,
+     "move": 20,
+     "build_ghosts": 16,
+     "connect": 11,
+     "research": 4,
+     "rotate": 3,
+     "wait": 2,
+     "set_recipe": 1
+    },
+    "hand_logistics": 70,
+    "failures": 9,
+    "tool_secs": 2050.9,
+    "turn_secs": 3463.3,
+    "turns_ended_idle": 5,
+    "cost_usd": 13.6464,
+    "input_tokens": 19548052,
+    "output_tokens": 109776,
+    "turn_errors": 0,
+    "thoughts": 5,
+    "turns_incomplete": 1,
+    "incomplete_secs": 21.1,
+    "run_secs": 3711.6,
+    "tool_frac_of_run": 0.553,
+    "turn_frac_of_run": 0.933,
+    "model_secs": 1412.4,
+    "mod_stats": {
+     "busy_ticks": 24466,
+     "idle_ticks": 191967,
+     "crafting_ticks": 21410,
+     "idle_pct": 88.7,
+     "crafting_pct": 9.9
+    },
+    "sampled_busy_pct": 11.3,
+    "alive_at_end": true
+   }
+  },
+  "total": {
+   "turns": 13,
+   "turns_incomplete": 3,
+   "tool_calls": 944,
+   "hand_logistics": 305,
+   "failures": 45,
+   "turns_ended_idle": 10,
+   "cost_usd": 30.6673,
+   "tool_secs": 7334.0,
+   "turn_secs": 9324.9,
+   "input_tokens": 46332970,
+   "output_tokens": 247511,
+   "char_idle_pct_mean": 79.3,
+   "sampled_busy_pct_mean": 20.2,
+   "act_ops": {
+    "place": 378,
+    "mine": 262,
+    "insert": 157,
+    "take": 148,
+    "craft": 118,
+    "move": 76,
+    "build_ghosts": 74,
+    "wait": 36,
+    "connect": 33,
+    "set_recipe": 13,
+    "research": 13,
+    "rotate": 8
+   }
+  }
+ },
+ "cost_usd": 30.6673,
+ "final_save": "/home/stephen/dev/factorio-slave/experiments/runs/20261018-033018-s3-research-rush-go-now-i14/final.zip",
+ "end": "2026-10-18 04:32:15",
+ "t_end": 1792315935.5577857
+}

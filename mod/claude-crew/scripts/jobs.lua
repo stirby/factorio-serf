@@ -177,7 +177,8 @@ H.mine = {
       local mate = e.unit_number and storage.built_by[e.unit_number]
       if mate and mate ~= a.name and not args.force_pickup then
         return fail(e.name .. " at " .. xystr(e.position) .. " was built by " .. mate
-          .. "; ask them first (then pass force_pickup=true)")
+          .. ". If it's broken (leaking, unpaired, facing wrong, blocking you), fix it now with force_pickup=true and"
+          .. " tell them; ask first only to tear down or redesign something that works")
       end
       if e.last_user and e.last_user.valid and not args.force_pickup then
         return fail(e.name .. " at " .. xystr(e.position) .. " was built by " .. e.last_user.name
@@ -797,6 +798,45 @@ local function needed_items(ghosts)
   return need
 end
 
+-- Underground belts in a layout need to be an entrance ("input") or exit ("output"); a layout that leaves it out
+-- would otherwise get two entrances that leak onto whatever is past them. Unspecified ones pair up like a player
+-- places them: walking in their direction, the first is the entrance and the next one within reach is the exit.
+local function pair_undergrounds(entities)
+  local out, open = {}, {}
+  local DV = { north = { 0, -1 }, south = { 0, 1 }, east = { 1, 0 }, west = { -1, 0 } }
+  for i, e in ipairs(entities) do
+    local item = prototypes.item[e.name or ""]
+    local ent = item and item.place_result or prototypes.entity[e.name or ""]
+    if ent and ent.type == "underground-belt" then
+      if e.type == "input" or e.type == "output" then
+        out[i] = e.type
+      else
+        open[#open + 1] = { i = i, x = e.x or e[1], y = e.y or e[2], d = util.DIR_NAMES[util.parse_dir(e.direction)] or "north",
+          reach = ent.max_underground_distance or 5 }
+      end
+    end
+  end
+  -- upstream first, so an exit is never mistaken for an entrance with nothing ahead of it
+  local function progress(u) local dv = DV[u.d] or { 0, 0 } return u.x * dv[1] + u.y * dv[2] end
+  table.sort(open, function(p, q) return progress(p) < progress(q) end)
+  for _, u in ipairs(open) do
+    if not out[u.i] then
+      local v, best = nil, math.huge
+      local dv = DV[u.d]
+      for _, w in ipairs(open) do
+        if w ~= u and not out[w.i] and w.d == u.d and dv then
+          local dx, dy = w.x - u.x, w.y - u.y
+          local ahead = dx * dv[1] + dy * dv[2]
+          local side = math.abs(dx * dv[2]) + math.abs(dy * dv[1])
+          if side < 0.1 and ahead > 0 and ahead <= u.reach + 1 and ahead < best then v, best = w, ahead end
+        end
+      end
+      if v then out[u.i], out[v.i] = "input", "output" else out[u.i] = "input" end
+    end
+  end
+  return out
+end
+
 H.blueprint = {
   start = function(a, job)
     local c, args = a.char, job.args
@@ -817,13 +857,14 @@ H.blueprint = {
       inv.destroy()
     elseif args.entities then
       local failed = 0
-      for _, e in ipairs(args.entities) do
+      local ug_type = pair_undergrounds(args.entities)
+      for i, e in ipairs(args.entities) do
         local item = prototypes.item[e.name or ""]
         local ent = item and item.place_result
         local ename = ent and ent.name or e.name
         local p = { x = e.x or e[1], y = e.y or e[2] }
         local spec = { name = "entity-ghost", inner_name = ename, position = p, direction = util.parse_dir(e.direction),
-          force = c.force, expires = false }
+          force = c.force, expires = false, type = ug_type[i] }
         local okp, g = pcall(c.surface.create_entity, spec)
         if okp and g then
           if e.recipe then pcall(function() g.set_recipe(e.recipe) end) end

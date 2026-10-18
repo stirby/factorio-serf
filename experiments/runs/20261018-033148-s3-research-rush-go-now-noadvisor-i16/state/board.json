@@ -1,0 +1,162 @@
+{
+ "tasks": [
+  {
+   "id": 1,
+   "title": "Smelting: copper 3.75/s + iron 3.75/s plates into depot belt/chests",
+   "detail": "Domain: mining+smelting. Use stamp smelting-column-12 (electric drills in depot chest at [-10.5,-27.5], furnaces at [-9.5,-27.5]). Copper is the gap: production shows 0 copper/min. Deliver plates to the depot (iron chest -13.5,-29.5 / copper -12.5,-29.5) or better a belt toward science area west of x=-25. Keep coal on burners. Report measured rates.",
+   "status": "claimed",
+   "owner": "claude-2",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-2: claude-2: 2h29m measured copper 223/min, iron 424/min. The copper column at 0,70 was plugged with coal; fixed it (coal now goes on the south lane at 22,102).",
+    "claude-2: claude-2: 2h38m measured copper 152/min, iron 379/min. The main plate belt into base is backed up with both plates, so the cap is downstream use, not smelting.",
+    "claude-2: claude-2 at 2h45m: iron 378/min, copper 134/min. Copper drills at [13,103] are waiting for space and the plate belts into base are backed up, so supply is limited by demand. The copper patch still has 1-2k ore per tile."
+   ],
+   "updated": 1792315842.1286077
+  },
+  {
+   "id": 2,
+   "title": "Find crude oil and place a pumpjack (unlocks oil-processing), then power",
+   "detail": "Domain: oil + power. No crude-oil within 256 tiles of spawn: scout further (find name=crude-oil from different spots), craft a pumpjack, place it on oil (mining it triggers oil-processing tech). Mark the oil field. Then plan refinery/chem plants there, and keep power ahead of demand (science builds add ~2 MW; add boilers/engines at [gps=-30,-44]).",
+   "status": "done",
+   "owner": "claude-3",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-3: Oil field at [168,195] (2 wells, 900k). 2 pumpjacks powered via pole line from [100,60]. oil-processing UNLOCKED. Queued sulfur-processing + plastics. Next: refinery + chem plants at the field."
+   ],
+   "updated": 1792312613.7685466
+  },
+  {
+   "id": 3,
+   "title": "Refuel boiler [-31.5,-43] + add chest/inserter feed",
+   "detail": "Boiler at [-31.5,-43] is out of coal and has no feed. I'm at the oil field laying the crude pipeline. Whoever is near base: put a chest + burner inserter on it with ~200 depot coal. Long term I'll belt coal to the boilers.",
+   "status": "done",
+   "owner": "claude-1",
+   "created_by": "claude-3",
+   "notes": [
+    "claude-2: claude-2: chest+inserter on -31.5,-43 boiler, ~800 coal in each boiler chest. Belt still needed long-term.",
+    "claude-1: Pole at -34.5,-42.5 powers the feed inserter; chest -34.5,-43.5 has ~380 coal. Still needs a coal belt long term."
+   ],
+   "updated": 1792313123.1905363
+  },
+  {
+   "id": 4,
+   "title": "Put my splitter into the plate belt at [-10.5,-25] (branch south feeds the gear+circuit block)",
+   "detail": "I need to replace your belt tile at -10.5,-25.5 with a west-facing splitter at (-10.5,-25) whose south output (-11.5,-24.5) feeds my belt down to the gear+circuit block at [-10,-20]. Either do it yourself or reply OK and I'll swap it. The surplus then goes to green science circuits.",
+   "status": "done",
+   "owner": "claude-1",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-2: claude-2: OK for claude-1 to swap it",
+    "claude-1: splitter swapped in by claude-1"
+   ],
+   "updated": 1792313333.0198982
+  },
+  {
+   "id": 5,
+   "title": "Pure iron belt to green science input [12.5,2] flowing north, iron on east lane (~2 iron/s)",
+   "detail": "Green-science-6 south input at tile (12,-2) currently hand-fed from chests at (10.5,0.5) iron and (18.5,1.5) iron for its gear asm at (15.5,1.5). A pure iron belt ending at (12.5,1.5) heading north would let me remove the chests (I'll move gear asm to pull from it). Any route; just no copper on it.",
+   "status": "done",
+   "owner": "claude-2",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-2: claude-2: splitter off the pure-iron x=71 line around y=2, belt west to 12.5,1.5"
+   ],
+   "updated": 1792313444.1860394
+  },
+  {
+   "id": 6,
+   "title": "Steel 0.25/s into depot chest [-11.5,-29.5] (needed for engines -> blue science)",
+   "detail": "Iron is backed up, so turn some into steel: ~8 stone furnaces fed iron plates + coal (you have the coal belt at the iron field). Deliver steel to the depot or a belt to base; tell me where it lands. Also copper is still the scarcest plate (circuits for green/labs): keep scaling copper.",
+   "status": "claimed",
+   "owner": "claude-2",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-2: claude-2: steel column at [90..100,14..27] fed by iron column 2 output + coal branch",
+    "claude-1: claude-1: steel is at 48/min, which uses about 240 iron/min, and science is starved of iron. Please cap steel at about 15/min (cut furnaces or throttle) and send the iron to the plate belt y-25.5 instead. Steel on the plate belt lanes also starves the circuit block at x-10..3; keep steel off the iron lane if you can.",
+    "claude-2: claude-2: steel column [90..100,14..27] cut to 4 furnaces (~16/min). Steel goes by belt x=100 -> x=74 -> y=-50.5 west into claude-1's blue-science belt at 40,-51. The extra iron is split onto the x=71 plate belt.",
+    "claude-2: claude-2: steel coal automated: 800-coal chest at 97.5,28.5 with an inserter onto the steel input belt (~2.5h of fuel). Steel is about 16/min to the blue-science belt at 40,-51."
+   ],
+   "updated": 1792315218.539209
+  },
+  {
+   "id": 7,
+   "title": "Plate belt y-25.5: keep iron on S lane only, copper on N lane",
+   "detail": "Since the steel cap, iron is on the plate belt at x10-48 (214 iron in 46 tiles), but the copper column at [48.5,-18..-24] is backed up and can't merge. It looks like iron now fills both lanes. Please sideload the extra iron onto the S lane only, so copper keeps the N lane. Both plates feed the circuits that green science needs.",
+   "status": "done",
+   "owner": "claude-2",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-2: claude-2: the col2 iron side-load at 72,19 lands on the N lane. Moving it to side-load the S lane at 67.5,-24.5.",
+    "claude-2: claude-2: col2 iron now goes up x=73, under x=71/69 by underground at y-23.5, and side-loads the S lane of the plate belt at 67.5,-24.5. Col1 inserters already drop on the S lane. The N lane is copper-only from now on; iron already on the N lane will flush out."
+   ],
+   "updated": 1792315127.643202
+  },
+  {
+   "id": 8,
+   "title": "Blue sci inputs: plastic onto belt y-44.5 at [13.5,-44.5]; sulfur on S north lane only",
+   "detail": "The chem science asms at 31.5/35.5,-54.5 output packs onto S's SOUTH lane, so S must carry only sulfur, on its NORTH lane. Turning your sulfur inserter at 17.5,-58.5 into a south-facing belt sideload does that. Plastic is only needed by the adv circuit asm at 39.5,-47.5, which takes it from belt y-44.5 (flows east from 13.5,-44.5). Suggested route: underground the x15.5 plastic column under S (in 15.5,-58.5, out 15.5,-56.5, facing south), then south to y-50.5, west to x12.5, south to y-45.5, and turn east at (12.5,-44.5) into the belt start. x12.5-15.5, y-56..-45 is free. Steel on y-44.5 is fine (only the engine inserters take it). Your area, so your call.",
+   "status": "claimed",
+   "owner": "claude-3",
+   "created_by": "claude-1",
+   "notes": [],
+   "updated": 1792315892.461714
+  }
+ ],
+ "zones": [
+  {
+   "name": "blue-science",
+   "owner": "claude-1",
+   "area": [
+    11.0,
+    -59.0,
+    52.0,
+    -43.0
+   ],
+   "purpose": "engines + adv circuits + chem science row",
+   "expires": 1792315910.22967
+  }
+ ],
+ "roadmap": [
+  {
+   "goal": "Labs running: 8+ labs fed red+green by belt",
+   "status": "done",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Red science automated 0.5/s sustained",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Green science automated 0.5/s sustained",
+   "status": "doing",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Copper + iron smelting 3.75/s each into depot",
+   "status": "doing",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Find crude oil, place pumpjack (unlocks oil-processing)",
+   "status": "done",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Oil refinery + plastic + sulfur running",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Advanced circuits + engines automated",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Blue science automated 0.1/s",
+   "status": "todo",
+   "by": "claude-1"
+  }
+ ]
+}

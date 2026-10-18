@@ -1,0 +1,128 @@
+{
+ "tasks": [
+  {
+   "id": 1,
+   "title": "Science block: 0.5/s red + 0.5/s green + 6 labs, automated",
+   "detail": "Stamp red-science-5, green-science-6, lab-row-6 near the existing labs [gps=-22,-37] (zone it first, keep clear of the depot). Feed from the depot at [gps=-12,-29] (iron 1600, copper 1200, gears 400, circuits 400, asm1 x20, inserters x100) with chest->inserter->belt or a gear-circuit-block, so the labs run without hand feeding. Done = production shows ~30/min red AND green consumed by labs.",
+   "status": "done",
+   "owner": "claude-3",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-3: Built: red-science-5 at (-20,-21) chest-fed (copper/gears), green-science-6 at (12..34,-22..-10) with gear asm + chest feeds, 6 labs at (14..38,-2..0). Measured: red 23/min, green 25/min. Feeds are chests (iron runs out in minutes: base iron 89/min produced vs 272 consumed). Needs iron belt feed once claude-2's plates arrive.",
+    "claude-3: claude-3: 12 labs now (2nd lab row at y=2..4). Measured: labs consume red 27/min and green 26/min. Produced: red 24, green 18. Green is short on circuits (circuit-block chest sink at 29.5,-37.5) and red is short on gears. Fixing feeds.",
+    "claude-3: claude-3: added a 40/min circuit build at (14.5,-30.5/-34.5) feeding the green circuit belt; it's now backed up with circuits (good). 12 labs. Measured consumption: red 27/min, green 24/min. Red asm all working, gear chest has 156.",
+    "claude-3: claude-3: fixed the unpaired circuit underground belt. Measured: green 30/min produced; labs consume red 25/min and green 24/min. Red output belt is backed up, so the limit is now the 12 labs, not production (research-speed-2 is queued)."
+   ],
+   "updated": 1792315779.9577203
+  },
+  {
+   "id": 2,
+   "title": "Plates supply: iron 4/s + copper 3/s delivered to the base (depot/science belts)",
+   "detail": "Your domain is smelting & ore. Production shows 206 iron/min and ZERO copper right now; depot copper (1200) will run out. Finish the copper line (coordinate with claude-5's belt on x=0) and get a copper smelting-column-12 running, plus a second iron column, ending at the base so claude-3's science block and the depot get fed. Then steel for blue science later. Report measured rates.",
+   "status": "done",
+   "owner": "claude-2",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-2: claude-2 on it: copper column first, then 2nd iron.",
+    "claude-2: Measured: iron 247/min (4.1/s), copper 179/min (3/s). Copper column at (1,67) feeds chests (-4.5..-1.5,-21.5); 2nd iron column at (83,40) feeds the x=71 belt to y=-26. Both iron columns now coal-fed by belt. Adding more iron sink inserters at the base end.",
+    "claude-2: Measured: iron 584/min, copper 181/min (3/s), both on belts into the base."
+   ],
+   "updated": 1792314619.020255
+  },
+  {
+   "id": 3,
+   "title": "Plate belt into circuit block: iron + copper lanes to [gps=14,-44]",
+   "detail": "The depot is empty (no iron, circuits, gears or coal) and green circuits are now the hard bottleneck for blue science. I stamped a gear-circuit-block at [gps=14,-44]. It needs one belt entering from the west at tile (14,-44), iron plates on one lane and copper on the other, about 2.7 iron/s and 1 copper/s. After that, the next ask is a steel column (iron plates in) giving ~0.25 steel/s into a chest near [gps=15,-68] for the engine assemblers.",
+   "status": "done",
+   "owner": "claude-2",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-2: claude-2: splitting iron off y=-26 at x=13 and copper off x=5.5, merging onto one belt north on x=11.5 to (13,-44).",
+    "claude-2: Done: belt from splitters (iron off y=-26 at x=13, copper off x=5.5 at y=-23.5) runs north on x=11.5 into the block at (14,-44). Also wired power to the block (poles 19.5,-30.5 and 21.5,-35.5). Gear, cable and circuit assemblers are all working. Steel next: the architect placed the steel output chest at (69,-22); tell me if it must be at (15,-68)."
+   ],
+   "updated": 1792313568.502052
+  },
+  {
+   "id": 4,
+   "title": "Power: 2nd steam-power-1-2 + automated boiler coal",
+   "detail": "After the science block, power comes next. The oil block (1.3 MW) and the blue block (+1.5 MW) push us past the current 3.6 MW. Stamp steam-power-1-2 on the lake (find water gives the offshore spots) and belt-feed coal to all boilers so they never run dry. Also refill the red science chests: red is 16/min against green 27/min.",
+   "status": "claimed",
+   "owner": "claude-3",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-3: claude-3: coal belt from drills (46.5/49.5,98.5) up x=50.5, west y=-45.5 now at boilers; wiring the base end.",
+    "claude-3: claude-3: 6 boilers + 12 engines (10.8 MW capacity), all belt-fed coal via splitter (-27.5,-39). Low power cleared. Coal drills now 4 (~2/s) \u2014 margin thin at full load; next fuel source needed later (solid fuel)."
+   ],
+   "updated": 1792314545.067669
+  },
+  {
+   "id": 5,
+   "title": "Iron column #3: +3.75 iron/s onto the base iron belt",
+   "detail": "Iron is the base bottleneck: 350/min made vs 385/min used, and red science's gear assembler (-23.5,-17.5) is starved. After the steel line, add a third iron smelting-column-12 with drills and coal, feeding the y=-26 main iron belt. Done = production shows iron-plate at 550+/min.",
+   "status": "done",
+   "owner": "claude-2",
+   "created_by": "claude-1",
+   "notes": [
+    "claude-2: column 3 at (96..106,33..46) built; drills/belts next",
+    "claude-2: Column 3 at (96..106,33..46): 6 drills (100-104,62-72), coal from splitter (80.5,50), plates go x=106 to y=20 west, then to x=71. Measured iron-plate at 584/min (some of that is startup fill; steady state should be about 550)."
+   ],
+   "updated": 1792314611.9652038
+  }
+ ],
+ "zones": [
+  {
+   "name": "iron-col-4",
+   "owner": "claude-2",
+   "area": [
+    56.0,
+    44.0,
+    99.0,
+    74.0
+   ],
+   "purpose": "12 furnace iron column plus 6 drills",
+   "expires": 1792317576.7483978
+  }
+ ],
+ "roadmap": [
+  {
+   "goal": "Labs running continuously (research queue never empty)",
+   "status": "doing",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Red science 0.5/s automated",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Green science 0.5/s automated",
+   "status": "done",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Copper 3/s + iron 4/s smelted into base",
+   "status": "done",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Pumpjack mining crude oil (unlocks oil-processing)",
+   "status": "done",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Oil refinery + chem plants: petroleum, plastics, sulfur",
+   "status": "todo",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Advanced circuits + engines + steel automated",
+   "status": "doing",
+   "by": "claude-1"
+  },
+  {
+   "goal": "Blue (chemical) science automated 0.25/s",
+   "status": "todo",
+   "by": "claude-1"
+  }
+ ]
+}

@@ -1,0 +1,7 @@
+Oil: refineries A(2.5,-52.5) B(8.5,-52.5) full of petroleum. Plastic plant (2.5,-59.5) coal chest -0.5,-59.5 (belt-fed), out 2.5,-62.5. Sulfur plant (8.5,-59.5) out 8.5,-62.5. SET RECIPES when plastics/sulfur research done; then queue advanced-circuit + chemical-science-pack research (keep the queue non-empty).
+Blue block (x10-42,y-68..-49), ALL ASM2 now: engines 13.5/16.5/19.5/22.5,-64.5 (running; chests y=-67.5 steel/gear/pipe hand-fed). Cable asm1 17.5/29.5,-52.5 (copper chests y=-49.5). Adv asm2 13.5/21.5/25.5/33.5,-52.5 no recipe; chests y=-49.5 hold 60 circuits each. Blue asm2 13.5/19.5/25.5/31.5/37.5,-58.5 no recipe; sulfur chests 10.5/22.5/34.5,-58.5; outputs 16.5/28.5/40.5,-58.5.
+MALL at 31.5-46.5,-28.5 (inserter, drill, asm1, pipe), mark #9. Splitter 29,-32.5 splits circuit-block output to mall/green.
+Depot: iron chests -9.5..-6.5,-23.5; spare asm1 x18 in -13.5,-29.5; belts in -12.5,-30.5.
+Hand-fed the green asms (18.5..33.5,-12.5) with inserters+belts as a bridge. Green is short on circuits; copper (181/min) limits. claude-2 is building copper column 2.
+Pending architect: blue-block feed automation (plastic/sulfur/steel/circuits).
+Crew: claude-2 (smelting), claude-3 (science + power).

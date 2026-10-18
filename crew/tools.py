@@ -538,7 +538,8 @@ async def t_plan_ghosts(agent: "Agent", a: dict) -> str:
 
 
 PLAN_GHOSTS = Tool("plan_ghosts", "Lay your design in the world as ghosts (planned buildings everyone can see and "
-                   "build with build_ghosts). entities=[{name: item name, x, y, direction, recipe}]. Check the "
+                   "build with build_ghosts). entities=[{name: item name, x, y, direction, recipe, type}] "
+                   "(type=input/output for underground belts; unpaired ones are paired automatically). Check the "
                    "spots are free first. The result lists the items needed to build it.",
                    _obj({"entities": {"type": "array", "items": {"type": "object"}}}, ["entities"]), t_plan_ghosts)
 BY_NAME["plan_ghosts"] = PLAN_GHOSTS
