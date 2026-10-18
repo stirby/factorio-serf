@@ -1,0 +1,7 @@
+server/
+.venv/
+__pycache__/
+*.pyc
+dist/
+crew.toml
+logs/
