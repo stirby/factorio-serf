@@ -408,14 +408,7 @@ function observe.recipes(a, args)
   return out
 end
 
-local function trigger_text(t)
-  local trig = t.prototype.research_trigger
-  if not trig then return nil end
-  local what = trig.item and (type(trig.item) == "table" and trig.item.name or trig.item)
-      or trig.entity or trig.tile or ""
-  local n = trig.count and trig.count > 1 and (" x" .. trig.count) or ""
-  return trig.type .. " " .. tostring(what) .. n
-end
+local trigger_text = util.trigger_text
 
 -- Researchable now. 2.0 has trigger techs (craft/mine/build something) as well as lab techs.
 function observe.techs(a, args)

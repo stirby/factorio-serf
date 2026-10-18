@@ -550,8 +550,7 @@ H.research = {
     if not tech then return fail("unknown technology " .. tostring(job.args.tech)) end
     if tech.researched then return fail(tech.name .. " is already researched") end
     if tech.prototype.research_trigger then
-      return fail(tech.name .. " is a trigger tech; it unlocks by doing: " .. tech.prototype.research_trigger.type
-        .. " (see techs)")
+      return fail(tech.name .. " isn't researched in labs; it unlocks when you " .. util.trigger_text(tech))
     end
     local queue = {}
     for _, q in pairs(force.research_queue or {}) do queue[#queue + 1] = q.name end
@@ -578,7 +577,7 @@ H.research = {
       add(tech)
       if blocked then
         return fail(tech.name .. " needs " .. blocked .. " first, a trigger tech that unlocks by doing: "
-          .. force.technologies[blocked].prototype.research_trigger.type)
+          .. util.trigger_text(force.technologies[blocked]))
       end
       for _, n in ipairs(queue) do if not seen[n] then front[#front + 1] = n end end
       local okSet, err = pcall(function() force.research_queue = front end)

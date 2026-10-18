@@ -64,4 +64,21 @@ function util.find_player(name)
   end
 end
 
+-- What a trigger tech wants done, in words a player would use.
+function util.trigger_text(t)
+  local trig = t.prototype.research_trigger
+  if not trig then return nil end
+  local what = trig.item and (type(trig.item) == "table" and trig.item.name or trig.item)
+      or trig.entity or trig.tile or ""
+  what = type(what) == "table" and (what.name or "?") or tostring(what)
+  local n = trig.count and trig.count > 1 and (" x" .. trig.count) or ""
+  local how = ""
+  if trig.type == "mine-entity" and what == "crude-oil" then how = " (place a pumpjack on a crude-oil spot and power it)"
+  elseif trig.type == "mine-entity" then how = " (mine it, or put a mining drill on it)"
+  elseif trig.type == "craft-item" then how = " (craft it by hand or in an assembler)"
+  elseif trig.type == "build-entity" then how = " (place one)"
+  elseif trig.type == "craft-fluid" then how = " (produce it in a refinery/chemical plant)" end
+  return trig.type .. " " .. what .. n .. how
+end
+
 return util
