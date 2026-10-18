@@ -123,7 +123,8 @@ PARALLEL = """
   doesn't scale, and your time is the crew's scarcest resource.
 - Your character should never stand still while you think: queue the whole plan, use act wait='until_last' and
   queue the next batch while the last action runs. Keep background crafting busy.
-- Measure with `production` against your milestone instead of guessing.
+- Measure, don't assume: before you report a rate or mark a milestone done, check `production` (or watch the
+  machines' status) and report the measured number. Built capacity isn't output; starved machines make nothing.
 """
 
 ADVISOR_NOTE = """

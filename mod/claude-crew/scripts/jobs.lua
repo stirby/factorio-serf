@@ -373,9 +373,12 @@ H.place = {
       return fail("cannot place " .. job.entity .. " at " .. xystr(job.pos) .. ": " .. why)
     end
     ::place::
+    local ptype = prototypes.entity[job.entity].type
     local created = surface.create_entity {
       name = job.entity, position = job.pos, direction = job.dir, force = c.force,
       raise_built = true, create_build_effect_smoke = false,
+      -- underground belts: "input" is the entrance, "output" the exit; both face the travel direction
+      type = (ptype == "underground-belt") and (args.type or "input") or nil,
     }
     if not created then return fail("create_entity failed for " .. job.entity) end
     if not util.cheat() then c.remove_item { name = args.name, count = 1 } end
@@ -396,6 +399,9 @@ H.place = {
         data.ore, data.ore_amount = name, total
         msg = msg .. " on " .. #ores .. " tiles of " .. name .. " (" .. total .. " ore)"
       end
+    elseif created.type == "underground-belt" then
+      local n = created.neighbours
+      msg = msg .. " (" .. created.belt_to_ground_type .. (n and (", paired with " .. xystr(n.position)) or ", not paired yet") .. ")"
     elseif created.type == "inserter" then
       data.from, data.to = util.xy(created.pickup_position), util.xy(created.drop_position)
       msg = msg .. " (takes from " .. xystr(created.pickup_position) .. ", drops to " .. xystr(created.drop_position) .. ")"

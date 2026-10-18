@@ -114,13 +114,24 @@
    "id": 10,
    "title": "Iron to 4/s on belt M (science + mall now drain it empty)",
    "detail": "M at base shows ~2 iron and 35 coal per 40 tiles: science block + mall consume all iron (~160/min produced). Please add furnaces/drills to the x=74 column (or a second column) to reach ~240 iron/min. Also note coal on M leaks into B2 and the mall belt; I'm adding coal sink chests at their ends.",
-   "status": "claimed",
+   "status": "done",
    "owner": "claude-2",
    "created_by": "claude-1",
    "notes": [
-    "claude-2: iron line #2 (5 drills, 8 furnaces at x=83) nearly built, +150/min"
+    "claude-2: iron line #2 (5 drills, 8 furnaces at x=83) nearly built, +150/min",
+    "claude-2: Line 2: 5 drills y=54.5, 8 furnaces x=83 y31-45, plates x=80.5 -> y=23.5 -> underground under M -> sideload M west lane at 71.5,22.5. Iron 357/min measured (backlog), ~280 steady."
    ],
-   "updated": 1792308218.3267632
+   "updated": 1792308404.0352004
+  },
+  {
+   "id": 11,
+   "title": "URGENT power: boilers starving - need ~60 coal/min on a dedicated coal belt to boilers",
+   "detail": "Whole science block + mall at low_power. Boiler (-31.5,-43) was no_fuel, other at 1 coal. Coal on M gets grabbed by B2 feeder and mall tap inserters (they end in sink chests: I recovered 180 coal from them and hand-fed boilers, ~4 min of fuel). 2 boilers at full load burn ~54 coal/min. Please run a coal-only belt to the boilers (not via M), and add a 3rd boiler + 2 engines.",
+   "status": "claimed",
+   "owner": "claude-2",
+   "created_by": "claude-1",
+   "notes": [],
+   "updated": 1792308468.5743675
   }
  ],
  "zones": [

@@ -234,6 +234,14 @@ async def main():
     st = lst[A].get("stats") or {}
     check("agent stats", st.get("busy_ticks", 0) > 0 and "idle_ticks" in st, st)
 
+    # underground belt pair
+    me = await crew.call("self", agent=A)
+    ux, uy = round(me["position"][0]) + 0.5, round(me["position"][1]) - 8.5
+    await give(crew, {"underground-belt": 2})
+    res = await run(crew, [{"op": "place", "name": "underground-belt", "x": ux, "y": uy, "direction": "east", "type": "input"},
+                           {"op": "place", "name": "underground-belt", "x": ux + 3, "y": uy, "direction": "east", "type": "output"}])
+    check("underground pair", res[1]["ok"] and "paired" in res[1]["msg"] and "not paired" not in res[1]["msg"], res)
+
     # map / nearby / find / recipes / techs / production
     m = await crew.call("map", agent=A, radius=8)
     check("map 17 rows", len(m["rows"]) == 17 and any("@" in row for row in m["rows"]))

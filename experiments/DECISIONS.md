@@ -32,3 +32,4 @@ calls myself, log them here, and keep the review page updated hour by hour.
 | 01:55 | New long-horizon scenario s3-research-rush (60 min, scored on techs completed and science consumed) | The truest measure of 'how fast they advance' is research progress over time |
 | 01:55 | Round 3: s3-research-rush:go-now (60 min), next to round 2b | Long-horizon progress measurement with all fixes in |
 | 01:56 | Delegated a validated blueprint library (smelting column, red/green science, lab row, steam power) to a background agent; each design is validated in a cheat-mode test world | Players stamp proven designs instead of hand-placing; per-entity coordinate reasoning is slow and error-prone |
+| 02:25 | Blueprint library wired in: designs and stamp tools (clear-area check that counts existing ghosts), and the architect prefers proven designs | 48/48 design x rotation validations passed; stamping replaces per-entity coordinate reasoning |

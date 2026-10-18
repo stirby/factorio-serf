@@ -1,6 +1,7 @@
-BUILT: coal line coal chest (42.5,103.5) -> x=11 -> y=-13.5 -> x=-27.5 -> boilers; splitter (-28,-25.5) -> new boilers. Extra coal drills (34.5,96.5),(37.5,96.5) onto belt y=98 (low ore ~1-2k, replace later).
-Power: 6 boilers/12 engines. Old 2 boilers at (-31.5,-43),(-27,-42.5); new 4 at x=-36, y -38.5..-27.5.
-Oil: pumpjack1 (167.5,193.5) -> pipe x=168/167 north to y=-46.5 -> west to refinery (9.5,-49.5). Underground pipe at 13.5/15.5,-46.5 under output belt x=14. Pumpjack2 (170.5,196.5) placed but NOT piped (needs ~6 pipes: output at ~(171.5,194.5) -> (168.5,191.5)).
-Refinery block ghosts built (architect): sulfur chem (6.5,-56.5), plastic chem (10.5,-56.5), coal chest (13.5,-56.5) needs coal hand-fill. Output belt -> chest (-6.5,-28.5).
-TODO: set recipes when plastics/sulfur researched (queue: toolbelt, plastics, sulfur...), verify fluid ports, fill coal chest, pj2 pipes. Task #2 mall fix.
-Spawner at (81.5,-139.5).
+BUILT: coal line coal chest (42.5,103.5) via FAST inserter (42.5,102.5) -> x=11 -> y=-13.5 -> x=-27.5 -> boilers; splitter (-28,-25.5) -> new boilers. Coal drills (34.5/37.5/40.5,96.5) onto belt y=98, pole (38.5,94.5).
+Power: 6 boilers/12 engines (10.8MW). Coal is the binding limit (~3/s max now).
+Oil: 2 pumpjacks (167.5,193.5),(170.5,196.5) piped & powered -> pipe north x=168 to y=-46.5 -> west to refinery (9.5,-49.5) basic-oil running.
+Chem: sulfur (6.5,-56.5), plastic (10.5,-56.5) — SET RECIPES when plastics/sulfur research done; verify ports. Coal chest (13.5,-56.5) ~250 coal, refill.
+Output belt -> chest (-6.5,-28.5). Blue block needs plastic 150 each at (19.5/23.5/27.5,17.5), sulfur 75 at (34.5,1.5).
+SCOUT: 2nd iron patch (-220,168) 1.2M+, spawners (-266,86). Spawner (81.5,-139.5). No other iron within 256 of base.
+TODO: task #2 mall; more power when blue+iron expansions land (need more coal or solid fuel).

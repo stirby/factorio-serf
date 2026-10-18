@@ -43,6 +43,8 @@ Ops and their fields:
               or x,y to mine that one thing (pick up a building: add force_pickup=true only if a human asked)
   craft       recipe count [wait=false to queue and move on]   hand-craft (intermediates are crafted automatically)
   place       name x y [direction=north|east|south|west]        build from inventory
+              underground-belt: place the entrance with type=input and the exit with type=output, both facing
+              the direction items travel (max 4 tiles between them for yellow); the result says if they paired
   insert      x y item [count]                                  put items into a machine/chest (fuel goes to fuel slot)
   take        x y [item] [count]                                take output (or a specific item) from a machine/chest
   set_recipe  x y recipe                                        assembler recipe

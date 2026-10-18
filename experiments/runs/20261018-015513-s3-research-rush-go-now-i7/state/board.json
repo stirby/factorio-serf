@@ -152,18 +152,6 @@
  ],
  "zones": [
   {
-   "name": "copper-column",
-   "owner": "claude-2",
-   "area": [
-    -1.0,
-    2.0,
-    7.0,
-    46.0
-   ],
-   "purpose": "copper furnace column extension to 20 furnaces",
-   "expires": 1792310059.5197613
-  },
-  {
    "name": "science-block",
    "owner": "claude-1",
    "area": [
