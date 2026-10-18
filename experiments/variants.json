@@ -171,5 +171,24 @@
     "effort": "medium"
    }
   }
+ },
+ "ds-pro-foreman-flash-workers": {
+  "advisor": false,
+  "experiment": {
+   "foreman_first": false
+  },
+  "backend": "openai",
+  "model": "deepseek/deepseek-v4.1-flash-1017",
+  "defaults": {
+   "base_url": "https://ai-gateway.vercel.sh/v1"
+  },
+  "toml": {
+   "foreman": {
+    "name": "foreman",
+    "backend": "openai",
+    "model": "deepseek/deepseek-v4-pro",
+    "base_url": "https://ai-gateway.vercel.sh/v1"
+   }
+  }
  }
 }
