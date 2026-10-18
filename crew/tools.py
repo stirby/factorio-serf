@@ -50,7 +50,10 @@ Ops and their fields:
   take        x y [item] [count]                                take output (or a specific item) from a machine/chest
   set_recipe  x y recipe                                        assembler recipe
   rotate      x y [direction] | [reverse=true]
-  research    tech                                              add a lab tech to the research queue
+  research    tech [first=true | remove=true]                   add a lab tech to the research queue; first=true
+              moves it (and its prerequisites) to the front; remove=true takes it out
+  limit       x y slots                                         chest limit (the red X): inserters fill only the
+              first N slots; slots=none clears it. Stops a chest hoarding what others need
   connect     item=<transport-belt|pipe|small-electric-pole|...> from=[x,y] to=[x,y] [end_direction] [join]
               routes a line around obstacles and places it (belts point along the route; poles spaced to reach)
   follow      player=<name> | agent=<name> [distance=3] [seconds=300]   stay near them until stopped
@@ -468,7 +471,7 @@ TOOLS: list[Tool] = [
          "what you were doing first. If a human messages you, it returns early.",
          _obj({"actions": {"type": "array", "items": {"type": "object", "properties": {
              "op": {"type": "string", "enum": ["move", "mine", "craft", "place", "insert", "take", "set_recipe",
-                                               "rotate", "research", "connect", "follow", "build_ghosts", "blueprint", "clear_ghosts", "loot", "wait"]}}, "required": ["op"],
+                                               "rotate", "research", "limit", "connect", "follow", "build_ghosts", "blueprint", "clear_ghosts", "loot", "wait"]}}, "required": ["op"],
              "additionalProperties": True}},
              "wait": {"description": "true | false | 'until_last'"}, "replace": {"type": "boolean"}}, ["actions"]),
          t_act),

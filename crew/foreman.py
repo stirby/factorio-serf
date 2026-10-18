@@ -51,7 +51,8 @@ engines (900 kW each). Inserters take from the side they face and drop opposite.
 """
 
 FOREMAN_TOOLS = ["map", "find", "inspect", "recipes", "techs", "production", "board", "post_task", "update_task",
-                 "roadmap", "marks", "mark", "designs", "work", "notes", "reply"]
+                 "roadmap", "marks", "mark", "designs", "work", "notes", "reply", "research"]
+BATCH_WAIT = 12  # seconds to collect more worker questions before a turn (humans don't wait)
 REVIEW_EVERY = 600  # seconds without any turn before the foreman reviews the base on its own
 MAX_STEPS = 18
 
@@ -95,7 +96,7 @@ class Foreman:
         self.last_position = None
         self.pending_jobs: set[int] = set()
         self.finished: dict = {}
-        tools = [BY_NAME[n] for n in FOREMAN_TOOLS]
+        tools = [RESEARCH if n == "research" else BY_NAME[n] for n in FOREMAN_TOOLS]
         crew = ", ".join(a.name for a in orch.cfg.agents)
         self.backend = make_backend(self, SYSTEM.format(name=self.name, crew=crew), self.dir / "cwd", tools,
                                     max_steps=MAX_STEPS)
@@ -114,6 +115,9 @@ class Foreman:
         peer = self.orch.agents.get(name)
         if peer:
             peer.hear(f"(foreman) {text}", wake=wake, urgent=False)
+
+    def hear(self, line: str, wake: bool = False, urgent: bool = False) -> None:
+        self.note(line)
 
     def set_notes(self, text: str) -> None:
         self.notes = text[:3000]
@@ -231,6 +235,13 @@ class Foreman:
                 await asyncio.sleep(60)
                 self.event.set()
                 continue
+            # Workers don't wait on answers, so collect a few questions per turn; humans go straight through.
+            if not any(it["kind"] == "human" for it in self.queue):
+                oldest = min(it["t"] for it in self.queue)
+                while (time.time() - oldest < BATCH_WAIT
+                       and sum(it["kind"] == "q" for it in self.queue) < 3
+                       and not any(it["kind"] == "human" for it in self.queue)):
+                    await asyncio.sleep(1)
             items = self._take_all()
             prompt = await self._briefing(items)
             self.in_turn = True
@@ -289,7 +300,7 @@ class Foreman:
         parts.append("[workers]\n" + "\n".join(crew))
         parts.append("[roadmap]\n" + self.board.render_roadmap())
         parts.append("[zones]\n" + self.board.render_zones())
-        parts.append("[board]\n" + self.board.render(limit=25))
+        parts.append("[board]\n" + self.board.render(limit=15))
         if self.notes:
             parts.append("[your notes]\n" + self.notes)
         return "\n".join(parts)
@@ -338,10 +349,40 @@ async def t_ask_foreman(agent, a: dict) -> str:
 
 
 ASK_FOREMAN = Tool("ask_foreman", "Ask the foreman (the crew's lead, no character; sees the map, owns the plan) for a "
-                   "decision: what to do next, priorities, where to build, which design, a clash with a teammate, "
-                   "ratios. Returns at once; the answer arrives in a later tool result while you keep working. "
-                   "Say what you know and what you propose, so it can just say yes or adjust.",
+                   "decision you can't make inside your own domain: it touches another worker's build or stock, "
+                   "changes the plan or research order, or your work is done and `work` shows nothing worth doing. "
+                   "Returns at once; the answer arrives in a later tool result while you keep working. Put your "
+                   "proposal in it. Don't ask permission for things in your domain, and don't send status here "
+                   "(use report).",
                    _obj({"question": {"type": "string"},
                          "context": {"type": "string", "description": "what you see / what you propose"}},
                         ["question"]), t_ask_foreman)
 BY_NAME["ask_foreman"] = ASK_FOREMAN
+
+
+async def t_report(agent, a: dict) -> str:
+    fm = agent.orch.foreman_brain
+    text = str(a.get("text", "")).strip()
+    if not fm or not text:
+        return "nothing to report" if text else "empty report"
+    fm.note(f"{agent.name} reports: {text}")
+    return "reported (the foreman reads it on its next turn; no reply needed)"
+
+
+REPORT = Tool("report", "Tell the foreman what you finished, measured or found (one or two lines, with numbers and "
+              "coordinates). It doesn't interrupt anyone and needs no reply; keep working.",
+              _obj({"text": {"type": "string"}}, ["text"]), t_report)
+BY_NAME["report"] = REPORT
+
+
+async def t_research(fm, a: dict) -> str:
+    args = {k: a[k] for k in ("tech", "first", "remove") if k in a}
+    r = await fm.link.call("research", **args)
+    return ("OK " if r.get("ok") else "FAILED ") + str(r.get("msg", ""))
+
+
+RESEARCH = Tool("research", "Change the research queue: tech=<name> adds it; first=true moves it and its "
+                "prerequisites to the front; remove=true takes it out. The result shows the queue.",
+                _obj({"tech": {"type": "string"}, "first": {"type": "boolean"}, "remove": {"type": "boolean"}},
+                     ["tech"]), t_research)
+BY_NAME.setdefault("research", RESEARCH)

@@ -225,6 +225,8 @@ API.vitals = function(req)
       circuits = pm("electronic-circuit") } }
 end
 
+API.research = function(req) return jobs.research_direct(req) end
+
 API.self = function(req) return observe.self(live(req)) end
 API.nearby = function(req) return observe.nearby(live(req), req.radius) end
 API.map = function(req) return observe.map(live(req), req.radius, util.pos(req.center)) end

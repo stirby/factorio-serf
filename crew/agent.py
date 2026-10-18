@@ -62,8 +62,8 @@ class Agent:
             tools.append(CONSULT)
         fm = getattr(orch, "foreman_brain", None)
         if fm:
-            from .foreman import ASK_FOREMAN
-            tools.append(ASK_FOREMAN)
+            from .foreman import ASK_FOREMAN, REPORT
+            tools += [ASK_FOREMAN, REPORT]
         self.backend = make_backend(self, system_prompt(cfg.name, cfg.role, cfg.personality,
                                                         orch.advisor.name if consult else None, cfg.focus,
                                                         orch.cfg.flags, foreman=fm.name if fm else None),
@@ -97,7 +97,8 @@ class Agent:
         self.transcript.close()
 
     def crew_names(self) -> list[str]:
-        return list(self.orch.agents)
+        fm = getattr(self.orch, "foreman_brain", None)
+        return list(self.orch.agents) + ([fm.name] if fm else [])
 
     # ------------------------------------------------------------------ inputs
     def wake(self, event: str, urgent: bool = True) -> None:
@@ -173,9 +174,14 @@ class Agent:
         ui.status(self.name, text, mode)
 
     async def notify_peer(self, name: str, text: str, wake: bool = True) -> None:
+        fm = getattr(self.orch, "foreman_brain", None)
+        if fm and name == fm.name:
+            fm.note(f"{self.name}: {text}")
+            return
         peer = self.orch.agents.get(name)
         if peer:
-            peer.hear(f"(crew) {text}", wake=wake, urgent=False)
+            # With a foreman, workers don't wake each other: coordination goes through the lead.
+            peer.hear(f"(crew) {text}", wake=wake and not fm, urgent=False)
 
     def set_notes(self, text: str) -> None:
         self.notes = text.strip()[:4000]

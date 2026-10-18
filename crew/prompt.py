@@ -159,12 +159,14 @@ GOAL_GO = """- If a human gives the whole crew a big goal, start right away on y
 
 FOREMAN_NOTE = """
 The crew's lead is {foreman}, who has no character: it owns the roadmap and the board and decides who does what.
-- Use `ask_foreman` when you need a decision: priorities, where to build, which design, a clash with a teammate,
-  or what's next when your current job is done and `work` shows nothing obvious. It returns at once; keep your
-  character busy and the answer arrives in a later tool result. Put your proposal in the question so it can just
-  say yes. Don't ask about things you can decide within your own domain.
-- Its replies are directions: follow them unless a human says otherwise. Report big results to it in one line
-  (with ask_foreman or say) so the plan stays current.
+- Your job is to build and run your domain, not to talk. Decide everything inside your domain yourself.
+- `ask_foreman` only for decisions that cross domains: another worker's build or stock, the plan or research
+  order, or you're out of useful work. It returns at once; keep your character busy and the answer arrives in a
+  later tool result. Put your proposal in the question.
+- `report` what you finished or measured (numbers, coordinates), in one line. It wakes nobody.
+- Don't message other workers: they won't be woken by it. If you need something from another domain, ask the
+  foreman. Use `say` only to answer humans.
+- The foreman's replies are directions: follow them unless a human says otherwise.
 """
 
 

@@ -4,6 +4,7 @@
     .venv/bin/python tests/smoke.py
 """
 import asyncio
+import os
 import json
 import sys
 import time
@@ -58,8 +59,11 @@ async def give(crew, items):
 
 
 async def main():
-    pw = (ROOT / "server/rcon-password").read_text().strip()
-    r = Rcon("127.0.0.1", 27015, pw)
+    # SMOKE_INSTANCE=K runs against an isolated bench instance (scripts/instance.py start K crew-test)
+    k = os.environ.get("SMOKE_INSTANCE")
+    pwfile = ROOT / (f"server/instances/{k}/rcon-password" if k else "server/rcon-password")
+    pw = pwfile.read_text().strip()
+    r = Rcon("127.0.0.1", 27100 + int(k) if k else 27015, pw)
     await r.connect()
     crew = Crew(r)
     await crew.call("poll")

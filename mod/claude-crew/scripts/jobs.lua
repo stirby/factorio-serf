@@ -553,11 +553,74 @@ H.research = {
       return fail(tech.name .. " is a trigger tech; it unlocks by doing: " .. tech.prototype.research_trigger.type
         .. " (see techs)")
     end
-    for _, q in pairs(force.research_queue or {}) do
-      if q.name == tech.name then return ok(tech.name .. " is already in the research queue") end
+    local queue = {}
+    for _, q in pairs(force.research_queue or {}) do queue[#queue + 1] = q.name end
+    local function names() return table.concat(queue, ", ") end
+    if job.args.remove then
+      local keep = {}
+      for _, n in ipairs(queue) do if n ~= tech.name then keep[#keep + 1] = n end end
+      if #keep == #queue then return fail(tech.name .. " isn't in the research queue") end
+      force.research_queue = keep
+      queue = {}
+      for _, q in pairs(force.research_queue or {}) do queue[#queue + 1] = q.name end
+      return ok("removed " .. tech.name .. "; queue now: " .. names())
+    end
+    if job.args.first then
+      -- Like dragging it to the front in the research GUI: its unresearched prerequisites come with it.
+      local front, seen, blocked = {}, {}, nil
+      local function add(t)
+        if seen[t.name] or t.researched then return end
+        seen[t.name] = true
+        if t.prototype.research_trigger then blocked = blocked or t.name return end
+        for _, p in pairs(t.prerequisites) do add(p) end
+        front[#front + 1] = t.name
+      end
+      add(tech)
+      if blocked then
+        return fail(tech.name .. " needs " .. blocked .. " first, a trigger tech that unlocks by doing: "
+          .. force.technologies[blocked].prototype.research_trigger.type)
+      end
+      for _, n in ipairs(queue) do if not seen[n] then front[#front + 1] = n end end
+      local okSet, err = pcall(function() force.research_queue = front end)
+      if not okSet then return fail("could not reorder: " .. tostring(err)) end
+      queue = {}
+      local there = false
+      for _, q in pairs(force.research_queue or {}) do
+        queue[#queue + 1] = q.name
+        there = there or q.name == tech.name
+      end
+      if not there then return fail("the game refused that order; queue now: " .. names()) end
+      return ok("moved " .. tech.name .. " to the front; queue now: " .. names())
+    end
+    for _, n in ipairs(queue) do
+      if n == tech.name then return ok(tech.name .. " is already in the research queue (first=true moves it to the front)") end
     end
     if force.add_research(tech) then return ok("queued research " .. tech.name) end
     return fail("could not queue " .. tech.name .. " (missing prerequisites or queue full)")
+  end,
+}
+
+-- The red X in a chest's inventory: only the first `slots` slots accept items from inserters (0 = none).
+H.limit = {
+  start = function(a, job)
+    job.target = entity_at(a, job.args)
+    if not job.target then return fail("no entity at " .. tostring(job.args.x) .. "," .. tostring(job.args.y)) end
+  end,
+  tick = function(a, job)
+    local c, e = a.char, job.target
+    if not e.valid then return fail("target is gone") end
+    local near = approach(a, job, e.position, c.reach_distance - 0.5)
+    if near == nil then return nil end
+    if type(near) == "table" then return near end
+    local inv = e.get_inventory(defines.inventory.chest)
+    if not inv or not inv.supports_bar() then return fail(e.name .. " has no limitable inventory") end
+    if job.args.slots == nil or job.args.slots == "none" then
+      inv.set_bar()
+      return ok("cleared the limit on " .. e.name)
+    end
+    local n = math.max(0, math.min(tonumber(job.args.slots) or 0, #inv))
+    inv.set_bar(n + 1)
+    return ok("limited " .. e.name .. " to " .. n .. " of " .. #inv .. " slots")
   end,
 }
 
@@ -1056,6 +1119,11 @@ function jobs.describe(job)
   if job.move then d.walking_to = util.xy(job.move.goal) end
   if job.got then d.got = job.got end
   return d
+end
+
+-- Research queue changes without a character (the foreman): same rules as the research action.
+function jobs.research_direct(args)
+  return H.research.start({ char = { force = game.forces.player } }, { args = args })
 end
 
 return jobs

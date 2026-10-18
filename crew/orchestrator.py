@@ -182,10 +182,13 @@ class Orchestrator:
         if fm and fm.name in r.targets:
             r.targets.discard(fm.name)
             fm.ask(speaker, text)
+        elif fm:
+            fm.note(f'{speaker} said in chat: "{text}"')
         for name, agent in self.agents.items():
             if name == speaker:
                 continue
-            wake = name in r.targets and agent.allow_peer_wake()
+            # With a foreman, workers build instead of chatting: crew lines are context, never a wake-up.
+            wake = name in r.targets and not fm and agent.allow_peer_wake()
             agent.hear(f'{speaker} (crew): "{text}"', wake=wake, urgent=False)
 
     async def _idle_sweep(self) -> None:

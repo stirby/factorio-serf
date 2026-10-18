@@ -95,6 +95,7 @@ async def main():
     finally:
         fm_mod.make_backend = real
     orch.foreman_brain = fm
+    fm_mod.BATCH_WAIT = 0
     await fm.start()
 
     q1 = fm.ask("claude-1", "where should copper go?")
@@ -112,6 +113,31 @@ async def main():
     check("briefing has the [base] line", "[base] researching steel" in fm.backend.prompts[0])
     check("question ids increase", (q1, q2) == (1, 2))
     await fm.close()
+
+    # Batching: questions arriving within the window share one turn.
+    fm_mod.BATCH_WAIT = 0.5
+    seen = []
+
+    async def answer_all(f):
+        seen.append(len(f.open_q))
+        for q in list(f.open_q.values()):
+            await run_tool(f, "reply", {"to": q["from"], "text": "ok", "q": [q["id"]]})
+    fm_mod.make_backend = lambda agent, *a, **k: ScriptedBackend(agent, [answer_all, answer_all])
+    try:
+        fm2 = fm_mod.Foreman(AgentConfig(name="foreman", max_turns_per_hour=10), orch)
+    finally:
+        fm_mod.make_backend = real
+    orch.foreman_brain = fm2
+    await fm2.start()
+    fm2.ask("claude-1", "a?")
+    await asyncio.sleep(0.2)
+    fm2.ask("claude-2", "b?")
+    await asyncio.sleep(1.0)
+    check("two questions in the window -> one turn", seen == [2])
+    fm2.human("otterplex", "@foreman hi")
+    await asyncio.sleep(0.2)
+    check("human message skips the batching wait", len(seen) == 2)
+    await fm2.close()
     print("ALL PASS" if ok else "SOME FAILED")
     return ok
 
