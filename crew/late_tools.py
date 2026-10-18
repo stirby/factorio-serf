@@ -16,10 +16,14 @@ if TYPE_CHECKING:
 AREA = {"x1": {"type": "number"}, "y1": {"type": "number"}, "x2": {"type": "number"}, "y2": {"type": "number"}}
 
 
+def load_copies(state_dir) -> dict:
+    path = state_dir / "copies.json"
+    return json.loads(path.read_text()) if path.exists() else {}
+
+
 def _copies(agent) -> dict:
-    path = agent.orch.cfg.state_dir / "copies.json"
     if not hasattr(agent.orch, "copies"):
-        agent.orch.copies = json.loads(path.read_text()) if path.exists() else {}
+        agent.orch.copies = load_copies(agent.orch.cfg.state_dir)
     return agent.orch.copies
 
 

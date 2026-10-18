@@ -31,6 +31,13 @@ class Orchestrator:
         self.advisor: Advisor | None = Advisor(cfg.advisor, self) if cfg.advisor else None
         self.foreman_brain: Foreman | None = Foreman(cfg.foreman, self) if cfg.foreman else None
         self.spend: list[tuple[float, float]] = []  # (time, usd) per finished turn, every model
+        # Order-based crew (docs/architecture.md): characters are actors, a scheduler hands out orders.
+        self.orders_mode = cfg.flag("orders", False)
+        self.book = self.scheduler = None
+        if self.orders_mode:
+            from .orders import OrderBook, Scheduler
+            self.book = OrderBook(cfg.state_dir / "orders.json")
+            self.scheduler = Scheduler(self, self.book)
 
     def record_spend(self, usd: float) -> None:
         if usd:
@@ -74,12 +81,25 @@ class Orchestrator:
                             name="metrics")
         if self.cfg.flag("alerts"):
             asyncio.create_task(self._alert_watch(), name="alerts")
-        if self.cfg.flag("idle_sweep"):
+        if self.cfg.flag("idle_sweep") and not self.orders_mode:
             asyncio.create_task(self._idle_sweep(), name="idle-sweep")
+        if self.scheduler:
+            for name, agent in self.agents.items():
+                try:
+                    me = await self.link.call("self", agent=name)
+                    agent.position = me.get("position")
+                except GameError:
+                    pass
+            asyncio.create_task(self.scheduler.run(), name="scheduler")
+            ui.info("orders mode: actors take orders from the scheduler; the foreman writes them")
 
     async def _add_agent(self, ac: AgentConfig) -> Agent:
         existing = {a["name"]: a for a in (await self.link.call("list"))["agents"]}
-        agent = Agent(ac, self)
+        if self.orders_mode:
+            from .actor import Actor
+            agent = Actor(ac, self)
+        else:
+            agent = Agent(ac, self)
         self.agents[ac.name] = agent
         kw = {"name": ac.name, "starter_kit": self.cfg.starter_kit}
         if self.cfg.spawn_near:
@@ -165,6 +185,8 @@ class Orchestrator:
                 fm.note(f"(chat to {', '.join(sorted(r.targets))}) {player}: \"{text}\"")
         if r.stop:
             for name in r.targets:
+                if hasattr(self.agents[name], "stop_order"):
+                    self.agents[name].stop_order(player)
                 try:
                     await self.link.call("cancel", agent=name, reason=f"{player} said stop")
                 except GameError:
@@ -283,7 +305,11 @@ class Orchestrator:
                 last[key] = now
                 ui.info(f"alert: {text}")
                 if self.foreman_brain:
-                    self.foreman_brain.note(f"(alert, sent to the {focus} owner) {text}")
+                    # with orders, actors don't act on alerts; the coordinator turns them into orders
+                    self.foreman_brain.note(f"(alert{'' if self.orders_mode else f', sent to the {focus} owner'}) "
+                                            f"{text}", wake=self.orders_mode)
+                if self.orders_mode:
+                    continue
                 for agent in self._owner(focus):
                     agent.wake(f"(alert) {text}", urgent=True)
 

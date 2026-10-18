@@ -898,8 +898,15 @@ end
 local function find_ghosts(a, args)
   local c = a.char
   local center = util.pos(args.position or (args.x and { args.x, args.y })) or c.position
-  local list = c.surface.find_entities_filtered { type = "entity-ghost", force = c.force, position = center,
-    radius = math.min(args.radius or 32, 128) }
+  local list
+  if args.zone then  -- an order's zone: exactly that rectangle
+    local z = args.zone
+    list = c.surface.find_entities_filtered { type = "entity-ghost", force = c.force,
+      area = { { math.min(z[1], z[3]), math.min(z[2], z[4]) }, { math.max(z[1], z[3]), math.max(z[2], z[4]) } } }
+  else
+    list = c.surface.find_entities_filtered { type = "entity-ghost", force = c.force, position = center,
+      radius = math.min(args.radius or 32, 128) }
+  end
   table.sort(list, function(x, y) return util.dist(x.position, c.position) < util.dist(y.position, c.position) end)
   return list, center
 end
