@@ -91,4 +91,7 @@ The long-run measure stays techs per hour (and per dollar).
   check passed. Actor + scheduler + coordinator not yet tested end to end.
 - 2026-10-18: PAUSED for a prior-art review before building further. Several existing projects use the same
   "model picks the task, mod executes" split (AI Player v3, AI Companion / factorio-ai-companion, factorioctl,
-  Factorio AI Coworker, FLE). Decide reuse vs build before continuing; see docs/prior-art.md once written.
+  Factorio AI Coworker, FLE). Decide reuse vs build before continuing; see docs/prior-art.md.
+- 2026-10-18: prior-art review done (docs/prior-art.md, notes in research_notes/). Verdict: keep the orchestrator
+  and order design; port the game layer module by module from MIT projects (factorio-mcp in llm-play-factorio,
+  factorio-codex); no fork or rebase.
