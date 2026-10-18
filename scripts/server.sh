@@ -10,6 +10,9 @@ PIDF="$ROOT/server/server.pid"
 LOG="$ROOT/server/server.log"
 : "${FACTORIO_RCON_PORT:=27015}"
 : "${FACTORIO_PORT:=34197}"
+# Who can join: 127.0.0.1 = this machine only (default). FACTORIO_BIND_HOST=0.0.0.0 lets others on your network
+# (or the internet, with the UDP port forwarded) join; set FACTORIO_GAME_PASSWORD too when you do that.
+: "${FACTORIO_BIND_HOST:=127.0.0.1}"
 PWF="$ROOT/server/rcon-password"
 [ -f "$PWF" ] || head -c 18 /dev/urandom | base64 | tr -d '/+=' > "$PWF"
 PW="$(cat "$PWF")"
@@ -45,7 +48,8 @@ settings() {
   "autosave_slots": 3,
   "autosave_only_on_server": true,
   "non_blocking_saving": false,
-  "allow_commands": "admins-only"
+  "allow_commands": "admins-only",
+  "game_password": "${FACTORIO_GAME_PASSWORD:-}"
 }
 JSON
   echo '["otterplex"]' > "$ROOT/server/server-adminlist.json"
@@ -65,7 +69,7 @@ case "${1:-status}" in
     nohup "$BIN" --start-server "$SAVE" \
       --server-settings "$ROOT/server/server-settings.json" \
       --server-adminlist "$ROOT/server/server-adminlist.json" \
-      --bind "127.0.0.1:$FACTORIO_PORT" \
+      --bind "$FACTORIO_BIND_HOST:$FACTORIO_PORT" \
       --rcon-bind "127.0.0.1:$FACTORIO_RCON_PORT" --rcon-password "$PW" \
       > "$LOG" 2>&1 &
     echo $! > "$PIDF"
@@ -82,7 +86,15 @@ case "${1:-status}" in
     ;;
   restart) "$0" stop; "$0" start "${2:-crew-test}" ;;
   status) running && echo "running (pid $(cat "$PIDF"))" || echo "stopped" ;;
+  host)
+    # Host a COPY of a save (yours stays untouched): scripts/server.sh host ~/.factorio/saves/our-world.zip
+    SRC="${2:?path to a save .zip}"
+    NAME="hosted-$(basename "$SRC" .zip | tr ' ' '-')-$(date +%m%d-%H%M)"
+    cp "$SRC" "$F/saves/$NAME.zip"
+    echo "hosting a copy: $F/saves/$NAME.zip"
+    "$0" start "$NAME"
+    ;;
   log) tail -n "${2:-40}" "$LOG" ;;
   password) echo "$PW" ;;
-  *) echo "usage: $0 start|stop|restart|status|log|new|password"; exit 2 ;;
+  *) echo "usage: $0 start|stop|restart|status|log|new|password|host <save.zip>"; exit 2 ;;
 esac
