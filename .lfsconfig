@@ -1,0 +1,4 @@
+[lfs]
+	# Benchmark saves (experiments/runs/*/final.zip) are only for re-scoring runs; fetch them with
+	# git lfs pull --include "experiments/runs/*/final.zip"
+	fetchexclude = experiments/runs
