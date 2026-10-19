@@ -267,4 +267,122 @@ function late.network(req)
   return { networks = out, ghosts = ghosts, marked_for_deconstruction = okD and decon or nil }
 end
 
+-- Ratio calculator from the game's own recipes: what it takes to make `per_minute` of `item` with what's unlocked.
+-- Expands the recipe tree down to raw resources (or items in `supplied`), sums each intermediate, and sizes machines
+-- by crafting speed. Ignores productivity bonuses, modules, beacons and quality (so it's a slight overestimate).
+local RAW = { ["iron-ore"] = true, ["copper-ore"] = true, coal = true, stone = true, ["uranium-ore"] = true,
+  ["crude-oil"] = true, water = true, wood = true }
+
+local function enabled_recipe(name)
+  local r = game.forces.player.recipes[name]
+  return r and r.enabled and r or nil
+end
+
+local function best(names)
+  for i = #names, 1, -1 do
+    if prototypes.entity[names[i]] and enabled_recipe(names[i]) then return names[i] end
+  end
+  return names[1]
+end
+
+local function speed_of(machine)
+  local p = prototypes.entity[machine]
+  if not p then return 1 end
+  local ok, v = pcall(function() return p.get_crafting_speed() end)
+  if ok and v then return v end
+  return p.crafting_speed or 1
+end
+
+local function machine_for(cat, req)
+  if cat == "smelting" then return req.furnace or best { "stone-furnace", "steel-furnace", "electric-furnace" } end
+  if cat == "chemistry" or cat == "chemistry-or-cryogenics" then return "chemical-plant" end
+  if cat == "oil-processing" then return "oil-refinery" end
+  if cat == "centrifuging" then return "centrifuge" end
+  if cat == "crafting" or cat == "advanced-crafting" or cat == "crafting-with-fluid" or cat == "basic-crafting"
+      or cat == "pressing" or cat == "electronics" or cat == "electronics-or-assembling" or cat == "metallurgy-or-assembling"
+      or cat == "organic-or-assembling" or cat == "crafting-with-fluid-or-metallurgy" or cat == "electronics-with-fluid" then
+    return req.assembler or best { "assembling-machine-1", "assembling-machine-2", "assembling-machine-3" }
+  end
+  for name, p in pairs(prototypes.get_entity_filtered { { filter = "crafting-category", crafting_category = cat } }) do
+    if enabled_recipe(name) then return name end
+  end
+  return "?"
+end
+
+local recipe_cache
+local function recipe_for(item)
+  if recipe_cache[item] ~= nil then return recipe_cache[item] or nil end
+  local found
+  local exact = enabled_recipe(item)
+  if exact and not exact.hidden then
+    for _, pr in pairs(exact.products) do if pr.name == item then found = exact end end
+  end
+  if not found then
+    local bestn
+    for _, r in pairs(game.forces.player.recipes) do
+      if r.enabled and not r.hidden and r.category ~= "recycling" and not r.name:find("barrel") then
+        for _, pr in pairs(r.products) do
+          if pr.name == item and (not bestn or #r.ingredients < bestn) then found, bestn = r, #r.ingredients end
+        end
+      end
+    end
+  end
+  recipe_cache[item] = found or false
+  return found
+end
+
+local function out_amount(r, item)
+  for _, pr in pairs(r.products) do
+    if pr.name == item then
+      local a = pr.amount or ((pr.amount_min or 1) + (pr.amount_max or 1)) / 2
+      return a * (pr.probability or 1) + (pr.extra_count_fraction or 0)
+    end
+  end
+  return 1
+end
+
+function late.calc(req)
+  recipe_cache = {}
+  local supplied = {}
+  for _, n in pairs(req.supplied or {}) do supplied[n] = true end
+  local totals, order, raw, missing = {}, {}, {}, {}
+  local function need(item, rate, depth)
+    if RAW[item] or supplied[item] or depth > 12 then raw[item] = (raw[item] or 0) + rate return end
+    local r = recipe_for(item)
+    if not r then missing[item] = true raw[item] = (raw[item] or 0) + rate return end
+    if not totals[item] then order[#order + 1] = item end
+    totals[item] = (totals[item] or 0) + rate
+    local crafts = rate / out_amount(r, item)
+    for _, ing in pairs(r.ingredients) do need(ing.name, ing.amount * crafts, depth + 1) end
+  end
+  need(req.item, req.per_minute or 60, 0)
+  local steps = {}
+  for _, item in ipairs(order) do
+    local r = recipe_for(item)
+    local m = machine_for(r.category, req)
+    local n = totals[item] * r.energy / (60 * out_amount(r, item) * speed_of(m))
+    local ins = {}
+    for _, ing in pairs(r.ingredients) do
+      ins[#ins + 1] = { item = ing.name, per_minute = ing.amount * totals[item] / out_amount(r, item) }
+    end
+    steps[#steps + 1] = { item = item, per_minute = totals[item], recipe = r.name, machine = m, machines = n,
+      inputs = ins, other_products = #r.products > 1 and #r.products or nil }
+  end
+  local drill = req.drill or best { "burner-mining-drill", "electric-mining-drill" }
+  local dp = prototypes.entity[drill]
+  local raws = {}
+  for item, rate in pairs(raw) do
+    local x = { item = item, per_minute = rate, supplied = supplied[item] or nil, no_recipe = missing[item] or nil }
+    local res = prototypes.entity[item]
+    if RAW[item] and res and res.type == "resource" and item ~= "crude-oil" and dp then
+      local per_drill = dp.mining_speed * 60 / (res.mineable_properties.mining_time or 1)
+      x.drills, x.drill = rate / per_drill, drill
+    end
+    raws[#raws + 1] = x
+  end
+  table.sort(raws, function(a, b) return a.per_minute > b.per_minute end)
+  return { item = req.item, per_minute = req.per_minute or 60, steps = steps, raw = raws,
+    note = "no productivity/modules/beacons; yellow belt 900/min, red 1800, blue 2700 (both lanes)" }
+end
+
 return late

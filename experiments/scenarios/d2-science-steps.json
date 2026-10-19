@@ -1,0 +1,88 @@
+{
+ "name": "d2-science-steps",
+ "stage": "stage-s3-steel-oil-ready",
+ "minutes": 70,
+ "agents": 1,
+ "kind": "directive",
+ "note": "Science progression as a player hands it out, one objective at a time on the S3 base (2 idle labs, no science automated). Run score: science packs consumed (labs' use), robust to which techs are picked.",
+ "objectives": [
+  {
+   "name": "research-on",
+   "minutes": 10,
+   "hold_samples": 2,
+   "goal": "@{agent} our labs are sitting idle. Get research going (oil-processing first, then whatever's cheap and useful) and keep both labs busy.",
+   "score": [
+    {
+     "name": "researching",
+     "lua": "local c=f.current_research return c and 1 or 0",
+     "target": 1
+    },
+    {
+     "name": "labs_working",
+     "lua": "local k=0 for _,l in pairs(s.find_entities_filtered{name=\"lab\", force=f}) do if l.status==defines.entity_status.working then k=k+1 end end return k",
+     "target": 2
+    }
+   ]
+  },
+  {
+   "name": "red-automated",
+   "minutes": 20,
+   "hold_samples": 2,
+   "goal": "@{agent} automate red science: at least 15 a minute, made by assemblers and delivered to the labs without hand-feeding.",
+   "score": [
+    {
+     "name": "red_made_per_min",
+     "lua": "pm('automation-science-pack')",
+     "target": 15
+    },
+    {
+     "name": "red_used_per_min",
+     "lua": "pm('automation-science-pack','output')",
+     "target": 5
+    }
+   ]
+  },
+  {
+   "name": "green-automated",
+   "minutes": 25,
+   "hold_samples": 2,
+   "goal": "@{agent} now green science the same way: at least 10 a minute into the labs, automated.",
+   "score": [
+    {
+     "name": "green_made_per_min",
+     "lua": "pm('logistic-science-pack')",
+     "target": 10
+    },
+    {
+     "name": "green_used_per_min",
+     "lua": "pm('logistic-science-pack','output')",
+     "target": 5
+    }
+   ]
+  },
+  {
+   "name": "six-labs",
+   "minutes": 15,
+   "hold_samples": 2,
+   "goal": "@{agent} research is too slow. Get us to 6 labs, all working.",
+   "score": [
+    {
+     "name": "labs_working",
+     "lua": "local k=0 for _,l in pairs(s.find_entities_filtered{name=\"lab\", force=f}) do if l.status==defines.entity_status.working then k=k+1 end end return k",
+     "target": 6
+    }
+   ]
+  }
+ ],
+ "score": [
+  {
+   "name": "science_packs_used",
+   "lua": "st.get_output_count('automation-science-pack')+st.get_output_count('logistic-science-pack')+st.get_output_count('chemical-science-pack')",
+   "note": "lifetime packs consumed by labs; progress = value - baseline"
+  },
+  {
+   "name": "techs_researched",
+   "lua": "local k=0 for _,t in pairs(f.technologies) do if t.researched then k=k+1 end end return k"
+  }
+ ]
+}

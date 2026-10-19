@@ -153,7 +153,7 @@ def build_agents(scn: dict, var: dict, n: int | None, model: str | None) -> list
     agents = [dict(a) for a in spec] if isinstance(spec, list) else []
     count = n or (len(agents) if agents else int(spec))
     for i in range(len(agents), count):
-        agents.append({"name": f"claude-{i + 1}"})
+        agents.append({"name": "serf" if count == 1 else f"serf-{i + 1}"})
     agents = agents[:count]
     for i, a in enumerate(agents):
         for key in (str(i), a["name"]):
@@ -430,6 +430,21 @@ class Bench:
             if a.dry:
                 if a.selftest and self.scn.get("selftest_lua"):
                     self.result["selftest"] = (await crew.call("eval", code=chunk(self.scn["selftest_lua"]))).get("result")
+                if a.selftest and self.scn.get("objectives"):
+                    # Each objective's selftest_lua fakes its success; its checks must then read as met.
+                    st = self.result["selftest_objectives"] = []
+                    for ob in self.scn["objectives"]:
+                        sc = Scorer(crew, ob["score"])
+                        sc.set_baseline(await sc.sample())
+                        fake = None
+                        if ob.get("selftest_lua"):
+                            fake = (await crew.call("eval", code=chunk(ob["selftest_lua"]))).get("result")
+                        await asyncio.sleep(ob.get("selftest_wait", 2))
+                        smp = await sc.sample()
+                        st.append({"name": ob["name"], "fake": fake, "met": sc.note(smp, 0), "values": smp["values"],
+                                   "targets": sc.targets, "errors": smp["errors"]})
+                        print(f"bench: selftest {ob['name']}: met={st[-1]['met']} {smp['values']} {smp['errors']}",
+                              flush=True)
                 if a.minutes:
                     await self._sample_loop(scorer, crew, busy, timeline, t0, self.minutes * 60)
             else:
@@ -449,9 +464,12 @@ class Bench:
                 t0 = time.time()
                 self.result["t_agents_start"] = t0
                 await asyncio.sleep(1)
-                await crew.call("chat", player="ops", message=goal)
-                append_jsonl(timeline, {"t": t0, "event": "goal", "text": goal})
-                await self._sample_loop(scorer, crew, busy, timeline, t0, self.minutes * 60)
+                if self.scn.get("objectives"):
+                    await self._objectives(scorer, crew, busy, timeline, t0, setup, names)
+                else:
+                    await crew.call("chat", player="ops", message=goal)
+                    append_jsonl(timeline, {"t": t0, "event": "goal", "text": goal})
+                    await self._sample_loop(scorer, crew, busy, timeline, t0, self.minutes * 60)
             t_end = time.time()
             self.result["elapsed_s"] = round(t_end - t0, 1)
 
@@ -459,6 +477,13 @@ class Bench:
             append_jsonl(timeline, {"t": t_end, "elapsed": round(t_end - t0, 1), "final": True, **final})
             self.result["final"] = final
             self.result.update(scorer.report(final))
+            if self.result.get("objectives"):
+                obs = self.result["objectives"]
+                self.result["objectives_done"] = sum(1 for o in obs if o.get("success"))
+                # One point per objective met (held), partial credit from its checks otherwise.
+                self.result["score"] = round(sum(1.0 if o.get("success") else 0.5 * (o.get("score") or 0.0)
+                                                 for o in obs) / len(self.scn["objectives"]), 4)
+                self.result["success"] = self.result["objectives_done"] == len(self.scn["objectives"])
             self.result["summary_end"] = await progress.summary(crew.call)
             list_end = {x["name"]: x for x in (await crew.call("list"))["agents"]}
             self.result["agents_end"] = list_end
@@ -488,8 +513,71 @@ class Bench:
             (self.dir / "result.json").write_text(json.dumps(self.result, indent=1, default=str))
         return self.result
 
-    def _goal(self, setup) -> str:
-        goal = self.scn["goal"]
+    async def _objectives(self, main: "Scorer", crew: Crew, busy, timeline: Path, t0: float, setup, names) -> None:
+        """Objectives are told one at a time, like a player handing out the next job: say it, wait until its checks
+        are met in `hold_samples` consecutive one-minute samples (default 2), or its minutes run out, then the next.
+        The run's own score checks (e.g. science packs used) are sampled alongside the whole time."""
+        out = self.result.setdefault("objectives", [])
+        deadline = t0 + self.minutes * 60
+        for ob in self.scn["objectives"]:
+            if self.stop_evt.is_set() or time.time() >= deadline - 60:
+                out.append({"name": ob["name"], "skipped": True})
+                continue
+            sc = Scorer(crew, ob["score"])
+            sc.set_baseline(await sc.sample())
+            goal = self._goal(setup, ob["goal"], names)
+            ts = time.time()
+            await crew.call("chat", player="ops", message=goal)
+            append_jsonl(timeline, {"t": ts, "event": "objective", "name": ob["name"], "text": goal})
+            print(f"bench: objective {ob['name']}: {goal}", flush=True)
+            limit = min(ts + ob.get("minutes", 30) * 60, deadline)
+            held, need, smp, ok = 0, ob.get("hold_samples", 2), None, False
+            next_sample = ts + 60
+            while time.time() < limit and not self.stop_evt.is_set():
+                try:
+                    ls = (await asyncio.wait_for(crew.call("list"), 15))["agents"]
+                    for x in ls:
+                        if x["name"] in busy:
+                            busy[x["name"]][1] += 1
+                            busy[x["name"]][0] += 1 if (x.get("job") or x.get("queued")) else 0
+                    if time.time() >= next_sample:
+                        next_sample += 60
+                        smp = await sc.sample()
+                        run = await main.sample()
+                        now = time.time()
+                        append_jsonl(timeline, {"t": now, "elapsed": round(now - t0, 1), "objective": ob["name"],
+                                                **smp, "run_values": run["values"],
+                                                "agents": {x["name"]: {"job": x.get("job"), "queued": x.get("queued"),
+                                                                       "position": x.get("position")}
+                                                           for x in ls if x["name"] in busy}})
+                        print(f"bench: {round((now - t0) / 60, 1)} min [{ob['name']}]: {smp['values']}", flush=True)
+                        held = held + 1 if sc.note(smp, now - ts) else 0
+                        if held >= need:
+                            ok = True
+                            break
+                except (GameError, RconError, asyncio.TimeoutError) as e:
+                    self._err("sample", e)
+                    if not self.inst.running():
+                        raise RuntimeError("server died during the run") from e
+                try:
+                    await asyncio.wait_for(self.stop_evt.wait(), 5)
+                except asyncio.TimeoutError:
+                    pass
+            smp = smp or await sc.sample()
+            rep = sc.report(smp)
+            out.append({"name": ob["name"], "success": ok, "secs": round(time.time() - ts, 1),
+                        "score": rep.get("score"), "checks": rep.get("checks")})
+            print(f"bench: objective {ob['name']}: {'MET' if ok else 'not met'} in {round((time.time() - ts) / 60, 1)} min",
+                  flush=True)
+            await crew.call("chat", player="ops", message=(
+                f"@{names[0]} thanks, that one's done." if ok else f"@{names[0]} let's leave that one for now."))
+        if self.stop_evt.is_set():
+            self.result["interrupted"] = True
+
+    def _goal(self, setup, goal: str | None = None, names: list[str] | None = None) -> str:
+        goal = goal or self.scn.get("goal") or "(objectives)"
+        if names:
+            goal = goal.replace("{agent}", names[0])
         if isinstance(setup, dict):
             goal = re.sub(r"\{(\w+)\}", lambda m: str(setup.get(m.group(1), m.group(0))), goal)
         if "@" not in goal:

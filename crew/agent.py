@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import logging
 import time
 from collections import deque
@@ -273,7 +274,7 @@ class Agent:
     def log_thought(self, text: str) -> None:
         ui.thought(self.name, text)
         self._record("thought", text=text)
-        line = " ".join(text.split())
+        line = " ".join(re.sub(r"[*_`#]+", "", text).split())
         if line and time.time() - self._last_thought_push > 1.5:
             self._last_thought_push = time.time()
             self._show_soon(thought=line[:157] + "..." if len(line) > 160 else line)

@@ -4,6 +4,8 @@ None needs the character in reach (a player does these from the map), so the for
 """
 from __future__ import annotations
 
+import math
+
 import json
 import time
 from typing import TYPE_CHECKING
@@ -88,6 +90,24 @@ async def t_order(agent: "Agent", a: dict) -> str:
     kw = {k: a[k] for k in ("kind", "x1", "y1", "x2", "y2", "from", "to", "name", "trees", "surface") if k in a}
     d = await agent.link.call("order", **kw)
     return f"{a.get('kind')}: {_j(d)}. Robots carry it out in a roboport network; by hand, mine / build_ghosts."
+
+
+async def t_calc(agent: "Agent", a: dict) -> str:
+    d = await agent.link.call("calc", item=a["item"], per_minute=float(a.get("per_minute", 60)),
+                              supplied=a.get("supplied") or [], assembler=a.get("assembler"), furnace=a.get("furnace"),
+                              drill=a.get("drill"))
+    lines = [f"{d['per_minute']:g}/min {d['item']}:"]
+    for st in d["steps"]:
+        ins = ", ".join(f"{i['item']} {i['per_minute']:.4g}/min" for i in st["inputs"])
+        n = st["machines"]
+        lines.append(f"- {st['item']} {st['per_minute']:.4g}/min: {n:.2f} -> {math.ceil(n - 1e-9)} x {st['machine']}"
+                     f" ({st['recipe']}; in: {ins})" + (" [recipe has other products too]" if st.get("other_products") else ""))
+    for r in d["raw"]:
+        extra = f": {r['drills']:.1f} x {r['drill']}" if r.get("drills") else ""
+        tag = " (supplied)" if r.get("supplied") else " (no unlocked recipe)" if r.get("no_recipe") else ""
+        lines.append(f"- raw {r['item']} {r['per_minute']:.4g}/min{tag}{extra}")
+    lines.append(d["note"])
+    return "\n".join(lines)
 
 
 async def t_network(agent: "Agent", a: dict) -> str:
@@ -178,6 +198,13 @@ LATE_TOOLS = [
          _obj({"kind": {"type": "string", "enum": ["deconstruct", "upgrade", "cancel"]}, **AREA,
                "from": {"type": "string"}, "to": {"type": "string"}, "name": {"type": "string"},
                "trees": {"type": "boolean"}}, ["kind", "x1", "y1", "x2", "y2"]), t_order),
+    Tool("calc", "Ratio calculator from the game's recipes (what's unlocked now): machines and inputs for "
+         "per_minute of an item, down to raw ore with drill counts. supplied = items you already have on a belt or "
+         "bus (stops expanding there). Use it before building any production block, like a player with a calculator.",
+         _obj({"item": {"type": "string"}, "per_minute": {"type": "number"},
+               "supplied": {"type": "array", "items": {"type": "string"}},
+               "assembler": {"type": "string"}, "furnace": {"type": "string"}, "drill": {"type": "string"}}, ["item"]),
+         t_calc),
     Tool("network", "The logistic network(s): roboports, construction/logistic robots (idle/total), what's in "
          "storage, ghosts waiting, deconstruction pending. Check it before relying on robots to build.",
          _obj({"surface": {"type": "string"}}), t_network),
