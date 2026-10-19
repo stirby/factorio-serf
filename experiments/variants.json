@@ -91,5 +91,17 @@
     "effort": "medium"
    }
   }
+ },
+ "sonnet-low": {
+  "model": "claude-sonnet-5-5",
+  "defaults": {
+   "effort": "low"
+  }
+ },
+ "opus-solo": {
+  "model": "claude-opus-5-5",
+  "defaults": {
+   "effort": "medium"
+  }
  }
 }

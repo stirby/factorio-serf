@@ -381,7 +381,7 @@ class Bench:
                                       f"-{self.scn['name']}-{args.variant}" + ("-dry" if args.dry else ""))
         self.dir = RUNS / self.run_id
         self.state = self.dir / "state"
-        self.inst = Instance(args.instance, self.scn["stage"])
+        self.inst = Instance(args.instance, self.scn["stage"], mods=self.scn.get("mods", "bench"))
         self.stop_evt = asyncio.Event()
         self.result: dict = {"run_id": self.run_id, "scenario": self.scn["name"], "variant": args.variant,
                              "instance": args.instance, "stage": self.scn["stage"], "dry": args.dry,

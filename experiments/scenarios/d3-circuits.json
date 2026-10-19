@@ -4,12 +4,12 @@
  "minutes": 50,
  "agents": 1,
  "kind": "directive",
- "note": "Build-to-a-number on the S6 base: circuits are short (4 assemblers, ~50/min) while copper furnaces sit full. Needs calc (cable:circuit 3:2), an assembler block, and feeding it from existing plates.",
+ "note": "Build-to-a-number on the S6 base: circuits are short (4 assemblers, ~50/min) while copper furnaces sit full. Needs calc (cable:circuit 3:2), an assembler block, and feeding it from existing plates. Run 1 met the old capacity-only check with hand-filled input chests and an output chest; now delivery (used +100/min) must hold 4 samples.",
  "objectives": [
   {
    "name": "circuits-150",
    "minutes": 50,
-   "hold_samples": 2,
+   "hold_samples": 4,
    "goal": "@{agent} we're short on green circuits. Build a circuit block that adds at least 120 a minute, fed from our existing iron and copper, and send the output where circuits are needed.",
    "score": [
     {
@@ -17,6 +17,12 @@
      "lua": "local cap=0 for _,a in pairs(s.find_entities_filtered{type='assembling-machine', force=f}) do local r=a.get_recipe() if r and r.name=='electronic-circuit' and (a.status==defines.entity_status.working or a.status==defines.entity_status.full_output) then cap=cap+60*a.crafting_speed/r.energy end end return cap",
      "target_delta": 120,
      "note": "circuits/min the circuit assemblers can make when not starved; +120 over the start"
+    },
+    {
+     "name": "circuits_used_per_min",
+     "lua": "pm('electronic-circuit','output')",
+     "target_delta": 100,
+     "note": "delivered: consumers use 100/min more than at the start (hand-filled chests and an output chest don't count)"
     },
     {
      "name": "circuits_made_per_min",

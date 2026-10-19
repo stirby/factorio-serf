@@ -76,11 +76,12 @@ def _port_free(port: int, kind: int) -> bool:
 
 
 class Instance:
-    def __init__(self, k: int, stage: str | Path | None = None):
+    def __init__(self, k: int, stage: str | Path | None = None, mods: str = "bench"):
         if not 0 <= int(k) < 100:
             raise ValueError("instance id must be 0..99")
         self.k = int(k)
         self.stage = stage
+        self.mods = mods  # "bench": pinned vanilla Space Age + the crew mod; "live": the live server's mods too
         self.dir = INSTANCES / str(self.k)
         self.game_port = GAME_PORT_BASE + self.k
         self.rcon_port = RCON_PORT_BASE + self.k
@@ -137,16 +138,28 @@ class Instance:
             f"[path]\nread-data={INSTALL / 'data'}\nwrite-data={self.dir}\n[general]\nlocale=auto\n")
         mods = self.dir / "mods"
         mods.mkdir(exist_ok=True)
+        for old in mods.iterdir():  # a previous run's mod links
+            if old.is_symlink():
+                old.unlink()
         link = mods / "claude-crew"
-        if link.is_symlink() or link.exists():
+        if link.exists():
             link.unlink()
         link.symlink_to(MOD_SRC)
+        if self.mods == "live":
+            # The user's world needs the user's mods (a copy of their save runs here, never the original).
+            live = INSTALL / "mods"
+            for z in live.glob("*.zip"):
+                (mods / z.name).symlink_to(z)
+            shutil.copy2(live / "mod-list.json", mods / "mod-list.json")
+            if (live / "mod-settings.dat").exists():
+                shutil.copy2(live / "mod-settings.dat", mods / "mod-settings.dat")
         # Benchmarks run vanilla Space Age + the crew mod, whatever the live server has installed, so results stay
         # comparable when the live server picks up the user's mods.
-        ml = {"mods": [{"name": n, "enabled": True} for n in REQUIRED_MODS]}
-        (mods / "mod-list.json").write_text(json.dumps(ml, indent=2))
-        if BENCH_SETTINGS.exists():
-            shutil.copy2(BENCH_SETTINGS, mods / "mod-settings.dat")
+        if self.mods != "live":
+            ml = {"mods": [{"name": n, "enabled": True} for n in REQUIRED_MODS]}
+            (mods / "mod-list.json").write_text(json.dumps(ml, indent=2))
+            if BENCH_SETTINGS.exists():
+                shutil.copy2(BENCH_SETTINGS, mods / "mod-settings.dat")
         saves = self.dir / "saves"
         if saves.exists():
             shutil.rmtree(saves)
