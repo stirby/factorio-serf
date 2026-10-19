@@ -6,7 +6,7 @@ local jobs = require("scripts.jobs")
 local link = require("scripts.link")
 
 local panel = {}
-local NAME = "claude_crew_panel"
+local NAME = "factorio_serf_panel"
 
 local C = {
   thinking = { 0.55, 0.75, 1 }, doing = { 0.5, 0.95, 0.5 }, warn = { 1, 0.65, 0.2 }, bad = { 1, 0.35, 0.3 },

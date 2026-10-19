@@ -20,16 +20,18 @@ PW="$(cat "$PWF")"
 
 link_mod() {
   mkdir -p "$F/mods"
-  ln -sfn "$ROOT/mod/claude-crew" "$F/mods/claude-crew"
+  rm -f "$F/mods/claude-crew"  # the mod's old name
+  ln -sfn "$ROOT/mod/factorio-serf" "$F/mods/factorio-serf"
   python3 - "$F/mods/mod-list.json" <<'PY'
 import json, sys, os
 p = sys.argv[1]
 d = json.load(open(p)) if os.path.exists(p) else {"mods": [{"name": "base", "enabled": True}]}
+d["mods"] = [m for m in d["mods"] if m["name"] != "claude-crew"]  # the mod's old name
 names = {m["name"] for m in d["mods"]}
-if "claude-crew" not in names:
-    d["mods"].append({"name": "claude-crew", "enabled": True})
+if "factorio-serf" not in names:
+    d["mods"].append({"name": "factorio-serf", "enabled": True})
 for m in d["mods"]:
-    if m["name"] == "claude-crew": m["enabled"] = True
+    if m["name"] == "factorio-serf": m["enabled"] = True
 json.dump(d, open(p, "w"), indent=2)
 PY
 }
@@ -37,7 +39,7 @@ PY
 settings() {
   cat > "$ROOT/server/server-settings.json" <<JSON
 {
-  "name": "Claude Crew dev",
+  "name": "Serf dev",
   "description": "local dev server",
   "visibility": { "public": false, "lan": true },
   "require_user_verification": true,

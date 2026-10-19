@@ -277,7 +277,7 @@ class OpenAIBackend:
                                   else "OPENAI_API_KEY")
         key = os.environ.get(env)
         if not key:
-            raise ValueError(f"backend openai for {agent.name}: set {env} (e.g. in ~/.config/claude-crew/env)")
+            raise ValueError(f"backend openai for {agent.name}: set {env} (e.g. in ~/.config/factorio-serf/env)")
         self.client = openai.AsyncOpenAI(api_key=key, base_url=self.base_url)
         self.system = system
         self.messages: list[dict] = []

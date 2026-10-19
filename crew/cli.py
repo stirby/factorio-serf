@@ -1,4 +1,4 @@
-"""crew: run Claude agents as players in a Factorio game that has the claude-crew mod.
+"""crew: run Claude agents as players in a Factorio game that has the factorio-serf mod.
 
   crew up                         run the crew (reads ./crew.toml if present)
   crew up -n 3 --model claude-opus-5-5 --server <server-ip>:27015 --password ...
@@ -113,13 +113,13 @@ SERF_DOC = """serf: bring an AI teammate into your own Factorio game. No server 
   serf key          save an Anthropic API key (if you don't use a Claude login)
   serf --model claude-opus-5-5
 
-Setup, once: the claude-crew mod enabled, and Factorio started with the launch option
+Setup, once: the factorio-serf mod enabled, and Factorio started with the launch option
   --enable-lua-udp 27200      (Steam: right-click Factorio > Properties > Launch options)
 Model access: your Claude Code login (`claude login`), or an API key (`serf key`).
-Settings (optional): ~/.config/claude-crew/serf.toml, same keys as crew.toml ([defaults] model, effort, ...).
+Settings (optional): ~/.config/factorio-serf/serf.toml, same keys as crew.toml ([defaults] model, effort, ...).
 """
 
-SERF_TOML = Path("~/.config/claude-crew/serf.toml").expanduser()
+SERF_TOML = config_mod.CONFIG_DIR / "serf.toml"
 
 
 def _serf_key() -> None:
@@ -165,7 +165,7 @@ async def _serf(args) -> None:
             break
         except RconError:
             if not waited:
-                ui.info(f"waiting for Factorio on UDP port {args.port}: load a game with the claude-crew mod; "
+                ui.info(f"waiting for Factorio on UDP port {args.port}: load a game with the factorio-serf mod; "
                         f"Factorio must be started with --enable-lua-udp {args.port}")
                 waited = True
             await asyncio.sleep(3)

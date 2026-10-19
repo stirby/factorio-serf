@@ -28,8 +28,8 @@ several independent serfs, each on its owner's login.
   own cursor, so nobody steals anyone's messages. An agent records its client and owner; its job results and
   events go only to its client. Polling is the heartbeat (offline after 20 s).
 - **Guards for UDP clients** (`guard` in control.lua): no `eval`/`chat`/`brand`/`as_player`; drive only your own
-  agents; names can't be taken over; `claude-crew-serfs-per-player` cap (2); no starter kit in multiplayer;
-  `claude-crew-player-serfs` off disables it all. The app on the server's own machine (player 0) may spawn for a
+  agents; names can't be taken over; `factorio-serf-serfs-per-player` cap (2); no starter kit in multiplayer;
+  `factorio-serf-player-serfs` off disables it all. The app on the server's own machine (player 0) may spawn for a
   named player.
 - **`/serf add`** pushes an `add` event to that player's app (or to an operator's `crew up --host-serfs`), which
   picks a name (`serf`, then `serf-<player>`), spawns next to the player and starts the brain. `@serf` in chat
@@ -46,7 +46,7 @@ several independent serfs, each on its owner's login.
 | Tools (`crew/tools.py`, `crew/late_tools.py`) | plain code | `act` (place, mine, craft, connect, configure, ...), `build` (stamp/paste/ghosts/line in one call, done by the controller), `diagnose`, copy/paste, planners, `network`, `research`. |
 | Controller (`crew/controller.py`) | plain code behind `build` | Lays a plan as ghosts, fetches items, crafts, mines raw resources, clears blockers, builds, refuels. |
 | Checks (`orchestrator._task_checks`, mod `scripts/orders.lua`) | the game | A board task with `done_when` closes only when its check holds 2 min. |
-| Mod (`mod/claude-crew`) | Lua | Characters under player rules, job queue, observations, late-game queries, checks. JSON API over RCON (`/crew`) or localhost UDP; `/serf` for players. |
+| Mod (`mod/factorio-serf`) | Lua | Characters under player rules, job queue, observations, late-game queries, checks. JSON API over RCON (`/crew`) or localhost UDP; `/serf` for players. |
 | Apps (`crew/cli.py`) | Python | `serf`: a player's own app (UDP, join mode). `crew up`: a server operator's (RCON; `--host-serfs`). |
 
 What people see (one player at a time, so make it watchable): the panel (top left, `/crew-panel`) is titled
@@ -86,7 +86,7 @@ belts, inserters and fluids (C1, C5); `place` clears trees itself (C3); pole rou
 
 - 2026-10-18: architecture agreed; order graph + scheduler (`crew/orders.py`), controller (`crew/controller.py`),
   actor (`crew/actor.py`), coordinator order tools (`crew/foreman.py`), mod queries `zone`/`sources`/`check`
-  (`mod/claude-crew/scripts/orders.lua`). Controller tested without a model on stage S7: pasted a 34-piece smelting
+  (`mod/factorio-serf/scripts/orders.lua`). Controller tested without a model on stage S7: pasted a 34-piece smelting
   column on open ground, fetched belts/inserters from chests, mined stone, crafted furnaces, built it all in 108 s,
   check passed. Actor + scheduler + coordinator not yet tested end to end.
 - 2026-10-18: PAUSED for a prior-art review before building further. Several existing projects use the same

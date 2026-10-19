@@ -2,7 +2,7 @@
 # Top-level keys go before the first [table].
 # spawn_near = "otterplex"    # spawn agents next to this player if they're online
 # starter_kit = true          # the freeplay starting items (burner drill, furnace, 8 plates...)
-# state_dir = "~/.local/state/claude-crew"   # board, notes, copies; use one per world
+# state_dir = "~/.local/state/factorio-serf"   # board, notes, copies; use one per world
 
 [server]
 host = "127.0.0.1"
@@ -32,7 +32,7 @@ name = "serf"                 # what you @ in chat; with several agents give eac
 personality = "Calm, dry humor, likes tidy layouts."
 
 # The model can also come from an OpenAI-compatible provider, e.g. DeepSeek through the Vercel AI Gateway.
-# Keys go in ~/.config/claude-crew/env (KEY=VALUE, chmod 600), never in this file:
+# Keys go in ~/.config/factorio-serf/env (KEY=VALUE, chmod 600), never in this file:
 #   AI_GATEWAY_API_KEY=...
 # and in [[agent]]: backend = "openai", base_url = "https://ai-gateway.vercel.sh/v1",
 #   model = "deepseek/deepseek-v4.1-flash-1017"

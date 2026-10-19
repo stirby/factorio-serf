@@ -12,7 +12,7 @@ serfs, each on its owner's login. Servers can host serfs over RCON (`crew up --h
 guards and the add flow (`tests/test_udp.py`, an end-to-end add with a real Sonnet turn, smoke 56/56). **Not yet
 tested: the real UDP path from a game client** (needs the user's game; a headless server crashes on Lua UDP).
 
-Nothing is running. All test servers start with biters off (`crew/peace.py`). Repo: github.com/stirby/claude-crew
+Nothing is running. All test servers start with biters off (`crew/peace.py`). Repo: github.com/stirby/factorio-serf
 (private; making it public needs a history rewrite to drop 23 committed saves, and a license).
 
 ## The thesis (the user's)

@@ -1,7 +1,7 @@
-# Claude Crew: notes for coding agents
+# Factorio Serf: notes for coding agents
 
 An LLM agent plays Factorio 2.0 + Space Age as a script character alongside humans, commanded from game chat.
-Lua mod in `mod/claude-crew` (characters, job queue, observations, RCON JSON API `/crew {json}`); Python
+Lua mod in `mod/factorio-serf` (characters, job queue, observations, RCON JSON API `/crew {json}`); Python
 orchestrator in `crew/` (one model per character, a board of tasks with game-checked results).
 **Focus: one good player** (`docs/architecture.md`). The multi-agent crew with an Opus foreman is paused but still
 works from config (`docs/crew-design.md`). What went wrong before and why: `docs/log-analysis/README.md`.
@@ -22,7 +22,7 @@ client, start the server with RCON, `uv venv && uv pip install -e .`, write `cre
 - Don't change mod files while players are connected. A mod change means: bump `version` in `info.json`,
   repackage, redistribute the zip to the server and every client, restart the server, players restart Factorio.
 - Never put keys in tracked files. `crew.toml` and `crew-*.toml` are gitignored; keys go in env vars or
-  `~/.config/claude-crew/env`.
+  `~/.config/factorio-serf/env`.
 - Don't expose RCON to the internet.
 - Factorio binaries and third-party mods are not in this repo and must not be committed (`server/` is ignored).
 

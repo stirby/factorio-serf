@@ -41,7 +41,7 @@ class CrewConfig:
     agents: list[AgentConfig] = field(default_factory=list)
     spawn_near: str | None = None  # player name to spawn next to, if online
     starter_kit: bool = True
-    state_dir: Path = Path("~/.local/state/claude-crew").expanduser()
+    state_dir: Path = field(default_factory=lambda: _home("~/.local/state", "factorio-serf"))
     source: Path | None = None  # crew.toml this came from (watched for live changes)
     foreman: AgentConfig | None = None  # characterless lead every worker can ask without waiting
     usd_per_hour: float | None = None  # [budget] usd_per_hour: hard cap on spend over the last hour (all models)
@@ -84,7 +84,14 @@ def _password(raw: dict, base: Path) -> str:
     return ""
 
 
-ENV_FILE = Path("~/.config/claude-crew/env").expanduser()
+def _home(base: str, name: str) -> Path:
+    """~/<base>/factorio-serf, or the folder from before the rename (claude-crew) if only that one exists."""
+    new, old = Path(base, name).expanduser(), Path(base, "claude-crew").expanduser()
+    return old if old.exists() and not new.exists() else new
+
+
+CONFIG_DIR = _home("~/.config", "factorio-serf")
+ENV_FILE = CONFIG_DIR / "env"
 
 
 def load_env_file(path: Path = ENV_FILE) -> None:

@@ -1,4 +1,4 @@
-"""Minimal async Source RCON client, plus the JSON call wrapper for the claude-crew mod."""
+"""Minimal async Source RCON client, plus the JSON call wrapper for the factorio-serf mod."""
 from __future__ import annotations
 
 import asyncio

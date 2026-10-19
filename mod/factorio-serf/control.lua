@@ -1,4 +1,4 @@
--- Claude Crew: script-driven characters that an external orchestrator controls.
+-- Factorio Serf: AI teammates as script-driven characters, driven by an app outside the game.
 -- Protocol: a JSON request { op = ..., ... } and one JSON reply { ok, data | error }, over RCON (`/crew <json>`,
 -- reply via rcon.print) or localhost UDP (scripts/link.lua). Players bring in their own with `/serf add`.
 local util = require("scripts.util")
@@ -72,7 +72,7 @@ local function live(req)
 end
 
 API.ping = function()
-  return { pong = game.tick, version = script.active_mods["claude-crew"], seed = game.surfaces.nauvis.map_gen_settings.seed }
+  return { pong = game.tick, version = script.active_mods["factorio-serf"], seed = game.surfaces.nauvis.map_gen_settings.seed }
 end
 
 -- A line from the serf app to one player (e.g. "that name is taken"). Over UDP: only to the app's own player.
@@ -125,7 +125,7 @@ end
 
 -- Look and naming for the panel: title (e.g. "otterplex's daemon") and the word for one agent.
 API.brand = function(req)
-  storage.brand = { title = tostring(req.title or "Claude Crew"):sub(1, 60), kind = tostring(req.kind or "agent"):sub(1, 30) }
+  storage.brand = { title = tostring(req.title or "Serfs"):sub(1, 60), kind = tostring(req.kind or "agent"):sub(1, 30) }
   return {}
 end
 
@@ -366,7 +366,7 @@ local TRUSTED_ONLY = { eval = true, chat = true, brand = true, as_player = true 
 local function guard(req, ctx)
   if TRUSTED_ONLY[req.op] then error(req.op .. " is only for the server operator (RCON)", 0) end
   if req.op == "spawn" then
-    if not settings.global["claude-crew-player-serfs"].value then error("this server doesn't allow player serfs", 0) end
+    if not settings.global["factorio-serf-player-serfs"].value then error("this server doesn't allow player serfs", 0) end
     -- From a player's machine the serf is theirs. From the server's own machine (player 0: an operator's app on
     -- the server box) it may be for any player.
     local p = ctx.player_index > 0 and game.get_player(ctx.player_index)
@@ -377,7 +377,7 @@ local function guard(req, ctx)
     if not existing then
       local mine = 0
       for _, a in pairs(storage.agents) do if a.client == ctx.client then mine = mine + 1 end end
-      local cap = settings.global["claude-crew-serfs-per-player"].value
+      local cap = settings.global["factorio-serf-serfs-per-player"].value
       if mine >= cap then error("you already have " .. mine .. " (the server allows " .. cap .. ")", 0) end
     end
     req.owner, req.near_player = p.name, req.near_player or p.name
@@ -416,7 +416,7 @@ API.as_player = function(req)
     { client = "p" .. pi, player_index = pi, udp = true }))
 end
 
-commands.add_command("crew", "Claude Crew API (RCON/admin). Takes JSON.", function(cmd)
+commands.add_command("crew", "Serf API (RCON/admin). Takes JSON.", function(cmd)
   if cmd.player_index then
     -- Admins can call it from the console to look at things; the reply is printed to them.
     local p = game.get_player(cmd.player_index)
@@ -431,7 +431,7 @@ end)
 ---------------------------------------------------------------------- /serf
 local SETUP = table.concat({
   "[serf] No serf app is connected for you. To bring in a serf, on your own computer:",
-  "  1. Install the app and log in once: see github.com/stirby/claude-crew (pip install, then `claude login` or an API key).",
+  "  1. Install the app and log in once: see github.com/stirby/factorio-serf (pip install, then `claude login` or an API key).",
   "  2. Start Factorio with the launch option  --enable-lua-udp 27200  (Steam: Factorio > Properties > Launch options).",
   "  3. Run  serf  and type /serf add again.",
 }, "\n")
@@ -476,7 +476,7 @@ commands.add_command("serf", "Bring in an AI helper: /serf add [name], /serf rem
   for w in (cmd.parameter or ""):gmatch("%S+") do words[#words + 1] = w end
   local sub, arg = words[1] or "help", words[2]
   if sub == "add" then
-    if not settings.global["claude-crew-player-serfs"].value then
+    if not settings.global["factorio-serf-player-serfs"].value then
       p.print("[serf] This server doesn't allow player serfs (mod setting).")
       return
     end
@@ -489,7 +489,7 @@ commands.add_command("serf", "Bring in an AI helper: /serf add [name], /serf rem
       p.print(SETUP)
       return
     end
-    local cap = settings.global["claude-crew-serfs-per-player"].value
+    local cap = settings.global["factorio-serf-serfs-per-player"].value
     if client == "p" .. p.index and #owned_by(p) >= cap then
       p.print("[serf] You already have " .. table.concat(owned_by(p), ", ") .. " (this server allows " .. cap .. ").")
       return
@@ -524,10 +524,10 @@ commands.add_command("serf", "Bring in an AI helper: /serf add [name], /serf rem
   end
 end)
 
-commands.add_command("crew-panel", "Show or hide the Claude Crew panel.", function(cmd)
+commands.add_command("crew-panel", "Show or hide the serf panel.", function(cmd)
   if cmd.player_index then panel.toggle(game.get_player(cmd.player_index)) end
 end)
 
-remote.add_interface("claude-crew", {
+remote.add_interface("factorio-serf", {
   agents = function() return storage.agents end,
 })

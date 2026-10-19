@@ -51,7 +51,7 @@ class GameLink:
                 await self.api.connect()
                 ping = await self.api.call("ping")
                 if not ping.get("version"):
-                    raise GameError("claude-crew mod is not loaded in this game")
+                    raise GameError("factorio-serf mod is not loaded in this game")
                 log.info("connected to game, mod %s, tick %s", ping["version"], ping["pong"])
                 self.connected.set()
                 return

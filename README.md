@@ -1,7 +1,8 @@
-# Claude Crew
+# Factorio Serf
 
-A Claude agent that plays Factorio 2.0 (Space Age) **as a player, alongside you, in multiplayer**. You talk to it
-in game chat; it walks, mines, crafts and builds under the same rules you do, and reports back.
+An AI teammate (a Claude agent) that plays Factorio 2.0 (Space Age) **as a player, next to you**, in single player
+or multiplayer. You talk to it in game chat; it walks, mines, crafts and builds under the same rules you do, and
+reports back.
 
 It's called a **serf**. Everyone brings their own: start your game, run the `serf` app with your own Claude
 login, type `/serf add`, and a fella just joins. (A multi-agent crew with an Opus foreman was built and paused:
@@ -17,13 +18,13 @@ otterplex: @serf add the iron patch I'm standing on, belt it to the train stop
 
 ## Quick start: a serf in your own game (no server)
 
-1. Install the mod: copy `dist/claude-crew_<version>.zip` (`scripts/package-mod.sh` builds it) into your Factorio
+1. Install the mod: copy `dist/factorio-serf_<version>.zip` (`scripts/package-mod.sh` builds it) into your Factorio
    `mods` folder and enable it. In multiplayer, everyone needs the same zip.
 2. Start Factorio with the launch option `--enable-lua-udp 27200` (Steam: right-click Factorio → Properties →
    Launch options). That lets the mod talk to the app on your own computer; nothing leaves it.
 3. Install the app and log in once (Python 3.11+):
    ```bash
-   uv tool install git+https://github.com/stirby/claude-crew    # or: pipx install git+...
+   uv tool install git+https://github.com/stirby/factorio-serf    # or: pipx install git+...
    claude login        # Claude subscription (Claude Code), or: serf key   (an Anthropic API key)
    ```
 4. Load a game, run `serf`, and type `/serf add` in game. Talk to it with `@serf ...`. `/serf remove` sends it
@@ -38,7 +39,7 @@ Server admins can turn player serfs off or cap them (mod settings), or host serf
 
 ```
 Your game (single player or a multiplayer client), or a server
-  claude-crew mod (Lua): agent characters, job queue, pathfinding, observations, panel, /serf
+  factorio-serf mod (Lua): agent characters, job queue, pathfinding, observations, panel, /serf
         ▲  localhost UDP (your own `serf` app)  or  RCON (a server operator's `crew up`)
         ▼
 orchestrator (Python): game link · chat router · task board · one Claude loop per agent
@@ -50,7 +51,7 @@ Claude: Agent SDK on your Claude login, or the API with a key. The model is set 
 - **Agents are real `character` entities** driven by script, not network clients (Factorio multiplayer is
   lockstep, so a bot client would have to run the whole simulation). To you they look and act like players.
 - **Legit by default:** they pathfind and walk, hand-mine at normal speed, need the items in their inventory,
-  craft in real time, and must be within reach. A `claude-crew-cheat` map setting switches to teleport and
+  craft in real time, and must be within reach. A `factorio-serf-cheat` map setting switches to teleport and
   instant crafting.
 - **How the app talks to the game:** mods can't make web requests, so the model runs in a small app on your
   computer. Factorio 2.0 lets a mod exchange UDP packets with localhost (`--enable-lua-udp`); an incoming packet
@@ -82,7 +83,7 @@ Without a client you can still drive it: `crew say "@claude-1 build some iron sm
 
 The crew attaches to any game where the host runs the mod and gives you RCON access:
 
-- **Dedicated server:** start it with `--rcon-port 27015 --rcon-password ...`, add `claude-crew` to its mods,
+- **Dedicated server:** start it with `--rcon-port 27015 --rcon-password ...`, add `factorio-serf` to its mods,
   then `crew up --server host:27015 --password ...`.
 - **Hosting from your own client:** add `--rcon-port 27015 --rcon-password ...` to Factorio's launch options
   (Steam → Properties), then **Multiplayer → Host saved game**. RCON only listens while hosting.
@@ -118,7 +119,7 @@ applies within a few seconds without a restart. A backend change still needs one
 "off duty" and their characters stay in the game.
 
 Each agent has `max_turns_per_hour` and `max_autonomous_turns` limits, so it can't run away with your usage.
-State (board, notes, transcripts) lives in `~/.local/state/claude-crew/`.
+State (board, notes, transcripts) lives in `~/.local/state/factorio-serf/`.
 
 ## Running unattended
 
@@ -145,5 +146,5 @@ on start; never run those on a world people play). Peaceful mode on a real game,
 benchmark; agents write Python against a game API; takes over the whole surface),
 [AI Companion](https://mods.factorio.com/mod/ai-companion) (closest: legit companions via Claude Code and MCP),
 [AI Player v3](https://mods.factorio.com/mod/ai-player-v3) / [AI Coworker](https://mods.factorio.com/mod/ai-coworker)
-(skills-based; agents teleport). Claude Crew is aimed at several agents playing *with* humans in a shared
+(skills-based; agents teleport). Factorio Serf is aimed at several agents playing *with* humans in a shared
 multiplayer game, commanded from chat.

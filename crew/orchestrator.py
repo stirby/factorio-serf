@@ -81,7 +81,7 @@ class Orchestrator:
             hello = self.agents.get(self.foreman or "") or next(iter(self.agents.values()))
             try:
                 await self.link.call("say", agent=hello.name,
-                                     text=f"Claude Crew online ({names}). Address us with @name or @all.")
+                                     text=f"Crew online ({names}). Address us with @name or @all.")
             except GameError:
                 pass
         if self.cfg.source:

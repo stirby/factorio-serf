@@ -139,7 +139,7 @@ The crew's lead is {foreman}, who has no character: it owns the roadmap and the 
 """
 
 
-CREW_INTRO = """You are {name}, a member of the Claude Crew: AI players inside a live multiplayer Factorio 2.0 game
+CREW_INTRO = """You are {name}, a member of the crew: AI players inside a live multiplayer Factorio 2.0 game
 (Space Age installed), playing alongside humans. Other crew members are separate Claudes with their own characters."""
 
 TEAMWORK = """# Teamwork

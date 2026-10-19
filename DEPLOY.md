@@ -1,9 +1,9 @@
-# Deploying Claude Crew to a dedicated server
+# Deploying Factorio Serf to a dedicated server
 
 For running it on a dedicated server. (Just want a serf in your own game? See the README quick start: no server,
 no RCON, each player runs the `serf` app on their own computer and types `/serf add`.) Two pieces:
 
-1. **The mod** (`mod/claude-crew`) runs inside Factorio, on the server *and* on every player's client.
+1. **The mod** (`mod/factorio-serf`) runs inside Factorio, on the server *and* on every player's client.
 2. **The orchestrator** (`crew/`, the `crew` command) runs on any machine that can reach the server's RCON port.
    It runs the model behind each agent character. The default is one agent per person, on that person's own
    Claude login; a multi-agent crew with an Opus foreman is optional (`docs/crew-design.md`).
@@ -14,16 +14,16 @@ declares `factorio_version = "2.0"`; newer 2.0.x builds should work.
 ## 1. Build and install the mod
 
 ```bash
-scripts/package-mod.sh                       # -> dist/claude-crew_<version>.zip
+scripts/package-mod.sh                       # -> dist/factorio-serf_<version>.zip
 scripts/package-mod.sh /path/to/server/mods  # or build and copy straight into the server's mods folder
 ```
 
-- Put the zip in the server's `mods/` folder and add `{"name": "claude-crew", "enabled": true}` to its
+- Put the zip in the server's `mods/` folder and add `{"name": "factorio-serf", "enabled": true}` to its
   `mods/mod-list.json` (or the host panel's mod list).
 - **Every player needs the same zip** in their own mods folder (`~/.factorio/mods`, `%APPDATA%\Factorio\mods`).
   The mod isn't on the mod portal, so "sync mods with server" can't download it. Copy the zip by hand, or on Linux
   run `scripts/install-client-mod.sh --zip` with Factorio closed. Restart Factorio after changing mods.
-- If you change the mod, bump `version` in `mod/claude-crew/info.json` before redistributing. Two different zips
+- If you change the mod, bump `version` in `mod/factorio-serf/info.json` before redistributing. Two different zips
   with the same version make clients fail with a mod mismatch.
 - **Back up the save first.** Adding the mod and letting it run writes its state into the save. Removing the mod
   later is safe (its characters disappear), but keep the backup.
@@ -60,7 +60,7 @@ In `crew.toml`:
 - `[server]`: `host`, `rcon_port`, and `rcon_password` (or `rcon_password_file`, or the
   `FACTORIO_RCON_PASSWORD` env var).
 - Top-level keys go *above* `[server]`: `spawn_near = "<your player name>"` makes agents spawn next to you;
-  `state_dir = "~/.local/state/claude-crew-<world>"` keeps one board/notes per world;
+  `state_dir = "~/.local/state/factorio-serf-<world>"` keeps one board/notes per world;
   `starter_kit = false` if they shouldn't get the freeplay starting items.
 - `[defaults]` picks the model (Sonnet; Opus is slower and pricier). One `[[agent]]` is the default.
 - Several orchestrators can share a server (mod 0.2.0+): each reads chat from its own cursor and gets results only
@@ -69,7 +69,7 @@ In `crew.toml`:
   the cost is notional, but the subscription's own usage limits apply, and Opus burns them fastest.
 
 API keys never go in `crew.toml`. For the API backend set `ANTHROPIC_API_KEY`; for OpenAI-compatible providers put
-`KEY=VALUE` lines in `~/.config/claude-crew/env` (chmod 600).
+`KEY=VALUE` lines in `~/.config/factorio-serf/env` (chmod 600).
 
 To keep it running: `systemd/claude-crew.service` is a user unit (edit its paths, then
 `systemctl --user enable --now claude-crew.service`). `logs/live.log` is the log; the board, notes and every
@@ -119,6 +119,6 @@ Things to know:
 |---|---|
 | `crew status` times out / connection refused | RCON port/password wrong, server not started with `--rcon-port`, or a firewall |
 | `unknown command /crew` | mod not loaded on the server: check `mods/mod-list.json` and the server log |
-| Clients can't join: mod mismatch | someone has a different `claude-crew` zip; redistribute the same `dist/` file |
+| Clients can't join: mod mismatch | someone has a different `factorio-serf` zip; redistribute the same `dist/` file |
 | Agents freeze, log says `SUBSCRIPTION USAGE LIMIT` | Claude usage limit hit; wait, use fewer agents, or move workers to another backend |
 | Agents paused, log says spend cap | `[budget] usd_per_hour` reached; raise it or wait |

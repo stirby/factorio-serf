@@ -36,13 +36,13 @@ from crew.rcon import Crew, Rcon  # noqa: E402
 INSTALL = ROOT / "server/factorio"
 BIN = INSTALL / "bin/x64/factorio"
 INSTANCES = ROOT / "server/instances"
-MOD_SRC = ROOT / "mod/claude-crew"
+MOD_SRC = ROOT / "mod/factorio-serf"
 GAME_PORT_BASE, RCON_PORT_BASE = 34200, 27100
 # The mod's localhost UDP link (--enable-lua-udp), as a player's own serf app uses it. Off by default: in 2.0.77 a
 # headless server crashes ("Trying to add invalid input action to the closure") when a Lua UDP packet arrives.
 UDP_PORT_BASE = 27300
 BENCH_SETTINGS = ROOT / "server/bench-mod-settings.dat"
-REQUIRED_MODS = ["base", "space-age", "quality", "elevated-rails", "claude-crew"]
+REQUIRED_MODS = ["base", "space-age", "quality", "elevated-rails", "factorio-serf"]
 INGAME = "changing state from(CreatingGame) to(InGame)"
 
 
@@ -146,7 +146,7 @@ class Instance:
         for old in mods.iterdir():  # a previous run's mod links
             if old.is_symlink():
                 old.unlink()
-        link = mods / "claude-crew"
+        link = mods / "factorio-serf"
         if link.exists():
             link.unlink()
         link.symlink_to(MOD_SRC)
@@ -155,7 +155,10 @@ class Instance:
             live = INSTALL / "mods"
             for z in live.glob("*.zip"):
                 (mods / z.name).symlink_to(z)
-            shutil.copy2(live / "mod-list.json", mods / "mod-list.json")
+            ml = json.loads((live / "mod-list.json").read_text())
+            ml["mods"] = [m for m in ml["mods"] if m["name"] not in ("claude-crew", "factorio-serf")]
+            ml["mods"].append({"name": "factorio-serf", "enabled": True})  # the mod's old name was claude-crew
+            (mods / "mod-list.json").write_text(json.dumps(ml, indent=2))
             if (live / "mod-settings.dat").exists():
                 shutil.copy2(live / "mod-settings.dat", mods / "mod-settings.dat")
         # Benchmarks run vanilla Space Age + the crew mod, whatever the live server has installed, so results stay
@@ -171,7 +174,7 @@ class Instance:
         saves.mkdir()
         shutil.copy2(src, self.save_path)  # copy; the stage original is only read
         (self.dir / "server-settings.json").write_text(json.dumps({
-            "name": f"Claude Crew bench {self.k}", "description": "experiment instance",
+            "name": f"Serf bench {self.k}", "description": "experiment instance",
             "visibility": {"public": False, "lan": False}, "require_user_verification": False,
             "max_players": 0, "auto_pause": False, "auto_pause_when_players_connect": False,
             "only_admins_can_pause_the_game": True,

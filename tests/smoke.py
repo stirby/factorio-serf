@@ -314,11 +314,11 @@ async def main():
     check("loot corpse", res[0]["ok"] and "looted" in res[0]["msg"], res[0])
 
     # cheat mode
-    await crew.call("eval", code="settings.global['claude-crew-cheat'] = {value=true} return true")
+    await crew.call("eval", code="settings.global['factorio-serf-cheat'] = {value=true} return true")
     res = await run(crew, [{"op": "move", "x": 200, "y": 0}, {"op": "craft", "recipe": "iron-chest", "count": 2}])
     check("cheat teleport", res[0]["ok"], res[0])
     check("cheat craft", res[1]["ok"], res[1])
-    await crew.call("eval", code="settings.global['claude-crew-cheat'] = {value=false} return true")
+    await crew.call("eval", code="settings.global['factorio-serf-cheat'] = {value=false} return true")
 
     await crew.call("say", agent=A, text="smoke test done [gps=0,0]")
     await crew.call("despawn", agent=A)

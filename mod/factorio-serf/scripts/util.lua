@@ -53,7 +53,7 @@ function util.contents(inv)
 end
 
 function util.cheat()
-  local s = settings.global["claude-crew-cheat"]
+  local s = settings.global["factorio-serf-cheat"]
   return s and s.value or false
 end
 

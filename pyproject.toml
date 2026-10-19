@@ -1,7 +1,7 @@
 [project]
-name = "claude-crew"
+name = "factorio-serf"
 version = "0.1.0"
-description = "Claude agents as Factorio players: orchestrator for the claude-crew mod"
+description = "Serf: an AI teammate that plays Factorio next to you (the app for the factorio-serf mod)"
 requires-python = ">=3.11"
 dependencies = [
   "anthropic>=0.70",

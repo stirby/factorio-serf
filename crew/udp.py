@@ -18,7 +18,7 @@ from .rcon import GameError, RconError
 DEFAULT_PORT = 27200
 CHUNK = 60000
 SETUP_HINT = ("is Factorio running with the launch option `--enable-lua-udp {port}`, a game loaded (not the main "
-              "menu, not paused) and the claude-crew mod enabled?")
+              "menu, not paused) and the factorio-serf mod enabled?")
 
 
 def _split(body: str) -> list[bytes]:
