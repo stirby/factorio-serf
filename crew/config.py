@@ -41,8 +41,8 @@ class CrewConfig:
     source: Path | None = None  # crew.toml this came from (watched for live changes)
     foreman: AgentConfig | None = None  # characterless lead every worker can ask without waiting
     usd_per_hour: float | None = None  # [budget] usd_per_hour: hard cap on spend over the last hour (all models)
-    kind: str = "engineer"  # [identity] kind: what an agent is. Factorio calls its player "the Engineer": a peer.
-    title: str | None = None  # [identity] title: the in-game panel's caption (default "claude · engineer with otterplex")
+    kind: str = "serf"  # [identity] kind: what an agent is called (the user's pick: short to type in chat)
+    title: str | None = None  # [identity] title: the in-game panel's caption (default "serf · with otterplex")
 
     @property
     def owner(self) -> str | None:
@@ -52,7 +52,9 @@ class CrewConfig:
         if self.title:
             return self.title
         if len(self.agents) == 1:
-            return f"{self.agents[0].name} · {self.kind}" + (f" with {self.owner}" if self.owner else "")
+            name = self.agents[0].name
+            head = name if name == self.kind else f"{name} · {self.kind}"
+            return head + (f" · with {self.owner}" if self.owner else "")
         return f"{self.kind}s".capitalize()
 
     def foreman_name(self) -> str | None:
@@ -126,7 +128,7 @@ def load(path: str | Path | None, overrides: dict | None = None) -> CrewConfig:
     if n and len(entries) < n:
         entries = entries + [{"name": f"claude-{i + 1}"} for i in range(len(entries), n)]
     if not entries:
-        entries = [{"name": "claude-1"}]
+        entries = [{"name": "serf"}]
     if n:
         entries = entries[:n]
     for e in entries:

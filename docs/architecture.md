@@ -24,8 +24,8 @@ client id, keep a queue per id, route each agent's results to its owner), then a
 | Mod (`mod/claude-crew`) | Lua | Characters under player rules, job queue, observations, late-game queries, checks. RCON JSON API `/crew`. |
 
 What people see (one player at a time, so make it watchable): the panel (top left, `/crew-panel`) is titled
-"claude · engineer with otterplex" (`[identity]` in crew.toml; the agent is a fellow engineer, Factorio's own
-word for its player, never an object) and shows, per agent: model, a live state line, its task, and its
+"serf · with otterplex" (`[identity]` in crew.toml; the user's name for it: short to type, "@serf fix our
+iron". The prompt treats it as a fellow engineer and teammate) and shows, per agent: model, a live state line, its task, and its
 latest thought in quotes. The same state floats over the character's head. States: `thinking... 12s` (a model
 turn is running; with the job if the character is also moving), the current job (`walking to 60,10`, `mining`,
 `building`), `paused: hourly spend cap`, `retrying: <error>`, `offline` (no orchestrator poll for 20 s), and

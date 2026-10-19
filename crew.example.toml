@@ -10,10 +10,10 @@ rcon_port = 27015
 # rcon_password = "..."                       # or FACTORIO_RCON_PASSWORD, or:
 rcon_password_file = "server/rcon-password"   # relative to this file
 
-# Who it is. Factorio calls its player "the Engineer"; your agent is a fellow engineer working beside you.
-# The panel reads "<name> · engineer with <spawn_near>", e.g. "claude · engineer with otterplex".
+# Who it is: a serf, a fellow engineer working beside you (short to type: "@serf fix our iron").
+# The panel reads "serf · with <spawn_near>".
 [identity]
-kind = "engineer"
+kind = "serf"
 # title = "..."               # override the panel caption
 
 # Your player: one character in the game, driven by one model. Talk to it in chat.
@@ -28,7 +28,7 @@ max_turns_per_hour = 120
 # usd_per_hour = 25
 
 [[agent]]
-name = "claude"               # what you @ in chat; with several agents give each its own name
+name = "serf"                 # what you @ in chat; with several agents give each its own name (serf-2, ...)
 personality = "Calm, dry humor, likes tidy layouts."
 
 # The model can also come from an OpenAI-compatible provider, e.g. DeepSeek through the Vercel AI Gateway.
