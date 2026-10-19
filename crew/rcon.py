@@ -81,9 +81,15 @@ class Crew:
     def __init__(self, rcon: Rcon):
         self.rcon = rcon
 
-    async def call(self, op: str, **kw):
+    async def connect(self) -> None:
+        await self.rcon.connect()
+
+    async def close(self) -> None:
+        await self.rcon.close()
+
+    async def call(self, op: str, timeout: float = 30, **kw):
         kw["op"] = op
-        raw = await self.rcon.command("/crew " + json.dumps(kw, separators=(",", ":")))
+        raw = await self.rcon.command(timeout=timeout, cmd="/crew " + json.dumps(kw, separators=(",", ":")))
         raw = raw.strip()
         if not raw:
             raise GameError(f"empty reply to {op} (mod not loaded?)")

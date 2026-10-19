@@ -3,10 +3,10 @@
 -- "idle" only shows when the model is out of usage: otherwise an agent is thinking or doing something.
 local agents = require("scripts.agents")
 local jobs = require("scripts.jobs")
+local link = require("scripts.link")
 
 local panel = {}
 local NAME = "claude_crew_panel"
-local OFFLINE_TICKS = 60 * 20
 
 local C = {
   thinking = { 0.55, 0.75, 1 }, doing = { 0.5, 0.95, 0.5 }, warn = { 1, 0.65, 0.2 }, bad = { 1, 0.35, 0.3 },
@@ -36,8 +36,8 @@ end
 -- Returns long text (panel), short text (over the head), color.
 local function state_of(a)
   if not agents.alive(a) then return "dead, respawning", "respawning", C.bad end
-  if (game.tick - (storage.last_poll or 0)) > OFFLINE_TICKS or a.state == "offline" then
-    return "offline: the orchestrator isn't running", "offline", C.dim
+  if not link.online(link.client_of(a)) or a.state == "offline" then
+    return "offline: " .. (a.owner and (a.owner .. "'s serf app") or "the orchestrator") .. " isn't running", "offline", C.dim
   end
   local doing = doing_words(a)
   local secs = math.floor((game.tick - (a.state_since or game.tick)) / 60)
@@ -55,6 +55,9 @@ local function state_of(a)
     return t, "thinking" .. dots, C.thinking
   end
   if doing then return doing, doing:gsub(" %(.*", ""), C.doing end
+  if st == "waiting" then
+    return "waiting for orders" .. (a.owner and (" from " .. a.owner) or ""), "ready for orders", C.dim
+  end
   return "deciding what's next", "...", C.thinking
 end
 
@@ -73,7 +76,7 @@ end
 
 function panel.refresh()
   storage.panel_hidden = storage.panel_hidden or {}
-  local brand = storage.brand or { title = "Claude Crew" }
+  local brand = storage.brand or { title = "Serfs" }
   local names = {}
   for name in pairs(storage.agents) do names[#names + 1] = name end
   table.sort(names)
@@ -82,7 +85,8 @@ function panel.refresh()
     local a = storage.agents[name]
     local long, short, c = state_of(a)
     update_overhead(a, short, c)
-    local lines = { color(a.color, "[font=default-bold]" .. name .. "[/font]")
+    local who = (a.owner and name ~= a.owner) and ("  [font=default-small]" .. color(C.dim, "with " .. a.owner) .. "[/font]") or ""
+    local lines = { color(a.color, "[font=default-bold]" .. name .. "[/font]") .. who
       .. (a.model and ("  [font=default-small]" .. color(C.dim, a.model) .. "[/font]") or "") }
     lines[#lines + 1] = color(c, long)
     if a.task_text and a.task_text ~= "" then lines[#lines + 1] = "[font=default-small]task: " .. a.task_text .. "[/font]" end

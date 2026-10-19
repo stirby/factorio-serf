@@ -13,6 +13,7 @@ openai = ["openai>=1.50"]  # backend = "openai": OpenAI-compatible providers (Ve
 
 [project.scripts]
 crew = "crew.cli:main"
+serf = "crew.cli:serf_main"
 
 [build-system]
 requires = ["hatchling"]

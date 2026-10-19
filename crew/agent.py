@@ -67,6 +67,7 @@ class Agent:
         self.recent_calls: deque = deque(maxlen=200)
         self._last_thought_push = 0.0
         self.recent_fails: deque = deque(maxlen=8)
+        self.owner = cfg.owner or orch.cfg.owner  # the player it works for
         from .tools import TOOLS
         from .late_tools import LATE_TOOLS
         tools = list(TOOLS) + LATE_TOOLS
@@ -76,7 +77,7 @@ class Agent:
             tools += [ASK_FOREMAN, REPORT]
         self.backend = make_backend(self, system_prompt(cfg.name, cfg.personality, cfg.focus,
                                                         foreman=fm.name if fm else None, solo=fm is None,
-                                                        owner=orch.cfg.owner, kind=orch.cfg.kind),
+                                                        owner=self.owner, kind=orch.cfg.kind),
                                     self.dir / "cwd", tools)
         self._task: asyncio.Task | None = None
 
@@ -85,13 +86,14 @@ class Agent:
         await self.backend.start()
         await self.show(state="ready", model=model_label(self.cfg.model), thought="")
         if self.solo and self.inbox.empty():
-            self.inbox.put_nowait("(start) You just joined the game. Look around, read your notes and the board, then "
-                                  "pick the most valuable thing to do and start it.")
+            self.inbox.put_nowait("(start) You just joined the game (your hello is already in chat). If someone "
+                                  "already gave you an order, do it. Otherwise look around, read your notes and the "
+                                  "board, then offer 2-3 things you could do in one line and ask which first.")
         self._task = asyncio.create_task(self._loop(), name=f"agent-{self.name}")
 
     @property
     def solo(self) -> bool:
-        """No foreman: this agent runs its own game and never sleeps (only usage limits stop it)."""
+        """No foreman: this agent works for the humans directly, one order at a time, and asks for the next."""
         return getattr(self.orch, "foreman_brain", None) is None
 
     async def show(self, **fields) -> None:
@@ -395,12 +397,9 @@ class Agent:
                 self.inbox.put_nowait(f"(continue) keep going on {focus}. When a task is finished or blocked, "
                                       "update it, then take the next one.")
             elif self.solo:
-                # One player runs its own game: no task means choosing the next one, not sleeping.
-                self.mode = "working"
-                self.inbox.put_nowait(
-                    "(continue) You own no open task. Decide the most valuable next thing for the factory (research "
-                    "is the clock: labs fed and growing first, then the biggest shortage `diagnose` shows, then "
-                    "expansion), post it as your own board task with a done_when check, and start it.")
+                # Order done (or none given): it reported and asked; wait for the human's answer.
+                self.mode, self.idle_since = "idle", time.time()
+                await self.show(state="waiting", detail="")
             else:
                 self.mode, self.idle_since = "idle", time.time()
                 self.orch.worker_idle(self)

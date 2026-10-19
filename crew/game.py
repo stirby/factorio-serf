@@ -1,5 +1,5 @@
-"""Connection to the game: one RCON link, a poller that fans out chat/results/events,
-and futures for job results so tools can block on "walk there and mine 20 iron"."""
+"""Connection to the game: one link (RCON for a server operator, localhost UDP for a player's own app), a poller
+that fans out chat/results/events, and futures for job results so tools can block on "walk there and mine 20 iron"."""
 from __future__ import annotations
 
 import asyncio
@@ -8,6 +8,7 @@ from collections import OrderedDict
 from typing import Awaitable, Callable
 
 from .rcon import Crew, GameError, Rcon, RconError
+from .udp import UdpCrew
 
 log = logging.getLogger("crew.game")
 
@@ -15,9 +16,21 @@ POLL_SECS = 0.4
 
 
 class GameLink:
-    def __init__(self, host: str, port: int, password: str):
-        self.rcon = Rcon(host, port, password)
-        self.api = Crew(self.rcon)
+    def __init__(self, host: str, port: int, password: str, transport: str = "rcon", udp_port: int = 27200,
+                 client: str = "rcon", hosts: bool = False):
+        if transport == "udp":
+            self.rcon = None
+            self.api = UdpCrew(udp_port)
+            self.where = f"UDP port {udp_port} (Factorio's --enable-lua-udp)"
+        else:
+            self.rcon = Rcon(host, port, password)
+            self.api = Crew(self.rcon)
+            self.where = f"RCON {host}:{port}"
+        # Who we are to the mod: RCON names itself; over UDP the mod knows us by player. `hosts`: take
+        # /serf add from players who don't run their own app.
+        self.poll_args = {"hosts": hosts} | ({"client": client} if transport != "udp" else {})
+        self.client: str | None = None  # as the mod knows us (from poll)
+        self.you: str | None = None  # the player whose game we're attached to (UDP)
         self.on_chat: list[Callable[[dict], Awaitable[None]]] = []
         self.on_result: list[Callable[[str, dict, bool], Awaitable[None]]] = []  # (agent, result, claimed)
         self.on_event: list[Callable[[dict], Awaitable[None]]] = []
@@ -35,7 +48,7 @@ class GameLink:
         delay = 1.0
         while True:
             try:
-                await self.rcon.connect()
+                await self.api.connect()
                 ping = await self.api.call("ping")
                 if not ping.get("version"):
                     raise GameError("claude-crew mod is not loaded in this game")
@@ -43,7 +56,7 @@ class GameLink:
                 self.connected.set()
                 return
             except (OSError, RconError, asyncio.TimeoutError) as e:
-                log.warning("can't reach game RCON (%s); retrying in %.0fs", e, delay)
+                log.warning("can't reach the game over %s (%s); retrying in %.0fs", self.where, e, delay)
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, 15)
 
@@ -58,10 +71,11 @@ class GameLink:
         while True:
             try:
                 if not self.connected.is_set():
-                    await self.rcon.close()
+                    await self.api.close()
                     await self._connect()
-                data = await self.api.call("poll")
+                data = await self.api.call("poll", **self.poll_args)
                 self.tick = data.get("tick", self.tick)
+                self.client, self.you = data.get("client", self.client), data.get("you", self.you)
                 for msg in data.get("chat") or []:
                     for cb in self.on_chat:
                         await cb(msg)

@@ -22,6 +22,7 @@ class AgentConfig:
     max_autonomous_turns: int = 40  # consecutive self-continued turns before it must check in
     base_url: str | None = None  # backend "openai": any OpenAI-compatible endpoint (e.g. the Vercel AI Gateway)
     api_key_env: str | None = None  # env var holding its key (default: AI_GATEWAY_API_KEY for the gateway, else OPENAI_API_KEY)
+    owner: str | None = None  # the player it works for (set by /serf add); default: the config's spawn_near
 
 
 @dataclass
@@ -29,6 +30,9 @@ class ServerConfig:
     host: str = "127.0.0.1"
     rcon_port: int = 27015
     rcon_password: str = ""
+    transport: str = "rcon"  # "rcon" (server operator) or "udp" (a player's own app: Factorio's --enable-lua-udp)
+    udp_port: int = 27200
+    client: str = "rcon"  # this orchestrator's name to the mod over RCON (two `crew up` on one server need two)
 
 
 @dataclass
@@ -43,6 +47,9 @@ class CrewConfig:
     usd_per_hour: float | None = None  # [budget] usd_per_hour: hard cap on spend over the last hour (all models)
     kind: str = "serf"  # [identity] kind: what an agent is called (the user's pick: short to type in chat)
     title: str | None = None  # [identity] title: the in-game panel's caption (default "serf · with otterplex")
+    defaults: dict = field(default_factory=dict)  # [defaults]: template for agents that arrive by /serf add
+    join: bool = False  # agents come only from /serf add (the player's app); none spawn at start
+    host_serfs: bool = False  # take /serf add from players without their own app (they run on this login)
 
     @property
     def owner(self) -> str | None:
@@ -56,6 +63,11 @@ class CrewConfig:
             head = name if name == self.kind else f"{name} · {self.kind}"
             return head + (f" · with {self.owner}" if self.owner else "")
         return f"{self.kind}s".capitalize()
+
+    def agent_for(self, name: str, owner: str | None) -> AgentConfig:
+        """Config for an agent that arrived by /serf add: [defaults] plus its name and owner."""
+        known = AgentConfig.__dataclass_fields__.keys()
+        return AgentConfig(**{k: v for k, v in {**self.defaults, "name": name, "owner": owner}.items() if k in known})
 
     def foreman_name(self) -> str | None:
         return self.foreman.name if self.foreman else None
@@ -108,7 +120,14 @@ def load(path: str | Path | None, overrides: dict | None = None) -> CrewConfig:
         host=srv.get("host", "127.0.0.1"),
         rcon_port=int(srv.get("rcon_port", 27015)),
         rcon_password=_password(srv, base),
+        transport=srv.get("transport", "rcon"),
+        udp_port=int(srv.get("udp_port", 27200)),
+        client=srv.get("client", "rcon"),
     )
+    if overrides.get("udp"):
+        server.transport = "udp"
+        if overrides["udp"] is not True:
+            server.udp_port = int(overrides["udp"])
     if overrides.get("server"):
         host, _, port = overrides["server"].partition(":")
         server.host = host or server.host
@@ -127,7 +146,8 @@ def load(path: str | Path | None, overrides: dict | None = None) -> CrewConfig:
     n = int(overrides.get("count") or 0)
     if n and len(entries) < n:
         entries = entries + [{"name": f"claude-{i + 1}"} for i in range(len(entries), n)]
-    if not entries:
+    join = bool(overrides.get("join") or raw.get("join"))
+    if not entries and not join:
         entries = [{"name": "serf"}]
     if n:
         entries = entries[:n]
@@ -146,6 +166,8 @@ def load(path: str | Path | None, overrides: dict | None = None) -> CrewConfig:
     cfg = CrewConfig(server=server, agents=agents,
                      spawn_near=top("spawn_near"), starter_kit=top("starter_kit", True))
     cfg.source = Path(path).expanduser().resolve() if path else None
+    cfg.defaults, cfg.join = defaults, join
+    cfg.host_serfs = bool(top("host_serfs", False))
     ident = raw.get("identity", {})
     cfg.kind = ident.get("kind", cfg.kind)
     cfg.title = ident.get("title")

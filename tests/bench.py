@@ -460,6 +460,7 @@ class Bench:
                 async def no_snapshot(label: str) -> None:  # don't write the shared manifest or saves dir
                     append_jsonl(self.dir / "events.jsonl", {"t": time.time(), "kind": "milestone", "label": label})
                 orch._snapshot = no_snapshot
+                self.orch = orch
                 await asyncio.wait_for(orch.start(), 180)
                 t0 = time.time()
                 self.result["t_agents_start"] = t0
@@ -532,7 +533,7 @@ class Bench:
             print(f"bench: objective {ob['name']}: {goal}", flush=True)
             limit = min(ts + ob.get("minutes", 30) * 60, deadline)
             held, need, smp, ok = 0, ob.get("hold_samples", 2), None, False
-            next_sample = ts + 60
+            next_sample, nudged = ts + 60, 0.0
             while time.time() < limit and not self.stop_evt.is_set():
                 try:
                     ls = (await asyncio.wait_for(crew.call("list"), 15))["agents"]
@@ -555,6 +556,15 @@ class Bench:
                         if held >= need:
                             ok = True
                             break
+                        # The serf reports and asks when it thinks it's done. A player who sees it isn't would say so.
+                        ag = getattr(self, "orch", None) and self.orch.agents.get(names[0])
+                        if (ag and ag.mode == "idle" and not ag.in_turn and now - ag.idle_since > 45
+                                and now - nudged > 180):
+                            nudged = now
+                            short = self._short(sc.report(smp))
+                            await crew.call("chat", player="ops", message=(
+                                f"@{names[0]} not done yet: {short}. Keep going on it." if short else
+                                f"@{names[0]} not done yet: it has to hold for a few minutes. Keep at it."))
                 except (GameError, RconError, asyncio.TimeoutError) as e:
                     self._err("sample", e)
                     if not self.inst.running():
@@ -573,6 +583,15 @@ class Bench:
                 f"@{names[0]} thanks, that one's done." if ok else f"@{names[0]} let's leave that one for now."))
         if self.stop_evt.is_set():
             self.result["interrupted"] = True
+
+    @staticmethod
+    def _short(rep: dict) -> str:
+        """What a player would point at: the checks still below target, in plain numbers."""
+        out = []
+        for name, c in (rep.get("checks") or {}).items():
+            if c.get("target") is not None and c.get("value") is not None and (c.get("frac") or 0) < 1:
+                out.append(f"{name.replace('_', ' ')} is {c['value']:,.0f}, needs {c['target']:,.0f}")
+        return "; ".join(out)
 
     def _goal(self, setup, goal: str | None = None, names: list[str] | None = None) -> str:
         goal = goal or self.scn.get("goal") or "(objectives)"

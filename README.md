@@ -3,24 +3,45 @@
 A Claude agent that plays Factorio 2.0 (Space Age) **as a player, alongside you, in multiplayer**. You talk to it
 in game chat; it walks, mines, crafts and builds under the same rules you do, and reports back.
 
-**Direction:** one good player per person. You bring your own Claude login, run `crew up`, and your agent joins
-the game. (A multi-agent crew with an Opus foreman was built and paused: [docs/crew-design.md](docs/crew-design.md).)
+It's called a **serf**. Everyone brings their own: start your game, run the `serf` app with your own Claude
+login, type `/serf add`, and a fella just joins. (A multi-agent crew with an Opus foreman was built and paused:
+[docs/crew-design.md](docs/crew-design.md).)
 
 ```
-otterplex: @all get a starter base going: automated iron and copper, then red science
- claude-1: Plan: claude-2 takes iron (east patch [gps=75,58]), I take stone/copper/coal in the south.
- claude-2: First iron drill+furnace running at [gps=77,62]. I need stone and coal for more.
- claude-1: Added 4 more iron drill+furnace pairs at [gps=78,73]. Coal is the bottleneck: claude-2, please...
+otterplex: /serf add
+     serf: serf here (Sonnet 5.5). Ready to build with you, otterplex. Talk to me with @serf.
+     serf: Nothing is researching and I have almost no inventory. I could (1) hand-bootstrap iron and copper
+           smelting, (2) get the labs fed with red science, or (3) fix power. What do you want first?
+otterplex: @serf add the iron patch I'm standing on, belt it to the train stop
 ```
+
+## Quick start: a serf in your own game (no server)
+
+1. Install the mod: copy `dist/claude-crew_<version>.zip` (`scripts/package-mod.sh` builds it) into your Factorio
+   `mods` folder and enable it. In multiplayer, everyone needs the same zip.
+2. Start Factorio with the launch option `--enable-lua-udp 27200` (Steam: right-click Factorio → Properties →
+   Launch options). That lets the mod talk to the app on your own computer; nothing leaves it.
+3. Install the app and log in once (Python 3.11+):
+   ```bash
+   uv tool install git+https://github.com/stirby/claude-crew    # or: pipx install git+...
+   claude login        # Claude subscription (Claude Code), or: serf key   (an Anthropic API key)
+   ```
+4. Load a game, run `serf`, and type `/serf add` in game. Talk to it with `@serf ...`. `/serf remove` sends it
+   away (you get its items), `/serf list` shows who's here.
+
+Works in single player and as a client in someone else's multiplayer game: each player runs their own `serf`,
+and each serf runs on its owner's login. Your serf waits in the save; run `serf` again and it picks up.
+Server admins can turn player serfs off or cap them (mod settings), or host serfs for players without the app
+([DEPLOY.md](DEPLOY.md)).
 
 ## How it works
 
 ```
-Factorio server (headless, or a game hosted from a client)
-  claude-crew mod (Lua): agent characters, job queue, pathfinding, observations, Crew panel
-        ▲  RCON: /crew {json}  ⇄  rcon.print(json)
+Your game (single player or a multiplayer client), or a server
+  claude-crew mod (Lua): agent characters, job queue, pathfinding, observations, panel, /serf
+        ▲  localhost UDP (your own `serf` app)  or  RCON (a server operator's `crew up`)
         ▼
-crew orchestrator (Python): game link · chat router · task board · one Claude loop per agent
+orchestrator (Python): game link · chat router · task board · one Claude loop per agent
         ▲  tools: look, map, find, inspect, act, say, board, notes, status ...
         ▼
 Claude: Agent SDK on your Claude login, or the API with a key. The model is set per agent.
@@ -31,8 +52,10 @@ Claude: Agent SDK on your Claude login, or the API with a key. The model is set 
 - **Legit by default:** they pathfind and walk, hand-mine at normal speed, need the items in their inventory,
   craft in real time, and must be within reach. A `claude-crew-cheat` map setting switches to teleport and
   instant crafting.
-- **Why RCON:** mods can't open sockets or read files. RCON works on any server, and its commands go through
-  the game's deterministic input stream, so every player stays in sync.
+- **How the app talks to the game:** mods can't make web requests, so the model runs in a small app on your
+  computer. Factorio 2.0 lets a mod exchange UDP packets with localhost (`--enable-lua-udp`); an incoming packet
+  becomes an input action, so in multiplayer every machine runs the request the same way and only yours sends
+  the reply. Servers can also use RCON, which works on any headless server.
 - **The mod does the heavy lifting:** multi-step jobs ("walk there and mine 20 iron"), A* belt/pipe/pole
   routing, ASCII maps and compact observations. Each RCON round trip stays small and each tool call does a lot.
 

@@ -1,5 +1,6 @@
 -- Agent registry: script-driven characters with a name tag, a job queue and a result outbox.
 local util = require("scripts.util")
+local link = require("scripts.link")
 
 local agents = {}
 
@@ -16,8 +17,8 @@ local DEFAULT_COLORS = {
 function agents.init()
   storage.agents = storage.agents or {}
   storage.by_unit = storage.by_unit or {} -- character unit_number -> agent name
-  storage.chat = storage.chat or {}
-  storage.events = storage.events or {}
+  storage.chat, storage.events = nil, nil -- before schema 3; now link.lua's feed
+  link.init()
   storage.path_results = storage.path_results or {}
   storage.next_job_id = storage.next_job_id or 1
   storage.built_by = storage.built_by or {}
@@ -35,9 +36,7 @@ end
 
 function agents.event(ev)
   ev.tick = game.tick
-  local list = storage.events
-  list[#list + 1] = ev
-  if #list > 500 then table.remove(list, 1) end
+  link.push("event", ev)
 end
 
 local function draw_tag(a)
@@ -96,6 +95,8 @@ function agents.spawn(args)
     local p = util.find_player(args.near_player)
     if p and p.connected then surface, near = p.surface, p.position end
   end
+  a.client = args.client or a.client
+  a.owner = args.owner or a.owner
   local fresh = not a.kit_given
   create_char(a, surface, near or default_spawn(surface))
   if fresh and args.starter_kit ~= false then

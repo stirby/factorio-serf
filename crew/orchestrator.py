@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import time
 import logging
 
@@ -26,12 +27,15 @@ class Orchestrator:
     def __init__(self, cfg: CrewConfig):
         self.cfg = cfg
         cfg.state_dir.mkdir(parents=True, exist_ok=True)
-        self.link = GameLink(cfg.server.host, cfg.server.rcon_port, cfg.server.rcon_password)
+        self.link = GameLink(cfg.server.host, cfg.server.rcon_port, cfg.server.rcon_password,
+                             transport=cfg.server.transport, udp_port=cfg.server.udp_port, client=cfg.server.client,
+                             hosts=cfg.host_serfs)
         self.board = Board(cfg.state_dir / "board.json")
         self.agents: dict[str, Agent] = {}
         self.foreman: str | None = cfg.foreman_name()
         self.foreman_brain: Foreman | None = Foreman(cfg.foreman, self) if cfg.foreman else None
         self.spend: list[tuple[float, float]] = []  # (time, usd) per finished turn, every model
+        self.world_owners: set[str] = set()  # players who have a serf in this world (from any orchestrator)
 
     def record_spend(self, usd: float) -> None:
         if usd:
@@ -47,31 +51,39 @@ class Orchestrator:
         return not cap or self.spent_last_hour() < cap
 
     async def start(self) -> None:
-        ui.info(f"connecting to {self.cfg.server.host}:{self.cfg.server.rcon_port} ...")
+        ui.info(f"connecting to the game over {self.link.where} ...")
         await self.link.start()
         self.link.on_chat.append(self._on_chat)
         self.link.on_result.append(self._on_result)
         self.link.on_event.append(self._on_event)
-        for ac in self.cfg.agents:
-            await self._add_agent(ac)
-        names = ", ".join(self.agents)
+        if not self.cfg.join:
+            for ac in self.cfg.agents:
+                await self._add_agent(ac)
+        back = await self._reattach()
         if self.foreman_brain:
             await self.foreman_brain.start()
             fm = self.foreman_brain.cfg
             ui.info(f"foreman {fm.name} ({fm.model}, effort {fm.effort}) leads; workers ask it with ask_foreman")
-        ui.info(f"crew ready: {names}. Talk to them in game chat: @{next(iter(self.agents))} ..., @all ...")
-        hello = self.agents.get(self.foreman or "") or next(iter(self.agents.values()))
-        try:
-            await self.link.call("brand", title=self.cfg.panel_title(), kind=self.cfg.kind)
-            if len(self.agents) == 1 and not self.foreman_brain:
-                who = f", {self.cfg.owner}" if self.cfg.owner else ""
-                text = (f"{hello.name} here ({model_label(hello.cfg.model)}). Ready to build with you{who}. "
-                        f"Talk to me with @{hello.name}.")
-            else:
-                text = f"Claude Crew online ({names}). Address us with @name or @all."
-            await self.link.call("say", agent=hello.name, text=text)
-        except GameError:
-            pass
+        if self.cfg.server.transport != "udp":
+            try:
+                await self.link.call("brand", title=self.cfg.panel_title(), kind=self.cfg.kind)
+            except GameError:
+                pass
+        if not self.agents:
+            ui.info(f"connected{' to ' + self.link.you if self.link.you else ''}. In game, type /serf add")
+        elif len(self.agents) == 1 and not self.foreman_brain:
+            agent = next(iter(self.agents.values()))
+            ui.info(f"{agent.name} ready. Talk to it in game chat: @{self._handle(agent)} ...")
+            await self._greet(agent, back=agent.name in back)
+        else:
+            names = ", ".join(self.agents)
+            ui.info(f"crew ready: {names}. Talk to them in game chat: @{next(iter(self.agents))} ..., @all ...")
+            hello = self.agents.get(self.foreman or "") or next(iter(self.agents.values()))
+            try:
+                await self.link.call("say", agent=hello.name,
+                                     text=f"Claude Crew online ({names}). Address us with @name or @all.")
+            except GameError:
+                pass
         if self.cfg.source:
             asyncio.create_task(self._watch_config(), name="config-watch")
         asyncio.create_task(progress.metrics_loop(self.link.call, self.cfg.state_dir / "metrics.jsonl"),
@@ -79,14 +91,82 @@ class Orchestrator:
         asyncio.create_task(self._alert_watch(), name="alerts")
         asyncio.create_task(self._idle_sweep(), name="idle-sweep")
         asyncio.create_task(self._task_checks(), name="task-checks")
+        asyncio.create_task(self._owners_watch(), name="owners")
+
+    def _handle(self, agent: Agent) -> str:
+        """What its human types: @serf means "my serf" (see _on_chat), whatever the agent is called."""
+        return self.cfg.kind if agent.owner else agent.name
+
+    async def _greet(self, agent: Agent, back: bool = False) -> None:
+        who = f", {agent.owner}" if agent.owner else ""
+        text = (f"{agent.name} {'is back' if back else 'here'} ({model_label(agent.cfg.model)}). Ready to build "
+                f"with you{who}. Talk to me with @{self._handle(agent)}.")
+        try:
+            await self.link.call("say", agent=agent.name, text=text)
+        except GameError:
+            pass
+
+    async def _reattach(self) -> set[str]:
+        """Agents already in the save that belong to this orchestrator (an earlier run of it) pick up again."""
+        for _ in range(50):
+            if self.link.client:
+                break
+            await asyncio.sleep(0.2)
+        back = set()
+        for a in (await self.link.call("list"))["agents"]:
+            # Only serfs someone brought in with /serf add (they have an owner), never characters parked by
+            # older sessions.
+            if self.cfg.join and a.get("owner") and a.get("client") == self.link.client and a["name"] not in self.agents:
+                await self._add_agent(self.cfg.agent_for(a["name"], a.get("owner")))
+                back.add(a["name"])
+        return back
+
+    async def _owners_watch(self) -> None:
+        while True:
+            try:
+                self.world_owners = {a["owner"] for a in (await self.link.call("list"))["agents"] if a.get("owner")}
+            except Exception:
+                pass
+            await asyncio.sleep(20)
+
+    async def _serf_add(self, ev: dict) -> None:
+        """/serf add from a player: pick a free name, spawn next to them, start its brain, say hello."""
+        player = ev.get("player") or "?"
+        listed = (await self.link.call("list"))["agents"]
+        taken = {a["name"].lower() for a in listed}
+        if self.link.client == "rcon" or self.cfg.host_serfs:
+            if sum(1 for a in listed if a.get("owner") == player) >= 1 and player != self.cfg.owner:
+                await self._tell(player, "you already have a serf here; /serf remove it first")
+                return
+        if ev.get("name"):
+            name = ev["name"]
+            if name.lower() in taken:
+                await self._tell(player, f"the name {name} is taken; try another")
+                return
+        else:
+            name, base = self.cfg.kind, self.cfg.kind
+            if name in taken:
+                name = f"{base}-{re.sub(r'[^a-z0-9]+', '', player.lower())[:12] or 'x'}"
+            n = 2
+            while name in taken:
+                name, n = f"{base}-{n}", n + 1
+        try:
+            agent = await self._add_agent(self.cfg.agent_for(name, player))
+        except GameError as e:
+            await self._tell(player, f"couldn't add a serf: {e}")
+            return
+        self.world_owners.add(player)
+        await self._greet(agent)
 
     async def _add_agent(self, ac: AgentConfig) -> Agent:
         existing = {a["name"]: a for a in (await self.link.call("list"))["agents"]}
         agent = Agent(ac, self)
         self.agents[ac.name] = agent
         kw = {"name": ac.name, "starter_kit": self.cfg.starter_kit}
-        if self.cfg.spawn_near:
-            kw["near_player"] = self.cfg.spawn_near
+        if ac.owner or self.cfg.spawn_near:
+            kw["near_player"] = ac.owner or self.cfg.spawn_near
+        if ac.owner:
+            kw["owner"] = ac.owner
         if ac.color:
             kw["color"] = {"r": ac.color[0], "g": ac.color[1], "b": ac.color[2]}
         if ac.name not in existing or not existing[ac.name].get("alive"):
@@ -153,7 +233,7 @@ class Orchestrator:
         text, player = msg.get("message", ""), msg.get("player", "?")
         ui.human(player, text)
         fm = self.foreman_brain
-        r = route(text, list(self.agents) + ([fm.name] if fm else []), self.foreman)
+        r = route(self._alias(player, text), list(self.agents) + ([fm.name] if fm else []), self.foreman)
         line = f'{player} (at {msg.get("position")}): "{text}"'
         if fm and r.targets and not r.stop and not r.direct and set(r.targets) >= set(self.agents):
             # "@all fix our iron" / "bots, ...": a crew-wide order goes to the lead, who assigns it; workers see it.
@@ -185,6 +265,19 @@ class Orchestrator:
         for name, agent in self.agents.items():
             agent.hear(line, wake=name in r.targets)
 
+    def _alias(self, player: str, text: str) -> str:
+        """"@serf" from someone who has a serf means their own, whatever it's called and whoever runs it; from
+        someone without one it means the agent literally named serf."""
+        kind = re.compile(rf"@{re.escape(self.cfg.kind)}(?![\w-])", re.I)
+        if not kind.search(text):
+            return text
+        own = [n for n, a in self.agents.items() if a.owner == player]
+        if own:
+            return kind.sub(" ".join(f"@{n}" for n in own), text)
+        if player in self.world_owners:
+            return kind.sub("@-", text)  # theirs runs elsewhere: not for us
+        return text
+
     def agent_said(self, speaker: str, text: str) -> None:
         fm = self.foreman_brain
         r = route(text, [n for n in self.agents] + ([fm.name] if fm else []), self.foreman)
@@ -207,6 +300,8 @@ class Orchestrator:
             await asyncio.sleep(30)
             now = time.time()
             for agent in list(self.agents.values()):
+                if agent.solo:
+                    continue  # it asked its human what's next; open work doesn't override that
                 if (agent.in_turn or not agent.inbox.empty() or agent.mode != "idle"
                         or now - agent.idle_since < 90 or now - agent.last_free_wake < 180):
                     continue
@@ -329,7 +424,15 @@ class Orchestrator:
                 for agent in self._owner(focus):
                     agent.wake(f"(alert) {text}", urgent=True)
 
+    async def _tell(self, player: str, text: str) -> None:
+        try:
+            await self.link.call("tell", player=player, text=text)
+        except GameError as e:
+            log.warning("tell %s failed: %s", player, e)
+
     async def _snapshot(self, label: str) -> None:
+        if not self.link.rcon:
+            return  # saves are the server's business; a player's app doesn't write them
         try:
             e = await progress.snapshot(self.link.call, self.link.rcon.command, label)
             ui.info(f"snapshot {e['save']} ({e.get('research_count')} techs, {e.get('minutes')} game-min)")
@@ -351,6 +454,15 @@ class Orchestrator:
             a.on_result(r)
 
     async def _on_event(self, ev: dict) -> None:
+        if ev["type"] == "add":
+            asyncio.create_task(self._serf_add(ev), name="serf-add")
+            return
+        if ev["type"] == "removed":
+            agent = self.agents.pop(ev.get("agent", ""), None)
+            if agent:
+                ui.info(f"{agent.name} dismissed by {ev.get('by')}")
+                await agent.close()
+            return
         if ev["type"] == "research_finished":
             unlocks = ", ".join(ev.get("unlocks") or []) or "no new recipes"
             line = f"RESEARCH FINISHED: {ev['tech']} (unlocks: {unlocks})"

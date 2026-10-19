@@ -29,6 +29,9 @@ client, start the server with RCON, `uv venv && uv pip install -e .`, write `cre
 ## Working on the code
 
 - `tests/smoke.py`: every mod action against a running server, no LLM (resets research: scratch saves only).
+- `tests/test_udp.py`: players' own apps (UDP framing, per-client feed, ownership guards), no LLM. A headless
+  2.0.77 server crashes on Lua UDP packets, so never start a server with `--enable-lua-udp`; the test drives the
+  in-game side over RCON with `as_player`.
   `tests/test_foreman.py` and `tests/test_openai_backend.py` run without a server.
 - `scripts/server.sh` runs a local headless server from `server/factorio` (download the headless build yourself).
   `scripts/rc.py <op> '<json>'` calls the mod API directly.

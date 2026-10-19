@@ -1,12 +1,19 @@
-# Status (2026-10-18, end of day)
+# Status (2026-10-19)
 
 **Focus: one good player.** One model-driven character in the world, as good as it can be. The crew (Opus foreman
 + Sonnet workers) is paused and documented in `docs/crew-design.md`. Design: `docs/architecture.md`.
 
-Identity: the agent is **serf** (the user's pick; `@serf ...` in chat), a fellow engineer: panel "serf · with otterplex". Panel + overhead show live state; idle only on usage limits.
+Identity: the agent is **serf** (the user's pick; `@serf ...` in chat), a fellow engineer. Panel + overhead show
+live state; idle only on usage limits; "waiting for orders" after it finishes an order and asks what's next.
+
+**New (mod 0.2.0): anyone can bring their own serf.** Start Factorio with `--enable-lua-udp 27200`, run `serf`
+(own Claude login), type `/serf add`. Works in single player and as a multiplayer client; several players, several
+serfs, each on its owner's login. Servers can host serfs over RCON (`crew up --host-serfs`). Tested: framing, routing,
+guards and the add flow (`tests/test_udp.py`, an end-to-end add with a real Sonnet turn, smoke 56/56). **Not yet
+tested: the real UDP path from a game client** (needs the user's game; a headless server crashes on Lua UDP).
 
 Nothing is running. All test servers start with biters off (`crew/peace.py`). Repo: github.com/stirby/claude-crew
-(private).
+(private; making it public needs a history rewrite to drop 23 committed saves, and a license).
 
 ## The thesis (the user's)
 
@@ -33,15 +40,12 @@ clear lanes; expand mining before it runs dry.
 
 ## Next (in order, paced: at most one heavy run at a time, mind the subscription limits)
 
-1. Scoring: science packs consumed per minute and per dollar (A3 in `docs/log-analysis/README.md`). Without it we
-   can't tell if a change helped.
-2. Single-player prompt: fold the foreman's planning rules, the opening routine and the table above into the
-   player's own prompt (`crew/prompt.py`).
-3. Busy while thinking: queue the next jobs before each model turn; measure character idle %.
-4. Baseline race on the s3 research-rush stage: one Sonnet player vs one Opus player (~45 min each).
-5. Per-person agents ("a fella just joins"): per-orchestrator queues in the mod's `poll` (today one global queue,
-   so two orchestrators steal each other's chat), then a one-command join.
-6. Smaller tool fixes: fluids in diagnose/checks (C5), `place` clears trees (C3), pole routing (C2).
+1. The user tries the real thing: launch option, `serf`, `/serf add` in single player, then with a friend.
+2. Open-source prep (if the user agrees): drop saves from history, license, mod name.
+3. Directive tests under the new "one order, report, ask" behavior: d3 circuits (strict check), d2 science steps,
+   f1 iron (it must now hold the iron order instead of drifting to other fixes).
+4. Tools and consistency over speed (the user's call on thinking time; notes in docs/architecture.md).
+5. Smaller tool fixes: fluids in diagnose/checks (C5), `place` clears trees (C3), pole routing (C2).
 
 ## For the morning conversation
 

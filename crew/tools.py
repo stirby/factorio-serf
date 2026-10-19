@@ -466,9 +466,6 @@ async def t_notes(agent: "Agent", a: dict) -> str:
 
 async def t_status(agent: "Agent", a: dict) -> str:
     mode = a.get("mode", "working")
-    if mode == "idle" and agent.solo:
-        await agent.set_status(str(a.get("text", "")), "working")
-        return "status set. You don't go idle: when this is done, pick the next most valuable thing and start it."
     await agent.set_status(str(a.get("text", "")), "idle" if mode == "idle" else "working")
     owned = [t for t in agent.board.active() if t.owner == agent.name and t.status in ("open", "claimed")]
     if mode == "idle" and owned:

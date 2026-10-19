@@ -38,6 +38,9 @@ BIN = INSTALL / "bin/x64/factorio"
 INSTANCES = ROOT / "server/instances"
 MOD_SRC = ROOT / "mod/claude-crew"
 GAME_PORT_BASE, RCON_PORT_BASE = 34200, 27100
+# The mod's localhost UDP link (--enable-lua-udp), as a player's own serf app uses it. Off by default: in 2.0.77 a
+# headless server crashes ("Trying to add invalid input action to the closure") when a Lua UDP packet arrives.
+UDP_PORT_BASE = 27300
 BENCH_SETTINGS = ROOT / "server/bench-mod-settings.dat"
 REQUIRED_MODS = ["base", "space-age", "quality", "elevated-rails", "claude-crew"]
 INGAME = "changing state from(CreatingGame) to(InGame)"
@@ -76,7 +79,7 @@ def _port_free(port: int, kind: int) -> bool:
 
 
 class Instance:
-    def __init__(self, k: int, stage: str | Path | None = None, mods: str = "bench"):
+    def __init__(self, k: int, stage: str | Path | None = None, mods: str = "bench", udp: bool = False):
         if not 0 <= int(k) < 100:
             raise ValueError("instance id must be 0..99")
         self.k = int(k)
@@ -85,6 +88,8 @@ class Instance:
         self.dir = INSTANCES / str(self.k)
         self.game_port = GAME_PORT_BASE + self.k
         self.rcon_port = RCON_PORT_BASE + self.k
+        self.udp_port = UDP_PORT_BASE + self.k
+        self.udp = udp
         self.host = "127.0.0.1"
         self.log = self.dir / "server.log"
         self.pidfile = self.dir / "server.pid"
@@ -189,6 +194,8 @@ class Instance:
                "--server-settings", str(self.dir / "server-settings.json"),
                "--bind", f"127.0.0.1:{self.game_port}",
                "--rcon-bind", f"127.0.0.1:{self.rcon_port}", "--rcon-password", self.password]
+        if self.udp:
+            cmd += ["--enable-lua-udp", str(self.udp_port)]
         logf = open(self.log, "w")
         self.proc = subprocess.Popen(cmd, stdout=logf, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
                                      cwd=self.dir, start_new_session=True)

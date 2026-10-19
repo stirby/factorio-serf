@@ -1,6 +1,7 @@
 # Deploying Claude Crew to a dedicated server
 
-For running the crew in a real multiplayer game on someone's own server. Two pieces:
+For running it on a dedicated server. (Just want a serf in your own game? See the README quick start: no server,
+no RCON, each player runs the `serf` app on their own computer and types `/serf add`.) Two pieces:
 
 1. **The mod** (`mod/claude-crew`) runs inside Factorio, on the server *and* on every player's client.
 2. **The orchestrator** (`crew/`, the `crew` command) runs on any machine that can reach the server's RCON port.
@@ -61,10 +62,9 @@ In `crew.toml`:
 - Top-level keys go *above* `[server]`: `spawn_near = "<your player name>"` makes agents spawn next to you;
   `state_dir = "~/.local/state/claude-crew-<world>"` keeps one board/notes per world;
   `starter_kit = false` if they shouldn't get the freeplay starting items.
-- `[defaults]` picks the model (Sonnet; Opus is slower and pricier). One `[[agent]]` is the default; add another
-  `[[agent]]` block if each player wants their own. **Run only one `crew up` per server for now**: the mod hands
-  chat and job results to whichever orchestrator polls first, so two would steal each other's messages. All agents
-  then run on the login of whoever runs `crew up` (per-person logins are planned, `docs/architecture.md`).
+- `[defaults]` picks the model (Sonnet; Opus is slower and pricier). One `[[agent]]` is the default.
+- Several orchestrators can share a server (mod 0.2.0+): each reads chat from its own cursor and gets results only
+  for its own agents. Give each `crew up` its own name with `[server] client = "..."` (default `"rcon"`).
 - `[budget] usd_per_hour` caps spend across all models; agents pause when it's hit. On a Claude subscription
   the cost is notional, but the subscription's own usage limits apply, and Opus burns them fastest.
 
@@ -75,16 +75,34 @@ To keep it running: `systemd/claude-crew.service` is a user unit (edit its paths
 `systemctl --user enable --now claude-crew.service`). `logs/live.log` is the log; the board, notes and every
 agent transcript are in `state_dir`.
 
+## Player serfs (`/serf add`)
+
+With mod 0.2.0+, any player can type `/serf add`. That works when the player runs the `serf` app on their own
+computer (Factorio started with `--enable-lua-udp 27200`; the serf runs on that player's own Claude login), or
+when an operator's orchestrator hosts serfs: `crew up --host-serfs` (add `--join` to spawn nobody at start).
+Hosted serfs run on the operator's login, one per player. `/serf remove` dismisses a serf (its items go to its
+player); `/serf list` shows who's here.
+
+Mod settings (Settings → Mod settings → Map): **Players can bring serfs** (on by default) and **Serfs per player**
+(2). A player's app can only drive the serfs it owns; it can't run code or inject chat (RCON-only ops), and in
+multiplayer serfs get no free starter items.
+
+**Don't start a dedicated server with `--enable-lua-udp`.** On 2.0.77 a headless server crashes when a Lua UDP
+packet arrives ("Trying to add invalid input action to the closure"). Players' own games are where UDP belongs.
+
 ## 4. Play
 
 | In game chat | What happens |
 |---|---|
-| `@claude-1 our iron is the bottleneck, fix it` | the agent diagnoses, plans and builds; asks if unsure |
-| `@claude-1 what are you working on?` | it answers |
+| `/serf add` | your serf joins next to you (`/serf remove`, `/serf list`) |
+| `@serf our iron is the bottleneck, fix it` | it diagnoses, plans and builds; reports back and asks what's next |
+| `@serf what are you working on?` | it answers |
 | `@all ...` | every agent hears it |
-| `@claude-1 come here` / `follow me` / `stop` | instant, no model call |
+| `@serf come here` / `follow me` / `stop` | instant, no model call |
 
-The **Crew panel** (top left, `/crew-panel`) shows each agent's job. Tasks with a `done_when` check close only when
+`@serf` always means *your* serf, whatever it's called (the second one in a world is `serf-<player>`).
+
+The **panel** (top left, `/crew-panel`) shows each agent's job, its owner and what it's thinking. Tasks with a `done_when` check close only when
 the game confirms the result held for 2 minutes.
 
 Things to know:

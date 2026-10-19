@@ -1,5 +1,6 @@
--- Claude Crew: script-driven characters that an external orchestrator controls over RCON.
--- RCON protocol: `/crew <json>` with { op = ..., ... }; the reply is one JSON object via rcon.print.
+-- Claude Crew: script-driven characters that an external orchestrator controls.
+-- Protocol: a JSON request { op = ..., ... } and one JSON reply { ok, data | error }, over RCON (`/crew <json>`,
+-- reply via rcon.print) or localhost UDP (scripts/link.lua). Players bring in their own with `/serf add`.
 local util = require("scripts.util")
 local agents = require("scripts.agents")
 local movement = require("scripts.movement")
@@ -10,25 +11,26 @@ local triggers = require("scripts.triggers")
 local marks = require("scripts.marks")
 local late = require("scripts.late")
 local orders = require("scripts.orders")
-
-local CHAT_KEEP = 300
+local link = require("scripts.link")
 
 script.on_init(agents.init)
 script.on_configuration_changed(agents.init)
 
 -- Bump when agents.init gains new storage keys; checked from storage so it stays multiplayer-deterministic.
-local SCHEMA = 2
+local SCHEMA = 3
 
 script.on_event(defines.events.on_tick, function()
   if storage.schema ~= SCHEMA then
     agents.init()
     storage.schema = SCHEMA
   end
+  link.udp_tick()
   jobs.tick()
   if game.tick % 30 == 0 then panel.refresh() end
   if game.tick % 60 == 0 then
     agents.respawn_tick()
     movement.gc()
+    link.gc()
   end
 end)
 
@@ -56,9 +58,7 @@ script.on_event(defines.events.on_console_chat, function(e)
   if not e.player_index then return end
   local p = game.get_player(e.player_index)
   if not p then return end
-  local chat = storage.chat
-  chat[#chat + 1] = { tick = game.tick, player = p.name, message = e.message, position = util.xy(p.position) }
-  if #chat > CHAT_KEEP then table.remove(chat, 1) end
+  link.push("chat", { tick = game.tick, player = p.name, message = e.message, position = util.xy(p.position) })
 end)
 
 ---------------------------------------------------------------------- API
@@ -71,7 +71,16 @@ local function live(req)
   return a
 end
 
-API.ping = function() return { pong = game.tick, version = script.active_mods["claude-crew"] } end
+API.ping = function()
+  return { pong = game.tick, version = script.active_mods["claude-crew"], seed = game.surfaces.nauvis.map_gen_settings.seed }
+end
+
+-- A line from the serf app to one player (e.g. "that name is taken"). Over UDP: only to the app's own player.
+API.tell = function(req, ctx)
+  local p = ctx.udp and game.get_player(ctx.player_index) or util.find_player(tostring(req.player or ""))
+  if p then p.print("[serf] " .. tostring(req.text or ""):sub(1, 300)) end
+  return {}
+end
 
 API.spawn = function(req)
   local a = agents.spawn(req)
@@ -84,7 +93,7 @@ API.list = function()
   local out = {}
   for name, a in pairs(storage.agents) do
     out[#out + 1] = { name = name, alive = agents.alive(a) and true or false, position = agents.alive(a) and util.xy(a.char.position) or nil,
-      job = jobs.describe(a.job), queued = #a.queue, stats = a.stats }
+      job = jobs.describe(a.job), queued = #a.queue, stats = a.stats, client = link.client_of(a), owner = a.owner }
   end
   return { agents = out }
 end
@@ -332,61 +341,186 @@ API.inspect = function(req)
 end
 
 -- Dev/testing: chat as if a player said it (RCON only). Shows in game chat too.
-API.chat = function(req, from_player)
-  if from_player then error("chat injection is RCON-only") end
+API.chat = function(req)
   local name, msg = tostring(req.player or "tester"), tostring(req.message or "")
   game.print("[color=0.7,0.7,0.7]" .. name .. " (via console):[/color] " .. msg)
-  local chat = storage.chat
-  chat[#chat + 1] = { tick = game.tick, player = name, message = msg, position = req.position }
+  link.push("chat", { tick = game.tick, player = name, message = msg, position = req.position })
   return {}
 end
 
--- Everything new since the last poll: player chat, job results per agent, agent events.
-API.poll = function()
-  local results = {}
-  for name, a in pairs(storage.agents) do
-    if #a.results > 0 then
-      results[name] = a.results
-      a.results = {}
-    end
-  end
-  storage.last_poll = game.tick  -- heartbeat: the panel shows "offline" when the orchestrator stops polling
-  local out = { tick = game.tick, chat = storage.chat, results = results, events = storage.events }
-  storage.chat, storage.events = {}, {}
-  return out
-end
+-- Everything new for this orchestrator since its last poll: player chat, its agents' job results and events.
+-- Polling is also the heartbeat: the panel shows an agent "offline" when its orchestrator stops.
+API.poll = function(req, ctx) return link.poll(ctx, req) end
 
 -- Dev helper: run Lua in mod context (RCON only). Returns whatever the chunk returns.
-API.eval = function(req, from_player)
-  if from_player then error("eval is RCON-only") end
+API.eval = function(req)
   local fn, err = load(req.code, "crew-eval", "t", setmetatable({ storage = storage, util = util }, { __index = _G }))
   if not fn then error(err) end
   return { result = fn() }
 end
 
-commands.add_command("crew", "Claude Crew API (RCON/admin). Takes JSON.", function(cmd)
-  local from_player = cmd.player_index ~= nil
-  if from_player then
-    local p = game.get_player(cmd.player_index)
-    if not (p and p.admin) then return end
+-- Ops only a server operator (RCON) may use: test helpers that inject chat or run code.
+local TRUSTED_ONLY = { eval = true, chat = true, brand = true, as_player = true }
+
+-- A player's own app (UDP) drives only the agents it owns, within the server's limits.
+local function guard(req, ctx)
+  if TRUSTED_ONLY[req.op] then error(req.op .. " is only for the server operator (RCON)", 0) end
+  if req.op == "spawn" then
+    if not settings.global["claude-crew-player-serfs"].value then error("this server doesn't allow player serfs", 0) end
+    -- From a player's machine the serf is theirs. From the server's own machine (player 0: an operator's app on
+    -- the server box) it may be for any player.
+    local p = ctx.player_index > 0 and game.get_player(ctx.player_index)
+      or util.find_player(tostring(req.owner or ""))
+    if not p then error("spawn needs a player (owner)", 0) end
+    local existing = storage.agents[req.name or ""]
+    if existing and existing.client ~= ctx.client then error("the name " .. req.name .. " is taken", 0) end
+    if not existing then
+      local mine = 0
+      for _, a in pairs(storage.agents) do if a.client == ctx.client then mine = mine + 1 end end
+      local cap = settings.global["claude-crew-serfs-per-player"].value
+      if mine >= cap then error("you already have " .. mine .. " (the server allows " .. cap .. ")", 0) end
+    end
+    req.owner, req.near_player = p.name, req.near_player or p.name
+    if game.is_multiplayer() then req.starter_kit = false end -- no free items on shared servers
+  elseif req.agent ~= nil then
+    local a = storage.agents[req.agent]
+    if a and a.client ~= ctx.client then error(tostring(req.agent) .. " belongs to someone else", 0) end
   end
+end
+
+-- One request in, one JSON reply out, whatever carried it.
+local function dispatch(json, ctx)
   local okk, res = pcall(function()
-    local req = helpers.json_to_table(cmd.parameter or "{}")
+    local req = helpers.json_to_table(json or "{}")
     if type(req) ~= "table" then error("bad JSON") end
     local fn = API[req.op or ""]
     if not fn then error("unknown op " .. tostring(req.op)) end
-    return fn(req, from_player)
+    if ctx.udp then
+      guard(req, ctx)
+    elseif not ctx.trusted and TRUSTED_ONLY[req.op] then
+      error(req.op .. " is RCON-only")
+    end
+    if req.op == "spawn" then req.client = ctx.client end
+    return fn(req, ctx)
   end)
-  local reply
-  if okk then
-    reply = helpers.table_to_json { ok = true, data = res }
-  else
-    reply = helpers.table_to_json { ok = false, error = tostring(res) }
+  if okk then return helpers.table_to_json { ok = true, data = res } end
+  return helpers.table_to_json { ok = false, error = tostring(res) }
+end
+
+script.on_event(defines.events.on_udp_packet_received, function(e) link.on_udp(e, dispatch) end)
+
+-- Tests (RCON only): run a request exactly as a player's own app would send it over UDP, minus the socket.
+API.as_player = function(req)
+  local pi = tonumber(req.player_index) or 1
+  return helpers.json_to_table(dispatch(helpers.table_to_json(req.request or {}),
+    { client = "p" .. pi, player_index = pi, udp = true }))
+end
+
+commands.add_command("crew", "Claude Crew API (RCON/admin). Takes JSON.", function(cmd)
+  if cmd.player_index then
+    -- Admins can call it from the console to look at things; the reply is printed to them.
+    local p = game.get_player(cmd.player_index)
+    if not (p and p.admin) then return end
+    p.print(dispatch(cmd.parameter, { client = "console", player_index = cmd.player_index, udp = false }))
+    return
   end
-  if from_player then
-    game.get_player(cmd.player_index).print(reply)
+  local req_client = (cmd.parameter or ""):match('"client"%s*:%s*"([%w_%-]+)"')
+  rcon.print(dispatch(cmd.parameter, { client = req_client or "rcon", trusted = true }))
+end)
+
+---------------------------------------------------------------------- /serf
+local SETUP = table.concat({
+  "[serf] No serf app is connected for you. To bring in a serf, on your own computer:",
+  "  1. Install the app and log in once: see github.com/stirby/claude-crew (pip install, then `claude login` or an API key).",
+  "  2. Start Factorio with the launch option  --enable-lua-udp 27200  (Steam: Factorio > Properties > Launch options).",
+  "  3. Run  serf  and type /serf add again.",
+}, "\n")
+
+local function owned_by(p)
+  local out = {}
+  for name, a in pairs(storage.agents) do
+    if a.owner == p.name then out[#out + 1] = name end
+  end
+  table.sort(out)
+  return out
+end
+
+-- Gives the serf's things to its player (or drops them at the player's feet), then removes the character.
+local function dismiss(name, p)
+  local a = storage.agents[name]
+  if agents.alive(a) then
+    for _, id in pairs { defines.inventory.character_main, defines.inventory.character_guns,
+      defines.inventory.character_ammo, defines.inventory.character_armor, defines.inventory.character_trash } do
+      local inv = a.char.get_inventory(id)
+      if inv then
+        for _, it in pairs(inv.get_contents()) do
+          local stack = { name = it.name, count = it.count, quality = it.quality }
+          local got = (p.character and p.insert(stack)) or 0
+          if got < it.count then
+            stack.count = it.count - got
+            p.surface.spill_item_stack { position = p.position, stack = stack, enable_looted = true }
+          end
+        end
+      end
+    end
+  end
+  local client = link.client_of(a)
+  agents.despawn(name)
+  link.push("event", { type = "removed", agent = name, by = p.name, tick = game.tick }, client)
+end
+
+commands.add_command("serf", "Bring in an AI helper: /serf add [name], /serf remove [name], /serf list", function(cmd)
+  local p = cmd.player_index and game.get_player(cmd.player_index)
+  if not p then return end
+  local words = {}
+  for w in (cmd.parameter or ""):gmatch("%S+") do words[#words + 1] = w end
+  local sub, arg = words[1] or "help", words[2]
+  if sub == "add" then
+    if not settings.global["claude-crew-player-serfs"].value then
+      p.print("[serf] This server doesn't allow player serfs (mod setting).")
+      return
+    end
+    if arg and not arg:match("^[%w_%-]+$") then
+      p.print("[serf] Names are letters, digits, - and _.")
+      return
+    end
+    local client = link.client_for_player(p.index)
+    if not client then
+      p.print(SETUP)
+      return
+    end
+    local cap = settings.global["claude-crew-serfs-per-player"].value
+    if client == "p" .. p.index and #owned_by(p) >= cap then
+      p.print("[serf] You already have " .. table.concat(owned_by(p), ", ") .. " (this server allows " .. cap .. ").")
+      return
+    end
+    link.push("event", { type = "add", player = p.name, player_index = p.index, name = arg,
+      position = util.xy(p.position), surface = p.surface.name, tick = game.tick }, client)
+    p.print("[serf] Calling a serf...")
+  elseif sub == "remove" then
+    local mine = owned_by(p)
+    local name = arg or mine[1]
+    local a = name and storage.agents[name]
+    if not a then
+      p.print("[serf] " .. (arg and ("No serf called " .. arg) or "You have no serf") .. ".")
+    elseif a.owner ~= p.name and not p.admin then
+      p.print("[serf] " .. name .. " isn't yours.")
+    else
+      dismiss(name, p)
+      game.print("[serf] " .. name .. " left (dismissed by " .. p.name .. ").")
+    end
+  elseif sub == "list" then
+    local lines = {}
+    for name, a in pairs(storage.agents) do
+      lines[#lines + 1] = "  " .. name .. (a.owner and (" (with " .. a.owner .. ")") or "")
+        .. (link.online(link.client_of(a)) and "" or ", offline")
+    end
+    table.sort(lines)
+    p.print(#lines > 0 and ("[serf] In this world:\n" .. table.concat(lines, "\n")) or "[serf] No serfs in this world yet.")
   else
-    rcon.print(reply)
+    p.print("[serf] /serf add [name]: bring in a helper (runs on your computer with your Claude login).\n"
+      .. "  /serf remove [name]: send yours away (you get its items).  /serf list: who's here.\n"
+      .. "  Talk to it in chat: @serf build more iron smelting")
   end
 end)
 
