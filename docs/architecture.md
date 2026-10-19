@@ -101,4 +101,12 @@ The long-run measure stays techs per hour (and per dollar).
   and re-targeted. 14 min: 12 orders, 4 wasted on impossible checks (zone vs base counts). Cost: coordinator $3.18,
   three actors ~$0.12 total. Fixes: checks take "scope": "base"; a check that can never pass (asks for more than
   exist) blocks immediately with the reason instead of retrying.
+- 2026-10-18 19:50: order system benchmark (round 17, Opus coordinator + Haiku actors, s3-research-rush): 0 new
+  techs in ~45 min, ~$25 per run; stopped. Failure modes: one-moment checks passed while problems recurred, the
+  coordinator fixed symptoms (repeated refuel orders), malformed orders (connect with cargo as item), long belt
+  routes failing. Judged a regression vs the player crews (+6 techs in 35-59 min).
+- 2026-10-18 19:50: SIMPLIFIED. Removed actor.py, orders.py and the scheduler. Kept: the controller, as one worker
+  tool `build` (stamp/paste/ghosts/line in one call: tested, a 51-piece red science block in 38 s); board tasks with
+  optional game-evaluated done_when that must hold 2 min; foreman hands out outcomes with checks. Known issue: long
+  `line` routes still fail near dense base areas even after automatic splitting. Not benchmarked yet.
 

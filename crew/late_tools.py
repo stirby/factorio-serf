@@ -103,7 +103,62 @@ async def t_network(agent: "Agent", a: dict) -> str:
     return "\n".join(lines)
 
 
+BUILD_SECONDS = 120  # one build call works this long at most, then returns; call again to continue
+
+
+async def t_build(agent: "Agent", a: dict) -> str:
+    """One call, minutes of work: the controller lays the plan and does every physical step without the model."""
+    from types import SimpleNamespace
+
+    from . import blueprint_lib
+    from .controller import Controller
+    kind = a.get("kind", "ghosts")
+    plan = {k: a[k] for k in ("kind", "name", "x", "y", "direction", "rotation", "anchor", "item", "from", "to",
+                              "join", "end_direction") if k in a}
+    plan["kind"] = kind
+    zone = a.get("zone")
+    if isinstance(zone, str):
+        zone = json.loads(zone)
+    if kind == "stamp" and not zone:
+        _num(a, "x", "y")
+        (x1, y1), (x2, y2) = blueprint_lib.stamp(a["name"], a["x"], a["y"], a.get("rotation", 0), a.get("anchor"))["bbox"]
+        zone = [x1, y1, x2, y2]
+    if kind == "paste" and not zone:
+        _num(a, "x", "y")
+        c = _copies(agent).get(str(a.get("name", "")))
+        if not c:
+            return f"no copy named {a.get('name')!r}; copies: {', '.join(_copies(agent)) or 'none'}"
+        w, h = c.get("size") or [16, 16]
+        zone = [a["x"] - w / 2 - 1, a["y"] - h / 2 - 1, a["x"] + w / 2 + 1, a["y"] + h / 2 + 1]
+    if kind in ("ghosts", "paste", "stamp") and not zone:
+        return "give zone=[x1,y1,x2,y2] around the ghosts to build"
+    if kind == "line" and not ({"from", "to"} <= set(a)):
+        return "a line needs from=[x,y], to=[x,y] and item (a belt/pipe/pole, or the cargo it carries)"
+    order = SimpleNamespace(plan=plan, zone=zone, laid=False, state_dir=agent.orch.cfg.state_dir)
+    if kind == "paste":
+        order.plan["name"] = a["name"]
+    ctl = Controller(agent.link, agent.name, stop=lambda: agent.interrupted.is_set(),
+                     deadline=time.time() + float(a.get("seconds", BUILD_SECONDS)))
+    out = await (ctl.connect(order) if kind == "line" else ctl.fulfill(order))
+    text = f"{out.kind}: {out.detail}"
+    if out.blocker:
+        text += f"\nblocker: {json.dumps(out.blocker)[:700]}"
+    return text
+
+
 LATE_TOOLS = [
+    Tool("build", "Do a whole build in one call; a controller does every physical step without you: lays the plan as "
+         "ghosts, fetches items from chests (and machine outputs), crafts what's missing, mines stone/coal/ore if "
+         "nobody has any, clears marked trees and rocks, builds every ghost, refuels burners in the zone. kind: "
+         "stamp (name=<design from `designs`>, x, y = top-left, rotation), paste (name=<a `copy`>, x, y = centre, "
+         "direction), ghosts (build ghosts already in zone=[x1,y1,x2,y2]: yours, a human's or a teammate's), line "
+         "(item=belt/pipe/pole or the cargo it carries, from=[x,y], to=[x,y]; long routes are split into legs). "
+         "Works up to ~2 min, then returns; call again to continue (it resumes from what's left). Returns done, "
+         "paused, or exactly what blocks it. Use it for any build bigger than a few pieces.",
+         _obj({"kind": {"type": "string", "enum": ["stamp", "paste", "ghosts", "line"]}, "name": {"type": "string"},
+               "x": {"type": "number"}, "y": {"type": "number"}, "rotation": {}, "direction": {"type": "string"},
+               "zone": {"type": "array"}, "item": {"type": "string"}, "from": {"type": "array"},
+               "to": {"type": "array"}, "join": {"type": "boolean"}}, ["kind"]), t_build),
     Tool("diagnose", "Why is an item short? Made vs used per minute, every machine that makes or uses it grouped by "
          "status (working, no_ingredients, full_output, no_power, no_minable_resources...) with sites and example "
          "positions, its ingredients' flow, and the likely cause. Start every bottleneck hunt here, then follow "

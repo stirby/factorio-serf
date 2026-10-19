@@ -290,18 +290,35 @@ async def t_post_task(agent: "Agent", a: dict) -> str:
     owner = a.get("assignee")
     if owner and owner not in agent.crew_names():
         return f"no crew member named {owner}; crew is {agent.crew_names()}"
-    t = agent.board.post(agent.name, a["title"], a.get("detail", ""), owner)
+    dw, zone = a.get("done_when"), a.get("zone")
+    if isinstance(dw, str):
+        dw = json.loads(dw)
+    if isinstance(zone, str):
+        zone = json.loads(zone)
+    if zone is not None and len(zone) != 4:
+        return "zone is [x1, y1, x2, y2]"
+    t = agent.board.post(agent.name, a["title"], a.get("detail", ""), owner, dw, zone)
     if owner and owner != agent.name:
         await agent.notify_peer(owner, f"{agent.name} assigned you task #{t.id}: {t.title}"
                                        + (f" -- {t.detail}" if t.detail else ""))
-    return f"posted task #{t.id}"
+    return f"posted task #{t.id}" + (" (the game checks done_when; it completes once that holds for 2 min)"
+                                      if t.done_when else "")
 
 
 async def t_update_task(agent: "Agent", a: dict) -> str:
+    status = a.get("status")
+    task = agent.board.tasks.get(int(a.get("id", 0)))
+    if status == "done" and task and task.done_when:
+        status = "verifying"  # the game decides; the check loop completes it or reopens it
     try:
-        t = agent.board.update(agent.name, int(a["id"]), a.get("status"), a.get("note"), a.get("assignee"))
+        t = agent.board.update(agent.name, int(a["id"]), status, a.get("note"), a.get("assignee"))
     except KeyError as e:
         return str(e)
+    if t.status == "verifying":
+        c = t.check or {}
+        return (f"task #{t.id} is verifying: it completes when its check holds for 2 min "
+                f"(now: {'passing' if c.get('passed') else 'failing ' + json.dumps(c.get('results', []))[:300]}). "
+                "Move on; you'll hear if it fails.")
     if t.created_by and t.created_by != agent.name and t.created_by in agent.crew_names() \
             and a.get("status") in ("done", "blocked"):
         await agent.notify_peer(t.created_by, f"{agent.name} marked task #{t.id} {t.status}: {t.title}"
@@ -488,9 +505,13 @@ TOOLS: list[Tool] = [
     Tool("say", "Say something in game chat. Everyone sees it. Keep it short. Put locations as [gps=x,y].",
          _obj({"text": {"type": "string"}}, ["text"]), t_say),
     Tool("board", "Show the crew's shared task board.", _obj({}), t_board),
-    Tool("post_task", "Add a task to the crew board, optionally assigning it to a crew member (they get pinged).",
-         _obj({"title": {"type": "string"}, "detail": {"type": "string"}, "assignee": {"type": "string"}},
-              ["title"]), t_post_task),
+    Tool("post_task", "Add a task to the crew board, optionally assigning it to a crew member (they get pinged). "
+         "Give outcomes with a check the game evaluates: done_when=[{\"rate\": {\"item\": \"copper-plate\", "
+         "\"min\": 300}}] (base-wide per minute), {\"working\": {\"name\": \"lab\", \"min\": 8}} or {\"exists\": "
+         "{...}} (counted inside zone=[x1,y1,x2,y2], or add \"scope\": \"base\"), {\"ghosts_cleared\": true} (zone). "
+         "The task completes only when the check holds for 2 minutes, so a momentary fix doesn't count.",
+         _obj({"title": {"type": "string"}, "detail": {"type": "string"}, "assignee": {"type": "string"},
+               "done_when": {"type": "array"}, "zone": {"type": "array"}}, ["title"]), t_post_task),
     Tool("update_task", "Update a board task: status claimed|done|blocked|cancelled|open, a progress note, "
          "or reassign.", _obj({"id": {"type": "integer"}, "status": {"type": "string"}, "note": {"type": "string"},
                                "assignee": {"type": "string"}}, ["id"]), t_update_task),

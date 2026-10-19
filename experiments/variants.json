@@ -190,21 +190,5 @@
     "base_url": "https://ai-gateway.vercel.sh/v1"
    }
   }
- },
- "orders-opus-haiku": {
-  "advisor": false,
-  "model": "claude-haiku-5-5",
-  "experiment": {
-   "orders": true,
-   "foreman_first": false
-  },
-  "toml": {
-   "foreman": {
-    "name": "foreman",
-    "backend": "claude-code",
-    "model": "claude-opus-5-5",
-    "effort": "medium"
-   }
-  }
  }
 }

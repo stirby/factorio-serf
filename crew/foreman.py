@@ -33,8 +33,13 @@ What you do:
   design (`designs`; tell them to `stamp` it at x,y rotation r), which ratio. One reply per asker with
   `reply`; answer every question in the batch. Short and specific beats thorough.
 - Own the plan: keep `roadmap` to 5-8 measurable milestones in progression order (research is the clock: labs
-  should never be idle). Mark them done only when measured. Post work as board tasks with an owner, one coherent
-  chunk each (coordinates, item counts).
+  should never be idle). Mark them done only when measured.
+- Hand out OUTCOMES, not steps: one board task per worker with an owner and a done_when check the game evaluates
+  (e.g. "copper plates 300/min into the bus" with done_when [{{"rate": {{"item": "copper-plate", "min": 300}}}}]).
+  The task completes only when the check holds for 2 minutes, so a momentary fix doesn't count. working/exists
+  counts are inside the task's zone unless you add "scope": "base". The worker decides how; you decide what.
+- Fix causes, not symptoms: if you've asked for the same fix twice (refuel, unjam, hand-feed), the next task is
+  the automation that removes it (a coal belt to the boilers, an inserter, a chest feed).
 - Prevent collisions: check `board` zones and tasks before assigning; give each worker a domain and outcomes
   ("copper 2/s into the depot at [gps=x,y]"), not step lists. Settle conflicts between workers decisively.
 - Diagnose from data: `diagnose item=<x>` first for any shortage ("fix our iron"): it gives made vs used,
@@ -109,11 +114,8 @@ class Foreman:
         self.pending_jobs: set[int] = set()
         self.finished: dict = {}
         tools = [RESEARCH if n == "research" else BY_NAME[n] for n in FOREMAN_TOOLS]
-        orders_mode = orch.cfg.flag("orders", False)
-        if orders_mode:
-            tools += ORDER_TOOLS
         crew = ", ".join(a.name for a in orch.cfg.agents)
-        system = SYSTEM.format(name=self.name, crew=crew) + (ORDERS_PROMPT if orders_mode else "")
+        system = SYSTEM.format(name=self.name, crew=crew)
         self.backend = make_backend(self, system, self.dir / "cwd", tools, max_steps=MAX_STEPS)
         self._task: asyncio.Task | None = None
         self._review: asyncio.Task | None = None
@@ -315,8 +317,6 @@ class Foreman:
             crew.append(f"- {a.name} ({a.cfg.focus or 'general'}; {a.cfg.model}): {a.status_text or 'no status'}"
                         + (f" [IDLE {idle // 60} min]" if idle > 60 else "") + (f"\n    {health}" if health else ""))
         parts.append("[workers]\n" + "\n".join(crew))
-        if getattr(self.orch, "book", None):
-            parts.append("[orders]\n" + self.orch.book.render())
         parts.append("[roadmap]\n" + self.board.render_roadmap())
         parts.append("[zones]\n" + self.board.render_zones())
         parts.append("[board]\n" + self.board.render(limit=15))
@@ -405,85 +405,3 @@ RESEARCH = Tool("research", "Change the research queue: tech=<name> adds it; fir
                 _obj({"tech": {"type": "string"}, "first": {"type": "boolean"}, "remove": {"type": "boolean"}},
                      ["tech"]), t_research)
 BY_NAME.setdefault("research", RESEARCH)
-
-
-# ---------------------------------------------------------------------- orders mode (docs/architecture.md)
-ORDERS_PROMPT = """
-# Orders: how you direct the crew
-The workers are actors: characters with deterministic controllers and small models. They don't take prose
-instructions; they execute ORDERS from the scheduler, one at a time, and their controller fetches items from
-chests, crafts, clears marked trees, refuels burners and builds ghosts on its own. You write the orders.
-- For a human goal, `request` it first (text + optional measurable done_when), then split it into orders that each
-  have ONE verifiable result. Independent orders run in parallel on different actors; use after=[ids] only for
-  real dependencies. Zones of active orders never overlap.
-- Order plans: paste (a `copy` name, x, y, direction: the controller lays it), stamp (a library design from
-  `designs`), ghosts (ghosts already in the zone: you pasted them, or a human did), connect (item, from, to: a belt,
-  pipe or pole line), task (short free text for the actor's small model, for jobs that need judgement, e.g.
-  "fuel the 6 furnaces in the zone from the coal chest at [gps=..]").
-- Every order needs a zone [x1,y1,x2,y2] covering the build (except connect). done_when is a list of checks the
-  game evaluates: {"ghosts_cleared": true}, {"working": {"name": "stone-furnace", "min": 12}},
-  {"exists": {"name": "lab", "min": 4}}, {"rate": {"item": "iron-plate", "min": 900}}. Default: ghosts_cleared.
-  working/exists count ONLY inside the order's zone (set min to what the zone can hold, e.g. 6 of its 6
-  furnaces) unless you add "scope": "base" for a base-wide count; rate is always base-wide per minute.
-- Prefer copy/paste of builds that already work here, and library designs. Check the spot is clear (map) before
-  pasting. Supply materials: actors fetch from any chest, so the mall and depot chests are what keep them fast.
-- Keep every actor busy: when you're told actors are idle, give them orders (the next roadmap step, the biggest
-  bottleneck from diagnose). A blocked order comes back with its blocker: fix the plan (other spot, supply items,
-  a connect order) or cancel it.
-"""
-
-
-def _book(fm):
-    book = getattr(fm.orch, "book", None)
-    if book is None:
-        raise ValueError("orders mode is off")
-    return book
-
-
-async def t_request(fm, a: dict) -> str:
-    r = _book(fm).add_request(str(a.get("text", "")), str(a.get("by", "")), a.get("done_when") or [])
-    return f"request R{r.id} created. Now add its orders with order request={r.id}."
-
-
-async def t_order(fm, a: dict) -> str:
-    plan = a.get("plan")
-    if isinstance(plan, str):
-        plan = json.loads(plan)
-    o = _book(fm).add_order(str(a.get("title", "")), plan or {}, a.get("zone"), a.get("done_when"), a.get("after"),
-                            a.get("request"), a.get("owner"), str(a.get("notes", "")))
-    return f"queued:\n{o.card()}"
-
-
-async def t_orders(fm, a: dict) -> str:
-    return _book(fm).render(limit=40)
-
-
-async def t_cancel_order(fm, a: dict) -> str:
-    book = _book(fm)
-    o = book.cancel(int(a["id"]), str(a.get("why", "")))
-    for actor in fm.orch.agents.values():
-        if getattr(actor, "order", None) is o:
-            actor.stop_order("the foreman")
-            actor.paused_until = 0
-    return f"cancelled #{o.id}"
-
-
-ORDER_TOOLS = [
-    Tool("request", "Record a human goal as a request: text, by (who asked), optional done_when checks for the whole "
-         "goal (e.g. [{\"rate\": {\"item\": \"iron-plate\", \"min\": 900}}]). Then split it into orders.",
-         _obj({"text": {"type": "string"}, "by": {"type": "string"}, "done_when": {"type": "array"}}, ["text"]),
-         t_request),
-    Tool("order", "Queue one order for the actors. title; plan={kind: paste|stamp|ghosts|connect|task, ...}: paste "
-         "{name, x, y, direction}, stamp {name, x, y, rotation}, ghosts {}, connect {item, from:[x,y], to:[x,y]}, "
-         "task {text}; zone=[x1,y1,x2,y2] (required except connect); done_when=[checks] (default ghosts_cleared); "
-         "after=[order ids]; request=<id>; owner=<actor name> (optional hint); notes (inputs/outputs to hook up).",
-         _obj({"title": {"type": "string"}, "plan": {"type": "object"}, "zone": {"type": "array"},
-               "done_when": {"type": "array"}, "after": {"type": "array"}, "request": {"type": "integer"},
-               "owner": {"type": "string"}, "notes": {"type": "string"}}, ["title", "plan"]), t_order),
-    Tool("orders", "The order graph: open requests, every order with status/owner/progress, blocked orders with their "
-         "blocker, and recently finished ones.", _obj({}), t_orders),
-    Tool("cancel_order", "Cancel an order (id); its actor stops and becomes free.",
-         _obj({"id": {"type": "integer"}, "why": {"type": "string"}}, ["id"]), t_cancel_order),
-]
-for _t in ORDER_TOOLS:
-    BY_NAME[_t.name] = _t

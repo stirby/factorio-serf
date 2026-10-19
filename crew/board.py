@@ -17,6 +17,11 @@ class Task:
     created_by: str = ""
     notes: list[str] = field(default_factory=list)
     updated: float = field(default_factory=time.time)
+    # Optional machine check (docs/architecture.md): the game evaluates it; the task is done only when it has held
+    # for CHECK_HOLD seconds. zone scopes working/exists counts; rate is base-wide.
+    done_when: list = field(default_factory=list)
+    zone: list | None = None
+    check: dict = field(default_factory=dict)  # last result: {passed, results, held_since, at}
 
 
 ZONE_TTL = 30 * 60  # construction-site claims lapse unless renewed
@@ -115,10 +120,12 @@ class Board:
         mark = {"todo": " ", "doing": ">", "done": "x"}
         return "\n".join(f"[{mark.get(m['status'], '?')}] {i}. {m['goal']}" for i, m in enumerate(self.roadmap))
 
-    def post(self, by: str, title: str, detail: str = "", owner: str | None = None) -> Task:
+    def post(self, by: str, title: str, detail: str = "", owner: str | None = None, done_when: list | None = None,
+             zone: list | None = None) -> Task:
         tid = max(self.tasks, default=0) + 1
         t = Task(id=tid, title=title, detail=detail, created_by=by, owner=owner,
-                 status="claimed" if owner else "open")
+                 status="claimed" if owner else "open", done_when=done_when or [],
+                 zone=[float(v) for v in zone] if zone else None)
         self.tasks[tid] = t
         self._save()
         return t
@@ -142,7 +149,13 @@ class Board:
         return t
 
     def active(self) -> list[Task]:
-        return [t for t in self.tasks.values() if t.status in ("open", "claimed", "blocked")]
+        return [t for t in self.tasks.values() if t.status in ("open", "claimed", "blocked", "verifying")]
+
+    def checked(self) -> list[Task]:
+        return [t for t in self.active() if t.done_when and t.status != "blocked"]
+
+    def save(self) -> None:
+        self._save()
 
     def render(self, for_agent: str | None = None, limit: int = 12) -> str:
         tasks = sorted(self.active(), key=lambda t: (t.owner != for_agent, t.id))[:limit]
@@ -152,6 +165,14 @@ class Board:
         for t in tasks:
             who = f" @{t.owner}" if t.owner else ""
             lines.append(f"#{t.id} [{t.status}{who}] {t.title}" + (f" -- {t.detail}" if t.detail else ""))
+            if t.done_when:
+                c = t.check or {}
+                state = ("not checked yet" if not c else "PASSING" + (f" for {int(time.time() - c['held_since'])}s"
+                                                                       if c.get("held_since") else "")
+                         if c.get("passed") else "failing: " + ", ".join(
+                             f"{r.get('check')}={r.get('value')}" + (f" ({r['impossible']})" if r.get("impossible") else "")
+                             for r in c.get("results", []) if not r.get("ok")))
+                lines.append(f"    done when {json.dumps(t.done_when)} held 2 min: {state}")
             if t.notes:
                 lines.append("    last note: " + t.notes[-1])
         return "\n".join(lines)

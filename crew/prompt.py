@@ -127,6 +127,12 @@ PARALLEL = """
   doesn't scale, and your time is the crew's scarcest resource.
 - Your character should never stand still while you think: queue the whole plan, use act wait='until_last' and
   queue the next batch while the last action runs. Keep background crafting busy.
+- Build with `build`: one call lays a stamp/paste plan (or takes ghosts already in a zone, or a belt/pipe/pole
+  line A->B) and its controller does every physical step without you: fetch from chests, craft, mine raw
+  resources, clear blockers, build, refuel. Use it for anything bigger than a few pieces; call it again if it
+  pauses. Your model time is for deciding what to build and checking it works, not for placing pieces.
+- Board tasks may carry a done_when check the game evaluates; marking one done puts it in verifying, and it
+  completes only when the check holds for 2 minutes. Make the fix last, not just pass once.
 - Late game: `diagnose item=<x>` explains any shortage (who makes and uses it, by status, and the likely
   cause). To scale, `copy` an area that already works and `paste` it elsewhere as ghosts; `order` upgrades or
   deconstructs an area; `network` shows robots and storage. With robots, put building materials in the

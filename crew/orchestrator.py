@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 import logging
 
@@ -18,6 +19,8 @@ from .rcon import GameError
 from .router import route
 
 log = logging.getLogger("crew")
+CHECK_EVERY = 20  # seconds between task check evaluations
+CHECK_HOLD = 120  # a task's done_when must hold this long
 
 
 class Orchestrator:
@@ -31,13 +34,6 @@ class Orchestrator:
         self.advisor: Advisor | None = Advisor(cfg.advisor, self) if cfg.advisor else None
         self.foreman_brain: Foreman | None = Foreman(cfg.foreman, self) if cfg.foreman else None
         self.spend: list[tuple[float, float]] = []  # (time, usd) per finished turn, every model
-        # Order-based crew (docs/architecture.md): characters are actors, a scheduler hands out orders.
-        self.orders_mode = cfg.flag("orders", False)
-        self.book = self.scheduler = None
-        if self.orders_mode:
-            from .orders import OrderBook, Scheduler
-            self.book = OrderBook(cfg.state_dir / "orders.json")
-            self.scheduler = Scheduler(self, self.book)
 
     def record_spend(self, usd: float) -> None:
         if usd:
@@ -81,25 +77,13 @@ class Orchestrator:
                             name="metrics")
         if self.cfg.flag("alerts"):
             asyncio.create_task(self._alert_watch(), name="alerts")
-        if self.cfg.flag("idle_sweep") and not self.orders_mode:
+        if self.cfg.flag("idle_sweep"):
             asyncio.create_task(self._idle_sweep(), name="idle-sweep")
-        if self.scheduler:
-            for name, agent in self.agents.items():
-                try:
-                    me = await self.link.call("self", agent=name)
-                    agent.position = me.get("position")
-                except GameError:
-                    pass
-            asyncio.create_task(self.scheduler.run(), name="scheduler")
-            ui.info("orders mode: actors take orders from the scheduler; the foreman writes them")
+        asyncio.create_task(self._task_checks(), name="task-checks")
 
     async def _add_agent(self, ac: AgentConfig) -> Agent:
         existing = {a["name"]: a for a in (await self.link.call("list"))["agents"]}
-        if self.orders_mode:
-            from .actor import Actor
-            agent = Actor(ac, self)
-        else:
-            agent = Agent(ac, self)
+        agent = Agent(ac, self)
         self.agents[ac.name] = agent
         kw = {"name": ac.name, "starter_kit": self.cfg.starter_kit}
         if self.cfg.spawn_near:
@@ -185,8 +169,6 @@ class Orchestrator:
                 fm.note(f"(chat to {', '.join(sorted(r.targets))}) {player}: \"{text}\"")
         if r.stop:
             for name in r.targets:
-                if hasattr(self.agents[name], "stop_order"):
-                    self.agents[name].stop_order(player)
                 try:
                     await self.link.call("cancel", agent=name, reason=f"{player} said stop")
                 except GameError:
@@ -249,6 +231,50 @@ class Orchestrator:
                     agent.inbox.put_nowait("(idle check) You've been idle; there's open work. Pick the most valuable "
                                            "item you can do now, tell the crew in one line, and do it.")
 
+    async def _task_checks(self) -> None:
+        """Board tasks with done_when: the game evaluates them; done only after the check holds for CHECK_HOLD."""
+        while True:
+            await asyncio.sleep(CHECK_EVERY)
+            for t in self.board.checked():
+                try:
+                    d = await self.link.call("check", zone=t.zone, conds=t.done_when)
+                except GameError:
+                    continue
+                now = time.time()
+                held = t.check.get("held_since") if d.get("passed") else None
+                if d.get("passed") and not held:
+                    held = now
+                t.check = {"passed": bool(d.get("passed")), "results": d.get("results") or [], "held_since": held,
+                           "at": now}
+                bad = [r["impossible"] for r in t.check["results"] if r.get("impossible")]
+                if bad:
+                    t.status = "blocked"
+                    t.notes.append(f"check: can't pass ({'; '.join(bad)}); the check needs fixing")
+                    self._tell_lead(f"task #{t.id} '{t.title}': its check can't pass ({'; '.join(bad)}). "
+                                    "Fix done_when (or add scope: base).")
+                elif held and now - held >= CHECK_HOLD:
+                    t.status = "done"
+                    t.notes.append("check: held 2 min, done")
+                    ui.info(f"task #{t.id} done (check held): {t.title}")
+                    if t.owner in self.agents:
+                        self.agents[t.owner].hear(f"(board) task #{t.id} '{t.title}' is DONE: its check held for "
+                                                  "2 minutes. Pick your next work.", wake=True, urgent=False)
+                    self._tell_lead(f"task #{t.id} '{t.title}' done ({t.owner}): check held 2 min.")
+                elif t.status == "verifying" and not d.get("passed") and now - t.updated > CHECK_HOLD:
+                    t.status = "claimed"
+                    t.notes.append("check: still failing after it was marked done; reopened")
+                    if t.owner in self.agents:
+                        self.agents[t.owner].hear(f"(board) task #{t.id} '{t.title}' was marked done but its check "
+                                                  f"still fails: {json.dumps(t.check['results'])[:300]}. Keep going "
+                                                  "or mark it blocked with what's needed.", wake=True, urgent=False)
+            self.board.save()
+
+    def _tell_lead(self, text: str) -> None:
+        if self.foreman_brain:
+            self.foreman_brain.note(text)
+        elif self.foreman in self.agents:
+            self.agents[self.foreman].hear(f"(board) {text}", wake=False)
+
     def _owner(self, focus: str) -> list:
         """Agents whose domain matches, else the lead, else everyone."""
         hit = [a for a in self.agents.values() if a.cfg.focus == focus]
@@ -305,11 +331,7 @@ class Orchestrator:
                 last[key] = now
                 ui.info(f"alert: {text}")
                 if self.foreman_brain:
-                    # with orders, actors don't act on alerts; the coordinator turns them into orders
-                    self.foreman_brain.note(f"(alert{'' if self.orders_mode else f', sent to the {focus} owner'}) "
-                                            f"{text}", wake=self.orders_mode)
-                if self.orders_mode:
-                    continue
+                    self.foreman_brain.note(f"(alert, sent to the {focus} owner) {text}")
                 for agent in self._owner(focus):
                     agent.wake(f"(alert) {text}", urgent=True)
 

@@ -36,11 +36,16 @@ class Outcome:
 
 
 class Controller:
-    def __init__(self, link, agent_name: str, progress=None):
+    def __init__(self, link, agent_name: str, progress=None, stop=None, deadline: float | None = None):
         self.link = link
         self.name = agent_name
         self.progress = progress or (lambda **kw: None)
+        self.stop = stop or (lambda: False)  # e.g. a human talked to the agent
+        self.deadline = deadline
         self.log: list[str] = []
+
+    def _out_of_time(self) -> bool:
+        return self.stop() or (self.deadline is not None and time.time() > self.deadline)
 
     # ------------------------------------------------------------------ helpers
     async def _do(self, actions: list[dict], timeout: float = BATCH_TIMEOUT) -> list[dict]:
@@ -163,6 +168,10 @@ class Controller:
         last_missing: dict = {}
         while cycles < MAX_CYCLES:
             cycles += 1
+            if self._out_of_time():
+                z = await self.zone(zone)
+                return Outcome(False, "paused", f"paused with {z.get('ghosts')} ghosts left (built {built_total}); "
+                               "call build again to continue", built_total)
             z = await self.zone(zone)
             ghosts = z.get("ghosts", 0)
             self.progress(ghosts_left=ghosts, built=built_total)
@@ -234,25 +243,47 @@ class Controller:
                                blocker)
         return Outcome(False, "exception", "ran out of cycles", built_total, {"recent_failures": self.log[-5:]})
 
+    LINE_ITEMS = ("transport-belt", "fast-transport-belt", "express-transport-belt", "turbo-transport-belt", "pipe",
+                  "small-electric-pole", "medium-electric-pole", "big-electric-pole", "substation")
+
     async def connect(self, order) -> Outcome:
-        """A connect order: item line from A to B. Fetch enough items, then route it."""
+        """A line from A to B. `item` is what's placed; a cargo name (coal, copper-plate) means a belt carrying it.
+        Routes the router can't find in one go are split into legs (up to 4)."""
         p = order.plan
-        a, b = p["from"], p["to"]
-        dist = abs(a[0] - b[0]) + abs(a[1] - b[1])
         item = p.get("item", "transport-belt")
-        per = 1 if "belt" in item or item == "pipe" else max(1, dist // 6)
-        want = int(dist * 1.4) + 4 if per == 1 else per + 2
-        inv = await self._inventory()
-        if inv.get(item, 0) < want:
-            left = await self.source({item: want - inv.get(item, 0)}, order.zone)
-            if left:
-                await self.craft(left)
-        args = {"op": "connect", "item": item, "from": a, "to": b}
-        for k in ("end_direction", "join"):
-            if k in p:
-                args[k] = p[k]
-        res = await self._do([args])
-        r = res[0] if res else {"ok": False, "msg": "no result"}
-        if r.get("ok"):
-            return Outcome(True, "done", r.get("msg", ""), 1)
-        return Outcome(False, "exception", f"connect failed: {r.get('msg')}", 0, {"recent_failures": self.log[-5:]})
+        note = ""
+        if item not in self.LINE_ITEMS:
+            note = f" (a belt for {item})"
+            item = "pipe" if item in ("water", "crude-oil", "petroleum-gas", "light-oil", "heavy-oil", "lubricant",
+                                      "sulfuric-acid", "steam") else "transport-belt"
+        legs = [(list(p["from"]), list(p["to"]))]
+        done_legs, tiles = [], 0
+        while legs:
+            a, b = legs.pop(0)
+            dist = abs(a[0] - b[0]) + abs(a[1] - b[1])
+            per = 1 if ("belt" in item or item == "pipe") else max(1, dist // 6)
+            want = int(dist * 1.4) + 4 if per == 1 else per + 2
+            inv = await self._inventory()
+            if inv.get(item, 0) < want:
+                left = await self.source({item: want - inv.get(item, 0)}, order.zone)
+                if left:
+                    left = await self.craft(left)
+            args = {"op": "connect", "item": item, "from": a, "to": b}
+            if not legs:  # only the final leg carries the caller's end options
+                for k in ("end_direction", "join"):
+                    if k in p:
+                        args[k] = p[k]
+            res = await self._do([args])
+            r = res[0] if res else {"ok": False, "msg": "no result"}
+            if r.get("ok"):
+                done_legs.append(r.get("msg", ""))
+                continue
+            msg = str(r.get("msg", ""))
+            if "no route" in msg and len(done_legs) + len(legs) < 4 and dist > 30:
+                mid = [round((a[0] + b[0]) / 2) + 0.5, round((a[1] + b[1]) / 2) + 0.5]
+                legs[:0] = [(a, mid), (mid, b)]
+                self.log.append(f"split {a}->{b} at {mid}")
+                continue
+            return Outcome(False, "exception", f"line{note} failed after {len(done_legs)} leg(s): {msg}", 0,
+                           {"recent_failures": self.log[-5:]})
+        return Outcome(True, "done", f"line{note} in {len(done_legs)} leg(s): " + " | ".join(done_legs)[:300], 1)
