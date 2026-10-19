@@ -203,14 +203,25 @@ API.vitals = function(req)
     return ok and math.floor(v + 0.5) or 0
   end
   local S = defines.entity_status
-  local labs, working, starved = 0, 0, 0
+  local labs, working, starved, missing = 0, 0, 0, {}
+  local r = f.current_research
+  local needs = {}
+  if r then
+    local okI, ing = pcall(function() return r.research_unit_ingredients end)
+    for _, it in pairs(okI and ing or {}) do needs[#needs + 1] = it.name end
+  end
   for _, e in pairs(s.find_entities_filtered { type = "lab", force = f }) do
     labs = labs + 1
     local okS, stt = pcall(function() return e.status end)
     if okS and stt == S.working then working = working + 1
-    elseif okS and stt == S.missing_science_packs then starved = starved + 1 end
+    elseif okS and stt == S.missing_science_packs then
+      starved = starved + 1
+      local inv = e.get_inventory(defines.inventory.lab_input)
+      for _, n in ipairs(needs) do
+        if inv and inv.get_item_count(n) == 0 then missing[n] = (missing[n] or 0) + 1 end
+      end
+    end
   end
-  local r = f.current_research
   local okQ, q = pcall(function() return #f.research_queue end)
   local packs = { red = "automation-science-pack", green = "logistic-science-pack", blue = "chemical-science-pack",
     purple = "production-science-pack", yellow = "utility-science-pack" }
@@ -222,6 +233,7 @@ API.vitals = function(req)
   end
   return { research = r and r.name or nil, progress = r and math.floor(f.research_progress * 100) or nil,
     queued = okQ and math.max(q - 1, 0) or nil, labs = labs, labs_working = working, labs_starved = starved,
+    labs_missing = missing,
     science_used = used, science_made = made,
     plates = { iron = pm("iron-plate"), copper = pm("copper-plate"), steel = pm("steel-plate"),
       circuits = pm("electronic-circuit") } }
@@ -272,6 +284,31 @@ API.inspect = function(req)
         d.progress = e.crafting_progress
       end
       if e.energy then d.energy = e.energy end
+      if e.supports_direction then d.dir = util.DIR_NAMES[e.direction] end
+      if e.type == "inserter" then
+        d.pickup, d.drop = util.xy(e.pickup_position), util.xy(e.drop_position)
+      end
+      if e.type == "transport-belt" or e.type == "underground-belt" or e.type == "splitter" then
+        local lanes = {}
+        for i = 1, 2 do
+          local okL, line = pcall(e.get_transport_line, i)
+          if okL and line then
+            local c = {}
+            for _, it in pairs(line.get_contents()) do c[it.name] = (c[it.name] or 0) + it.count end
+            lanes[i == 1 and "left" or "right"] = next(c) and c or "empty"
+          end
+        end
+        d.lanes = lanes
+      end
+      local fb = e.fluidbox
+      if fb and #fb > 0 then
+        local fl = {}
+        for i = 1, #fb do
+          local f = fb[i]
+          if f then fl[f.name] = math.floor((fl[f.name] or 0) + f.amount) end
+        end
+        if next(fl) then d.fluids = fl end
+      end
       out[#out + 1] = d
     end
   end

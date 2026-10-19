@@ -7,6 +7,7 @@ local movement = require("scripts.movement")
 local agents = require("scripts.agents")
 local triggers = require("scripts.triggers")
 local route = require("scripts.route")
+local order_queries = require("scripts.orders")
 
 local jobs = {}
 local H = {}
@@ -175,6 +176,7 @@ H.mine = {
         return fail("nothing minable" .. (args.name and (" named " .. args.name) or "") .. " found near " .. xystr(c.position))
       end
       local mate = e.unit_number and storage.built_by[e.unit_number]
+      if mate and not (storage.agents[mate] and agents.alive(storage.agents[mate])) then mate = nil end
       if mate and mate ~= a.name and not args.force_pickup then
         return fail(e.name .. " at " .. xystr(e.position) .. " was built by " .. mate
           .. ". If it's broken (leaking, unpaired, facing wrong, blocking you), fix it now with force_pickup=true and"
@@ -312,6 +314,15 @@ H.place = {
     job.pos = util.pos(args.position or { args.x, args.y })
     if not (job.pos and job.pos.x and job.pos.y) then return fail("place needs x,y") end
     job.dir = util.parse_dir(args.direction)
+    -- Inserters by where they pick up / drop (an inserter's direction is the side it takes from).
+    local toward = args.pickup or args.drop
+    if toward then
+      local t = util.pos(toward)
+      local dx, dy = t.x - job.pos.x, t.y - job.pos.y
+      local d = math.abs(dx) >= math.abs(dy) and (dx > 0 and "east" or "west") or (dy > 0 and "south" or "north")
+      if not args.pickup then d = ({ north = "south", south = "north", east = "west", west = "east" })[d] end
+      job.dir = util.parse_dir(d)
+    end
     if not util.cheat() and a.char.get_item_count(args.name) < 1 then
       return fail("no " .. args.name .. " in inventory")
     end
@@ -496,7 +507,20 @@ H.take = {
     else
       pull(e.get_output_inventory())
     end
-    if next(taken) == nil then return fail("nothing to take from " .. e.name .. (args.item and (" (" .. args.item .. ")") or "")) end
+    if next(taken) == nil then
+      local hint = ""
+      if args.item then
+        local okS, src = pcall(order_queries.sources,
+          { items = { args.item }, x = c.position.x, y = c.position.y, radius = 300 })
+        local list = okS and src.sources[args.item] or {}
+        if list[1] then
+          hint = "; nearest with " .. args.item .. ": " .. list[1].n .. " at " .. list[1].p[1] .. "," .. list[1].p[2]
+        else
+          hint = "; no chest or machine output within 300 tiles has any"
+        end
+      end
+      return fail("nothing to take from " .. e.name .. (args.item and (" (" .. args.item .. ")") or "") .. hint)
+    end
     local parts = {}
     for k, v in pairs(taken) do parts[#parts + 1] = v .. " " .. k end
     return ok("took " .. table.concat(parts, ", ") .. " from " .. e.name, { taken = taken })
@@ -536,8 +560,11 @@ H.rotate = {
     if type(near) == "table" then return near end
     if job.args.direction then
       e.direction = util.parse_dir(job.args.direction)
+    elseif job.args.reverse then  -- turn it around (180 degrees), e.g. an inserter facing the wrong way
+      e.rotate {}
+      e.rotate {}
     else
-      e.rotate { reverse = job.args.reverse or false }
+      e.rotate {}
     end
     return ok("rotated " .. e.name .. " to " .. (util.DIR_NAMES[e.direction] or "?"))
   end,
@@ -846,11 +873,38 @@ H.connect = {
       return fail("route needs " .. #places .. " " .. item .. " but you have " .. have,
         { needed = #places, have = have })
     end
-    for i, pl in ipairs(places) do
-      table.insert(a.queue, i, new_job("place", { name = item, x = pl.pos.x, y = pl.pos.y, direction = pl.dir }))
+    -- Place every piece inside this job, so the result says what actually got built (not just what was planned).
+    job.places, job.i, job.placed, job.failed = places, 1, 0, {}
+    job.item, job.span = item, { util.xy(path[1]), util.xy(path[#path]), #path }
+  end,
+  tick = function(a, job)
+    local pl = job.places[job.i]
+    if not pl then
+      local span = "from " .. job.span[1][1] .. "," .. job.span[1][2] .. " to " .. job.span[2][1] .. "," .. job.span[2][2]
+      local data = { placed = job.placed, planned = #job.places, failed = job.failed }
+      if #job.failed == 0 then
+        return ok("placed all " .. job.placed .. " " .. job.item .. " (" .. job.span[3] .. " tiles) " .. span, data)
+      end
+      return fail("placed " .. job.placed .. " of " .. #job.places .. " " .. job.item .. " " .. span .. "; failed: "
+        .. table.concat(job.failed, "; ", 1, math.min(#job.failed, 3)), data)
     end
-    return ok("routed " .. #path .. " tiles; placing " .. #places .. " " .. item .. " from " .. xystr(path[1])
-      .. " to " .. xystr(path[#path]), { count = #places, start = util.xy(path[1]), finish = util.xy(path[#path]) })
+    local sub = job.sub
+    if not sub then
+      sub = { id = job.id, op = "place", args = { name = job.item, x = pl.pos.x, y = pl.pos.y, direction = pl.dir } }
+      job.sub = sub
+      local r = H.place.start(a, sub)
+      if r then
+        if r.ok then job.placed = job.placed + 1 else job.failed[#job.failed + 1] = r.msg end
+        job.sub, job.i = nil, job.i + 1
+      end
+      return nil
+    end
+    local r = H.place.tick(a, sub)
+    if r then
+      if r.ok then job.placed = job.placed + 1 else job.failed[#job.failed + 1] = r.msg end
+      job.sub, job.i = nil, job.i + 1
+    end
+    return nil
   end,
 }
 
@@ -1150,7 +1204,7 @@ local function finish(a, job, res)
   out[#out + 1] = res
   if #out > 200 then table.remove(out, 1) end
   a.job = nil
-  if not res.ok and job.stop_on_fail ~= false then
+  if not res.ok and job.stop_on_fail == true then
     for _, q in ipairs(a.queue) do
       out[#out + 1] = { id = q.id, op = q.op, ok = false, msg = "skipped: earlier job " .. job.id .. " failed", tick = game.tick }
     end

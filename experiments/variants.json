@@ -1,111 +1,17 @@
 {
- "_doc": "Variant = changes on top of a scenario. Keys: model (all agents), backend, advisor (true | {name, model, effort, for}), agents (count or list), agent_overrides ({index-or-name: {model, role, focus, ...}}), defaults ([defaults] keys, e.g. max_turns_per_hour, effort), experiment ([experiment] table: crew flags idle_sweep, pipeline_prompt, work_tool; default true), toml (deep-merged into the generated crew.toml, for new crew flags).",
- "baseline": {
-  "advisor": false
- },
- "advisor": {
-  "advisor": true
- },
- "advisor-foreman": {
-  "advisor": {
-   "name": "architect",
-   "model": "claude-opus-5-5",
-   "effort": "high",
-   "for": "foreman"
-  }
- },
+ "_doc": "Variant = changes on top of a scenario. Keys: model (all workers), backend, agents (count or list), agent_overrides ({index-or-name: {model, ...}}), defaults ([defaults] keys, e.g. effort, base_url), toml (deep-merged into the generated crew.toml, e.g. a [foreman] table).",
+ "baseline": {},
  "haiku": {
-  "model": "claude-haiku-5-5",
-  "advisor": false
+  "model": "claude-haiku-5-5"
  },
  "sonnet": {
-  "model": "claude-sonnet-5-5",
-  "advisor": false
+  "model": "claude-sonnet-5-5"
  },
  "opus": {
-  "model": "claude-opus-5-5",
-  "advisor": false
+  "model": "claude-opus-5-5"
  },
- "opus-lead": {
-  "advisor": false,
-  "agent_overrides": {
-   "0": {
-    "model": "claude-opus-5-5"
-   }
-  }
- },
- "no-idle-sweep": {
-  "advisor": false,
-  "experiment": {
-   "idle_sweep": false
-  }
- },
- "no-pipeline-prompt": {
-  "advisor": false,
-  "experiment": {
-   "pipeline_prompt": false
-  }
- },
- "no-work-tool": {
-  "advisor": false,
-  "experiment": {
-   "work_tool": false
-  }
- },
- "all-flags-off": {
-  "advisor": false,
-  "experiment": {
-   "idle_sweep": false,
-   "pipeline_prompt": false,
-   "work_tool": false
-  }
- },
- "go-now": {
-  "advisor": true,
-  "experiment": {
-   "foreman_first": false
-  }
- },
- "full-no-selfdirect": {
-  "advisor": true,
-  "experiment": {
-   "idle_sweep": false,
-   "work_tool": false
-  }
- },
- "full-no-pipeline": {
-  "advisor": true,
-  "experiment": {
-   "pipeline_prompt": false
-  }
- },
- "go-now-noadvisor": {
-  "advisor": false,
-  "experiment": {
-   "foreman_first": false
-  }
- },
- "no-pipeline-default": {
-  "advisor": false,
-  "experiment": {
-   "foreman_first": false,
-   "pipeline_default": false
-  }
- },
- "effort-medium": {
-  "advisor": false,
-  "experiment": {
-   "foreman_first": false
-  },
-  "defaults": {
-   "effort": "medium"
-  }
- },
+ "go-now-noadvisor": {},
  "ds-pro-workers": {
-  "advisor": false,
-  "experiment": {
-   "foreman_first": false
-  },
   "backend": "openai",
   "model": "deepseek/deepseek-v4-pro",
   "defaults": {
@@ -121,10 +27,6 @@
   }
  },
  "ds-flash-workers": {
-  "advisor": false,
-  "experiment": {
-   "foreman_first": false
-  },
   "backend": "openai",
   "model": "deepseek/deepseek-v4.1-flash-1017",
   "defaults": {
@@ -140,10 +42,6 @@
   }
  },
  "ds-pro-all": {
-  "advisor": false,
-  "experiment": {
-   "foreman_first": false
-  },
   "backend": "openai",
   "model": "deepseek/deepseek-v4-pro",
   "defaults": {
@@ -159,10 +57,6 @@
   }
  },
  "foreman-opus": {
-  "advisor": false,
-  "experiment": {
-   "foreman_first": false
-  },
   "toml": {
    "foreman": {
     "name": "foreman",
@@ -173,10 +67,6 @@
   }
  },
  "ds-pro-foreman-flash-workers": {
-  "advisor": false,
-  "experiment": {
-   "foreman_first": false
-  },
   "backend": "openai",
   "model": "deepseek/deepseek-v4.1-flash-1017",
   "defaults": {
@@ -188,6 +78,17 @@
     "backend": "openai",
     "model": "deepseek/deepseek-v4-pro",
     "base_url": "https://ai-gateway.vercel.sh/v1"
+   }
+  }
+ },
+ "opus-lead-sonnet": {
+  "model": "claude-sonnet-5-5",
+  "toml": {
+   "foreman": {
+    "name": "foreman",
+    "backend": "claude-code",
+    "model": "claude-opus-5-5",
+    "effort": "medium"
    }
   }
  }

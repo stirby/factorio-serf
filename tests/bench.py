@@ -156,7 +156,6 @@ def build_agents(scn: dict, var: dict, n: int | None, model: str | None) -> list
         agents.append({"name": f"claude-{i + 1}"})
     agents = agents[:count]
     for i, a in enumerate(agents):
-        a.setdefault("role", "foreman" if i == 0 else "worker")
         for key in (str(i), a["name"]):
             a.update((var.get("agent_overrides") or {}).get(key, {}))
         if var.get("model"):
@@ -172,12 +171,6 @@ def crew_toml(inst: Instance, state_dir: Path, agents: list[dict], var: dict, mo
     d: dict = {"state_dir": str(state_dir), "starter_kit": True,
                "server": {"host": inst.host, "rcon_port": inst.rcon_port, "rcon_password_file": str(inst.pwfile)},
                "defaults": defaults, "agent": agents}
-    adv = var.get("advisor", False)
-    if adv:
-        d["advisor"] = adv if isinstance(adv, dict) else {"name": "architect", "model": "claude-opus-5-5",
-                                                          "effort": "high"}
-    if var.get("experiment"):  # crew flags: [experiment] idle_sweep / pipeline_prompt / work_tool ...
-        d["experiment"] = dict(var["experiment"])
     return deep_merge(d, var.get("toml") or {})
 
 
@@ -444,7 +437,7 @@ class Bench:
                 from crew import config as config_mod
                 from crew.orchestrator import Orchestrator
                 cfg = config_mod.load(self.dir / "crew.toml")
-                self.result["config"] = {"agents": agents, "advisor": cfg_d.get("advisor"),
+                self.result["config"] = {"agents": agents, "foreman": cfg_d.get("foreman"),
                                          "defaults": cfg_d["defaults"], "experiment": cfg_d.get("experiment")}
                 orch = Orchestrator(cfg)
 
@@ -476,6 +469,11 @@ class Bench:
             leads = [n for n in ("foreman", "architect") if (self.state / "agents" / n / "transcript.jsonl").exists()]
             self.result["behavior"] = behavior(self.state, names + leads, t0, time.time(), list_start, list_end, busy)
             self.result["cost_usd"] = self.result["behavior"]["total"]["cost_usd"]
+            # A run that hit the subscription limit didn't play for part of its time: flag it, don't compare it.
+            self.result["usage_limit_hit"] = any(
+                '"usage_limit"' in p.read_text() for p in (self.state / "agents").glob("*/transcript.jsonl"))
+            if self.result["usage_limit_hit"]:
+                self.result.setdefault("errors", []).append("usage limit hit: run invalid for comparison")
             if not a.no_final_save:
                 await self._final_save(rcon)
         except Exception as e:  # noqa: BLE001
@@ -597,7 +595,7 @@ def record(result: dict, append: bool = True) -> dict:
                       for n, c in ((result.get("checks") or {}).items())}
     line["behavior"] = {k: beh.get(k) for k in ("turns", "turns_incomplete", "tool_calls", "hand_logistics", "failures", "turns_ended_idle",
                                                 "char_idle_pct_mean", "sampled_busy_pct_mean", "tool_secs", "turn_secs")}
-    line["advisor"] = bool((result.get("config") or {}).get("advisor"))
+    line["foreman"] = bool((result.get("config") or {}).get("foreman"))
     line["experiment"] = (result.get("config") or {}).get("experiment")
     line["models"] = sorted({a.get("model") for a in ((result.get("config") or {}).get("agents") or []) if a.get("model")})
     line["errors"] = result.get("errors")

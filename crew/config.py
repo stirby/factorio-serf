@@ -15,7 +15,6 @@ class AgentConfig:
     backend: str = "claude-code"  # "claude-code" (Claude Code login / subscription) or "api" (ANTHROPIC_API_KEY)
     model: str = DEFAULT_MODEL
     effort: str | None = None  # low | medium | high
-    role: str = "worker"  # worker | foreman
     focus: str = ""  # domain: production | resources | infrastructure | free text
     personality: str = ""
     color: list[float] | None = None
@@ -40,19 +39,11 @@ class CrewConfig:
     starter_kit: bool = True
     state_dir: Path = Path("~/.local/state/claude-crew").expanduser()
     source: Path | None = None  # crew.toml this came from (watched for live changes)
-    advisor: AgentConfig | None = None  # characterless senior engineer the crew can consult
-    advisor_for: str = "all"  # "all" or "foreman"
     foreman: AgentConfig | None = None  # characterless lead every worker can ask without waiting
-    flags: dict = field(default_factory=dict)  # [experiment] toggles for A/B runs
     usd_per_hour: float | None = None  # [budget] usd_per_hour: hard cap on spend over the last hour (all models)
 
-    def flag(self, name: str, default: bool = True) -> bool:
-        return bool(self.flags.get(name, default))
-
     def foreman_name(self) -> str | None:
-        if self.foreman:
-            return self.foreman.name
-        return next((a.name for a in self.agents if a.role == "foreman"), None)
+        return self.foreman.name if self.foreman else None
 
 
 def _password(raw: dict, base: Path) -> str:
@@ -140,14 +131,6 @@ def load(path: str | Path | None, overrides: dict | None = None) -> CrewConfig:
     cfg = CrewConfig(server=server, agents=agents,
                      spawn_near=top("spawn_near"), starter_kit=top("starter_kit", True))
     cfg.source = Path(path).expanduser().resolve() if path else None
-    cfg.flags = dict(raw.get("experiment", {}))
-    adv = raw.get("advisor")
-    if adv and adv.get("enabled", True):
-        known = AgentConfig.__dataclass_fields__.keys()
-        merged = {"name": "architect", "model": "claude-opus-5-5", "effort": "high",
-                  "backend": defaults.get("backend", "claude-code"), **adv}
-        cfg.advisor = AgentConfig(**{k: v for k, v in merged.items() if k in known})
-        cfg.advisor_for = adv.get("for", "all")
     if raw.get("budget", {}).get("usd_per_hour"):
         cfg.usd_per_hour = float(raw["budget"]["usd_per_hour"])
     fm = raw.get("foreman")
@@ -156,9 +139,6 @@ def load(path: str | Path | None, overrides: dict | None = None) -> CrewConfig:
         merged = {"name": "foreman", "model": defaults.get("model", "claude-opus-5-5"), "effort": "medium",
                   "backend": defaults.get("backend", "claude-code"), "max_turns_per_hour": 60, **fm}
         cfg.foreman = AgentConfig(**{k: v for k, v in merged.items() if k in known})
-        for a in cfg.agents:  # the characters all work; the lead is the characterless foreman
-            if a.role == "foreman":
-                a.role = "worker"
     if top("state_dir"):
         cfg.state_dir = Path(top("state_dir")).expanduser()
     return cfg

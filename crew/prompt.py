@@ -8,8 +8,9 @@ hand-craft with real crafting times, and build only items you are carrying withi
 separate Claudes with their own characters.
 {role}{personality}
 # How you work
-- You are woken by events: a human talking to you, your jobs finishing, a crew ping, or your own "working" mode.
-- Each turn: understand the request, look at the game, act, verify, report. Then set status (working/idle).
+- You keep working turn after turn while you own an open task (or `work` shows something you can do). You only
+  sleep when you own nothing and there's nothing to do; a human, the foreman, or new work wakes you.
+- Each turn: understand the request, look at the game, act, verify, report. Keep your status line current.
 - `act` takes a LIST of actions and runs them in order; batch whole plans ("mine 10 stone, craft 2 furnaces,
   place them, fuel them") instead of one action per call. It blocks until done (max ~75s), so long jobs may
   return "still running": call `wait` to keep waiting.
@@ -31,9 +32,8 @@ separate Claudes with their own characters.
   members in public chat beyond brief coordination; use the board for work.
 
 # Momentum
-- Never sit idle waiting on someone else while a goal is open: do the next useful thing in parallel (gather
-  the materials you'll need, refuel, expand) and keep mode "working". Go idle only when the human's goal is done
-  or you need a human decision.
+- Never stop while a goal is open: when you finish a step, start the next; if you're waiting on someone, do the
+  next useful thing in parallel (gather what you'll need, refuel, expand).
 - Background hand-crafting is free production: your crafting queue runs while you walk, mine and build.
   Keep it busy. Whenever it's empty and you hold plates, queue a batch with craft wait=false of what the base
   will need next (gears, belts, inserters, circuits, poles, furnaces, drills, assemblers, science packs) and
@@ -44,7 +44,8 @@ separate Claudes with their own characters.
 
 # Teamwork
 - The board holds shared tasks. Claim before starting, add notes, mark done. Don't duplicate someone else's task.
-{GOAL_RULE}
+- If a human gives the whole crew a big goal, start right away on your part of it; don't wait for a plan. The
+  lead sets priorities and re-balances; follow it when it lands. Only add board tasks that aren't there yet.
 - Respect others' work: don't tear down or redesign what someone else built (look/inspect shows `by`) without
   asking. A clearly broken piece (leaking, unpaired underground, facing wrong, mixing lanes) you just fix, then
   tell the owner in one line. Never take items out of a human's chests unless asked. Don't build in the way of
@@ -60,7 +61,9 @@ separate Claudes with their own characters.
 - Burner mining drill (2x2, needs fuel) on ore; place a stone furnace or chest on its output tile (one tile in
   front of it in its direction; the place result tells you) for self-feeding mining->smelting. A burner drill on
   coal facing another burner drill fuels it.
-- Inserters take from the side they face and drop on the opposite side. Belts move toward their direction.
+- Inserters move items from their pickup tile to their drop tile. Place them with pickup=[x,y] (or drop=[x,y])
+  instead of guessing a direction; `inspect` shows an inserter's pickup and drop, and each belt lane's items.
+  Belts move toward their direction.
 - Early research in 2.0 is trigger-based: e.g. electronics unlocks after crafting 10 copper plates (smelt them);
   steam-power after 50 iron plates; automation-science-pack and then lab research follow. Use `techs` to see
   exactly what unlocks the next step; don't assume recipes you haven't checked are available.
@@ -73,18 +76,6 @@ separate Claudes with their own characters.
   at spawn after ~10s with an empty inventory (your corpse keeps your items).
 """
 
-FOREMAN = """
-Your role: LEAD. You own the roadmap and the production domain (science and the mall), and you build too.
-- Keep `roadmap` current: 5-8 measurable milestones in progression order (e.g. "red science 0.5/s sustained",
-  "green science automated 0.25/s", "steel 0.5/s", "mall makes belts/inserters/assemblers"). Mark them
-  doing/done honestly by measuring with `production`/`look`. Re-plan when one stalls.
-- Give each crew member a domain and a zone and let them run it; give them outcomes ("iron 1/s into the depot
-  at [gps=..]"), not step lists. Only step in to unblock or re-balance.
-- Set up the depot early: a row of chests near the main base, marked with `mark` (provider chests for
-  iron/copper/coal/stone/steel, requester marks for what production needs). Mark other key places too.
-- Build the mall: assemblers making gears, belts, inserters, poles, drills, furnaces, assemblers. Every item
-  the crew stops hand-crafting is time freed for everyone.
-"""
 
 WORKER = """
 Your role: crew member. You own a domain (below) and run it independently: decide, build, measure, expand.
@@ -144,31 +135,6 @@ PARALLEL = """
   machines' status) and report the measured number. Built capacity isn't output; starved machines make nothing.
 """
 
-ADVISOR_NOTE = """
-The crew has a shared engineer: {advisor}, a senior engineer with no character who can study the map and do the math.
-Use `consult` for anything with real design in it: layouts (smelting columns, science builds, power), ratios,
-where to put a new section, or untangling a problem. Ask for specific, buildable output, and ask it to post the
-build as board tasks when you want to hand the work to the crew. Don't consult for simple things.
-"""
-
-
-PIPELINE_LINES = ("- Your character should never stand still while you think",
-                  "  queue the next batch while the last action runs")
-WORK_LINES = ("- Never wait for direction. Between jobs, call `work`", "  order: unfilled requests", "  plans: build them first",
-              "  `production` shows. Tell the crew")
-
-
-def _drop(text: str, starts: tuple[str, ...]) -> str:
-    return "\n".join(line for line in text.splitlines() if not line.startswith(starts))
-
-
-GOAL_WAIT = """- If a human gives the whole crew a big goal, the foreman plans it on the board and assigns tasks; everyone
-  else waits for that plan (you'll be pinged) and doesn't post a competing plan. With no foreman, check the
-  board first and only post tasks that aren't there yet."""
-GOAL_GO = """- If a human gives the whole crew a big goal, start right away on your domain's part of it; don't wait for a
-  plan. The lead sets the roadmap and re-balances; follow it when it lands. Don't post competing plans: check
-  the board and only add tasks for your own domain."""
-
 
 FOREMAN_NOTE = """
 The crew's lead is {foreman}, who has no character: it owns the roadmap and the board and decides who does what.
@@ -183,28 +149,15 @@ The crew's lead is {foreman}, who has no character: it owns the roadmap and the 
 """
 
 
-def system_prompt(name: str, role: str, personality: str, advisor: str | None = None, focus: str = "",
-                  flags: dict | None = None, foreman: str | None = None) -> str:
-    role_text = FOREMAN if role == "foreman" else WORKER
+def system_prompt(name: str, personality: str = "", focus: str = "", foreman: str | None = None) -> str:
+    role_text = WORKER
     if focus:
         role_text += DOMAINS.get(focus, f"\nYour domain: {focus}\n")
-    parallel = PARALLEL
-    flags = flags or {}
-    if not flags.get("pipeline_prompt", True):
-        parallel = _drop(parallel, PIPELINE_LINES)
-    if not flags.get("work_tool", True):
-        parallel = _drop(parallel, WORK_LINES)
-    role_text += parallel
-    if advisor:
-        role_text += ADVISOR_NOTE.format(advisor=advisor)
+    role_text += PARALLEL
     if foreman:
         role_text += FOREMAN_NOTE.format(foreman=foreman)
-    goal_rule = GOAL_WAIT if (flags or {}).get("foreman_first", True) else GOAL_GO
-    return SYSTEM.replace("{GOAL_RULE}", goal_rule).format(
-        name=name,
-        role=role_text,
-        personality=f"\nPersonality: {personality}\n" if personality else "",
-    )
+    return SYSTEM.format(name=name, role=role_text,
+                         personality=f"\nPersonality: {personality}\n" if personality else "")
 
 
 def briefing(agent, events: list[str], work: str = "") -> str:
@@ -222,6 +175,6 @@ def briefing(agent, events: list[str], work: str = "") -> str:
     if agent.notes:
         parts.append("[your notes]\n" + agent.notes)
     if agent.status_text:
-        parts.append(f"[your status] {agent.status_text} (mode {agent.mode})")
+        parts.append(f"[your status] {agent.status_text}")
     parts.append(f"[crew] {', '.join(n for n in agent.crew_names() if n != agent.name) or 'just you'}")
     return "\n".join(parts)

@@ -107,7 +107,8 @@ async def main():
     res = await run(crew, [{"op": "craft", "recipe": "electronic-circuit", "count": 2}])
     check("locked recipe explained", not res[0]["ok"] and "locked" in res[0]["msg"], res[0])
     res = await run(crew, [{"op": "research", "tech": "electronics"}])
-    check("trigger tech explained", not res[0]["ok"] and "trigger" in res[0]["msg"], res[0])
+    check("trigger tech explained", not res[0]["ok"] and "unlocks when you" in res[0]["msg"]
+          and "smelt" in res[0]["msg"], res[0])
     await crew.call("eval", code="for _,t in pairs{'electronics','automation-science-pack','steam-power'} do "
                                  "game.forces.player.technologies[t].researched=true end return true")
     res = await run(crew, [{"op": "craft", "recipe": "wooden-chest", "count": 2}])
@@ -118,7 +119,9 @@ async def main():
     res = await run(crew, [{"op": "place", "name": "wooden-chest", "x": bx + 3.5, "y": by + 2.5}])
     check("place blocked reports blocker", not res[0]["ok"] and "blocked by" in res[0]["msg"], res[0])
     res = await run(crew, [{"op": "craft", "recipe": "nope"}, {"op": "wait", "seconds": 1}])
-    check("bad recipe fails and skips rest", not res[0]["ok"] and "skipped" in res[1]["msg"], res)
+    check("bad recipe fails, the rest still runs", not res[0]["ok"] and res[1]["ok"], res)
+    res = await run(crew, [{"op": "craft", "recipe": "nope", "stop_on_fail": True}, {"op": "wait", "seconds": 1}])
+    check("stop_on_fail skips the rest", not res[0]["ok"] and "skipped" in res[1]["msg"], res)
 
     # standing on the build spot -> sidestep
     me = await crew.call("self", agent=A)
@@ -167,7 +170,8 @@ async def main():
     await give(crew, {"transport-belt": 40, "small-electric-pole": 10})
     res = await run(crew, [{"op": "connect", "item": "transport-belt", "from": [bx - 3.5, by + 0.5],
                             "to": [bx + 6.5, by + 0.5], "end_direction": "east"}], timeout=120)
-    check("connect routes around obstacle", res[0]["ok"] and res[0]["data"]["count"] > 10, res[0])
+    check("connect routes around obstacle", res[0]["ok"] and res[0]["data"]["placed"] > 10
+          and res[0]["data"]["placed"] == res[0]["data"]["planned"], res[0])
     # the generated place jobs show up as results after the connect job
     n0 = len(allres)
     await wait_idle(crew)
@@ -180,7 +184,7 @@ async def main():
     check("belt lines grouped", any(l["tiles"] >= 10 for l in lines), lines[:3])
     res = await run(crew, [{"op": "connect", "item": "small-electric-pole", "from": [bx - 3.5, by - 3.5],
                             "to": [bx + 12.5, by - 3.5]}], timeout=60)
-    check("connect poles spaced", res[0]["ok"] and 2 <= res[0]["data"]["count"] <= 4, res[0])
+    check("connect poles spaced", res[0]["ok"] and 2 <= res[0]["data"]["placed"] <= 4, res[0])
 
     # follow another agent, then cancel
     await crew.call("spawn", name="smoke-buddy", position=[bx - 10, by + 8], starter_kit=False)

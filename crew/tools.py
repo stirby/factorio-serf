@@ -37,19 +37,21 @@ def _num(d: dict, *keys):
 
 
 ACTION_DOC = """Queue actions for your character; they run in order, in real game time, obeying normal player rules
-(reach, inventory, crafting time). Each action walks into range by itself first. If one fails, the rest are skipped.
+(reach, inventory, crafting time). Each action walks into range by itself first. If one fails, the others still
+run; add stop_on_fail=true to an action whose failure should cancel the ones after it.
 Ops and their fields:
   move        x,y [radius]  | player=<name> | agent=<name>      walk there (pathfinding)
   mine        name=<iron-ore|coal|stone|copper-ore|tree|rock|entity name> count=N   (nearest; ore count = items)
               or x,y to mine that one thing (pick up a building: add force_pickup=true only if a human asked)
   craft       recipe count [wait=false to queue and move on]   hand-craft (intermediates are crafted automatically)
-  place       name x y [direction=north|east|south|west]        build from inventory
+  place       name x y [direction=north|east|south|west]        build from inventory. Inserters: give
+              pickup=[x,y] (the tile it takes from) or drop=[x,y] instead of a direction; that's always right
               underground-belt: place the entrance with type=input and the exit with type=output, both facing
               the direction items travel (max 4 tiles between them for yellow); the result says if they paired
   insert      x y item [count]                                  put items into a machine/chest (fuel goes to fuel slot)
   take        x y [item] [count]                                take output (or a specific item) from a machine/chest
   set_recipe  x y recipe                                        assembler recipe
-  rotate      x y [direction] | [reverse=true]
+  rotate      x y [direction] | [reverse=true]            reverse turns it around (180 degrees)
   research    tech [first=true | remove=true]                   add a lab tech to the research queue; first=true
               moves it (and its prerequisites) to the front; remove=true takes it out
   configure   x y requests={item:count} | filter=item|none [blacklist] | output_priority/input_priority=left|right|none
@@ -182,7 +184,11 @@ async def vitals_line(agent: "Agent") -> str:
         return " ".join(f"{k} {n}" for k, n in d.items()) or "none"
     research = (f"researching {v['research']} {v.get('progress', 0)}%" + (f" (+{v['queued']} queued)" if v.get("queued") else "")
                 if v.get("research") else "NOTHING RESEARCHING")
-    labs = f"labs {v['labs_working']}/{v['labs']} working" + (f", {v['labs_starved']} starved" if v.get("labs_starved") else "")
+    miss = v.get("labs_missing") or {}
+    labs = f"labs {v['labs_working']}/{v['labs']} working" + (
+        f", {v['labs_starved']} starved (missing " + ", ".join(f"{k.replace('-science-pack', '')} in {n}"
+                                                             for k, n in miss.items()) + ")"
+        if v.get("labs_starved") and miss else f", {v['labs_starved']} starved" if v.get("labs_starved") else "")
     return (f"[base] {research} | {labs} | science used/min {kv(v.get('science_used') or {})} "
             f"(made {kv(v.get('science_made') or {})}) | per min: " + kv(v.get("plates") or {}))
 
@@ -198,12 +204,9 @@ async def _after(agent: "Agent", results: list[dict], running: list[int]) -> str
         top = dict(sorted(inv.items(), key=lambda kv: -kv[1])[:20])
         lines.append(f"you: pos {me['position']}, inventory {_j(top)}"
                      + (f", crafting {me['crafting']}" if me.get("crafting") else ""))
-        plates = sum(n for k, n in inv.items() if k.endswith("-plate"))
-        if not me.get("crafting") and plates >= 20:
-            lines.append("(your crafting queue is idle: queue something useful with craft wait=false)")
     except GameError as e:
         lines.append(f"(status unavailable: {e})")
-    if agent.orch.cfg.flag("vitals") and time.time() - getattr(agent, "last_vitals", 0) > VITALS_EVERY:
+    if time.time() - getattr(agent, "last_vitals", 0) > VITALS_EVERY:
         v = await vitals_line(agent)
         if v:
             lines.append(v)
@@ -224,7 +227,7 @@ async def t_act(agent: "Agent", a: dict) -> str:
     ids = d["job_ids"]
     agent.pending_jobs.update(ids)
     agent.note_activity(f"{len(ids)} action(s): " + ", ".join(x.get("op", "?") for x in actions))
-    mode = a.get("wait", "until_last" if agent.orch.cfg.flag("pipeline_default") else True)
+    mode = a.get("wait", "until_last")
     if mode is False or mode == "false":
         return f"queued jobs {ids}; you'll be told when they finish"
     leave = 1 if mode == "until_last" and len(ids) > 1 else 0
@@ -260,7 +263,7 @@ async def t_wait(agent: "Agent", a: dict) -> str:
     if crafting:
         return out
     work = await open_work(agent)
-    return (out + ". Your character is idle while you wait. Waiting for a consult or for production? Queue "
+    return (out + ". Your character is idle while you wait. Waiting for production? Queue "
             "crafts (wait=false) and do the next useful thing; you'll be interrupted when the answer lands."
             + (f"\n[open work]\n{work}" if work else ""))
 
@@ -454,10 +457,11 @@ async def t_notes(agent: "Agent", a: dict) -> str:
 
 async def t_status(agent: "Agent", a: dict) -> str:
     mode = a.get("mode", "working")
-    if mode not in ("working", "idle"):
-        return "mode must be working or idle"
-    await agent.set_status(str(a.get("text", "")), mode)
-    return f"status set; mode={mode}" + ("" if mode == "working" else " (you'll sleep until someone needs you)")
+    await agent.set_status(str(a.get("text", "")), "idle" if mode == "idle" else "working")
+    owned = [t for t in agent.board.active() if t.owner == agent.name and t.status in ("open", "claimed")]
+    if mode == "idle" and owned:
+        return f"status set; you still own task #{owned[0].id}, so you'll keep working on it"
+    return "status set" + ("; you'll sleep until there's work for you" if mode == "idle" else "")
 
 
 def _obj(props: dict, required: list[str] | None = None) -> dict:
@@ -507,7 +511,7 @@ TOOLS: list[Tool] = [
     Tool("board", "Show the crew's shared task board.", _obj({}), t_board),
     Tool("post_task", "Add a task to the crew board, optionally assigning it to a crew member (they get pinged). "
          "Give outcomes with a check the game evaluates: done_when=[{\"rate\": {\"item\": \"copper-plate\", "
-         "\"min\": 300}}] (base-wide per minute), {\"working\": {\"name\": \"lab\", \"min\": 8}} or {\"exists\": "
+         "\"min\": 300}}] (base-wide per minute made; \"kind\": \"used\" for consumed), {\"working\": {\"name\": \"lab\", \"min\": 8}} or {\"exists\": "
          "{...}} (counted inside zone=[x1,y1,x2,y2], or add \"scope\": \"base\"), {\"ghosts_cleared\": true} (zone). "
          "The task completes only when the check holds for 2 minutes, so a momentary fix doesn't count.",
          _obj({"title": {"type": "string"}, "detail": {"type": "string"}, "assignee": {"type": "string"},
@@ -543,65 +547,14 @@ TOOLS: list[Tool] = [
     Tool("notes", "Replace your private notes: plans, coordinates of things you built, what's left to do. "
          "They're shown to you at the start of every turn, so keep them current and short.",
          _obj({"text": {"type": "string"}}, ["text"]), t_notes),
-    Tool("status", "Set the one-line status shown under your name in everyone's Crew panel, and your mode: "
-         "'working' = you'll be woken again to keep going on your own; 'idle' = sleep until someone needs you.",
+    Tool("status", "Set the one-line status shown under your name in everyone's Crew panel. mode='idle' only when "
+         "you own no open task and there's nothing useful to do; you keep working while you own a task.",
          _obj({"text": {"type": "string"}, "mode": {"type": "string", "enum": ["working", "idle"]}}, ["text"]),
          t_status),
 ]
 
 BY_NAME = {t.name: t for t in TOOLS}
 
-
-async def t_consult(agent: "Agent", a: dict) -> str:
-    advisor = agent.orch.advisor
-    if not advisor:
-        return "no advisor is configured"
-    q, ctx = str(a.get("question", "")), str(a.get("context", ""))
-    if a.get("wait") is False or a.get("wait") == "false":
-        async def background():
-            try:
-                ans = await advisor.ask(agent, q, ctx)
-            except Exception as e:
-                ans = f"{advisor.name} failed: {e!r}"
-            agent.wake(f"{advisor.name} answered your consult ({q[:80]}):\n{ans}", urgent=True)
-        asyncio.create_task(background())
-        return f"{advisor.name} is working on it; the answer arrives as a message. Keep your character busy meanwhile."
-    return await advisor.ask(agent, q, ctx)
-
-
-CONSULT = Tool("consult", "Ask the crew's engineer (a separate senior Claude that can look at the map but not "
-               "act) for a design, layout, ratio calculation or multi-step plan. Give the goal and constraints; "
-               "it answers with buildable specifics (coordinates, directions, counts, order), can lay the design as "
-               "ghosts and post build tasks. It remembers your earlier consults. Takes a minute or two, so prefer "
-               "wait=false: queue work for your character first, and the answer arrives as a message.",
-               _obj({"question": {"type": "string"},
-                     "context": {"type": "string", "description": "what you already know/decided"},
-                     "wait": {"type": "boolean", "description": "false = answer arrives later as a message"}},
-                    ["question"]),
-               t_consult)
-BY_NAME["consult"] = CONSULT
-
-async def t_plan_ghosts(agent: "Agent", a: dict) -> str:
-    ents = a.get("entities")
-    if isinstance(ents, str):
-        ents = json.loads(ents)
-    if not ents:
-        return "entities=[{name,x,y,direction,recipe}] required"
-    d = await agent.link.call("act", agent=agent.name, actions=[{"op": "blueprint", "entities": ents}])
-    fut = agent.link.job_future(d["job_ids"][0])
-    r = await asyncio.wait_for(fut, 20)
-    return f"{'OK' if r.get('ok') else 'FAILED'} {r.get('msg', '')}"
-
-
-PLAN_GHOSTS = Tool("plan_ghosts", "Lay your design in the world as ghosts (planned buildings everyone can see and "
-                   "build with build_ghosts). entities=[{name: item name, x, y, direction, recipe, type}] "
-                   "(type=input/output for underground belts; unpaired ones are paired automatically). Check the "
-                   "spots are free first. The result lists the items needed to build it.",
-                   _obj({"entities": {"type": "array", "items": {"type": "object"}}}, ["entities"]), t_plan_ghosts)
-BY_NAME["plan_ghosts"] = PLAN_GHOSTS
-
-READ_ONLY = ["look", "map", "find", "inspect", "recipes", "techs", "production", "board", "post_task", "update_task",
-             "roadmap", "marks", "work", "plan_ghosts", "designs", "stamp"]
 
 
 async def run_tool(agent: "Agent", name: str, args: dict) -> str:

@@ -108,6 +108,8 @@ class ClaudeCodeBackend:
                 for b in msg.content:
                     if isinstance(b, TextBlock) and b.text.strip():
                         self.agent.log_thought(b.text)
+                        if "hit your session limit" in b.text or "usage limit" in b.text.lower():
+                            stats.error = "usage_limit"  # the subscription ran out: not a model answer
                     elif isinstance(b, ToolUseBlock):
                         stats.steps += 1
             elif isinstance(msg, ResultMessage):
@@ -119,7 +121,7 @@ class ClaudeCodeBackend:
                 stats.input_tokens = (u.get("input_tokens", 0) + u.get("cache_read_input_tokens", 0)
                                       + u.get("cache_creation_input_tokens", 0))
                 stats.output_tokens = u.get("output_tokens", 0)
-                if msg.is_error:
+                if msg.is_error and stats.error != "usage_limit":
                     stats.error = msg.subtype
         return stats
 

@@ -75,6 +75,8 @@ function util.trigger_text(t)
   local how = ""
   if trig.type == "mine-entity" and what == "crude-oil" then how = " (place a pumpjack on a crude-oil spot and power it)"
   elseif trig.type == "mine-entity" then how = " (mine it, or put a mining drill on it)"
+  elseif trig.type == "craft-item" and (what:find("%-plate$") or what == "stone-brick") then
+    how = " (smelt it in a furnace; hand-crafting can't make plates)"
   elseif trig.type == "craft-item" then how = " (craft it by hand or in an assembler)"
   elseif trig.type == "build-entity" then how = " (place one)"
   elseif trig.type == "craft-fluid" then how = " (produce it in a refinery/chemical plant)" end

@@ -55,21 +55,15 @@ class Agent:
         self.last_vitals = 0.0
         self.recent_calls: deque = deque(maxlen=200)
         self.recent_fails: deque = deque(maxlen=8)
-        from .tools import CONSULT, TOOLS
+        from .tools import TOOLS
         from .late_tools import LATE_TOOLS
         tools = list(TOOLS) + LATE_TOOLS
-        if not orch.cfg.flag("work_tool"):
-            tools = [t for t in tools if t.name != "work"]
-        consult = bool(orch.advisor and (orch.cfg.advisor_for == "all" or cfg.role == "foreman"))
-        if consult:
-            tools.append(CONSULT)
         fm = getattr(orch, "foreman_brain", None)
         if fm:
             from .foreman import ASK_FOREMAN, REPORT
             tools += [ASK_FOREMAN, REPORT]
-        self.backend = make_backend(self, system_prompt(cfg.name, cfg.role, cfg.personality,
-                                                        orch.advisor.name if consult else None, cfg.focus,
-                                                        orch.cfg.flags, foreman=fm.name if fm else None),
+        self.backend = make_backend(self, system_prompt(cfg.name, cfg.personality, cfg.focus,
+                                                        foreman=fm.name if fm else None),
                                     self.dir / "cwd", tools)
         self._task: asyncio.Task | None = None
 
@@ -84,7 +78,7 @@ class Agent:
         if cfg.model != self.cfg.model:
             await self.backend.set_model(cfg.model)
             changed.append(f"model {self.cfg.model} -> {cfg.model}")
-        for field in ("max_turns_per_hour", "max_autonomous_turns", "effort", "role", "personality"):
+        for field in ("max_turns_per_hour", "max_autonomous_turns", "effort", "personality"):
             if getattr(cfg, field) != getattr(self.cfg, field):
                 changed.append(f"{field} -> {getattr(cfg, field)}")
         if cfg.backend != self.cfg.backend:
@@ -224,11 +218,13 @@ class Agent:
         """For the foreman: is this worker productive? Share of recent calls that act, recent failures."""
         now = time.time()
         calls = [n for t, n in self.recent_calls if now - t < 600]
-        acts = sum(n in ("act", "stamp", "paste", "order") for n in calls)
+        acts = sum(n in ("act", "build", "stamp", "paste", "order") for n in calls)
         waits = sum(n == "wait" for n in calls)
         fails = [f for t, f in self.recent_fails if now - t < 600]
         last_act = max((t for t, n in self.recent_calls if n == "act"), default=0)
-        s = f"last 10 min: {len(calls)} calls, {acts} build/act, {waits} waits"
+        state = ("thinking" if self.in_turn else "backing off after an error" if self.error_streak else
+                 "paused (spend cap)" if not self.orch.spend_ok() else self.mode)
+        s = f"{state}; last 10 min: {len(calls)} calls, {acts} build/act, {waits} waits"
         if last_act:
             s += f", last act {int(now - last_act)}s ago"
         if fails:
@@ -273,9 +269,8 @@ class Agent:
             try:
                 from .tools import open_work, vitals_line
                 work = await open_work(self)
-                if self.orch.cfg.flag("vitals"):
-                    v = await vitals_line(self)
-                    work = v + ("\n" + work if work else "") if v else work
+                v = await vitals_line(self)
+                work = v + ("\n" + work if work else "") if v else work
             except Exception:
                 work = ""
             prompt = briefing(self, events, work)
@@ -307,6 +302,9 @@ class Agent:
                 # Usage limits, API trouble, etc.: back off instead of hammering.
                 self.error_streak += 1
                 delay = min(60 * 2 ** (self.error_streak - 1), 1800)
+                if stats.error == "usage_limit":
+                    ui.info(f"{self.name}: SUBSCRIPTION USAGE LIMIT reached; nothing will happen until it resets")
+                    self._record("usage_limit")
                 ui.info(f"{self.name}: turn error ({stats.error}); backing off {delay}s")
                 self.inbox.put_nowait("(continue) your last turn ended with an error; pick up where you left off.")
                 await asyncio.sleep(delay)
@@ -336,15 +334,17 @@ class Agent:
                 self._interrupts.clear()
                 self.interrupted.clear()
                 continue
-            if not self.mode_set_this_turn:
-                self.mode = "idle"
-            if self.mode == "idle":
-                self.idle_since = time.time()
-            if self.mode == "working":
+            # Keep going while you own open work; sleep only when you own nothing and chose to stop.
+            mine = [t for t in self.board.active() if t.owner == self.name and t.status in ("open", "claimed")]
+            if mine or (self.mode == "working" and self.mode_set_this_turn):
+                self.mode = "working"
                 self.autonomous += 1
                 if self.autonomous > self.cfg.max_autonomous_turns:
-                    await self.set_status("waiting for direction (autonomy limit)", "idle")
-                    await self.say("I've been at it a while on my own; pausing until someone gives me direction.")
+                    await self.set_status("paused (autonomy limit)", "idle")
                     continue
-                self.inbox.put_nowait(f"(continue) keep working on: {self.status_text or 'your current task'}. "
-                                      "Check results/board, act, and set status idle when done.")
+                focus = f"task #{mine[0].id} {mine[0].title}" if mine else (self.status_text or "your current work")
+                self.inbox.put_nowait(f"(continue) keep going on {focus}. When a task is finished or blocked, "
+                                      "update it, then take the next one.")
+            else:
+                self.mode, self.idle_since = "idle", time.time()
+                self.orch.worker_idle(self)

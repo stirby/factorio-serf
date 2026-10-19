@@ -8,7 +8,6 @@ import logging
 
 from . import ui
 from . import progress
-from .advisor import Advisor
 from .agent import Agent
 from .board import Board
 from .foreman import Foreman
@@ -31,7 +30,6 @@ class Orchestrator:
         self.board = Board(cfg.state_dir / "board.json")
         self.agents: dict[str, Agent] = {}
         self.foreman: str | None = cfg.foreman_name()
-        self.advisor: Advisor | None = Advisor(cfg.advisor, self) if cfg.advisor else None
         self.foreman_brain: Foreman | None = Foreman(cfg.foreman, self) if cfg.foreman else None
         self.spend: list[tuple[float, float]] = []  # (time, usd) per finished turn, every model
 
@@ -61,9 +59,6 @@ class Orchestrator:
             await self.foreman_brain.start()
             fm = self.foreman_brain.cfg
             ui.info(f"foreman {fm.name} ({fm.model}, effort {fm.effort}) leads; workers ask it with ask_foreman")
-        if self.advisor:
-            ui.info(f"{self.cfg.advisor_for} can consult {self.advisor.name} ({self.advisor.cfg.model}, "
-                    f"effort {self.advisor.cfg.effort})")
         ui.info(f"crew ready: {names}. Talk to them in game chat: @{next(iter(self.agents))} ..., @all ...")
         hello = self.agents.get(self.foreman or "") or next(iter(self.agents.values()))
         try:
@@ -75,10 +70,8 @@ class Orchestrator:
             asyncio.create_task(self._watch_config(), name="config-watch")
         asyncio.create_task(progress.metrics_loop(self.link.call, self.cfg.state_dir / "metrics.jsonl"),
                             name="metrics")
-        if self.cfg.flag("alerts"):
-            asyncio.create_task(self._alert_watch(), name="alerts")
-        if self.cfg.flag("idle_sweep"):
-            asyncio.create_task(self._idle_sweep(), name="idle-sweep")
+        asyncio.create_task(self._alert_watch(), name="alerts")
+        asyncio.create_task(self._idle_sweep(), name="idle-sweep")
         asyncio.create_task(self._task_checks(), name="task-checks")
 
     async def _add_agent(self, ac: AgentConfig) -> Agent:
@@ -136,8 +129,6 @@ class Orchestrator:
     async def stop(self) -> None:
         for a in self.agents.values():
             await a.close()
-        if self.advisor:
-            await self.advisor.close()
         if self.foreman_brain:
             await self.foreman_brain.close()
 
@@ -185,17 +176,8 @@ class Orchestrator:
                     log.warning("direct %s for %s failed: %s", r.direct, name, e)
             ui.info(f"{', '.join(sorted(r.targets))}: {r.direct} {player} (instant)")
             line += f" [already done for you: you started to {r.direct} {player}; just acknowledge]"
-        planner_first = (self.cfg.flag("foreman_first") and self.foreman in r.targets
-                         and len(r.targets) > 1 and not r.stop)
         for name, agent in self.agents.items():
-            if planner_first and name != self.foreman:
-                # Let the foreman plan first; others see the message now and get nudged once the plan exists.
-                agent.hear(line, wake=False)
-                asyncio.get_running_loop().call_later(20, agent.nudge,
-                                                     f"(follow-up) {player} asked the whole crew: \"{text}\". "
-                                                     f"Check the board for the foreman's plan and your task.")
-            else:
-                agent.hear(line, wake=name in r.targets)
+            agent.hear(line, wake=name in r.targets)
 
     def agent_said(self, speaker: str, text: str) -> None:
         fm = self.foreman_brain
@@ -269,11 +251,17 @@ class Orchestrator:
                                                   "or mark it blocked with what's needed.", wake=True, urgent=False)
             self.board.save()
 
-    def _tell_lead(self, text: str) -> None:
+    def worker_idle(self, agent) -> None:
+        """A worker ran out of work: the lead should hand it something (rate limited per worker)."""
+        now = time.time()
+        if now - getattr(agent, "last_idle_report", 0) < 180:
+            return
+        agent.last_idle_report = now
+        self._tell_lead(f"{agent.name} is idle with no task; give it one.", wake=True)
+
+    def _tell_lead(self, text: str, wake: bool = True) -> None:
         if self.foreman_brain:
-            self.foreman_brain.note(text)
-        elif self.foreman in self.agents:
-            self.agents[self.foreman].hear(f"(board) {text}", wake=False)
+            self.foreman_brain.note(text, wake=wake)
 
     def _owner(self, focus: str) -> list:
         """Agents whose domain matches, else the lead, else everyone."""
