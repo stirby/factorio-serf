@@ -12,9 +12,16 @@ serfs, each on its owner's login. Servers can host serfs over RCON (`crew up --h
 guards and the add flow (`tests/test_udp.py`, an end-to-end add with a real Sonnet turn, smoke 56/56). **Not yet
 tested: the real UDP path from a game client** (needs the user's game; a headless server crashes on Lua UDP).
 
-Nothing is running. All test servers start with biters off (`crew/peace.py`). Repo: github.com/stirby/factorio-serf
-(renamed from claude-crew 2026-10-19; still private). Benchmark saves (`experiments/runs/*/final.zip`) are in Git LFS
-(history rewritten; pre-rewrite mirror at ~/dev/factorio-serf-backup-20261019.git). Before going public: a LICENSE.
+All test servers start with biters off (`crew/peace.py`). Repo: github.com/stirby/factorio-serf (public, MIT;
+release v0.2.0). Benchmark saves (`experiments/runs/*/final.zip`) are in Git LFS (pre-rewrite mirror at
+~/dev/factorio-serf-backup-20261019.git). The user's Factorio client has the mod linked from this checkout
+(`scripts/install-client-mod.sh`, 2026-10-19 18:33; their mod-list backup is in the session scratchpad).
+
+**Mod 0.3.1 (unreleased):** design library + **Teach serf** (toolbar button, ctrl+shift+T, `/serf learn [name]`):
+hold a blueprint or a whole book (inventory or Game blueprints; My blueprints in single player only) and it goes
+into the serf's library. Tools: `place` clears trees/rocks itself; pole lines hop by wire reach; belts and pipes go
+under crossings and water; `diagnose` handles fluids. The user's direction (2026-10-19): one code path, focus on
+the server side, single player once it's great.
 
 ## The thesis (the user's)
 
@@ -25,9 +32,9 @@ practices**. The mapping to work from:
 |---|---|---|
 | Plan before editing; write a spec | Design the block (ratios, footprint, inputs/outputs) before placing | foreman prompt had this; the single player needs it in its own prompt |
 | Tests that prove it works | `done_when` checks held for 2 min (rate used, working) | have it (board tasks) |
-| Read before you write | `inspect`/`look` before placing; know belt lanes and inserter pickup/drop | partly: inspect shows dir/pickup/drop; fluids missing (C5) |
-| Debugger / profiler | `diagnose` (machine status, starved inputs), production stats | have it; fluids missing |
-| Libraries, don't rewrite | Blueprints: copy/paste known-good builds, `build stamp` | have it (`crew/blueprints`, copy/paste) |
+| Read before you write | `inspect`/`look` before placing; know belt lanes and inserter pickup/drop | have it (inspect shows dir/pickup/drop, fluids) |
+| Debugger / profiler | `diagnose` (machine status, starved inputs), production stats | have it, items and fluids |
+| Libraries, don't rewrite | Blueprints: copy/paste known-good builds, `build stamp` | have it: built-ins + the serf's own library + designs players teach (d4: 0 hand placements) |
 | Small steps, commit often | One block at a time, verified, then the next | prompt |
 | To-do list | Own board tasks | have it |
 | Project memory (CLAUDE.md) | Notes: where things are, what's planned | have it (notes tool) |
@@ -44,14 +51,15 @@ clear lanes; expand mining before it runs dry.
 Under "one order, report, ask" + "decide inside an order": d3b circuit mall met in 13 min ($1.04), f1 iron on the
 user's world met in 31 min ($1.23; three earlier tries failed on drift, unanswered questions and a bad check).
 Lessons: a delivery check needs a consumer that wants the delivery; the pretend player must answer questions.
+d4-library (build two more of a taught design, powered) met in 2 min ($0.18): 2 stamps + 1 build, no hand placement.
 
 ## Next (in order, paced: at most one heavy run at a time, mind the subscription limits)
 
 1. The user tries the real thing: launch option, `serf`, `/serf add` in single player, then with a friend.
-2. Go public when the user says so (license still to pick; MIT suggested).
-3. More directives: d2 science steps under the new behavior; a library test ("build another of the design I taught you").
+2. Done: public, MIT, v0.2.0.
+3. More directives: d2 science steps under the new behavior (running 2026-10-19 18:49).
 4. Tools and consistency over speed (the user's call on thinking time; notes in docs/architecture.md).
-5. Smaller tool fixes: fluids in diagnose/checks (C5), `place` clears trees (C3), pole routing (C2).
+5. Release mod 0.3.1 after the user's first real `/serf join`.
 
 ## For the morning conversation
 
