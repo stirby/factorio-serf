@@ -5,12 +5,12 @@
  "minutes": 50,
  "agents": 1,
  "kind": "directive",
- "note": "The user's own late-game world (a copy; 42 h, 18 mods incl. Cybersyn, 261 roboports, biters removed by the harness). Iron is the real bottleneck: production ~= use at ~7,200/min while 91 consumers starve. Exactly the user's example order.",
+ "note": "The user's own late-game world (a copy; 42 h, 18 mods incl. Cybersyn, 261 roboports, biters removed by the harness). Iron is the real bottleneck: production ~= use at ~7,200/min while 91 consumers starve. Exactly the user's example order. Run 1 met the made-only check (+1,700/min) after fixing two dead-end belts on the 900-tile ore trunk, but the revived smelter had no output belts, so starved machines didn't drop; now use must rise too.",
  "objectives": [
   {
    "name": "fix-iron",
    "minutes": 50,
-   "hold_samples": 2,
+   "hold_samples": 3,
    "goal": "@{agent} our iron is the bottleneck: a lot of machines are starved of iron plates. Go fix it.",
    "score": [
     {
@@ -18,6 +18,12 @@
      "lua": "pm('iron-plate')",
      "target_delta": 900,
      "note": "+900/min (a yellow belt) over the start; starved consumers soak it up, so made tracks capacity"
+    },
+    {
+     "name": "iron_used_per_min",
+     "lua": "pm('iron-plate','output')",
+     "target_delta": 600,
+     "note": "delivered: consumers use 600/min more (plates dropped on the ground or stuck in furnaces don't count)"
     },
     {
      "name": "iron_starved_machines",
