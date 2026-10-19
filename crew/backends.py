@@ -72,6 +72,7 @@ class ClaudeCodeBackend:
         from claude_agent_sdk import ClaudeSDKClient
         self.client = ClaudeSDKClient(self.options)
         await self.client.connect()
+        self._session_cost = 0.0  # the SDK reports a running total per session
 
     async def close(self) -> None:
         if self.client:
@@ -110,7 +111,10 @@ class ClaudeCodeBackend:
                     elif isinstance(b, ToolUseBlock):
                         stats.steps += 1
             elif isinstance(msg, ResultMessage):
-                stats.cost_usd = msg.total_cost_usd or 0.0
+                # total_cost_usd is cumulative for this client session; a turn costs the difference.
+                total = msg.total_cost_usd or 0.0
+                stats.cost_usd = max(0.0, total - getattr(self, "_session_cost", 0.0))
+                self._session_cost = total
                 u = msg.usage or {}
                 stats.input_tokens = (u.get("input_tokens", 0) + u.get("cache_read_input_tokens", 0)
                                       + u.get("cache_creation_input_tokens", 0))
