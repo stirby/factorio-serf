@@ -39,12 +39,17 @@ Factorio practices to encode: labs are the critical path (feed them, grow the la
 first, cheap techs first); build to ratios; power ahead of demand; a mall for building materials; main bus or
 clear lanes; expand mining before it runs dry.
 
+## Directive tests (2026-10-19, details in docs/directive-tests.md)
+
+Under "one order, report, ask" + "decide inside an order": d3b circuit mall met in 13 min ($1.04), f1 iron on the
+user's world met in 31 min ($1.23; three earlier tries failed on drift, unanswered questions and a bad check).
+Lessons: a delivery check needs a consumer that wants the delivery; the pretend player must answer questions.
+
 ## Next (in order, paced: at most one heavy run at a time, mind the subscription limits)
 
 1. The user tries the real thing: launch option, `serf`, `/serf add` in single player, then with a friend.
 2. Go public when the user says so (license still to pick; MIT suggested).
-3. Directive tests under the new "one order, report, ask" behavior: d3 circuits (strict check), d2 science steps,
-   f1 iron (it must now hold the iron order instead of drifting to other fixes).
+3. More directives: d2 science steps under the new behavior; a library test ("build another of the design I taught you").
 4. Tools and consistency over speed (the user's call on thinking time; notes in docs/architecture.md).
 5. Smaller tool fixes: fluids in diagnose/checks (C5), `place` clears trees (C3), pole routing (C2).
 
