@@ -1,42 +1,47 @@
-# Status (2026-10-18, late)
+# Status (2026-10-18, end of day)
 
-Milestone: two Sonnet agents took an empty Space Age map to automation research in ~20 game-minutes
-(e2e-4 + e2e-5 on save `crew-e2e4`). The review page for the user: https://claude.ai/artifact/VZzanDrygAnMR6Z3ZRKFNR
-Added since: connect (A* belts/pipes/poles), follow, instant come/follow, foreman-first planning,
-water search with pump spots, fuel swap. Smoke test is at 40 checks.
+**Focus: one good player.** One model-driven character in the world, as good as it can be. The crew (Opus foreman
++ Sonnet workers) is paused and documented in `docs/crew-design.md`. Design: `docs/architecture.md`.
 
-Live (2026-10-18 00:45): the user joined and played alongside a 5-agent crew (foreman on Opus, workers on Sonnet),
-under systemd, with a snapshot every 30 min and peaceful mode on. Pending mod changes (wait until the user disconnects):
-(1) corpse looting;
-(2) count background (wait=false) crafts toward production stats and trigger techs when they complete
-(today only waited crafts are counted).
-Added: the architect advisor (consult tool, foreman only) and background-crafting habits.
+Nothing is running. All test servers start with biters off (`crew/peace.py`). Repo: github.com/stirby/claude-crew
+(private).
 
-WAS NEXT: the user joins from their client (scripts/install-client-mod.sh with Factorio closed, connect to 127.0.0.1).
+## The thesis (the user's)
 
+Factorio is a lot like programming, so a good player = **best coding-agent practices + best Factorio
+practices**. The mapping to work from:
 
-## Working
-- **Mod** `mod/claude-crew`: agent characters (name tag, color, speech bubble, death/respawn, freeplay starter kit),
-  job queue (move/mine/craft/place/insert/take/set_recipe/rotate/research/wait), observations
-  (look/map/find/inspect/techs/recipes/production), "built by" tracking (agents won't pick up human builds),
-  trigger-tech accounting (playerless characters' crafts/builds/mines don't count natively; the mod records them),
-  research-finished events, an in-game Crew panel (`/crew-panel` toggles it), and RCON JSON API `/crew {...}`.
-- **Orchestrator** `crew/` (`.venv/bin/crew up`): one Claude per agent, on the `claude-code` backend
-  (Agent SDK, your subscription) or `api` (ANTHROPIC_API_KEY). Chat router (@name, @all, bare names, "stop"),
-  shared task board, per-agent notes, working/idle autonomy with budgets, human messages interrupt long waits.
-  Config: `crew.toml` (see `crew.example.toml`); `--model claude-opus-5-5` for the demo.
-- **Tests:** `tests/smoke.py` (36 checks, no LLM; run on the crew-test save because it resets research).
-- **LLM e2e (Sonnet 5.5, subscription):** one agent built iron smelting from a single chat request in 80s.
-  Two agents split "iron + copper + electronics" via the board: 4 iron pairs and 3 copper pairs, unprompted
-  coordination, about $0.15 per agent-turn notional.
+| Coding agent practice | Factorio equivalent | What we have / need |
+|---|---|---|
+| Plan before editing; write a spec | Design the block (ratios, footprint, inputs/outputs) before placing | foreman prompt had this; the single player needs it in its own prompt |
+| Tests that prove it works | `done_when` checks held for 2 min (rate used, working) | have it (board tasks) |
+| Read before you write | `inspect`/`look` before placing; know belt lanes and inserter pickup/drop | partly: inspect shows dir/pickup/drop; fluids missing (C5) |
+| Debugger / profiler | `diagnose` (machine status, starved inputs), production stats | have it; fluids missing |
+| Libraries, don't rewrite | Blueprints: copy/paste known-good builds, `build stamp` | have it (`crew/blueprints`, copy/paste) |
+| Small steps, commit often | One block at a time, verified, then the next | prompt |
+| To-do list | Own board tasks | have it |
+| Project memory (CLAUDE.md) | Notes: where things are, what's planned | have it (notes tool) |
+| Background jobs while you think | Character keeps working while the model thinks: queue the next jobs first | NOT done: characters idle 55-65% |
+| Fix root causes | Fix the bottleneck the stats show, not the symptom | foreman prompt rule; move to player |
+| Know the critical path | Labs fed and growing; research is the score | opening routine (D1) |
 
-## Fixed after e2e (not yet re-run with LLMs)
-- False "no ore under drill" warning (it made the agent move a drill that was fine).
-- Crew chatter no longer cuts waits short; only humans do.
-- Drill placement guidance (avoid patch edges); clearer placement errors.
-- Agents now learn when research finishes (they didn't know electronics had unlocked).
+Factorio practices to encode: labs are the critical path (feed them, grow the lab row, take free trigger techs
+first, cheap techs first); build to ratios; power ahead of demand; a mall for building materials; main bus or
+clear lanes; expand mining before it runs dry.
 
-## Next
-1. Re-run the 2-agent e2e on a fresh map; push toward red science and automation research.
-2. Join test with the real client: put the mod in `~/.factorio/mods` (ask the user first), connect to 127.0.0.1.
-3. Demo polish: "@claude come here" (follow player), Q&A from data, README and install script.
+## Next (in order, paced: at most one heavy run at a time, mind the subscription limits)
+
+1. Scoring: science packs consumed per minute and per dollar (A3 in `docs/log-analysis/README.md`). Without it we
+   can't tell if a change helped.
+2. Single-player prompt: fold the foreman's planning rules, the opening routine and the table above into the
+   player's own prompt (`crew/prompt.py`).
+3. Busy while thinking: queue the next jobs before each model turn; measure character idle %.
+4. Baseline race on the s3 research-rush stage: one Sonnet player vs one Opus player (~45 min each).
+5. Per-person agents ("a fella just joins"): per-orchestrator queues in the mod's `poll` (today one global queue,
+   so two orchestrators steal each other's chat), then a one-command join.
+6. Smaller tool fixes: fluids in diagnose/checks (C5), `place` clears trees (C3), pole routing (C2).
+
+## For the morning conversation
+
+What worked, what failed, and the evidence are in `docs/crew-design.md` (results table) and
+`docs/log-analysis/README.md`. Overnight work is logged in the build log at the bottom of `docs/architecture.md`.
