@@ -476,7 +476,7 @@ commands.add_command("serf", "Bring in an AI helper: /serf add [name], /serf rem
   local words = {}
   for w in (cmd.parameter or ""):gmatch("%S+") do words[#words + 1] = w end
   local sub, arg = words[1] or "help", words[2]
-  if sub == "add" then
+  if sub == "add" or sub == "join" then
     if not settings.global["factorio-serf-player-serfs"].value then
       p.print("[serf] This server doesn't allow player serfs (mod setting).")
       return
