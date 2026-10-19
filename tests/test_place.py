@@ -93,6 +93,10 @@ return {plates_at_end = last and last.get_item_count('iron-plate') or -1, water_
 COUNT = """local c = storage.agents['t-place'].char
 return {belt = c.get_item_count('transport-belt'), fast = c.get_item_count('fast-transport-belt')}"""
 
+POND = """local s = game.surfaces.nauvis local X, Y = %d, %d
+local t = {} for x = X+4, X+13 do for y = Y, Y+9 do t[#t+1] = {name='water', position={x,y}} end end
+s.set_tiles(t) return {X+9, Y+5}"""
+
 
 async def main(k: int) -> None:
     from instance import Instance
@@ -164,6 +168,11 @@ async def main(k: int) -> None:
         after = (await link.call("eval", code=COUNT))["result"]
         check(r9["ok"] and "replaced" in r9["msg"], f"yellow -> red belt: fast-replaced: {r9['msg']}")
         check(after["belt"] == before["belt"] + 1, f"the old belt went back to the inventory: {before} -> {after}")
+
+        # move to a spot nobody can stand on (the middle of a pond): walk to the nearest shore instead of "no path".
+        pond = (await link.call("eval", code=POND % (x, uy + 20)))["result"]
+        r10, = await act({"op": "move", "x": pond[0], "y": pond[1]}, timeout=90)
+        check(r10["ok"], f"move into a pond ends at its shore: {r10['msg']}")
 
         # find forgives slips instead of throwing a game error.
         f1 = await link.call("find", agent="t-place", name="tree")

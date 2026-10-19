@@ -81,6 +81,16 @@ function movement.tick(char, m)
       if not r.path then
         m.path_fails = (m.path_fails or 0) + 1
         if r.again and m.path_fails < 5 then return nil end -- pathfinder busy; ask again next tick
+        if not m.snapped then
+          -- The goal itself may be unstandable (inside a building, on water): aim for the nearest free spot instead.
+          m.snapped = true
+          local spot = char.surface.find_non_colliding_position("character", m.goal, math.max(m.radius + 2, 6), 0.5)
+          if spot and util.dist(spot, m.goal) > 0.5 then
+            m.radius = math.max(0.5, m.radius - util.dist(spot, m.goal))
+            m.goal = spot
+            return nil
+          end
+        end
         m.attempt = (m.attempt or 1) + 1
         if m.attempt <= 3 then
           if m.attempt == 3 then m.radius = m.radius + 2 end -- last try: accept getting a bit closer only
