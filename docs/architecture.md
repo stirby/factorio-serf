@@ -74,9 +74,11 @@ library". Before this, blocks were stamped from 10 built-in designs, but connect
   string so they rebuild exactly (undergrounds, filters, recipes) through the mod's paste.
 - `copy ... note="what it makes, rate, ports"` saves a verified build; `designs` lists both kinds (yours marked,
   with use counts); `designs forget=` moves one aside; `build kind=stamp name=` builds either kind.
-- `/serf learn <name>` (holding a blueprint item, or with a blueprint string) teaches the owner's serf; the mod's
-  `blueprint_info` gives the footprint and cost. Library blueprints in 2.0 are player-local records, not game
-  state, so the mod can't read them directly (it would desync): take one into the inventory or paste its string.
+- Teaching: the Teach serf shortcut (ctrl+shift+T) or `/serf learn [name]` sends the held blueprint, or every
+  blueprint in a held book (nested too), named from labels (a clash with a built-in gets `-yours`); the mod's
+  `blueprint_info` gives each footprint and cost. Held straight from the library: "Game blueprints" records are
+  save state and read anywhere; "My blueprints" records exist only on that player's machine, so they're read in
+  single player only (on a server the player drags it to Game blueprints or the inventory). Same code either way.
 - Prompt: blueprints first; hand-place only connections and one-offs; save what works; prefer the player's designs.
 - Test: `tests/test_library.py` (copy, rotated stamp keeps recipes and directions, learn, forget).
 

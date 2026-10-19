@@ -34,7 +34,8 @@ otterplex: @serf add the iron patch I'm standing on, belt it to the train stop
 
 **It builds from blueprints.** The serf keeps its own design library, shared by all your worlds: proven built-in
 designs (smelting column, science blocks, steam power...), every build it verified and saved, and anything you
-teach it: hold a blueprint and type `/serf learn <name>` (or `/serf learn <name> <blueprint string>`). Then
+teach it: hold a blueprint or a whole blueprint book (from your inventory or Game blueprints) and click **Teach
+serf** in the toolbar (or ctrl+shift+T, or type `/serf learn [name]`; `/serf learn <name> <string>` takes a string). Then
 "@serf put down another my-smelter by the iron" is one build call. Its library lives in
 `~/.local/state/factorio-serf/designs/` as plain JSON with the blueprint string inside.
 

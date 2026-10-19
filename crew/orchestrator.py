@@ -425,32 +425,53 @@ class Orchestrator:
                     agent.wake(f"(alert) {text}", urgent=True)
 
     async def _serf_learn(self, ev: dict) -> None:
-        """/serf learn <name>: a player hands their serf a blueprint; it goes into the design library."""
+        """A player hands their serf blueprints (/serf learn, or the Teach serf shortcut with a blueprint or a whole
+        book in hand); each one goes into the design library."""
         from . import blueprint_lib
-        player, name = ev.get("player") or "?", ev.get("name") or ""
+        player = ev.get("player") or "?"
+        designs = ev.get("designs") or [{"name": ev.get("name") or "", "string": ev.get("string", "")}]
         mine = [a for a in self.agents.values() if a.owner == player] or list(self.agents.values())
-        try:
-            info = await self.link.call("blueprint_info", string=ev.get("string", ""))
-            note = (f"{info.get('label') or name}: taught by {player}. Contains "
-                    + ", ".join(f"{v} {k}" for k, v in sorted((info.get("by_name") or {}).items(), key=lambda kv: -kv[1])))
-            blueprint_lib.save_learned(name, ev["string"], info, note, {"by": player})
-        except (GameError, ValueError, KeyError) as e:
-            await self._tell(player, f"couldn't learn {name}: {e}")
+        learned, failed = [], []
+        for d in designs:
+            name = d.get("name") or ""
+            if blueprint_lib.is_builtin(name):
+                name += "-yours"  # their book's "red-science" sits beside the built-in one
+            try:
+                info = await self.link.call("blueprint_info", string=d.get("string", ""))
+                note = (f"{info.get('label') or name}: taught by {player}. Contains "
+                        + ", ".join(f"{v} {k}" for k, v in
+                                    sorted((info.get("by_name") or {}).items(), key=lambda kv: -kv[1])))
+                blueprint_lib.save_learned(name, d["string"], info, note, {"by": player, "book": ev.get("book")})
+            except (GameError, ValueError, KeyError) as e:
+                failed.append(f"{name} ({e})")
+                continue
+            w, h = info["size"]
+            learned.append((name, w, h, info))
+            ui.info(f"learned design {name} ({w}x{h}) from {player}")
+        if failed:
+            await self._tell(player, "couldn't learn " + "; ".join(failed[:5]) + (" ..." if len(failed) > 5 else ""))
+        if not learned:
             return
-        w, h = info["size"]
-        ui.info(f"learned design {name} ({w}x{h}) from {player}")
+        if len(learned) == 1:
+            name, w, h, info = learned[0]
+            heard = (f"(library) {player} taught you a design: '{name}' ({w}x{h}, {info.get('entities')} entities, "
+                     f"needs {json.dumps(info.get('needs'))}). Build it with build kind=stamp name={name} x y. ")
+            said = f"Got it: '{name}' is in my design library ({w}x{h}). I'll build with it."
+        else:
+            listing = ", ".join(f"{n} ({w}x{h})" for n, w, h, _ in learned)
+            src = f"their book '{ev['book']}'" if ev.get("book") else "their blueprints"
+            heard = (f"(library) {player} taught you {len(learned)} designs from {src}: {listing}. "
+                     "See `designs` for what each holds; build one with build kind=stamp name=<name> x y. ")
+            said = f"Got it: {len(learned)} designs from {ev.get('book') or 'your blueprints'} are in my library."
         for agent in mine:
-            agent.hear(f"(library) {player} taught you a design: '{name}' ({w}x{h}, {info.get('entities')} entities, "
-                       f"needs {json.dumps(info.get('needs'))}). Build it with build kind=stamp name={name} x y. "
-                       "Prefer it when it fits: it's how they like it built.", wake=False)
+            agent.hear(heard + "Prefer them when they fit: it's how they like it built.", wake=False)
         if mine:
             try:
-                await self.link.call("say", agent=mine[0].name,
-                                     text=f"Got it: '{name}' is in my design library ({w}x{h}). I'll build with it.")
+                await self.link.call("say", agent=mine[0].name, text=said)
             except GameError:
                 pass
         else:
-            await self._tell(player, f"learned {name} ({w}x{h})")
+            await self._tell(player, said)
 
     async def _tell(self, player: str, text: str) -> None:
         try:

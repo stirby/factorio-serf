@@ -51,6 +51,17 @@ for _, g in pairs(s.find_entities_filtered{area={{%d,%d},{%d,%d}}, name='entity-
   out[#out+1] = {name = g.ghost_name, x = g.position.x, y = g.position.y, d = g.direction, recipe = r and r.name}
 end return out"""
 
+BOOK = """local inv = game.create_inventory(1)
+storage.test_book = inv
+inv[1].set_stack{name = 'blueprint-book'}
+inv[1].label = 'My book'
+local b = inv[1].get_inventory(defines.inventory.item_main)
+b.insert{name = 'blueprint'} b.insert{name = 'blueprint'} b.insert{name = 'blueprint'}
+b[1].import_stack([[%s]]) b[1].label = 'Gear cell v2'
+b[2].import_stack([[%s]])
+b[3].import_stack(b[1].export_stack()) b[3].label = 'Red Science 5'
+return remote.call('factorio-serf', 'stack_designs', inv[1], 'x')"""
+
 
 async def main(k: int) -> None:
     from instance import Instance
@@ -105,6 +116,23 @@ async def main(k: int) -> None:
             dsg = blueprint_lib.get_design("their-cell")
             check(dsg["learned"]["by"] == "otterplex" and "taught by otterplex" in dsg["description"],
                   f"credited to the player: {dsg['description'][:80]}")
+        # A blueprint book (the Teach serf shortcut / /serf learn with a book in hand): every blueprint goes in,
+        # named from its label; one that clashes with a built-in gets "-yours".
+        book = (await call("eval", code=BOOK % (d["string"], d["string"])))["result"]
+        names = [x["name"] for x in book or []]
+        check(names == ["gear-cell-v2", "my-book-2", "red-science-5"], f"book read: designs named from labels {names}")
+        await call("eval", code="storage.feed_seq = storage.feed_seq + 1 table.insert(storage.feed, {seq = "
+                                "storage.feed_seq, kind = 'event', data = {type = 'learn', book = 'My book', "
+                                "player = 'otterplex', designs = remote.call('factorio-serf', 'stack_designs', "
+                                "storage.test_book[1], 'x')}, to = 'rcon'})")
+        want = {"gear-cell-v2", "my-book-2", "red-science-5-yours"}
+        for _ in range(30):
+            if want <= set(blueprint_lib.names()):
+                break
+            await asyncio.sleep(0.5)
+        check(want <= set(blueprint_lib.names()), f"the whole book is in the library: {sorted(blueprint_lib.names())}")
+        for n in want & set(blueprint_lib.names()):
+            blueprint_lib.forget(n)
         bad = blueprint_lib.names()
         try:
             blueprint_lib.save_learned("red-science-5", d["string"], info, "x", {})

@@ -470,7 +470,97 @@ local function dismiss(name, p)
   link.push("event", { type = "removed", agent = name, by = p.name, tick = game.tick }, client)
 end
 
-commands.add_command("serf", "Bring in an AI helper: /serf add [name], /serf remove [name], /serf learn <name>, /serf list", function(cmd)
+-- Teaching designs: whatever blueprint or blueprint book the player holds goes into their serf's design library.
+local function design_name(label, fallback)
+  local n = (label or ""):lower():gsub("%[[^%]]*%]", ""):gsub("[^%w_%-]+", "-"):gsub("%-+", "-"):gsub("^%-", "")
+    :gsub("%-$", ""):sub(1, 40)
+  return n ~= "" and n or fallback
+end
+
+-- Collects { {name, string}, ... }; names come from labels, made unique.
+local function design_list()
+  local out, used = {}, {}
+  return out, function(label, str, fallback)
+    local n = design_name(label, fallback)
+    local base, k = n, 2
+    while used[n] do n, k = base .. "-" .. k, k + 1 end
+    used[n] = true
+    out[#out + 1] = { name = n, string = str }
+  end
+end
+
+-- Every set-up blueprint in an item stack: the blueprint itself, or all of a book's (nested books too).
+local function stack_designs(st, prefix, add)
+  if not (st and st.valid_for_read) then return end
+  if st.is_blueprint then
+    if st.is_blueprint_setup() then add(st.label, st.export_stack(), prefix) end
+  elseif st.is_blueprint_book then
+    local inv = st.get_inventory(defines.inventory.item_main)
+    local book = design_name(st.label, prefix)
+    for i = 1, inv and #inv or 0 do stack_designs(inv[i], book .. "-" .. i, add) end
+  end
+end
+
+-- What the player holds: a blueprint or book item, or (single player) one picked straight from the library.
+local function held_designs(p, name)
+  local out, add = design_list()
+  local cs = p.cursor_stack
+  local book
+  if cs and cs.valid_for_read and (cs.is_blueprint or cs.is_blueprint_book) then
+    book = cs.is_blueprint_book and (cs.label or "book") or nil
+    stack_designs(cs, name or ("design-" .. game.tick), add)
+  elseif p.cursor_record then
+    -- Picked straight from the blueprint library. "Game blueprints" are part of the save, so every peer can read
+    -- them. "My blueprints" exist only on that player's computer: reading one on a server could desync, so they're
+    -- read in single player only.
+    local r = p.cursor_record
+    if game.is_multiplayer() and not r.valid_for_write then return out, nil, "mine" end
+    if r.is_preview then return out, nil, "preview" end
+    pcall(function()
+      local function from_record(rec, prefix)
+        if rec.type == "blueprint" then
+          if not rec.is_preview and rec.is_blueprint_setup() then add(rec.label, rec.export_record(), prefix) end
+        elseif rec.type == "blueprint-book" then
+          local b = design_name(rec.label, prefix)
+          for i, sub in pairs(rec.contents or {}) do from_record(sub, b .. "-" .. i) end
+        end
+      end
+      book = r.type == "blueprint-book" and (r.label or "book") or nil
+      from_record(r, name or ("design-" .. game.tick))
+    end)
+  end
+  if name and #out == 1 then out[1].name = name end -- /serf learn <name> names a single blueprint
+  return out, book
+end
+
+local function teach(p, name)
+  local designs, book, why = held_designs(p, name)
+  if why == "mine" then
+    p.print("[serf] That one is in My blueprints, which only your computer has. Drag it into Game blueprints (or "
+      .. "your inventory) and teach it from there.")
+    return
+  elseif why == "preview" then
+    p.print("[serf] That blueprint is still loading; try again in a moment.")
+    return
+  elseif #designs == 0 then
+    p.print("[serf] Hold a blueprint or a blueprint book first (from your inventory or Game blueprints), then teach it.")
+    return
+  end
+  local client = link.client_for_player(p.index)
+  if not client then
+    p.print(SETUP)
+    return
+  end
+  link.push("event", { type = "learn", designs = designs, book = book, player = p.name, tick = game.tick }, client)
+  p.print("[serf] Teaching " .. (book and (#designs .. " designs from " .. book) or designs[1].name) .. "...")
+end
+
+script.on_event(defines.events.on_lua_shortcut, function(e)
+  if e.prototype_name == "factorio-serf-teach" then teach(game.get_player(e.player_index)) end
+end)
+script.on_event("factorio-serf-teach", function(e) teach(game.get_player(e.player_index)) end)
+
+commands.add_command("serf", "Bring in an AI helper: /serf add [name], /serf remove [name], /serf learn [name], /serf list", function(cmd)
   local p = cmd.player_index and game.get_player(cmd.player_index)
   if not p then return end
   local words = {}
@@ -499,28 +589,23 @@ commands.add_command("serf", "Bring in an AI helper: /serf add [name], /serf rem
       position = util.xy(p.position), surface = p.surface.name, tick = game.tick }, client)
     p.print("[serf] Calling a serf...")
   elseif sub == "learn" then
-    -- Teach your serf a design: hold a blueprint (an item in your inventory, e.g. ctrl+C), or paste its string.
-    if not arg or not arg:match("^[%w_%-]+$") then
-      p.print("[serf] /serf learn <name>  while holding a blueprint, or  /serf learn <name> <blueprint string>")
+    -- Teach your serf a design: hold a blueprint or a book (or click the Teach serf shortcut), or paste a string.
+    if arg and not arg:match("^[%w_%-]+$") then
+      p.print("[serf] /serf learn [name]  while holding a blueprint or book, or  /serf learn <name> <blueprint string>")
       return
     end
-    local str = words[3]
-    local cs = p.cursor_stack
-    if not str and cs and cs.valid_for_read and cs.is_blueprint and cs.is_blueprint_setup() then
-      str = cs.export_stack()
-    end
-    if not str then
-      p.print("[serf] Hold a blueprint first (from the library: take it into your inventory, or export its string "
-        .. "and use /serf learn " .. arg .. " <string>).")
+    if words[3] then
+      local client = link.client_for_player(p.index)
+      if not client then
+        p.print(SETUP)
+        return
+      end
+      link.push("event", { type = "learn", designs = { { name = arg, string = words[3] } }, player = p.name,
+        tick = game.tick }, client)
+      p.print("[serf] Teaching " .. arg .. "...")
       return
     end
-    local client = link.client_for_player(p.index)
-    if not client then
-      p.print(SETUP)
-      return
-    end
-    link.push("event", { type = "learn", name = arg, string = str, player = p.name, tick = game.tick }, client)
-    p.print("[serf] Teaching " .. arg .. "...")
+    teach(p, arg)
   elseif sub == "remove" then
     local mine = owned_by(p)
     local name = arg or mine[1]
@@ -543,7 +628,7 @@ commands.add_command("serf", "Bring in an AI helper: /serf add [name], /serf rem
     p.print(#lines > 0 and ("[serf] In this world:\n" .. table.concat(lines, "\n")) or "[serf] No serfs in this world yet.")
   else
     p.print("[serf] /serf add [name]: bring in a helper (runs on your computer with your Claude login).\n"
-      .. "  /serf learn <name>: teach it the blueprint you're holding (it builds from its own design library).\n"
+      .. "  /serf learn [name]: teach it the blueprint or book you're holding (or click Teach serf in the toolbar).\n"
       .. "  /serf remove [name]: send yours away (you get its items).  /serf list: who's here.\n"
       .. "  Talk to it in chat: @serf build more iron smelting")
   end
@@ -555,4 +640,10 @@ end)
 
 remote.add_interface("factorio-serf", {
   agents = function() return storage.agents end,
+  -- What teaching this item stack would send (tests; other mods).
+  stack_designs = function(stack, prefix)
+    local out, add = design_list()
+    stack_designs(stack, prefix or "design", add)
+    return out
+  end,
 })

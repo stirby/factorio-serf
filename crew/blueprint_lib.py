@@ -81,11 +81,15 @@ def is_learned(design: dict) -> bool:
     return bool(design.get("string")) and not design.get("entities")
 
 
+def is_builtin(name: str) -> bool:
+    return bool(name) and (DESIGN_DIR / f"{name}.json").exists()
+
+
 def save_learned(name: str, string: str, info: dict, note: str, source: dict) -> dict:
     """Add (or replace) one of the agent's own designs. info: the mod's blueprint_info (size, needs, by_name)."""
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,40}", name or ""):
         raise ValueError("design names are 1-40 letters, digits, - or _")
-    if (DESIGN_DIR / f"{name}.json").exists():
+    if is_builtin(name):
         raise ValueError(f"{name} is a built-in design; pick another name")
     d = {"name": name, "description": note.strip()[:400], "size": list(info["size"]), "needs": info.get("needs") or {},
          "contents": info.get("by_name") or {}, "string": string,
