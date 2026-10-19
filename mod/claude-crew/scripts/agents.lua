@@ -132,7 +132,7 @@ function agents.say(a, text)
     a.bubble = rendering.draw_text {
       text = short,
       surface = a.char.surface,
-      target = { entity = a.char, offset = { 0, -3.4 } },
+      target = { entity = a.char, offset = { 0, -3.75 } },
       color = { 1, 1, 1 },
       scale = 0.9,
       alignment = "center",

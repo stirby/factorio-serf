@@ -21,6 +21,16 @@ log = logging.getLogger("crew.agent")
 CONTEXT_RESET_TOKENS = 80_000  # average context per step that triggers a fresh session
 
 
+def model_label(model: str) -> str:
+    """claude-sonnet-5-5 -> Sonnet 5.5; deepseek/deepseek-v4-pro -> deepseek-v4-pro."""
+    m = model.split("/")[-1]
+    if m.startswith("claude-"):
+        parts = m.removeprefix("claude-").split("-")
+        nums = [x for x in parts[1:] if x.isdigit()]
+        return parts[0].capitalize() + (" " + ".".join(nums) if nums else "")
+    return m
+
+
 class Agent:
     def __init__(self, cfg: AgentConfig, orch: "Orchestrator"):
         self.cfg = cfg
@@ -54,6 +64,7 @@ class Agent:
         self.fresh = False
         self.last_vitals = 0.0
         self.recent_calls: deque = deque(maxlen=200)
+        self._last_thought_push = 0.0
         self.recent_fails: deque = deque(maxlen=8)
         from .tools import TOOLS
         from .late_tools import LATE_TOOLS
@@ -63,14 +74,41 @@ class Agent:
             from .foreman import ASK_FOREMAN, REPORT
             tools += [ASK_FOREMAN, REPORT]
         self.backend = make_backend(self, system_prompt(cfg.name, cfg.personality, cfg.focus,
-                                                        foreman=fm.name if fm else None),
+                                                        foreman=fm.name if fm else None, solo=fm is None,
+                                                        owner=orch.cfg.owner, kind=orch.cfg.kind),
                                     self.dir / "cwd", tools)
         self._task: asyncio.Task | None = None
 
     # ------------------------------------------------------------------ lifecycle
     async def start(self) -> None:
         await self.backend.start()
+        await self.show(state="ready", model=model_label(self.cfg.model), thought="")
+        if self.solo and self.inbox.empty():
+            self.inbox.put_nowait("(start) You just joined the game. Look around, read your notes and the board, then "
+                                  "pick the most valuable thing to do and start it.")
         self._task = asyncio.create_task(self._loop(), name=f"agent-{self.name}")
+
+    @property
+    def solo(self) -> bool:
+        """No foreman: this agent runs its own game and never sleeps (only usage limits stop it)."""
+        return getattr(self.orch, "foreman_brain", None) is None
+
+    async def show(self, **fields) -> None:
+        """Live status for the in-game panel and the line over the character's head (mod API.status)."""
+        try:
+            await self.link.call("status", agent=self.name, **fields)
+        except Exception:
+            pass
+
+    def _show_soon(self, **fields) -> None:
+        try:
+            asyncio.get_running_loop().create_task(self.show(**fields))
+        except RuntimeError:
+            pass
+
+    def current_task(self) -> str:
+        mine = [t for t in self.board.active() if t.owner == self.name and t.status in ("open", "claimed", "verifying")]
+        return f"#{mine[0].id} {mine[0].title}" if mine else ""
 
     async def apply(self, cfg: AgentConfig) -> list[str]:
         """Live config change. Returns what changed."""
@@ -90,6 +128,7 @@ class Agent:
     async def close(self) -> None:
         if self._task:
             self._task.cancel()
+        await self.show(state="offline")
         await self.backend.close()
         self.transcript.close()
 
@@ -234,6 +273,10 @@ class Agent:
     def log_thought(self, text: str) -> None:
         ui.thought(self.name, text)
         self._record("thought", text=text)
+        line = " ".join(text.split())
+        if line and time.time() - self._last_thought_push > 1.5:
+            self._last_thought_push = time.time()
+            self._show_soon(thought=line[:157] + "..." if len(line) > 160 else line)
 
     # ------------------------------------------------------------------ main loop
     def _budget_ok(self) -> bool:
@@ -260,7 +303,7 @@ class Agent:
             if not self._budget_ok():
                 why = "spend cap" if not self.orch.spend_ok() else "turn budget"
                 ui.info(f"{self.name}: hourly {why} reached; pausing")
-                await self.link.call("status", agent=self.name, text=f"paused: hourly {why} reached")
+                await self.show(state="paused", detail=f"hourly {why} reached, resuming within a minute or so")
                 await asyncio.sleep(60)
                 self.inbox.put_nowait(first)
                 continue
@@ -281,6 +324,7 @@ class Agent:
                           + prompt)
             self._record("prompt", text=prompt)
             ui.turn_start(self.name, events)
+            await self.show(state="thinking", task=self.current_task())
             self.in_turn, self.mode_set_this_turn = True, False
             t0 = time.time()
             try:
@@ -305,11 +349,15 @@ class Agent:
                 if stats.error == "usage_limit":
                     ui.info(f"{self.name}: SUBSCRIPTION USAGE LIMIT reached; nothing will happen until it resets")
                     self._record("usage_limit")
+                    await self.show(state="limit", detail=f"checking again in {delay // 60} min")
+                else:
+                    await self.show(state="error", detail=f"{stats.error}; again in {delay}s")
                 ui.info(f"{self.name}: turn error ({stats.error}); backing off {delay}s")
                 self.inbox.put_nowait("(continue) your last turn ended with an error; pick up where you left off.")
                 await asyncio.sleep(delay)
             elif stats:
                 self.error_streak = 0
+                await self.show(state="ready", task=self.current_task())
             if stats and stats.steps and stats.input_tokens / max(stats.steps, 1) > CONTEXT_RESET_TOKENS:
                 # Every step re-reads the whole context; past this size it's mostly cost, not memory.
                 self._record("reset", avg_context=round(stats.input_tokens / stats.steps))
@@ -339,12 +387,19 @@ class Agent:
             if mine or (self.mode == "working" and self.mode_set_this_turn):
                 self.mode = "working"
                 self.autonomous += 1
-                if self.autonomous > self.cfg.max_autonomous_turns:
+                if self.autonomous > self.cfg.max_autonomous_turns and not self.solo:
                     await self.set_status("paused (autonomy limit)", "idle")
                     continue
                 focus = f"task #{mine[0].id} {mine[0].title}" if mine else (self.status_text or "your current work")
                 self.inbox.put_nowait(f"(continue) keep going on {focus}. When a task is finished or blocked, "
                                       "update it, then take the next one.")
+            elif self.solo:
+                # One player runs its own game: no task means choosing the next one, not sleeping.
+                self.mode = "working"
+                self.inbox.put_nowait(
+                    "(continue) You own no open task. Decide the most valuable next thing for the factory (research "
+                    "is the clock: labs fed and growing first, then the biggest shortage `diagnose` shows, then "
+                    "expansion), post it as your own board task with a done_when check, and start it.")
             else:
                 self.mode, self.idle_since = "idle", time.time()
                 self.orch.worker_idle(self)

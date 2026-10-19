@@ -41,6 +41,19 @@ class CrewConfig:
     source: Path | None = None  # crew.toml this came from (watched for live changes)
     foreman: AgentConfig | None = None  # characterless lead every worker can ask without waiting
     usd_per_hour: float | None = None  # [budget] usd_per_hour: hard cap on spend over the last hour (all models)
+    kind: str = "daemon"  # [identity] kind: what one agent is called ("otterplex's daemon")
+    title: str | None = None  # [identity] title: the in-game panel's caption (default "<owner>'s <kind>")
+
+    @property
+    def owner(self) -> str | None:
+        return self.spawn_near
+
+    def panel_title(self) -> str:
+        if self.title:
+            return self.title
+        if len(self.agents) == 1 and self.owner:
+            return f"{self.owner}'s {self.kind}"
+        return f"{self.kind}s" if len(self.agents) > 1 else self.kind
 
     def foreman_name(self) -> str | None:
         return self.foreman.name if self.foreman else None
@@ -131,6 +144,9 @@ def load(path: str | Path | None, overrides: dict | None = None) -> CrewConfig:
     cfg = CrewConfig(server=server, agents=agents,
                      spawn_near=top("spawn_near"), starter_kit=top("starter_kit", True))
     cfg.source = Path(path).expanduser().resolve() if path else None
+    ident = raw.get("identity", {})
+    cfg.kind = ident.get("kind", cfg.kind)
+    cfg.title = ident.get("title")
     if raw.get("budget", {}).get("usd_per_hour"):
         cfg.usd_per_hour = float(raw["budget"]["usd_per_hour"])
     fm = raw.get("foreman")

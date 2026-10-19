@@ -1,11 +1,9 @@
 """System prompt and per-turn briefing."""
 from __future__ import annotations
 
-SYSTEM = """You are {name}, a member of the Claude Crew: AI players inside a live multiplayer Factorio 2.0 game
-(Space Age installed), playing alongside humans. You control a real character through tools. Your actions run
+SYSTEM = """{intro} You control a real character through tools. Your actions run
 in real game time under normal player rules: you walk, hand-mine slowly (~0.5 ore/s), carry a finite inventory,
-hand-craft with real crafting times, and build only items you are carrying within reach. Other crew members are
-separate Claudes with their own characters.
+hand-craft with real crafting times, and build only items you are carrying within reach.
 {role}{personality}
 # How you work
 - You keep working turn after turn while you own an open task (or `work` shows something you can do). You only
@@ -86,7 +84,7 @@ DOMAINS = {
     "production": """
 Your domain: PRODUCTION. Science and the mall. Automate red then green science with assemblers fed by belts or
 inserters from the depot or the bus; feed the labs; then a mall for belts, inserters, gears, circuits, poles
-and machines. Size builds with real ratios (ask the architect).""",
+and machines. Size builds with real ratios.""",
     "resources": """
 Your domain: RESOURCES. Ore and plates. Replace burner chains with electric mining drills onto belts feeding
 furnace columns (inserter in, inserter out onto an output belt); fuel furnaces from a coal belt, not by hand.
@@ -149,14 +147,39 @@ The crew's lead is {foreman}, who has no character: it owns the roadmap and the 
 """
 
 
-def system_prompt(name: str, personality: str = "", focus: str = "", foreman: str | None = None) -> str:
-    role_text = WORKER
-    if focus:
-        role_text += DOMAINS.get(focus, f"\nYour domain: {focus}\n")
-    role_text += PARALLEL
-    if foreman:
-        role_text += FOREMAN_NOTE.format(foreman=foreman)
-    return SYSTEM.format(name=name, role=role_text,
+CREW_INTRO = """You are {name}, a member of the Claude Crew: AI players inside a live multiplayer Factorio 2.0 game
+(Space Age installed), playing alongside humans. Other crew members are separate Claudes with their own characters."""
+
+SOLO_INTRO = """You are {name}, {owner}'s {kind}: an AI player living in their Factorio 2.0 world (Space Age installed),
+playing alongside them."""
+
+SOLO = """
+# Your role
+{owner} is the foreman: they set direction in chat and you carry it out, your way. When nobody has asked for
+anything, you run the factory yourself: pick the most valuable next goal, put it on the board as your own task
+with a done_when check, build it, verify it, and move to the next. You never go idle; the people watching see
+what you're doing and thinking over your head and in their panel, so keep your status line honest and short.
+Play like a strong engineer and a strong programmer at once: plan the block (ratios, footprint, inputs and
+outputs) before placing it, reuse proven designs (stamp, copy/paste) instead of hand-placing, verify every build
+with a check that measures delivery, read before you change things (inspect, diagnose), fix root causes, and
+keep the character busy while you think.
+"""
+
+
+def system_prompt(name: str, personality: str = "", focus: str = "", foreman: str | None = None,
+                  solo: bool = False, owner: str | None = None, kind: str = "daemon") -> str:
+    if solo:
+        intro = SOLO_INTRO.format(name=name, owner=owner or "the players", kind=kind)
+        role_text = SOLO.format(owner=owner or "Whoever is playing") + PARALLEL
+    else:
+        intro = CREW_INTRO.format(name=name)
+        role_text = WORKER
+        if focus:
+            role_text += DOMAINS.get(focus, f"\nYour domain: {focus}\n")
+        role_text += PARALLEL
+        if foreman:
+            role_text += FOREMAN_NOTE.format(foreman=foreman)
+    return SYSTEM.format(intro=intro, role=role_text,
                          personality=f"\nPersonality: {personality}\n" if personality else "")
 
 
@@ -176,5 +199,7 @@ def briefing(agent, events: list[str], work: str = "") -> str:
         parts.append("[your notes]\n" + agent.notes)
     if agent.status_text:
         parts.append(f"[your status] {agent.status_text}")
-    parts.append(f"[crew] {', '.join(n for n in agent.crew_names() if n != agent.name) or 'just you'}")
+    others = [n for n in agent.crew_names() if n != agent.name]
+    if others:
+        parts.append(f"[crew] {', '.join(others)}")
     return "\n".join(parts)

@@ -100,9 +100,23 @@ API.cancel = function(req)
   return {}
 end
 
+-- Live status from the orchestrator. Any field may be sent alone:
+--   text: the agent's own status line; state: thinking | ready | limit | paused | error | offline;
+--   detail: words for that state; thought: the model's latest words; task: what it's working on; model.
 API.status = function(req)
   local a = agent_of(req)
-  a.status_text = tostring(req.text or ""):sub(1, 140)
+  if req.text ~= nil then a.status_text = tostring(req.text):sub(1, 140) end
+  if req.state ~= nil and req.state ~= a.state then a.state, a.state_since = tostring(req.state), game.tick end
+  if req.detail ~= nil then a.state_detail = tostring(req.detail):sub(1, 100) end
+  if req.thought ~= nil then a.thought = tostring(req.thought):sub(1, 160) end
+  if req.task ~= nil then a.task_text = tostring(req.task):sub(1, 100) end
+  if req.model ~= nil then a.model = tostring(req.model):sub(1, 40) end
+  return {}
+end
+
+-- Look and naming for the panel: title (e.g. "otterplex's daemon") and the word for one agent.
+API.brand = function(req)
+  storage.brand = { title = tostring(req.title or "Claude Crew"):sub(1, 60), kind = tostring(req.kind or "agent"):sub(1, 30) }
   return {}
 end
 
@@ -334,6 +348,7 @@ API.poll = function()
       a.results = {}
     end
   end
+  storage.last_poll = game.tick  -- heartbeat: the panel shows "offline" when the orchestrator stops polling
   local out = { tick = game.tick, chat = storage.chat, results = results, events = storage.events }
   storage.chat, storage.events = {}, {}
   return out

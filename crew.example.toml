@@ -10,6 +10,11 @@ rcon_port = 27015
 # rcon_password = "..."                       # or FACTORIO_RCON_PASSWORD, or:
 rcon_password_file = "server/rcon-password"   # relative to this file
 
+# Who it is. The panel over your screen reads "<spawn_near>'s <kind>" (e.g. "otterplex's daemon").
+[identity]
+kind = "daemon"
+# title = "..."               # override the panel caption
+
 # Your player: one character in the game, driven by one model. Talk to it in chat.
 [defaults]
 backend = "claude-code"       # "claude-code" = your Claude Code login (subscription); "api" = ANTHROPIC_API_KEY
@@ -22,7 +27,7 @@ max_turns_per_hour = 120
 # usd_per_hour = 25
 
 [[agent]]
-name = "claude-1"
+name = "claude"               # what you @ in chat; with several agents give each its own name
 personality = "Calm, dry humor, likes tidy layouts."
 
 # The model can also come from an OpenAI-compatible provider, e.g. DeepSeek through the Vercel AI Gateway.

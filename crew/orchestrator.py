@@ -8,7 +8,7 @@ import logging
 
 from . import ui
 from . import progress
-from .agent import Agent
+from .agent import Agent, model_label
 from .board import Board
 from .foreman import Foreman
 from . import config as config_mod
@@ -62,8 +62,13 @@ class Orchestrator:
         ui.info(f"crew ready: {names}. Talk to them in game chat: @{next(iter(self.agents))} ..., @all ...")
         hello = self.agents.get(self.foreman or "") or next(iter(self.agents.values()))
         try:
-            await self.link.call("say", agent=hello.name,
-                                 text=f"Claude Crew online ({names}). Address us with @name or @all.")
+            await self.link.call("brand", title=self.cfg.panel_title(), kind=self.cfg.kind)
+            if len(self.agents) == 1 and not self.foreman_brain:
+                text = (f"{hello.name} online ({self.cfg.panel_title()}, {model_label(hello.cfg.model)}). "
+                        f"Talk to me with @{hello.name}.")
+            else:
+                text = f"Claude Crew online ({names}). Address us with @name or @all."
+            await self.link.call("say", agent=hello.name, text=text)
         except GameError:
             pass
         if self.cfg.source:

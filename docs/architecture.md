@@ -23,6 +23,14 @@ client id, keep a queue per id, route each agent's results to its owner), then a
 | Checks (`orchestrator._task_checks`, mod `scripts/orders.lua`) | the game | A board task with `done_when` closes only when its check holds 2 min. |
 | Mod (`mod/claude-crew`) | Lua | Characters under player rules, job queue, observations, late-game queries, checks. RCON JSON API `/crew`. |
 
+What people see (one player at a time, so make it watchable): the panel (top left, `/crew-panel`) is titled
+"<owner>'s <kind>" (`[identity]` in crew.toml) and shows, per agent: model, a live state line, its task, and its
+latest thought in quotes. The same state floats over the character's head. States: `thinking... 12s` (a model
+turn is running; with the job if the character is also moving), the current job (`walking to 60,10`, `mining`,
+`building`), `paused: hourly spend cap`, `retrying: <error>`, `offline` (no orchestrator poll for 20 s), and
+`idle: out of Claude usage`, the only idle. A solo agent never sleeps: with no task it picks the next goal itself.
+Pushed by `Agent.show()` (crew/agent.py) through the mod's `status` API; drawn by `scripts/panel.lua`.
+
 Test rules: **biters are always off in tests** (`crew/peace.py`, applied by `scripts/instance.py` and
 `scripts/server.sh` on every start); tests run on copies of saves, never the original.
 
