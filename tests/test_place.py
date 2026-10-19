@@ -40,6 +40,26 @@ c.insert{name='wooden-chest', count=10} c.insert{name='stone-furnace', count=5}
 return {tree = tree and tree.valid, rock = rock and rock.valid, wood = c.get_item_count('wood'),
   stone = c.get_item_count('stone')}"""
 
+POLES = """local s, f = game.surfaces.nauvis, game.forces.player
+local X, Y = %d, %d
+local t = {}
+for x = X-2, X+44 do for y = Y-12, Y+12 do
+  t[#t+1] = {name = (x >= X+18 and x <= X+21) and 'water' or 'grass-1', position={x,y}} end end
+s.set_tiles(t)
+for _, e in pairs(s.find_entities_filtered{area={{X-2,Y-12},{X+44,Y+12}}}) do
+  if e.type ~= 'character' then e.destroy() end end
+for y = Y-12, Y+12 do s.create_entity{name='wooden-chest', position={X+10.5, y+0.5}, force=f} end
+s.create_entity{name='small-electric-pole', position={X+0.5, Y+0.5}, force=f}
+s.create_entity{name='electric-energy-interface', position={X+0, Y+3}, force=f}
+local c = storage.agents['t-place'].char
+c.teleport({X+2, Y+2}) c.insert{name='small-electric-pole', count=20}"""
+
+NET = """local s = game.surfaces.nauvis local X, Y = %d, %d
+local function net(x) local p = s.find_entities_filtered{position={x, Y+0.5}, radius=1, type='electric-pole'}[1]
+  return p and p.electric_network_id end
+return {start = net(X+0.5), ['end'] = net(X+40.5),
+  poles = s.count_entities_filtered{area={{X+1,Y-12},{X+44,Y+12}}, type='electric-pole'}}"""
+
 
 async def main(k: int) -> None:
     from instance import Instance
@@ -72,6 +92,17 @@ async def main(k: int) -> None:
         check(after["wood"] > before["wood"] and after["stone"] > before["stone"],
               f"wood and stone went to the inventory: {before} -> {after}")
         check(after["chests"] == 9, f"only one chest was used (the 'already there' one cost nothing): {after}")
+
+        # Pole lines hop by wire reach: across a 4-wide river and a row of chests, from an existing pole.
+        py = y + 20
+        await link.call("eval", code=POLES % (x, py))
+        r5, = await act({"op": "connect", "item": "small-electric-pole", "from": [x + 0.5, py + 0.5],
+                         "to": [x + 40.5, py + 0.5]}, timeout=120)
+        net = (await link.call("eval", code=NET % (x, py)))["result"]
+        check(r5["ok"], f"pole line placed: {r5['msg']}")
+        check(net["start"] is not None and net["start"] == net["end"],
+              f"the far end is on the start pole's network: {net}")
+        check(net["poles"] <= 8, f"poles spaced by reach, not every few tiles ({net['poles']} for 40 tiles)")
     print("ALL PASS" if not FAILS else f"{len(FAILS)} FAILED: {FAILS}")
     sys.exit(1 if FAILS else 0)
 

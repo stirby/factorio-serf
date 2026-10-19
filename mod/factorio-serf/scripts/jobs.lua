@@ -844,6 +844,66 @@ local function new_job(op, args)
   return job
 end
 
+-- Pole lines go by wire reach, not tile by tile: wires span belts, machines and water, so each hop is the free
+-- spot within reach of the last pole that gets closest to the goal. An existing pole at either end is used as is.
+-- Returns the positions to place (plus .first/.last for the span), or nil and why.
+local function pole_hops(c, ent, from, to, free_tile)
+  local s = c.surface
+  local reach = 7.5
+  pcall(function() reach = ent.get_max_wire_distance() end)
+  local function pole_at(p)
+    return s.find_entities_filtered { position = p, radius = 0.8, type = "electric-pole", force = c.force,
+      limit = 1 }[1]
+  end
+  local function wire(e)
+    local r = reach
+    if e then pcall(function() r = math.min(r, e.prototype.get_max_wire_distance()) end) end
+    return r - 0.05
+  end
+  local box = ent.collision_box
+  local odd = math.floor(box.right_bottom.x - box.left_top.x + 0.5) % 2 == 1 -- 1x1 poles sit on tile centers
+  local function to_grid(v) return odd and (math.floor(v) + 0.5) or math.floor(v + 0.5) end
+  local function placeable(p)
+    return s.can_place_entity { name = ent.name, position = p, force = c.force,
+      build_check_type = defines.build_check_type.manual }
+  end
+  local hops = {}
+  local start_pole, goal_pole = pole_at(from), pole_at(to)
+  local cur = start_pole and start_pole.position or free_tile(from)
+  if not start_pole then hops[#hops + 1] = cur end
+  local goal = goal_pole and goal_pole.position or free_tile(to)
+  local first, seen = cur, {}
+  for _ = 1, 200 do
+    local d = util.dist(cur, goal)
+    local r = wire(#hops == 0 and start_pole or nil)
+    if d <= math.min(r, wire(goal_pole)) then
+      if not goal_pole and d > 0.1 then hops[#hops + 1] = goal end
+      hops.first, hops.last = first, goal
+      return hops
+    end
+    -- Best free spot in reach: the one closest to the goal.
+    local best, best_d
+    local R = math.floor(r)
+    for dx = -R, R do
+      for dy = -R, R do
+        local q = { x = to_grid(cur.x + dx), y = to_grid(cur.y + dy) }
+        if util.dist(cur, q) <= r and not seen[q.x .. "," .. q.y] then
+          local qd = util.dist(q, goal)
+          if qd < d - 1 and (not best_d or qd < best_d - 0.01) and placeable(q) then best, best_d = q, qd end
+        end
+      end
+    end
+    if not best then
+      return nil, "no free spot within wire reach (" .. string.format("%.1f", r) .. " tiles) of " .. xystr(cur)
+        .. " that gets closer; pick a waypoint around the obstacle and connect in two legs"
+    end
+    seen[best.x .. "," .. best.y] = true
+    hops[#hops + 1] = best
+    cur = best
+  end
+  return nil, "too many poles (over 200); split the line"
+end
+
 -- Route a belt / pipe / pole line between two points around obstacles, then queue the placements.
 H.connect = {
   start = function(a, job)
@@ -870,18 +930,17 @@ H.connect = {
       end
       return p
     end
-    from, to = free_tile(from), free_tile(to)
-    local path, err = route.find(c.surface, from, to, { entity = ent.name, force = c.force })
-    if not path then return fail("can't route " .. item .. ": " .. err) end
-
-    local places = {}
+    local places, path = {}, nil
     if ent.type == "electric-pole" then
-      local reach = 7.5
-      pcall(function() reach = ent.get_max_wire_distance() end)
-      local step = math.max(1, math.floor(reach) - 1)
-      for i = 1, #path, step do places[#places + 1] = { pos = path[i] } end
-      if places[#places].pos ~= path[#path] then places[#places + 1] = { pos = path[#path] } end
+      local hops, err = pole_hops(c, ent, from, to, free_tile)
+      if not hops then return fail("can't run " .. item .. " from " .. xystr(from) .. " to " .. xystr(to) .. ": " .. err) end
+      for _, p in ipairs(hops) do places[#places + 1] = { pos = p } end
+      path = { hops.first, hops.last, n = math.floor(util.dist(hops.first, hops.last) + 0.5) }
     else
+      from, to = free_tile(from), free_tile(to)
+      local err
+      path, err = route.find(c.surface, from, to, { entity = ent.name, force = c.force })
+      if not path then return fail("can't route " .. item .. ": " .. err) end
       for i, p in ipairs(path) do
         local dir
         if ent.supports_direction then
@@ -894,6 +953,7 @@ H.connect = {
         end
         places[#places + 1] = { pos = p, dir = dir }
       end
+      path.n = #path
     end
 
     -- Don't silently feed a teammate's belt: check what the last tile points into and what points into the first.
@@ -924,7 +984,10 @@ H.connect = {
     end
     -- Place every piece inside this job, so the result says what actually got built (not just what was planned).
     job.places, job.i, job.placed, job.failed = places, 1, 0, {}
-    job.item, job.span = item, { util.xy(path[1]), util.xy(path[#path]), #path }
+    job.item, job.span = item, { util.xy(path[1]), util.xy(path[#path]), path.n }
+    if #places == 0 then
+      return ok("already connected: the " .. item .. "s at both ends are within wire reach", { placed = 0, planned = 0 })
+    end
   end,
   tick = function(a, job)
     local pl = job.places[job.i]
