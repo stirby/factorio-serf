@@ -424,6 +424,34 @@ class Orchestrator:
                 for agent in self._owner(focus):
                     agent.wake(f"(alert) {text}", urgent=True)
 
+    async def _serf_learn(self, ev: dict) -> None:
+        """/serf learn <name>: a player hands their serf a blueprint; it goes into the design library."""
+        from . import blueprint_lib
+        player, name = ev.get("player") or "?", ev.get("name") or ""
+        mine = [a for a in self.agents.values() if a.owner == player] or list(self.agents.values())
+        try:
+            info = await self.link.call("blueprint_info", string=ev.get("string", ""))
+            note = (f"{info.get('label') or name}: taught by {player}. Contains "
+                    + ", ".join(f"{v} {k}" for k, v in sorted((info.get("by_name") or {}).items(), key=lambda kv: -kv[1])))
+            blueprint_lib.save_learned(name, ev["string"], info, note, {"by": player})
+        except (GameError, ValueError, KeyError) as e:
+            await self._tell(player, f"couldn't learn {name}: {e}")
+            return
+        w, h = info["size"]
+        ui.info(f"learned design {name} ({w}x{h}) from {player}")
+        for agent in mine:
+            agent.hear(f"(library) {player} taught you a design: '{name}' ({w}x{h}, {info.get('entities')} entities, "
+                       f"needs {json.dumps(info.get('needs'))}). Build it with build kind=stamp name={name} x y. "
+                       "Prefer it when it fits: it's how they like it built.", wake=False)
+        if mine:
+            try:
+                await self.link.call("say", agent=mine[0].name,
+                                     text=f"Got it: '{name}' is in my design library ({w}x{h}). I'll build with it.")
+            except GameError:
+                pass
+        else:
+            await self._tell(player, f"learned {name} ({w}x{h})")
+
     async def _tell(self, player: str, text: str) -> None:
         try:
             await self.link.call("tell", player=player, text=text)
@@ -456,6 +484,9 @@ class Orchestrator:
     async def _on_event(self, ev: dict) -> None:
         if ev["type"] == "add":
             asyncio.create_task(self._serf_add(ev), name="serf-add")
+            return
+        if ev["type"] == "learn":
+            asyncio.create_task(self._serf_learn(ev), name="serf-learn")
             return
         if ev["type"] == "removed":
             agent = self.agents.pop(ev.get("agent", ""), None)

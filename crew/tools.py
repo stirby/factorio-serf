@@ -432,8 +432,14 @@ async def t_marks(agent: "Agent", a: dict) -> str:
 
 async def t_designs(agent: "Agent", a: dict) -> str:
     from . import blueprint_lib
-    return ("Proven designs (validated in game). Stamp one with `stamp`, then build it with build_ghosts.\n"
-            + blueprint_lib.summary_text())
+    if a.get("forget"):
+        try:
+            blueprint_lib.forget(str(a["forget"]))
+        except KeyError as e:
+            return str(e)
+        return f"forgot {a['forget']} (moved aside, not deleted)"
+    return ("Your design library: built-in proven designs, plus [yours] ones you copied after they worked or a player "
+            "taught you. Build one with `build kind=stamp name=.. x y` (x,y = top-left).\n" + blueprint_lib.summary_text())
 
 
 async def t_stamp(agent: "Agent", a: dict) -> str:
@@ -448,6 +454,12 @@ async def t_stamp(agent: "Agent", a: dict) -> str:
                 + (f"blocked by {', '.join(chk['blockers'])}" if chk.get("blockers") else "")
                 + (f" {chk['water_tiles']} water tiles" if chk.get("water_tiles") else "")
                 + ". Pick another spot (map/find help) or rotate it.")
+    if st.get("string"):  # a learned design: placed whole, exactly as it was copied
+        d = await agent.link.call("paste", string=st["string"], x=st["center"][0], y=st["center"][1],
+                                  direction=st["direction"])
+        blueprint_lib.used(a["name"])
+        return (f"stamped {a['name']} (yours) as {d['placed']}/{d['of']} ghosts in x {x1}..{x2}, y {y1}..{y2}; "
+                f"it needs {_j(d['needs'])}. Next: build it (build kind=ghosts zone=[{x1},{y1},{x2},{y2}]).")
     d = await agent.link.call("act", agent=agent.name, actions=[{"op": "blueprint", "entities": st["entities"]}])
     r = await asyncio.wait_for(agent.link.job_future(d["job_ids"][0]), 20)
     if not r.get("ok"):
@@ -537,10 +549,11 @@ TOOLS: list[Tool] = [
          "keep status); mark=<index> status=doing|done updates one. With no args, shows it.",
          _obj({"goals": {"type": "array", "items": {"type": "string"}}, "mark": {"type": "integer"},
                "status": {"type": "string", "enum": ["todo", "doing", "done"]}}), t_roadmap),
-    Tool("designs", "List the crew's proven blueprint designs (smelting column, red/green science, lab row, "
-         "gears+circuits, steam power) with size, throughput, inputs/outputs and build materials.", _obj({}),
-         t_designs),
-    Tool("stamp", "Lay a proven design as ghosts at x,y (its top-left corner), rotation 0/90/180/270 or a direction. "
+    Tool("designs", "Your design library: built-in proven blueprints (smelting column, red/green science, lab row, "
+         "gears+circuits, steam power...) and your own (builds you copied after they worked, blueprints players "
+         "taught you), with size, what each does, inputs/outputs and build materials. forget=<name> drops one of "
+         "yours.", _obj({"forget": {"type": "string"}}), t_designs),
+    Tool("stamp", "Lay a design from your library as ghosts at x,y (its top-left corner), rotation 0/90/180/270 or a direction. "
          "Checks the area is clear first. For steam power use anchor='offshore-pump' with x,y and rotation from "
          "find name=water's offshore_pump_spots. Then build_ghosts and hook up its inputs/outputs.",
          _obj({"name": {"type": "string"}, **XY, "rotation": {}, "anchor": {"type": "string"}},

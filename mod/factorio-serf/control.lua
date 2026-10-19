@@ -266,6 +266,7 @@ API.research = function(req) return jobs.research_direct(req) end
 API.diagnose = function(req) return late.diagnose(req) end
 API.copy = function(req) return late.copy(req) end
 API.paste = function(req) return late.paste(req) end
+API.blueprint_info = function(req) return late.blueprint_info(req) end
 API.order = function(req) return late.order(req) end
 API.network = function(req) return late.network(req) end
 API.calc = function(req) return late.calc(req) end
@@ -469,7 +470,7 @@ local function dismiss(name, p)
   link.push("event", { type = "removed", agent = name, by = p.name, tick = game.tick }, client)
 end
 
-commands.add_command("serf", "Bring in an AI helper: /serf add [name], /serf remove [name], /serf list", function(cmd)
+commands.add_command("serf", "Bring in an AI helper: /serf add [name], /serf remove [name], /serf learn <name>, /serf list", function(cmd)
   local p = cmd.player_index and game.get_player(cmd.player_index)
   if not p then return end
   local words = {}
@@ -497,6 +498,29 @@ commands.add_command("serf", "Bring in an AI helper: /serf add [name], /serf rem
     link.push("event", { type = "add", player = p.name, player_index = p.index, name = arg,
       position = util.xy(p.position), surface = p.surface.name, tick = game.tick }, client)
     p.print("[serf] Calling a serf...")
+  elseif sub == "learn" then
+    -- Teach your serf a design: hold a blueprint (an item in your inventory, e.g. ctrl+C), or paste its string.
+    if not arg or not arg:match("^[%w_%-]+$") then
+      p.print("[serf] /serf learn <name>  while holding a blueprint, or  /serf learn <name> <blueprint string>")
+      return
+    end
+    local str = words[3]
+    local cs = p.cursor_stack
+    if not str and cs and cs.valid_for_read and cs.is_blueprint and cs.is_blueprint_setup() then
+      str = cs.export_stack()
+    end
+    if not str then
+      p.print("[serf] Hold a blueprint first (from the library: take it into your inventory, or export its string "
+        .. "and use /serf learn " .. arg .. " <string>).")
+      return
+    end
+    local client = link.client_for_player(p.index)
+    if not client then
+      p.print(SETUP)
+      return
+    end
+    link.push("event", { type = "learn", name = arg, string = str, player = p.name, tick = game.tick }, client)
+    p.print("[serf] Teaching " .. arg .. "...")
   elseif sub == "remove" then
     local mine = owned_by(p)
     local name = arg or mine[1]
@@ -519,6 +543,7 @@ commands.add_command("serf", "Bring in an AI helper: /serf add [name], /serf rem
     p.print(#lines > 0 and ("[serf] In this world:\n" .. table.concat(lines, "\n")) or "[serf] No serfs in this world yet.")
   else
     p.print("[serf] /serf add [name]: bring in a helper (runs on your computer with your Claude login).\n"
+      .. "  /serf learn <name>: teach it the blueprint you're holding (it builds from its own design library).\n"
       .. "  /serf remove [name]: send yours away (you get its items).  /serf list: who's here.\n"
       .. "  Talk to it in chat: @serf build more iron smelting")
   end

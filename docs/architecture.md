@@ -64,6 +64,22 @@ Pushed by `Agent.show()` (crew/agent.py) through the mod's `status` API; drawn b
 Test rules: **biters are always off in tests** (`crew/peace.py`, applied by `scripts/instance.py` and
 `scripts/server.sh` on every start); tests run on copies of saves, never the original.
 
+### Design library (2026-10-19)
+
+The user: "when the agent builds it should use blueprints as much as possible... ideally it can maintain its own
+library". Before this, blocks were stamped from 10 built-in designs, but connections were hand-placed (d3 run 2:
+27 hand-place calls vs 2 stamps) and `copy` was never used. Now (`crew/blueprint_lib.py`):
+- One library, two kinds: built-in designs (crew/blueprints, entity lists with ports) and learned ones in
+  `~/.local/state/factorio-serf/designs/<name>.json` (per user, every world), which keep Factorio's blueprint
+  string so they rebuild exactly (undergrounds, filters, recipes) through the mod's paste.
+- `copy ... note="what it makes, rate, ports"` saves a verified build; `designs` lists both kinds (yours marked,
+  with use counts); `designs forget=` moves one aside; `build kind=stamp name=` builds either kind.
+- `/serf learn <name>` (holding a blueprint item, or with a blueprint string) teaches the owner's serf; the mod's
+  `blueprint_info` gives the footprint and cost. Library blueprints in 2.0 are player-local records, not game
+  state, so the mod can't read them directly (it would desync): take one into the inventory or paste its string.
+- Prompt: blueprints first; hand-place only connections and one-offs; save what works; prefer the player's designs.
+- Test: `tests/test_library.py` (copy, rotated stamp keeps recipes and directions, learn, forget).
+
 ### Thinking time (notes, 2026-10-19)
 
 The model thinks for 39-45% of wall time (median ~2.5-4 s per call, longer after map reads), and in the iron run the

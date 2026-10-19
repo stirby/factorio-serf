@@ -95,6 +95,7 @@ packet arrives ("Trying to add invalid input action to the closure"). Players' o
 | In game chat | What happens |
 |---|---|
 | `/serf add` | your serf joins next to you (`/serf remove`, `/serf list`) |
+| `/serf learn my-smelter` (holding a blueprint) | your serf adds it to its design library and builds with it |
 | `@serf our iron is the bottleneck, fix it` | it diagnoses, plans and builds; reports back and asks what's next |
 | `@serf what are you working on?` | it answers |
 | `@all ...` | every agent hears it |

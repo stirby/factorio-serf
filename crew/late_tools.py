@@ -10,6 +10,7 @@ import json
 import time
 from typing import TYPE_CHECKING
 
+from .rcon import GameError
 from .tools import BY_NAME, XY, Tool, _j, _num, _obj
 
 if TYPE_CHECKING:
@@ -65,8 +66,21 @@ async def t_copy(agent: "Agent", a: dict) -> str:
     lib[name] = {"string": d["string"], "size": d["size"], "needs": d["needs"], "by": agent.name,
                  "from": [a["x1"], a["y1"], a["x2"], a["y2"]]}
     _save_copies(agent)
+    kept = ""
+    if a.get("note"):
+        from . import blueprint_lib
+        try:
+            info = await agent.link.call("blueprint_info", string=d["string"])
+            blueprint_lib.save_learned(name, d["string"], info, str(a["note"]),
+                                       {"by": agent.name, "world": agent.orch.cfg.state_dir.name,
+                                        "area": [a["x1"], a["y1"], a["x2"], a["y2"]]})
+            kept = (f" Saved to your design library as '{name}' ({info['size'][0]}x{info['size'][1]}): in any world, "
+                    f"build kind=stamp name={name} x y builds it.")
+        except (ValueError, GameError) as e:
+            kept = f" Not saved to your library: {e}"
     return (f"copied {d['entities']} entities as '{name}' (size {d['size'][0]}x{d['size'][1]}): {_j(d['by_name'])}. "
-            f"To build one more you need {_j(d['needs'])}. paste name='{name}' x y (x,y = where its centre goes).")
+            f"To build one more you need {_j(d['needs'])}. paste name='{name}' x y (x,y = where its centre goes)."
+            + kept)
 
 
 async def t_paste(agent: "Agent", a: dict) -> str:
@@ -74,6 +88,13 @@ async def t_paste(agent: "Agent", a: dict) -> str:
     lib = _copies(agent)
     c = lib.get(str(a.get("name", "")))
     string = c["string"] if c else a.get("string")
+    if not string:  # one of your library designs
+        from . import blueprint_lib
+        try:
+            dsg = blueprint_lib.get_design(str(a.get("name", "")))
+            string = dsg.get("string")
+        except KeyError:
+            pass
     if not string:
         return f"no copy named {a.get('name')!r}; copies: {', '.join(lib) or 'none'}"
     d = await agent.link.call("paste", string=string, x=a["x"], y=a["y"], direction=a.get("direction", "north"),
@@ -159,6 +180,8 @@ async def t_build(agent: "Agent", a: dict) -> str:
     if kind == "paste" and not zone:
         _num(a, "x", "y")
         c = _copies(agent).get(str(a.get("name", "")))
+        if not c and str(a.get("name", "")) in blueprint_lib.names():
+            c = blueprint_lib.get_design(str(a["name"]))
         if not c:
             return f"no copy named {a.get('name')!r}; copies: {', '.join(_copies(agent)) or 'none'}"
         w, h = c.get("size") or [16, 16]
@@ -198,8 +221,11 @@ LATE_TOOLS = [
          "the cause upstream (diagnose the ingredient).",
          _obj({"item": {"type": "string"}, "surface": {"type": "string"}}, ["item"]), t_diagnose),
     Tool("copy", "Copy an existing build (an area) as a named blueprint, like ctrl+C, to paste more of a design "
-         "that already works here (a smelting column, a science block). Returns its size and the items it needs.",
-         _obj({**AREA, "name": {"type": "string"}}, ["x1", "y1", "x2", "y2"]), t_copy),
+         "that already works here (a smelting column, a science block). Returns its size and the items it needs. "
+         "With a note (what it makes, its rate, where inputs enter and outputs leave), it also goes into your "
+         "design library, kept across worlds: do that for every build you've verified works, so next time it's "
+         "one `build kind=stamp` call.",
+         _obj({**AREA, "name": {"type": "string"}, "note": {"type": "string"}}, ["x1", "y1", "x2", "y2"]), t_copy),
     Tool("paste", "Place a copied build (name) as ghosts with its centre at x,y, optionally rotated (direction). "
          "Instant, from anywhere, like placing a blueprint in map view. Robots build it in a roboport network; "
          "otherwise build_ghosts carrying the items. Check the spot is clear (map) first.",

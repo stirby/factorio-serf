@@ -32,6 +32,12 @@ otterplex: @serf add the iron patch I'm standing on, belt it to the train stop
 4. Load a game, run `serf`, and type `/serf add` in game. Talk to it with `@serf ...`. `/serf remove` sends it
    away (you get its items), `/serf list` shows who's here.
 
+**It builds from blueprints.** The serf keeps its own design library, shared by all your worlds: proven built-in
+designs (smelting column, science blocks, steam power...), every build it verified and saved, and anything you
+teach it: hold a blueprint and type `/serf learn <name>` (or `/serf learn <name> <blueprint string>`). Then
+"@serf put down another my-smelter by the iron" is one build call. Its library lives in
+`~/.local/state/factorio-serf/designs/` as plain JSON with the blueprint string inside.
+
 Works in single player and as a client in someone else's multiplayer game: each player runs their own `serf`,
 and each serf runs on its owner's login. Your serf waits in the save; run `serf` again and it picks up.
 Server admins can turn player serfs off or cap them (mod settings), or host serfs for players without the app

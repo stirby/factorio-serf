@@ -1,6 +1,12 @@
-"""Library of proven, in-game-validated designs that agents can stamp as ghosts.
+"""The design library: blueprints an agent can build by name, wherever it goes.
 
-Each design is one JSON file in crew/blueprints/ (see that folder). Entity positions are relative to the design's
+Two kinds, one list (`names()`, `list_designs()`, `stamp()`):
+- built-in: proven, in-game-validated designs shipped in crew/blueprints/ (entity lists with ports, below);
+- learned: the agent's own library, kept per user across worlds (~/.local/state/factorio-serf/designs/): builds it
+  copied after they worked, and blueprints players taught it (`/serf learn`). These keep Factorio's own blueprint
+  string, so they rebuild exactly as copied (undergrounds, filters, recipes); they're placed with the mod's paste.
+
+Each built-in design is one JSON file in crew/blueprints/ (see that folder). Entity positions are relative to the design's
 top-left corner (0,0), written exactly as Factorio wants them: 1x1 and 3x3 entities at .5 centers, 2x2 at integer
 corners, 3x2 / 3x5 / 1x2 entities at their real centers. Directions use Factorio 2.0 semantics, verified in game:
 an inserter's direction is the side it TAKES from (it drops on the opposite side); belts point the way items
@@ -24,6 +30,10 @@ from __future__ import annotations
 
 import json
 import math
+import os
+import re
+import shutil
+import time
 from pathlib import Path
 
 DESIGN_DIR = Path(__file__).resolve().parent / "blueprints"
@@ -45,15 +55,72 @@ _cache: dict[str, tuple[float, dict]] = {}
 
 
 # ---------------------------------------------------------------------------- loading
+def learned_dir() -> Path:
+    """The agent's own designs, shared by all worlds of this user (SERF_DESIGNS_DIR overrides, for tests)."""
+    if os.environ.get("SERF_DESIGNS_DIR"):
+        return Path(os.environ["SERF_DESIGNS_DIR"])
+    from .config import _home
+    return _home("~/.local/state", "factorio-serf") / "designs"
+
+
 def _path(name: str) -> Path:
-    p = DESIGN_DIR / f"{name}.json"
-    if name not in names():
-        raise KeyError(f"no design named {name!r}; have: {', '.join(names())}")
-    return p
+    for d in (DESIGN_DIR, learned_dir()):
+        p = d / f"{name}.json"
+        if p.exists():
+            return p
+    raise KeyError(f"no design named {name!r}; have: {', '.join(names())}")
 
 
 def names() -> list[str]:
-    return sorted(p.stem for p in DESIGN_DIR.glob("*.json"))
+    learned = learned_dir()
+    return sorted({p.stem for p in DESIGN_DIR.glob("*.json")}
+                  | ({p.stem for p in learned.glob("*.json")} if learned.is_dir() else set()))
+
+
+def is_learned(design: dict) -> bool:
+    return bool(design.get("string")) and not design.get("entities")
+
+
+def save_learned(name: str, string: str, info: dict, note: str, source: dict) -> dict:
+    """Add (or replace) one of the agent's own designs. info: the mod's blueprint_info (size, needs, by_name)."""
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,40}", name or ""):
+        raise ValueError("design names are 1-40 letters, digits, - or _")
+    if (DESIGN_DIR / f"{name}.json").exists():
+        raise ValueError(f"{name} is a built-in design; pick another name")
+    d = {"name": name, "description": note.strip()[:400], "size": list(info["size"]), "needs": info.get("needs") or {},
+         "contents": info.get("by_name") or {}, "string": string,
+         "learned": {**source, "at": time.strftime("%Y-%m-%d %H:%M")}, "uses": 0}
+    folder = learned_dir()
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / f"{name}.json").write_text(json.dumps(d, indent=1))
+    _cache.pop(name, None)
+    return d
+
+
+def forget(name: str) -> None:
+    """Drop one of the agent's own designs (moved to designs/.forgotten/, not deleted)."""
+    p = learned_dir() / f"{name}.json"
+    if not p.exists():
+        raise KeyError(f"{name!r} isn't one of your learned designs" + (" (built-ins stay)" if
+                                                                          (DESIGN_DIR / f"{name}.json").exists() else ""))
+    trash = learned_dir() / ".forgotten"
+    trash.mkdir(exist_ok=True)
+    shutil.move(str(p), str(trash / f"{name}-{int(time.time())}.json"))
+    _cache.pop(name, None)
+
+
+def used(name: str) -> None:
+    """Count a build from a learned design (shown in the list, so proven ones stand out)."""
+    try:
+        p = _path(name)
+        if p.parent == DESIGN_DIR:
+            return
+        d = json.loads(p.read_text())
+        d["uses"] = int(d.get("uses", 0)) + 1
+        p.write_text(json.dumps(d, indent=1))
+        _cache.pop(name, None)
+    except (KeyError, OSError, ValueError):
+        pass
 
 
 def get_design(name: str) -> dict:
@@ -162,8 +229,14 @@ def stamp(name: str, x: float, y: float, rotation=0, anchor: str | None = None) 
     d = get_design(name)
     steps = rotation_steps(rotation)
     w, h = d["size"]
-    ox, oy = _origin(d, x, y, steps, anchor)
     rw, rh = rotated_size(d, steps)
+    if is_learned(d):  # placed whole by the mod's paste: centre + direction instead of an entity list
+        ox, oy = int(math.floor(x + 1e-6)), int(math.floor(y + 1e-6))
+        return {"name": d["name"], "rotation": steps * 90, "origin": [ox, oy], "size": [rw, rh],
+                "bbox": [[ox, oy], [ox + rw, oy + rh]], "entities": None, "inputs": [], "outputs": [],
+                "needs": needs(name), "string": d["string"], "center": [ox + rw / 2, oy + rh / 2],
+                "direction": DIRS[steps]}
+    ox, oy = _origin(d, x, y, steps, anchor)
     return {
         "name": d["name"], "rotation": steps * 90, "origin": [ox, oy], "size": [rw, rh],
         "bbox": [[ox, oy], [ox + rw, oy + rh]],
@@ -212,6 +285,7 @@ def list_designs() -> list[dict]:
         d = get_design(n)
         out.append({
             "name": n, "size": d["size"], "does": d.get("description", ""),
+            **({"learned": d.get("learned") or {}, "uses": d.get("uses", 0)} if is_learned(d) else {}),
             "inputs": [_port_text(p, "in") for p in d.get("inputs", [])],
             "outputs": [_port_text(p, "out") for p in d.get("outputs", [])],
             "needs": needs(n),
@@ -224,7 +298,11 @@ def summary_text() -> str:
     lines = []
     for s in list_designs():
         need = ", ".join(f"{k} {v}" for k, v in s["needs"].items())
-        lines.append(f"- {s['name']} ({s['size'][0]}x{s['size'][1]}): {s['does']}")
+        tag = ""
+        if "learned" in s:
+            src = s["learned"]
+            tag = (f" [yours: from {src.get('by', '?')}" + (f", built {s['uses']}x" if s.get("uses") else "") + "]")
+        lines.append(f"- {s['name']} ({s['size'][0]}x{s['size'][1]}){tag}: {s['does']}")
         if s["inputs"]:
             lines.append("    in: " + "; ".join(s["inputs"]))
         if s["outputs"]:

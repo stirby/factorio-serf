@@ -175,6 +175,38 @@ function late.copy(req)
   return { string = str, entities = count, by_name = names, needs = need, size = { x2 - x1, y2 - y1 } }
 end
 
+-- What a blueprint string holds, for the design library: entity counts, footprint in tiles, build cost, label.
+function late.blueprint_info(req)
+  local inv = game.create_inventory(1)
+  local stack = inv[1]
+  stack.set_stack { name = "blueprint" }
+  local res = stack.import_stack(req.string or "")
+  if res ~= 0 or not stack.is_blueprint or not stack.is_blueprint_setup() then
+    inv.destroy()
+    error("that's not a valid single blueprint (books aren't supported: take one blueprint out)")
+  end
+  local count, names = 0, {}
+  local x1, y1, x2, y2 = math.huge, math.huge, -math.huge, -math.huge
+  for _, e in pairs(stack.get_blueprint_entities() or {}) do
+    count = count + 1
+    names[e.name] = (names[e.name] or 0) + 1
+    local pr = prototypes.entity[e.name]
+    local w, h = pr and pr.tile_width or 1, pr and pr.tile_height or 1
+    local d = e.direction or 0
+    if d == 4 or d == 12 then w, h = h, w end -- east/west (16-way directions)
+    x1, y1 = math.min(x1, e.position.x - w / 2), math.min(y1, e.position.y - h / 2)
+    x2, y2 = math.max(x2, e.position.x + w / 2), math.max(y2, e.position.y + h / 2)
+  end
+  local need = {}
+  for _, c in pairs(stack.cost_to_build or {}) do
+    if type(c) == "table" and c.name then need[c.name] = (need[c.name] or 0) + (c.count or 0) end
+  end
+  local label = stack.label
+  inv.destroy()
+  return { entities = count, by_name = names, needs = need, label = label,
+    size = count > 0 and { math.ceil(x2 - x1), math.ceil(y2 - y1) } or { 0, 0 } }
+end
+
 -- Place a blueprint string as ghosts (like placing a blueprint from map view). x,y is where its centre goes.
 function late.paste(req)
   local s, f = surface_of(req), game.forces.player

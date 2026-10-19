@@ -82,10 +82,13 @@ class Controller:
         if order.laid or kind in ("ghosts", "task", "connect"):
             return ""
         if kind == "paste":
+            from . import blueprint_lib
             from .late_tools import load_copies
             lib = load_copies(order.state_dir)
             c = lib.get(plan.get("name", ""))
             string = c["string"] if c else plan.get("string")
+            if not string and plan.get("name") in blueprint_lib.names():
+                string = blueprint_lib.get_design(plan["name"]).get("string")
             if not string:
                 raise ValueError(f"no copy named {plan.get('name')!r}")
             d = await self.link.call("paste", string=string, x=plan["x"], y=plan["y"],
@@ -94,8 +97,14 @@ class Controller:
             return f"pasted {d['placed']}/{d['of']} ghosts"
         if kind == "stamp":
             from . import blueprint_lib
-            ents = blueprint_lib.stamp_entities(plan["name"], plan["x"], plan["y"], plan.get("rotation", 0),
-                                                plan.get("anchor"))
+            st = blueprint_lib.stamp(plan["name"], plan["x"], plan["y"], plan.get("rotation", 0), plan.get("anchor"))
+            if st.get("string"):  # a learned design: the mod pastes it whole
+                d = await self.link.call("paste", string=st["string"], x=st["center"][0], y=st["center"][1],
+                                         direction=st["direction"])
+                blueprint_lib.used(plan["name"])
+                order.laid = True
+                return f"stamped {plan['name']} (yours): {d['placed']}/{d['of']} ghosts"
+            ents = st["entities"]
             r = await self._do([{"op": "blueprint", "entities": ents}], 30)
             order.laid = True
             return r[0].get("msg", "") if r else ""
