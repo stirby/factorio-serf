@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Dev server: headless Factorio with the mod symlinked in and RCON on localhost.
+# Dev/test server: headless Factorio with the mod symlinked in and RCON on localhost. Biters are always
+# turned off on start (scripts/biters_off.py): only run copies of saves here, never a world people play.
 #   scripts/server.sh start [save]   start in background (default save: crew-test)
 #   scripts/server.sh stop | status | log | new <save>
 set -euo pipefail
@@ -74,7 +75,12 @@ case "${1:-status}" in
       > "$LOG" 2>&1 &
     echo $! > "$PIDF"
     for _ in $(seq 60); do
-      grep -q "changing state from(CreatingGame) to(InGame)" "$LOG" && { echo "up (pid $(cat "$PIDF")), rcon 127.0.0.1:$FACTORIO_RCON_PORT"; exit 0; }
+      grep -q "changing state from(CreatingGame) to(InGame)" "$LOG" && {
+        echo "up (pid $(cat "$PIDF")), rcon 127.0.0.1:$FACTORIO_RCON_PORT"
+        # This is a test server: biters always off (crew/peace.py). It edits the running save, which is a copy.
+        sleep 2; FACTORIO_RCON_PORT=$FACTORIO_RCON_PORT "$ROOT/.venv/bin/python" "$ROOT/scripts/biters_off.py" \
+          || { echo "biters-off FAILED; stopping"; "$0" stop; exit 1; }
+        exit 0; }
       running || { echo "server exited:"; tail -20 "$LOG"; exit 1; }
       sleep 0.5
     done

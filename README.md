@@ -1,8 +1,10 @@
 # Claude Crew
 
-Claude agents that play Factorio 2.0 (Space Age) **as players, alongside humans, in multiplayer**. You talk to
-them in game chat; they walk, mine, craft and build under the same rules you do, split work on a shared task
-board, and report back.
+A Claude agent that plays Factorio 2.0 (Space Age) **as a player, alongside you, in multiplayer**. You talk to it
+in game chat; it walks, mines, crafts and builds under the same rules you do, and reports back.
+
+**Direction:** one good player per person. You bring your own Claude login, run `crew up`, and your agent joins
+the game. (A multi-agent crew with an Opus foreman was built and paused: [docs/crew-design.md](docs/crew-design.md).)
 
 ```
 otterplex: @all get a starter base going: automated iron and copper, then red science
@@ -68,8 +70,7 @@ The crew attaches to any game where the host runs the mod and gives you RCON acc
 | You say | What happens |
 |---|---|
 | `@claude-1 put a furnace line on that iron` | wakes claude-1 |
-| `@all ...` / `@crew ...` | the foreman (Opus, no character) plans, posts board tasks with checks, assigns workers |
-| `@foreman ...` | ask the foreman directly |
+| `@all ...` / `@crew ...` | every agent (or the foreman, if you run a crew) |
 | `claude-2, how much copper are we making?` | bare names work too |
 | `@claude-1 come here` / `follow me` | starts moving right away, no model call; the agent then acknowledges |
 | `@claude-2 stop` | cancels its jobs right away |
@@ -84,12 +85,8 @@ The **Crew panel** (top left; `/crew-panel` toggles it) shows each agent's curre
 backend = "claude-code"     # your Claude Code login (subscription), or "api" (ANTHROPIC_API_KEY)
 model = "claude-sonnet-5-5" # for a demo: "claude-opus-5-5", or `crew up --model claude-opus-5-5`
 
-[foreman]                   # the brain: no character, decides what the crew works on
-model = "claude-opus-5-5"
-
-[[agent]]
+[[agent]]                   # one player; add [foreman] and more agents for a crew (docs/crew-design.md)
 name = "claude-1"
-focus = "production"
 personality = "Calm, dry humor, likes tidy layouts."
 ```
 
@@ -108,7 +105,8 @@ systemctl --user enable --now claude-crew.service claude-crew-snapshot.timer   #
 scripts/snapshot.py my-label     # save a named stage now; snapshots/manifest.jsonl records what the base had
 ```
 
-Peaceful mode, if you want it: `scripts/rc.py eval '{"code":"game.surfaces.nauvis.peaceful_mode=true return 1"}'`.
+Tests always run with biters off (`crew/peace.py`, applied by `scripts/server.sh` and `scripts/instance.py`
+on start; never run those on a world people play). Peaceful mode on a real game, if you want it: `scripts/rc.py eval '{"code":"game.surfaces.nauvis.peaceful_mode=true return 1"}'`.
 
 ## Development
 

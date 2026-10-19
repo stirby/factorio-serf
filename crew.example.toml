@@ -10,39 +10,25 @@ rcon_port = 27015
 # rcon_password = "..."                       # or FACTORIO_RCON_PASSWORD, or:
 rcon_password_file = "server/rcon-password"   # relative to this file
 
-# Workers: characters in the game.
+# Your player: one character in the game, driven by one model. Talk to it in chat.
 [defaults]
 backend = "claude-code"       # "claude-code" = your Claude Code login (subscription); "api" = ANTHROPIC_API_KEY
-model = "claude-sonnet-5-5"
+model = "claude-sonnet-5-5"   # or "claude-opus-5-5": slower and pricier, better judgment
 # effort = "medium"           # low | medium | high
 max_turns_per_hour = 120
 
-# The brain: no character. Decides what the crew works on, hands out board tasks with checks, answers workers'
-# ask_foreman questions without making them wait, and takes crew-wide chat ("@all fix our iron").
-[foreman]
-name = "foreman"
-model = "claude-opus-5-5"
-effort = "medium"
-
-# Hard cap on spend across every model over the trailing hour; agents pause when it's reached.
+# Hard cap on spend over the trailing hour; the agent pauses when it's reached.
 # [budget]
 # usd_per_hour = 25
 
 [[agent]]
 name = "claude-1"
-focus = "production"
 personality = "Calm, dry humor, likes tidy layouts."
 
-[[agent]]
-name = "claude-2"
-focus = "resources"
-personality = "Eager, efficient, a little competitive about throughput."
-
-# Any agent (or [foreman]) can run on an OpenAI-compatible provider instead of Claude, e.g. DeepSeek through the
-# Vercel AI Gateway. Keys go in ~/.config/claude-crew/env (KEY=VALUE, chmod 600), never in this file:
+# The model can also come from an OpenAI-compatible provider, e.g. DeepSeek through the Vercel AI Gateway.
+# Keys go in ~/.config/claude-crew/env (KEY=VALUE, chmod 600), never in this file:
 #   AI_GATEWAY_API_KEY=...
-# [[agent]]
-# name = "claude-3"
-# backend = "openai"
-# base_url = "https://ai-gateway.vercel.sh/v1"
-# model = "deepseek/deepseek-v4.1-flash-1017"
+# and in [[agent]]: backend = "openai", base_url = "https://ai-gateway.vercel.sh/v1",
+#   model = "deepseek/deepseek-v4.1-flash-1017"
+
+# The paused multi-agent crew (an Opus foreman directing several workers): docs/crew-design.md.

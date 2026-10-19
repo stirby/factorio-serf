@@ -405,6 +405,7 @@ class Bench:
             await rcon.connect()
             crew = self.crew = Crew(rcon)
             self.result["mod_version"] = (await crew.call("ping")).get("version")
+            self.result["biters_removed"] = getattr(self.inst, "biters_removed", None)
             await self._reset_agents(crew)
             setup = {}
             if self.scn.get("setup_lua"):

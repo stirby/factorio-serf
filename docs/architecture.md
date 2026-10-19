@@ -1,18 +1,34 @@
-# Crew architecture
+# Architecture
 
-Current design (2026-10-18, after removing the order/actor layer; history in the build log below):
+## Direction (2026-10-18): one good player
+
+All testing and iteration now centers on **one model-driven player in the world**. The multi-agent crew (an Opus
+foreman directing Sonnet workers) is paused; its design, results and how to re-enable it are in
+[crew-design.md](crew-design.md). Why: in a 3-hour live run the crew spent most of its time thinking, the characters
+were idle 55-65% of game time, and a brain without hands added cost, not output. The way to scale is more
+individually capable players, not a hierarchy.
+
+The product this points at: **a player brings their own Claude login and their own agent just joins the game**.
+Each person runs `crew up` with one agent on their own subscription (or API key); the agent spawns as a character,
+plays alongside them, and takes orders from them in chat. Several people means several independent agents.
+Not possible yet: the mod's `poll` drains one global chat/event queue (`control.lua` API.poll), so a second
+orchestrator on the same server steals the first one's messages. Needed: per-orchestrator queues (register a
+client id, keep a queue per id, route each agent's results to its owner), then a one-command join.
 
 | Part | Runs on | Does |
 |---|---|---|
-| Foreman (`crew/foreman.py`) | Opus, no character | Decides what the crew works on. Hands out board tasks to workers with precise specs and an optional `done_when` check; answers `ask_foreman` questions without blocking; takes crew-wide chat; owns roadmap and research queue. Woken by humans, questions, finished/failed tasks, idle workers, research done, and a 5-min review. |
-| Workers (`crew/agent.py`) | Sonnet (any backend), each a character | Own an outcome end to end. Keep working while they own an open task; sleep only when they own nothing. Act with `act` (place, mine, craft, connect, ...) and `build` (one call: stamp/paste/ghosts/line, done by the controller). |
-| Controller (`crew/controller.py`) | plain code behind `build` | Lays a plan as ghosts, fetches items from chests and machine outputs, crafts, mines raw resources, clears blockers, builds, refuels; splits long belt routes. Resumable. |
-| Board (`crew/board.py`) | shared JSON | Tasks with owner, notes, optional `done_when` (+ zone). The game evaluates checks every 20 s; a task is done only when its check holds 2 min (`orchestrator._task_checks`). |
-| Mod (`mod/claude-crew`) | Lua | Characters, job queue under player rules, observations, late-game queries (`diagnose`, `copy`/`paste`, planners, `network`), checks (`scripts/orders.lua`). A failed action no longer cancels the rest of a batch unless it says `stop_on_fail=true`. |
+| Player (`crew/agent.py`) | one model (Sonnet or Opus), one character | Plays: decides, acts, checks its own work. Owns a to-do list on the board. |
+| Tools (`crew/tools.py`, `crew/late_tools.py`) | plain code | `act` (place, mine, craft, connect, configure, ...), `build` (stamp/paste/ghosts/line in one call, done by the controller), `diagnose`, copy/paste, planners, `network`, `research`. |
+| Controller (`crew/controller.py`) | plain code behind `build` | Lays a plan as ghosts, fetches items, crafts, mines raw resources, clears blockers, builds, refuels. |
+| Checks (`orchestrator._task_checks`, mod `scripts/orders.lua`) | the game | A board task with `done_when` closes only when its check holds 2 min. |
+| Mod (`mod/claude-crew`) | Lua | Characters under player rules, job queue, observations, late-game queries, checks. RCON JSON API `/crew`. |
 
-Principles that came out of the log analysis (docs/log-analysis/README.md): the brain plans precisely and the hands
-execute; checks measure delivery, not a moment; nothing tells a worker to go idle while it owns work; tools show
-what agents otherwise guess (inserter pickup/drop, belt lanes, fluids, which pack starved labs miss).
+Test rules: **biters are always off in tests** (`crew/peace.py`, applied by `scripts/instance.py` and
+`scripts/server.sh` on every start); tests run on copies of saves, never the original.
+
+What to improve next (from `docs/log-analysis/README.md`): score by science packs consumed per minute and per
+dollar (A3); keep the character busy while the model thinks (queue the next jobs before thinking); visibility of
+belts, inserters and fluids (C1, C5); `place` clears trees itself (C3); pole routing (C2).
 
 ## Build log
 
@@ -41,4 +57,7 @@ what agents otherwise guess (inserter pickup/drop, belt lanes, fluids, which pac
   tool `build` (stamp/paste/ghosts/line in one call: tested, a 51-piece red science block in 38 s); board tasks with
   optional game-evaluated done_when that must hold 2 min; foreman hands out outcomes with checks. Known issue: long
   `line` routes still fail near dense base areas even after automatic splitting. Not benchmarked yet.
-
+- 2026-10-18 20:31-23:45: live run on a copy of the user's world (feldspar, 42 h, biters on): Opus foreman + 4
+  Sonnet workers. 3 new techs, 5 checked tasks, 5 deaths to biters in 30 min, characters idle 55-65%. Stopped as
+  unproductive.
+- 2026-10-18: PIVOT to one good player; crew design archived in crew-design.md. Biters always off in tests.

@@ -4,7 +4,8 @@ For running the crew in a real multiplayer game on someone's own server. Two pie
 
 1. **The mod** (`mod/claude-crew`) runs inside Factorio, on the server *and* on every player's client.
 2. **The orchestrator** (`crew/`, the `crew` command) runs on any machine that can reach the server's RCON port.
-   It runs the models: one Opus foreman (no character) and Sonnet workers (characters in the game).
+   It runs the model behind each agent character. The default is one agent per person, on that person's own
+   Claude login; a multi-agent crew with an Opus foreman is optional (`docs/crew-design.md`).
 
 Tested on Factorio **2.0.77** with Space Age, alongside 18 other mods (Quality, Space Age, and QoL mods). The mod
 declares `factorio_version = "2.0"`; newer 2.0.x builds should work.
@@ -60,8 +61,10 @@ In `crew.toml`:
 - Top-level keys go *above* `[server]`: `spawn_near = "<your player name>"` makes agents spawn next to you;
   `state_dir = "~/.local/state/claude-crew-<world>"` keeps one board/notes per world;
   `starter_kit = false` if they shouldn't get the freeplay starting items.
-- `[foreman]` (Opus) and `[defaults]` (Sonnet workers) pick the models. `[[agent]]` blocks add workers; two to
-  four is a good range.
+- `[defaults]` picks the model (Sonnet; Opus is slower and pricier). One `[[agent]]` is the default; add another
+  `[[agent]]` block if each player wants their own. **Run only one `crew up` per server for now**: the mod hands
+  chat and job results to whichever orchestrator polls first, so two would steal each other's messages. All agents
+  then run on the login of whoever runs `crew up` (per-person logins are planned, `docs/architecture.md`).
 - `[budget] usd_per_hour` caps spend across all models; agents pause when it's hit. On a Claude subscription
   the cost is notional, but the subscription's own usage limits apply, and Opus burns them fastest.
 
@@ -76,9 +79,9 @@ agent transcript are in `state_dir`.
 
 | In game chat | What happens |
 |---|---|
-| `@all our iron is the bottleneck, fix it` | the foreman diagnoses, posts board tasks with checks, assigns workers |
-| `@foreman what are you working on?` | the foreman answers |
-| `@claude-2 build a lab row next to the labs` | one worker takes it directly |
+| `@claude-1 our iron is the bottleneck, fix it` | the agent diagnoses, plans and builds; asks if unsure |
+| `@claude-1 what are you working on?` | it answers |
+| `@all ...` | every agent hears it |
 | `@claude-1 come here` / `follow me` / `stop` | instant, no model call |
 
 The **Crew panel** (top left, `/crew-panel`) shows each agent's job. Tasks with a `done_when` check close only when
@@ -86,7 +89,8 @@ the game confirms the result held for 2 minutes.
 
 Things to know:
 - **Biters:** agents walk into nests and die (5 deaths in 30 min on a biters-on world). Each death leaves a corpse
-  with their inventory. Tell the foreman where it's safe, or play peaceful.
+  with their inventory. Tell it where it's safe, or play peaceful. (Don't use `scripts/server.sh` or
+  `scripts/biters_off.py` on your real server: those are test tools that delete every enemy for good.)
 - Agents obey player rules: they walk, need items, craft in real time, reach only nearby. They won't pick up things
   a human built.
 - Stopping the orchestrator leaves the characters standing in the world; `crew despawn <name>` removes one.

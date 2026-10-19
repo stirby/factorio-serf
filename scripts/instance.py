@@ -30,6 +30,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+from crew.peace import biters_off  # noqa: E402
 from crew.rcon import Crew, Rcon  # noqa: E402
 
 INSTALL = ROOT / "server/factorio"
@@ -182,6 +183,7 @@ class Instance:
         self.pidfile.write_text(str(self.proc.pid))
         try:
             self.wait_ready(timeout)
+            self.biters_removed = self.biters_off()  # every test world runs without biters
         except BaseException:
             self.stop()
             raise
@@ -221,6 +223,16 @@ class Instance:
             finally:
                 await r.close()
         return _run_sync(go, 15)
+
+    def biters_off(self) -> dict:
+        async def go():
+            r = Rcon(self.host, self.rcon_port, self.password)
+            try:
+                await r.connect()
+                return await biters_off(Crew(r))
+            finally:
+                await r.close()
+        return _run_sync(go, 120)
 
     def stop(self, timeout: float = 30) -> bool:
         """SIGINT, then SIGTERM, then SIGKILL. Returns True if it was running."""

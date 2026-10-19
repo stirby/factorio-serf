@@ -1,9 +1,10 @@
 # Claude Crew: notes for coding agents
 
-LLM agents play Factorio 2.0 + Space Age as script characters alongside humans, commanded from game chat.
+An LLM agent plays Factorio 2.0 + Space Age as a script character alongside humans, commanded from game chat.
 Lua mod in `mod/claude-crew` (characters, job queue, observations, RCON JSON API `/crew {json}`); Python
-orchestrator in `crew/` (one Opus foreman with no character, Sonnet worker characters, a shared task board).
-Design: `docs/architecture.md`. What went wrong before and why: `docs/log-analysis/README.md`.
+orchestrator in `crew/` (one model per character, a board of tasks with game-checked results).
+**Focus: one good player** (`docs/architecture.md`). The multi-agent crew with an Opus foreman is paused but still
+works from config (`docs/crew-design.md`). What went wrong before and why: `docs/log-analysis/README.md`.
 
 ## If you were asked to deploy this to someone's server
 
@@ -13,6 +14,8 @@ client, start the server with RCON, `uv venv && uv pip install -e .`, write `cre
 
 ## Rules
 
+- **Biters off in every test.** `scripts/instance.py` and `scripts/server.sh` remove them on start
+  (`crew/peace.py`); keep it that way. It permanently edits the save, so those are for copies only.
 - **Never overwrite or modify a real save.** Copy it first; work on the copy. Back up before adding the mod.
 - **Never send `/c` or `/sc`** (or `scripts/rc.py --raw`) to a save people play: it disables achievements
   permanently. The mod's own `/crew` API is fine.
