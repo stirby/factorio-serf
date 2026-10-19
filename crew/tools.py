@@ -62,7 +62,8 @@ Ops and their fields:
   limit       x y slots                                         chest limit (the red X): inserters fill only the
               first N slots; slots=none clears it. Stops a chest hoarding what others need
   connect     item=<transport-belt|pipe|small-electric-pole|...> from=[x,y] to=[x,y] [end_direction] [join]
-              routes a line around obstacles and places it (belts point along the route; poles spaced to reach)
+              routes a line around obstacles and places it (belts point along the route; poles hop by wire reach
+              over anything; belts/pipes go under crossings and water with undergrounds, if you have them)
   follow      player=<name> | agent=<name> [distance=3] [seconds=300]   stay near them until stopped
   build_ghosts [x y radius=32] [limit]       build ghosts (planned buildings) near a point with items you carry;
               reports what's missing. Ghosts placed by humans are their plans: build them first.

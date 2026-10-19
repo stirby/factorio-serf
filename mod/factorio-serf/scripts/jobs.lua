@@ -938,20 +938,37 @@ H.connect = {
       path = { hops.first, hops.last, n = math.floor(util.dist(hops.first, hops.last) + 0.5) }
     else
       from, to = free_tile(from), free_tile(to)
+      -- Undergrounds when the way is blocked, if the force can make them (or the agent carries some).
+      local hop
+      local ug = ent.type == "transport-belt" and ent.related_underground_belt and ent.related_underground_belt.name
+        or (ent.name == "pipe" and "pipe-to-ground") or nil
+      if ug and args.underground ~= false and prototypes.entity[ug]
+          and ((c.force.recipes[ug] and c.force.recipes[ug].enabled) or c.get_item_count(ug) > 0) then
+        local reach = ent.type == "transport-belt" and prototypes.entity[ug].max_underground_distance or 10
+        hop = { name = ug, reach = math.max(2, reach) }
+      end
       local err
-      path, err = route.find(c.surface, from, to, { entity = ent.name, force = c.force })
+      path, err = route.find(c.surface, from, to, { entity = ent.name, force = c.force, hop = hop })
       if not path then return fail("can't route " .. item .. ": " .. err) end
+      local SIGN = function(v) return v > 0 and 1 or (v < 0 and -1 or 0) end
       for i, p in ipairs(path) do
         local dir
-        if ent.supports_direction then
-          local nxt = path[i + 1]
-          if nxt then
-            dir = VEC_DIR[(nxt.x - p.x) .. "," .. (nxt.y - p.y)]
-          else
-            dir = args.end_direction or (places[#places] and places[#places].dir) or "north"
+        if p.ug then
+          local travel = VEC_DIR[p.dir[1] .. "," .. p.dir[2]]
+          -- Underground belts face the travel direction at both ends; a pipe-to-ground faces its above-ground side.
+          dir = (ug == "pipe-to-ground" and p.ug == "input") and util.opposite(travel) or travel
+          places[#places + 1] = { pos = p, dir = dir, item = ug, ug = p.ug }
+        else
+          if ent.supports_direction then
+            local nxt = path[i + 1]
+            if nxt then
+              dir = VEC_DIR[SIGN(nxt.x - p.x) .. "," .. SIGN(nxt.y - p.y)]
+            else
+              dir = args.end_direction or (places[#places] and places[#places].dir) or "north"
+            end
           end
+          places[#places + 1] = { pos = p, dir = dir }
         end
-        places[#places + 1] = { pos = p, dir = dir }
       end
       path.n = #path
     end
@@ -977,10 +994,14 @@ H.connect = {
         end
       end
     end
-    local have = c.get_item_count(item)
-    if not util.cheat() and have < #places then
-      return fail("route needs " .. #places .. " " .. item .. " but you have " .. have,
-        { needed = #places, have = have })
+    local need = {}
+    for _, pl in ipairs(places) do need[pl.item or item] = (need[pl.item or item] or 0) + 1 end
+    for name, n in pairs(need) do
+      local have = c.get_item_count(name)
+      if not util.cheat() and have < n then
+        return fail("route needs " .. n .. " " .. name .. " but you have " .. have, { needed = n, have = have, item = name })
+      end
+      if name ~= item then job.under = " incl. " .. n .. " " .. name .. " to pass under what's in the way" end
     end
     -- Place every piece inside this job, so the result says what actually got built (not just what was planned).
     job.places, job.i, job.placed, job.failed = places, 1, 0, {}
@@ -995,14 +1016,16 @@ H.connect = {
       local span = "from " .. job.span[1][1] .. "," .. job.span[1][2] .. " to " .. job.span[2][1] .. "," .. job.span[2][2]
       local data = { placed = job.placed, planned = #job.places, failed = job.failed }
       if #job.failed == 0 then
-        return ok("placed all " .. job.placed .. " " .. job.item .. " (" .. job.span[3] .. " tiles) " .. span, data)
+        return ok("placed all " .. job.placed .. " " .. job.item .. (job.under or "") .. " (" .. job.span[3] .. " tiles) "
+          .. span, data)
       end
       return fail("placed " .. job.placed .. " of " .. #job.places .. " " .. job.item .. " " .. span .. "; failed: "
         .. table.concat(job.failed, "; ", 1, math.min(#job.failed, 3)), data)
     end
     local sub = job.sub
     if not sub then
-      sub = { id = job.id, op = "place", args = { name = job.item, x = pl.pos.x, y = pl.pos.y, direction = pl.dir } }
+      sub = { id = job.id, op = "place", args = { name = pl.item or job.item, x = pl.pos.x, y = pl.pos.y,
+        direction = pl.dir, type = pl.ug } }
       job.sub = sub
       local r = H.place.start(a, sub)
       if r then

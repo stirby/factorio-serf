@@ -34,7 +34,10 @@ end
 
 local DIRS = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }
 
--- opts: entity (prototype name to test placement), force, max_nodes, allow (tile keys always passable)
+-- opts: entity (prototype name to test placement), force, max_nodes, allow (tile keys always passable),
+-- hop = { name = underground entity, reach = max tiles from entrance to exit }: when the way ahead is blocked,
+-- the line may go under it (belts under belts, pipes under pipes, either under water). Entrances are entered
+-- straight, exits lead straight on. Path entries for those tiles carry ug = "input" | "output" and dir = {dx, dy}.
 function route.find(surface, from, to, opts)
   local sx, sy = math.floor(from.x), math.floor(from.y)
   local gx, gy = math.floor(to.x), math.floor(to.y)
@@ -43,10 +46,13 @@ function route.find(surface, from, to, opts)
   local function free(x, y)
     local k = key(x, y)
     if cache[k] == nil then
-      cache[k] = (opts.allow and opts.allow[k]) or surface.can_place_entity {
+      -- can_place_entity says yes over a belt or pipe it could fast-replace; for a route that's a wall, not a tile.
+      cache[k] = (opts.allow and opts.allow[k]) or (surface.can_place_entity {
         name = opts.entity, position = { x + 0.5, y + 0.5 }, force = opts.force,
         build_check_type = defines.build_check_type.manual,
-      }
+      } and surface.count_entities_filtered { area = { { x + 0.2, y + 0.2 }, { x + 0.8, y + 0.8 } },
+        type = { "resource", "character", "corpse", "item-entity", "entity-ghost", "tile-ghost" }, invert = true,
+        limit = 1 } == 0)
     end
     return cache[k]
   end
@@ -56,20 +62,37 @@ function route.find(surface, from, to, opts)
   local came, g = {}, {}
   g[key(sx, sy)] = 0
   push(h, { x = sx, y = sy, f = math.abs(gx - sx) + math.abs(gy - sy), dir = nil })
+  local hop = opts.hop
+  local function tunnel_ok(x, y, d, k)
+    -- Another underground of the same kind in line between would pair with ours instead.
+    local x2, y2 = x + d[1] * k, y + d[2] * k
+    return surface.count_entities_filtered {
+      area = { { math.min(x, x2) + 0.1, math.min(y, y2) + 0.1 }, { math.max(x, x2) + 0.9, math.max(y, y2) + 0.9 } },
+      name = hop.name, limit = 1 } == 0
+  end
   local expanded = 0
   while #h > 0 do
     local n = pop(h)
     local nk = key(n.x, n.y)
+    local is_exit = came[nk] and came[nk].hop or false
+    if (n.exit or false) ~= is_exit then goto continue end -- a stale heap entry for this tile
     if n.x == gx and n.y == gy then
       -- Walk back from the goal; the start tile has no `came` entry.
       local path = {}
       local k = nk
       while k do
-        path[#path + 1] = came[k] and came[k].pos or { x = sx, y = sy }
-        k = came[k] and came[k].prev or nil
+        local c = came[k]
+        path[#path + 1] = { pos = c and c.pos or { x = sx, y = sy }, hop = c and c.hop, d = c and c.d }
+        k = c and c.prev or nil
       end
       local out = {}
-      for i = #path, 1, -1 do out[#out + 1] = { x = path[i].x + 0.5, y = path[i].y + 0.5 } end
+      for i = #path, 1, -1 do
+        out[#out + 1] = { x = path[i].pos.x + 0.5, y = path[i].pos.y + 0.5 }
+        if path[i].hop then
+          out[#out].ug, out[#out].dir = "output", path[i].d
+          out[#out - 1].ug, out[#out - 1].dir = "input", path[i].d
+        end
+      end
       return out
     end
     expanded = expanded + 1
@@ -77,7 +100,10 @@ function route.find(surface, from, to, opts)
     for _, d in ipairs(DIRS) do
       local x, y = n.x + d[1], n.y + d[2]
       local k = key(x, y)
-      if free(x, y) then
+      local straight = not n.dir or (n.dir[1] == d[1] and n.dir[2] == d[2])
+      if is_exit and not straight then
+        -- an exit only leads straight on
+      elseif free(x, y) then
         -- Turns cost a little extra so routes come out straight.
         local turn = (n.dir and (n.dir[1] ~= d[1] or n.dir[2] ~= d[2])) and 0.5 or 0
         local cost = g[nk] + 1 + turn
@@ -86,8 +112,24 @@ function route.find(surface, from, to, opts)
           came[k] = { prev = nk, pos = { x = x, y = y } }
           push(h, { x = x, y = y, dir = d, f = cost + math.abs(gx - x) + math.abs(gy - y) })
         end
+      elseif hop and straight and not is_exit then
+        -- Blocked ahead: go under, to the nearest free tile within reach.
+        for j = 2, hop.reach do
+          local ex, ey = n.x + d[1] * j, n.y + d[2] * j
+          if free(ex, ey) then
+            local ek = key(ex, ey)
+            local cost = g[nk] + j + 3 -- undergrounds cost items: prefer the surface when it's close
+            if (g[ek] == nil or cost < g[ek]) and tunnel_ok(n.x, n.y, d, j) then
+              g[ek] = cost
+              came[ek] = { prev = nk, pos = { x = ex, y = ey }, hop = true, d = d }
+              push(h, { x = ex, y = ey, dir = d, exit = true, f = cost + math.abs(gx - ex) + math.abs(gy - ey) })
+            end
+            break
+          end
+        end
       end
     end
+    ::continue::
   end
   return nil, "no route (blocked)"
 end

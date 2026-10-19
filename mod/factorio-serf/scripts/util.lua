@@ -30,6 +30,9 @@ local DIR_NAMES = {}
 for k, v in pairs(defines.direction) do DIR_NAMES[v] = k end
 util.DIR_NAMES = DIR_NAMES
 
+local OPPOSITE = { north = "south", south = "north", east = "west", west = "east" }
+function util.opposite(name) return OPPOSITE[name] end
+
 function util.parse_dir(d)
   if d == nil then return defines.direction.north end
   if type(d) == "number" then return d end

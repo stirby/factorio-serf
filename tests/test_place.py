@@ -60,6 +60,36 @@ local function net(x) local p = s.find_entities_filtered{position={x, Y+0.5}, ra
 return {start = net(X+0.5), ['end'] = net(X+40.5),
   poles = s.count_entities_filtered{area={{X+1,Y-12},{X+44,Y+12}}, type='electric-pole'}}"""
 
+UNDER = """local s, f = game.surfaces.nauvis, game.forces.player
+local X, Y = %d, %d
+local t = {}
+for x = X-2, X+24 do for y = Y-40, Y+40 do
+  t[#t+1] = {name = (x >= X+9 and x <= X+11 and y >= Y+3) and 'water' or 'grass-1', position={x,y}} end end
+s.set_tiles(t)
+for _, e in pairs(s.find_entities_filtered{area={{X-2,Y-40},{X+24,Y+40}}}) do
+  if e.type ~= 'character' then e.destroy() end end
+for y = Y-40, Y+2 do s.create_entity{name='transport-belt', position={X+10.5, y+0.5}, direction=defines.direction.south, force=f} end
+local c = storage.agents['t-place'].char
+c.teleport({X+2, Y+2})
+for _, it in pairs{'transport-belt', 'underground-belt', 'pipe', 'pipe-to-ground'} do c.insert{name=it, count=40} end"""
+
+FLOW = """local s = game.surfaces.nauvis local X, Y = %d, %d
+local first = s.find_entity('transport-belt', {X+0.5, Y+0.5})
+first.get_transport_line(1).insert_at_back({name='iron-plate', count=1})
+first.get_transport_line(2).insert_at_back({name='iron-plate', count=1})
+local p0 = s.find_entity('pipe', {X+0.5, Y+6.5}) if p0 then p0.fluidbox[1] = {name='water', amount=100} end
+return {}"""
+
+ENDS = """local s = game.surfaces.nauvis local X, Y = %d, %d
+local last = s.find_entity('transport-belt', {X+20.5, Y+0.5})
+local pl = s.find_entity('pipe', {X+20.5, Y+6.5})
+local w = pl and pl.fluidbox[1]
+return {plates_at_end = last and last.get_item_count('iron-plate') or -1, water_at_end = w and w.amount or 0,
+  crossing_intact = s.count_entities_filtered{area={{X+10,Y-40},{X+11,Y+3}}, name='transport-belt'} == 43,
+  ug = (function() local t = {} for _, u in pairs(s.find_entities_filtered{area={{X,Y},{X+21,Y+1}}, name='underground-belt'}) do
+    t[#t+1] = u.belt_to_ground_type .. '@' .. u.position.x .. '/' .. u.direction .. (u.neighbours and ' paired' or ' unpaired') end
+    return table.concat(t, ' ') end)()}"""
+
 
 async def main(k: int) -> None:
     from instance import Instance
@@ -103,6 +133,22 @@ async def main(k: int) -> None:
         check(net["start"] is not None and net["start"] == net["end"],
               f"the far end is on the start pole's network: {net}")
         check(net["poles"] <= 8, f"poles spaced by reach, not every few tiles ({net['poles']} for 40 tiles)")
+
+        # Belts go under a crossing belt and pipes under a river instead of failing or detouring.
+        uy = y + 60
+        await link.call("eval", code=UNDER % (x, uy))
+        r6, = await act({"op": "connect", "item": "transport-belt", "from": [x + 0.5, uy + 0.5],
+                         "to": [x + 20.5, uy + 0.5], "end_direction": "east"}, timeout=120)
+        check(r6["ok"] and "underground-belt" in r6["msg"], f"belt line passes under the crossing belt: {r6['msg']}")
+        r7, = await act({"op": "connect", "item": "pipe", "from": [x + 0.5, uy + 6.5], "to": [x + 20.5, uy + 6.5]},
+                        timeout=120)
+        check(r7["ok"] and "pipe-to-ground" in r7["msg"], f"pipe passes under the river: {r7['msg']}")
+        await link.call("eval", code=FLOW % (x, uy))
+        await asyncio.sleep(16)  # 20 tiles at 1.875 tiles/s
+        flow = (await link.call("eval", code=ENDS % (x, uy)))["result"]
+        check(flow["plates_at_end"] > 0, f"plates put on the first belt reach the far end: {flow}")
+        check(flow["water_at_end"] > 0, f"water put in the first pipe reaches the far end: {flow}")
+        check(flow["crossing_intact"], f"the crossing belt was left alone: {flow}")
     print("ALL PASS" if not FAILS else f"{len(FAILS)} FAILED: {FAILS}")
     sys.exit(1 if FAILS else 0)
 
