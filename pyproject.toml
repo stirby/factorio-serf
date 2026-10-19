@@ -3,6 +3,7 @@ name = "factorio-serf"
 version = "0.1.0"
 description = "Serf: an AI teammate that plays Factorio next to you (the app for the factorio-serf mod)"
 requires-python = ">=3.11"
+license = "MIT"
 dependencies = [
   "anthropic>=0.70",
   "claude-agent-sdk>=0.1",

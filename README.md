@@ -148,3 +148,8 @@ benchmark; agents write Python against a game API; takes over the whole surface)
 [AI Player v3](https://mods.factorio.com/mod/ai-player-v3) / [AI Coworker](https://mods.factorio.com/mod/ai-coworker)
 (skills-based; agents teleport). Factorio Serf is aimed at several agents playing *with* humans in a shared
 multiplayer game, commanded from chat.
+
+## License
+
+MIT ([LICENSE](LICENSE)). Factorio is a trademark of Wube Software; this is an unofficial fan project. Claude is a
+trademark of Anthropic; the serf runs on your own Claude login or API key.
