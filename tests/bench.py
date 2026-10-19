@@ -588,11 +588,14 @@ class Bench:
 
     def _answer_questions(self, ob: dict, crew: Crew, setup, names):
         """A player answers when asked: if the agent says something with a question mark while this objective runs,
-        ops replies with the objective's `answer` (up to 3 times). Returns a function that stops listening."""
+        ops replies with the objective's `answer`, or "your call" (up to 3 times). Returns a function that stops
+        listening."""
         orch = getattr(self, "orch", None)
-        if not (ob.get("answer") and orch):
+        if not orch:
             return lambda: None
-        reply = self._goal(setup, "@{agent} " + ob["answer"], names)
+        # Without a scripted answer, a player who delegated the job says what most would: your call.
+        answer = ob.get("answer") or "Your call: go with whichever you think fixes it best, no need to ask."
+        reply = self._goal(setup, "@{agent} " + answer, names)
         orig, n = orch.agent_said, [0]
 
         def said(speaker: str, text: str) -> None:
