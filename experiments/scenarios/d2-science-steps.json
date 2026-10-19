@@ -4,7 +4,7 @@
  "minutes": 70,
  "agents": 1,
  "kind": "directive",
- "note": "Science progression as a player hands it out, one objective at a time on the S3 base (2 idle labs, no science automated). Run score: science packs consumed (labs' use), robust to which techs are picked.",
+ "note": "Science progression as a player hands it out, one objective at a time on the S3 base (2 idle labs, no science automated). Run score: science packs consumed (labs' use), robust to which techs are picked. Checks measure capacity (assemblers not starved) plus delivery, because made/min drops when labs consume less than the block makes.",
  "objectives": [
   {
    "name": "research-on",
@@ -31,14 +31,19 @@
    "goal": "@{agent} automate red science: at least 15 a minute, made by assemblers and delivered to the labs without hand-feeding.",
    "score": [
     {
-     "name": "red_made_per_min",
-     "lua": "pm('automation-science-pack')",
-     "target": 15
+     "name": "red_capacity_per_min",
+     "lua": "local cap=0 for _,a in pairs(s.find_entities_filtered{type='assembling-machine', force=f}) do local r=a.get_recipe() if r and r.name=='automation-science-pack' and (a.status==defines.entity_status.working or a.status==defines.entity_status.full_output) then cap=cap+60*a.crafting_speed/r.energy end end return cap",
+     "target": 15,
+     "note": "packs/min the red assemblers can make: those working or backed up (not starved)"
     },
     {
-     "name": "red_used_per_min",
-     "lua": "pm('automation-science-pack','output')",
-     "target": 5
+     "name": "labs_working",
+     "lua": "local k=0 for _,l in pairs(s.find_entities_filtered{name='lab', force=f}) do if l.status==defines.entity_status.working then k=k+1 end end return k",
+     "target": 2
+    },
+    {
+     "name": "red_made_per_min",
+     "lua": "pm('automation-science-pack')"
     }
    ]
   },
@@ -49,14 +54,19 @@
    "goal": "@{agent} now green science the same way: at least 10 a minute into the labs, automated.",
    "score": [
     {
-     "name": "green_made_per_min",
-     "lua": "pm('logistic-science-pack')",
+     "name": "green_capacity_per_min",
+     "lua": "local cap=0 for _,a in pairs(s.find_entities_filtered{type='assembling-machine', force=f}) do local r=a.get_recipe() if r and r.name=='logistic-science-pack' and (a.status==defines.entity_status.working or a.status==defines.entity_status.full_output) then cap=cap+60*a.crafting_speed/r.energy end end return cap",
      "target": 10
     },
     {
      "name": "green_used_per_min",
      "lua": "pm('logistic-science-pack','output')",
-     "target": 5
+     "target": 1,
+     "note": "labs are consuming green (delivered)"
+    },
+    {
+     "name": "green_made_per_min",
+     "lua": "pm('logistic-science-pack')"
     }
    ]
   },

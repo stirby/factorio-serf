@@ -1,0 +1,49 @@
+{
+ "name": "d1b-iron-outpost-hard",
+ "stage": "stage-s3-steel-oil-ready",
+ "minutes": 50,
+ "agents": 1,
+ "kind": "directive",
+ "note": "Like d1-iron-outpost, but nothing is ready: no electric drills in stock (craft them: circuits, gears, plates are in chests) and no power at the stop (bring it ~260 tiles from the base grid, or build local power).",
+ "setup_lua": "-- d1b-iron-outpost-hard setup (stage S3): like d1 but no power at the stop and no electric drills in stock.\n-- (d1 text follows): an untouched iron patch ~300 tiles SW of the base, a short east-west rail line\n-- 35 tiles north of it with a train stop, a parked train (locomotive + cargo wagon), and power at the stop (a hidden\n-- electric-energy-interface standing in for the outpost's grid connection). Returns the positions the goal uses.\nlocal s, f = game.surfaces.nauvis, game.forces.player\nlocal ore = s.find_entities_filtered{name=\"iron-ore\", position={-225,170}, radius=40}\nlocal x1,y1,x2,y2 = 1e9,1e9,-1e9,-1e9\nfor _,r in pairs(ore) do local p=r.position x1=math.min(x1,p.x) y1=math.min(y1,p.y) x2=math.max(x2,p.x) y2=math.max(y2,p.y) end\nlocal px, py = math.floor((x1+x2)/2), math.floor((y1+y2)/2)\nfor _, e in pairs(s.find_entities_filtered{area={{-262,114},{-188,132}}, type={\"tree\",\"simple-entity\"}}) do e.destroy() end\nfor x = -255, -195, 2 do\n  s.create_entity{name=\"straight-rail\", position={x,122}, direction=defines.direction.east, force=f}\nend\nlocal ry = s.find_entities_filtered{name=\"straight-rail\", position={-225,122}, radius=4}[1].position.y\nlocal stop = s.create_entity{name=\"train-stop\", position={-223, ry + 2}, direction=defines.direction.east, force=f}\nstop.backer_name = \"Iron Outpost\"\nlocal loco = s.create_entity{name=\"locomotive\", position={-227, ry}, direction=defines.direction.east, force=f}\nlocal wagon = s.create_entity{name=\"cargo-wagon\", position={-234, ry}, direction=defines.direction.east, force=f}\nlocal pole = nil\nlocal removed = 0\nfor _, c in pairs(s.find_entities_filtered{type={\"container\",\"logistic-container\"}, force=f}) do\n  local n = c.get_item_count(\"electric-mining-drill\")\n  if n > 0 then removed = removed + c.remove_item{name=\"electric-mining-drill\", count=n} end\nend\nstorage.bench_outpost = {patch={x1,y1,x2,y2}, stop={stop.position.x, stop.position.y}, wagon=wagon.unit_number}\nreturn {px=px, py=py, sx=math.floor(stop.position.x), sy=math.floor(stop.position.y),\n  wx=math.floor(wagon.position.x), wy=math.floor(wagon.position.y), stop_rail=stop.connected_rail ~= nil,\n  loco=loco ~= nil, wagon_ok=wagon ~= nil, drills_removed=removed}\n",
+ "objectives": [
+  {
+   "name": "iron-outpost",
+   "minutes": 50,
+   "goal": "@{agent} add the iron patch I'm standing on [gps={px},{py}] to our system: electric mining drills on it, and the ore on a belt to the train stop at [gps={sx},{sy}], ending right by the track (load the parked wagon at [gps={wx},{wy}] if you can). There's no power out there yet, and we're out of electric drills. Belts, not bots.",
+   "hold_samples": 2,
+   "score": [
+    {
+     "name": "drills_on_patch",
+     "lua": "local p=storage.bench_outpost.patch local a={{p[1]-2,p[2]-2},{p[3]+2,p[4]+2}} return s.count_entities_filtered{name=\"electric-mining-drill\", area=a}",
+     "target": 8
+    },
+    {
+     "name": "ore_at_stop",
+     "lua": "local o=storage.bench_outpost local n=0\nfor _,b in pairs(s.find_entities_filtered{type={\"transport-belt\",\"underground-belt\",\"splitter\"}, position=o.stop, radius=16}) do\n  for i=1,b.get_max_transport_line_index() do n=n+b.get_transport_line(i).get_item_count(\"iron-ore\") end end\nlocal w=s.find_entities_filtered{name=\"cargo-wagon\", position=o.stop, radius=20}[1]\nif w then n=n+w.get_item_count(\"iron-ore\") end\nreturn n",
+     "target": 40,
+     "note": "iron ore on belts within 16 tiles of the stop plus in the wagon"
+    },
+    {
+     "name": "drills_working",
+     "lua": "local p=storage.bench_outpost.patch local a={{p[1]-2,p[2]-2},{p[3]+2,p[4]+2}} local k=0 for _,d in pairs(s.find_entities_filtered{name=\"electric-mining-drill\", area=a}) do if d.status==defines.entity_status.working then k=k+1 end end return k"
+    },
+    {
+     "name": "wagon_ore",
+     "lua": "local w=s.find_entities_filtered{name=\"cargo-wagon\", position=storage.bench_outpost.stop, radius=20}[1] return w and w.get_item_count(\"iron-ore\") or 0"
+    }
+   ],
+   "selftest_lua": "local o=storage.bench_outpost local p=o.patch local k=0\nfor x=p[1]+2,p[3]-2,4 do for y=p[2]+2,p[4]-2,4 do if k<8 then\n  if s.create_entity{name=\"electric-mining-drill\", position={x+0.5,y+0.5}, direction=defines.direction.north, force=f} then k=k+1 end end end end\nlocal b=s.create_entity{name=\"transport-belt\", position={o.stop[1]-4.5, o.stop[2]+3.5}, direction=defines.direction.east, force=f}\nb.get_transport_line(1).insert_at_back({name=\"iron-ore\", count=1}) b.get_transport_line(2).insert_at_back({name=\"iron-ore\", count=1})\nlocal w=s.find_entities_filtered{name=\"cargo-wagon\", position=o.stop, radius=20}[1] w.insert({name=\"iron-ore\", count=50})\nreturn k"
+  }
+ ],
+ "score": [
+  {
+   "name": "iron_ore_mined_per_min",
+   "lua": "pm('iron-ore')"
+  },
+  {
+   "name": "electric_drills",
+   "lua": "count('electric-mining-drill')"
+  }
+ ]
+}
