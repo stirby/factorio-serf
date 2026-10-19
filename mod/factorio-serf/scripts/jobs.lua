@@ -537,6 +537,24 @@ H.insert = {
         local f = util.contents(fuel)
         if next(f) then why = " (fuel slot already holds " .. helpers.table_to_json(f) .. "; burn it down or take it out)" end
       end
+      if why == "" then
+        local okR, r = pcall(e.get_recipe)
+        if e.type == "assembling-machine" and not (okR and r) then
+          why = " (no recipe set yet: set its recipe first)"
+        elseif okR and r then
+          local ings, uses = {}, false
+          for _, ing in pairs(r.ingredients) do
+            ings[#ings + 1] = ing.name
+            if ing.name == args.item then uses = true end
+          end
+          why = uses and " (its input already holds as much " .. args.item .. " as it takes)"
+            or (" (its recipe " .. r.name .. " uses " .. table.concat(ings, ", ") .. ")")
+        elseif e.type == "lab" then
+          why = " (labs take science packs only)"
+        elseif e.type == "container" or e.type == "logistic-container" then
+          why = " (it's full)"
+        end
+      end
       return fail(e.name .. " won't accept " .. args.item .. why)
     end
     if not util.cheat() then c.remove_item { name = args.item, count = inserted } end

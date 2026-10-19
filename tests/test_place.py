@@ -177,6 +177,12 @@ async def main(k: int) -> None:
         r11, = await act({"op": "take", "x": x + 8.5, "y": y + 0.5, "item": "iron-plate"})
         check(not r11["ok"] and "it holds" in r11["msg"], f"take says what the chest holds: {r11['msg']}")
 
+        await link.call("eval", code=f"local a = game.surfaces.nauvis.create_entity{{name='assembling-machine-1', "
+                                     f"position={{{x + 3.5}, {y - 3.5}}}, force='player'}} a.set_recipe('iron-gear-wheel') "
+                                     "storage.agents['t-place'].char.insert{name='copper-plate', count=5}")
+        r12, = await act({"op": "insert", "x": x + 3.5, "y": y - 3.5, "item": "copper-plate"})
+        check(not r12["ok"] and "uses iron-plate" in r12["msg"], f"insert says what the recipe uses: {r12['msg']}")
+
         # find forgives slips instead of throwing a game error.
         f1 = await link.call("find", agent="t-place", name="tree")
         check("found" in f1, f"find name=tree works as a type: {str(f1)[:80]}")
