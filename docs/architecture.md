@@ -95,3 +95,10 @@ The long-run measure stays techs per hour (and per dollar).
 - 2026-10-18: prior-art review done (docs/prior-art.md, notes in research_notes/). Verdict: keep the orchestrator
   and order design; port the game layer module by module from MIT projects (factorio-mcp in llm-play-factorio,
   factorio-codex); no fork or rebase.
+- 2026-10-18 18:52: first live run (S7 robots save, Opus coordinator + 3 Haiku actors, "@all our iron is the
+  bottleneck, go fix it"). Coordinator diagnosed "iron isn't short, it's stuck" in 60 s ($0.30) and wrote 3 orders;
+  an actor closed a one-tile belt gap (iron 771 -> 1094/min); the coordinator then found copper was the real limit
+  and re-targeted. 14 min: 12 orders, 4 wasted on impossible checks (zone vs base counts). Cost: coordinator $3.18,
+  three actors ~$0.12 total. Fixes: checks take "scope": "base"; a check that can never pass (asks for more than
+  exist) blocks immediately with the reason instead of retrying.
+

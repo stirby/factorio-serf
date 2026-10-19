@@ -141,6 +141,12 @@ class Actor(Agent):
                     if passed:
                         o.status, o.result = "done", f"{out.detail}; check passed {json.dumps(results)}"[:300]
                         break
+                    bad = [r["impossible"] for r in results if r.get("impossible")]
+                    if bad:  # the coordinator's check can't be met: send it back now, no retries or model calls
+                        o.status = "blocked"
+                        o.result = f"work done, but the check can't pass: {'; '.join(bad)}. Fix the check (or scope: base)"
+                        o.blocker = {"detail": o.result, "results": results}
+                        break
                     exception = f"the work is finished but the check fails: {json.dumps(results)}"
                 else:
                     exception = out.detail + (f"\nblocker: {json.dumps(out.blocker)[:800]}" if out.blocker else "")
@@ -184,6 +190,8 @@ class Actor(Agent):
             results = d.get("results") or []
             if d.get("passed"):
                 return True, results
+            if any(r.get("impossible") for r in results):
+                break  # the check itself is wrong; waiting or retrying won't help
             if all(r.get("check") == "ghosts_cleared" for r in results if not r.get("ok")):
                 break  # unbuilt ghosts won't fix themselves by waiting
             await asyncio.sleep(15)

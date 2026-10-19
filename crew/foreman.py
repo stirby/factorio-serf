@@ -423,6 +423,8 @@ chests, crafts, clears marked trees, refuels burners and builds ghosts on its ow
 - Every order needs a zone [x1,y1,x2,y2] covering the build (except connect). done_when is a list of checks the
   game evaluates: {"ghosts_cleared": true}, {"working": {"name": "stone-furnace", "min": 12}},
   {"exists": {"name": "lab", "min": 4}}, {"rate": {"item": "iron-plate", "min": 900}}. Default: ghosts_cleared.
+  working/exists count ONLY inside the order's zone (set min to what the zone can hold, e.g. 6 of its 6
+  furnaces) unless you add "scope": "base" for a base-wide count; rate is always base-wide per minute.
 - Prefer copy/paste of builds that already work here, and library designs. Check the spot is clear (map) before
   pasting. Supply materials: actors fetch from any chest, so the mall and depot chests are what keep them fast.
 - Keep every actor busy: when you're told actors are idle, give them orders (the next roadmap step, the biggest

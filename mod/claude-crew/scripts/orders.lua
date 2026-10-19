@@ -88,17 +88,24 @@ CHECKS.ghosts_cleared = function(s, area)
   return n == 0, n
 end
 CHECKS.working = function(s, area, c)
-  local filt = { area = area, force = game.forces.player }
+  local filt = { force = game.forces.player }
+  if c.scope ~= "base" then filt.area = area end
   if c.name then filt.name = c.name end
-  local n = 0
+  local n, total = 0, 0
   for _, e in ipairs(s.find_entities_filtered(filt)) do
+    total = total + 1
     local okS, st = pcall(function() return e.status end)
     if okS and st == defines.entity_status.working then n = n + 1 end
+  end
+  if total < (c.min or 1) then
+    return false, n, "asks for " .. (c.min or 1) .. " but there are only " .. total .. " in " .. (filt.area and "the zone" or "the base")
   end
   return n >= (c.min or 1), n
 end
 CHECKS.exists = function(s, area, c)
-  local n = s.count_entities_filtered { area = area, force = game.forces.player, name = c.name }
+  local filt = { force = game.forces.player, name = c.name }
+  if c.scope ~= "base" then filt.area = area end
+  local n = s.count_entities_filtered(filt)
   return n >= (c.min or 1), n
 end
 CHECKS.rate = function(s, area, c)
@@ -113,20 +120,24 @@ function orders.check(req)
   local s = surface_of(req)
   local area = req.zone and area_of(req) or nil
   local results, all = {}, true
+  local impossible
   for _, cond in ipairs(req.conds or {}) do
     local kind, spec = next(cond)
     local fn = CHECKS[kind]
     local okC, pass, value
     if not fn then
       okC, pass, value = true, false, "unknown check " .. tostring(kind)
-    elseif kind ~= "rate" and not area then
+    elseif kind ~= "rate" and not area and not (type(spec) == "table" and spec.scope == "base") then
       okC, pass, value = true, false, "needs a zone"
     else
-      okC, pass, value = pcall(fn, s, area, type(spec) == "table" and spec or {})
+      local why
+      okC, pass, value, why = pcall(fn, s, area, type(spec) == "table" and spec or {})
       if not okC then pass, value = false, tostring(pass) end
+      impossible = why
     end
     all = all and pass
-    results[#results + 1] = { check = kind, ok = pass, value = value }
+    results[#results + 1] = { check = kind, ok = pass, value = value, impossible = impossible }
+    impossible = nil
   end
   return { passed = all, results = results }
 end
