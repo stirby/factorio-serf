@@ -3,6 +3,8 @@
 **Focus: one good player.** One model-driven character in the world, as good as it can be. The crew (Opus foreman
 + Sonnet workers) is paused and documented in `docs/crew-design.md`. Design: `docs/architecture.md`.
 
+Identity: the agent is an **engineer** (Factorio's word for its player), a peer: panel "claude · engineer with otterplex". Panel + overhead show live state; idle only on usage limits.
+
 Nothing is running. All test servers start with biters off (`crew/peace.py`). Repo: github.com/stirby/claude-crew
 (private).
 

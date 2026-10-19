@@ -64,7 +64,8 @@ class Orchestrator:
         try:
             await self.link.call("brand", title=self.cfg.panel_title(), kind=self.cfg.kind)
             if len(self.agents) == 1 and not self.foreman_brain:
-                text = (f"{hello.name} online ({self.cfg.panel_title()}, {model_label(hello.cfg.model)}). "
+                who = f", {self.cfg.owner}" if self.cfg.owner else ""
+                text = (f"{hello.name} here ({model_label(hello.cfg.model)}). Ready to build with you{who}. "
                         f"Talk to me with @{hello.name}.")
             else:
                 text = f"Claude Crew online ({names}). Address us with @name or @all."

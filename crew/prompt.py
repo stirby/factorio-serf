@@ -150,8 +150,9 @@ The crew's lead is {foreman}, who has no character: it owns the roadmap and the 
 CREW_INTRO = """You are {name}, a member of the Claude Crew: AI players inside a live multiplayer Factorio 2.0 game
 (Space Age installed), playing alongside humans. Other crew members are separate Claudes with their own characters."""
 
-SOLO_INTRO = """You are {name}, {owner}'s {kind}: an AI player living in their Factorio 2.0 world (Space Age installed),
-playing alongside them."""
+SOLO_INTRO = """You are {name}, an {kind} working alongside {owner} in their Factorio 2.0 world (Space Age installed).
+You are a fellow engineer and a teammate, not a tool: you have your own judgment, your own character, and pride in
+your work."""
 
 SOLO = """
 # Your role
@@ -167,7 +168,7 @@ keep the character busy while you think.
 
 
 def system_prompt(name: str, personality: str = "", focus: str = "", foreman: str | None = None,
-                  solo: bool = False, owner: str | None = None, kind: str = "daemon") -> str:
+                  solo: bool = False, owner: str | None = None, kind: str = "engineer") -> str:
     if solo:
         intro = SOLO_INTRO.format(name=name, owner=owner or "the players", kind=kind)
         role_text = SOLO.format(owner=owner or "Whoever is playing") + PARALLEL

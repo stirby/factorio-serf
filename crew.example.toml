@@ -10,9 +10,10 @@ rcon_port = 27015
 # rcon_password = "..."                       # or FACTORIO_RCON_PASSWORD, or:
 rcon_password_file = "server/rcon-password"   # relative to this file
 
-# Who it is. The panel over your screen reads "<spawn_near>'s <kind>" (e.g. "otterplex's daemon").
+# Who it is. Factorio calls its player "the Engineer"; your agent is a fellow engineer working beside you.
+# The panel reads "<name> · engineer with <spawn_near>", e.g. "claude · engineer with otterplex".
 [identity]
-kind = "daemon"
+kind = "engineer"
 # title = "..."               # override the panel caption
 
 # Your player: one character in the game, driven by one model. Talk to it in chat.

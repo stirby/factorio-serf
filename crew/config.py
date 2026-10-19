@@ -41,8 +41,8 @@ class CrewConfig:
     source: Path | None = None  # crew.toml this came from (watched for live changes)
     foreman: AgentConfig | None = None  # characterless lead every worker can ask without waiting
     usd_per_hour: float | None = None  # [budget] usd_per_hour: hard cap on spend over the last hour (all models)
-    kind: str = "daemon"  # [identity] kind: what one agent is called ("otterplex's daemon")
-    title: str | None = None  # [identity] title: the in-game panel's caption (default "<owner>'s <kind>")
+    kind: str = "engineer"  # [identity] kind: what an agent is. Factorio calls its player "the Engineer": a peer.
+    title: str | None = None  # [identity] title: the in-game panel's caption (default "claude · engineer with otterplex")
 
     @property
     def owner(self) -> str | None:
@@ -51,9 +51,9 @@ class CrewConfig:
     def panel_title(self) -> str:
         if self.title:
             return self.title
-        if len(self.agents) == 1 and self.owner:
-            return f"{self.owner}'s {self.kind}"
-        return f"{self.kind}s" if len(self.agents) > 1 else self.kind
+        if len(self.agents) == 1:
+            return f"{self.agents[0].name} · {self.kind}" + (f" with {self.owner}" if self.owner else "")
+        return f"{self.kind}s".capitalize()
 
     def foreman_name(self) -> str | None:
         return self.foreman.name if self.foreman else None
