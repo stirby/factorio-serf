@@ -443,7 +443,7 @@ class Bench:
                         smp = await sc.sample()
                         st.append({"name": ob["name"], "fake": fake, "met": sc.note(smp, 0), "values": smp["values"],
                                    "targets": sc.targets, "errors": smp["errors"]})
-                        print(f"bench: selftest {ob['name']}: met={st[-1]['met']} {smp['values']} {smp['errors']}",
+                        print(f"bench: selftest {ob['name']}: met={st[-1]['met']} {smp['values']} {smp['errors']} raw={smp.get('raw')}",
                               flush=True)
                 if a.minutes:
                     await self._sample_loop(scorer, crew, busy, timeline, t0, self.minutes * 60)
@@ -531,6 +531,7 @@ class Bench:
             await crew.call("chat", player="ops", message=goal)
             append_jsonl(timeline, {"t": ts, "event": "objective", "name": ob["name"], "text": goal})
             print(f"bench: objective {ob['name']}: {goal}", flush=True)
+            restore = self._answer_questions(ob, crew, setup, names)
             limit = min(ts + ob.get("minutes", 30) * 60, deadline)
             held, need, smp, ok = 0, ob.get("hold_samples", 2), None, False
             next_sample, nudged = ts + 60, 0.0
@@ -573,6 +574,7 @@ class Bench:
                     await asyncio.wait_for(self.stop_evt.wait(), 5)
                 except asyncio.TimeoutError:
                     pass
+            restore()
             smp = smp or await sc.sample()
             rep = sc.report(smp)
             out.append({"name": ob["name"], "success": ok, "secs": round(time.time() - ts, 1),
@@ -583,6 +585,23 @@ class Bench:
                 f"@{names[0]} thanks, that one's done." if ok else f"@{names[0]} let's leave that one for now."))
         if self.stop_evt.is_set():
             self.result["interrupted"] = True
+
+    def _answer_questions(self, ob: dict, crew: Crew, setup, names):
+        """A player answers when asked: if the agent says something with a question mark while this objective runs,
+        ops replies with the objective's `answer` (up to 3 times). Returns a function that stops listening."""
+        orch = getattr(self, "orch", None)
+        if not (ob.get("answer") and orch):
+            return lambda: None
+        reply = self._goal(setup, "@{agent} " + ob["answer"], names)
+        orig, n = orch.agent_said, [0]
+
+        def said(speaker: str, text: str) -> None:
+            orig(speaker, text)
+            if "?" in text and n[0] < 3:
+                n[0] += 1
+                asyncio.get_running_loop().create_task(crew.call("chat", player="ops", message=reply))
+        orch.agent_said = said
+        return lambda: setattr(orch, "agent_said", orig)
 
     @staticmethod
     def _short(rep: dict) -> str:

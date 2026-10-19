@@ -1,0 +1,55 @@
+{
+ "name": "d3b-circuit-mall",
+ "stage": "stage-s6-blue-science",
+ "minutes": 45,
+ "agents": 1,
+ "kind": "directive",
+ "note": "Build-to-a-number with real demand (d3 had none: the S6 base only uses ~60 circuits/min, so 'used +100' could never pass). Setup adds an inserter mall (2 assemblers, 180 circuits/min of demand) whose only missing input is circuits on its input belt. Success = the mall makes >= 120 inserters/min (= circuits delivered) for 4 one-minute samples. Hand-carrying can't sustain that. ops answers questions with 'answer'.",
+ "setup_lua": "-- d3b-circuit-mall setup (stage S6): an inserter \"mall\" that needs green circuits and gets none. Two\n-- assembling-machine-2 making inserters (90/min each = 180 circuits/min of demand). Iron plates and gears come\n-- from infinity chests, finished inserters go into a deleting chest, power from a hidden interface: the only\n-- missing input is circuits, on the mall's input belt (flowing east along the top). Returns where things are.\nlocal s, f = game.surfaces.nauvis, game.forces.player\nlocal W, H = 16, 12\nlocal function free(x, y)\n  local a = { { x, y }, { x + W, y + H } }\n  if s.count_tiles_filtered { area = a, collision_mask = \"water_tile\" } > 0 then return false end\n  return s.count_entities_filtered { area = a, type = { \"tree\", \"simple-entity\", \"resource\", \"corpse\", \"fish\" },\n    invert = true } == 0\nend\nlocal ox, oy\nfor r = 20, 160, 4 do\n  for _, d in pairs { { 1, 0 }, { 0, 1 }, { -1, 0 }, { 0, -1 }, { 1, 1 }, { -1, 1 }, { 1, -1 }, { -1, -1 } } do\n    local x, y = 20 + d[1] * r, 20 + d[2] * r\n    if not ox and free(x, y) then ox, oy = x, y end\n  end\n  if ox then break end\nend\nif not ox then error(\"no free 16x12 area for the mall\") end\nfor _, e in pairs(s.find_entities_filtered { area = { { ox, oy }, { ox + W, oy + H } }, type = { \"tree\", \"simple-entity\" } }) do\n  e.destroy()\nend\nlocal X, Y = ox + 1, oy + 1 -- one tile of margin\nlocal function put(name, x, y, dir)\n  local e = s.create_entity { name = name, position = { X + x, Y + y }, direction = dir, force = f }\n  if not e then error(\"could not place \" .. name .. \" at \" .. (X + x) .. \",\" .. (Y + y)) end\n  e.minable = false -- the scenario's fixture, not the agent's materials\n  return e\nend\nlocal belt = {}\nfor i = 0, 12 do belt[#belt + 1] = put(\"transport-belt\", i + 0.5, 0.5, defines.direction.east) end\nlocal asms = {}\nfor _, cx in pairs { 4.5, 9.5 } do\n  put(\"fast-inserter\", cx, 1.5, defines.direction.north) -- takes from the belt (north), drops into the assembler\n  local a = put(\"assembling-machine-2\", cx, 3.5)\n  a.set_recipe(\"inserter\")\n  asms[#asms + 1] = a\n  put(\"fast-inserter\", cx, 5.5, defines.direction.north) -- takes from the assembler, drops south\n  local sink = put(\"infinity-chest\", cx, 6.5)\n  sink.remove_unfiltered_items = true\nend\nfor _, side in pairs { { 1.5, 2.5, defines.direction.west }, { 12.5, 11.5, defines.direction.east } } do\n  local chest = put(\"infinity-chest\", side[1], 3.5)\n  chest.set_infinity_container_filter(1, { name = \"iron-plate\", count = 100, mode = \"exactly\" })\n  chest.set_infinity_container_filter(2, { name = \"iron-gear-wheel\", count = 100, mode = \"exactly\" })\n  put(\"fast-inserter\", side[2], 3.5, side[3])\nend\nlocal sub = put(\"substation\", 7, 8)\nfor _, c in pairs { defines.wire_connector_id.pole_copper } do -- don't wire into the base's grid\n  local w = sub.get_wire_connector(c, false)\n  if w then w.disconnect_all() end\nend\nlocal eei = put(\"electric-energy-interface\", 7, 10)\neei.power_production = 50000 -- J/tick = 3 MW\neei.electric_buffer_size = 5000000\neei.destructible = false\nstorage.bench_mall = { asm = { asms[1].position, asms[2].position }, belt = { X + 0.5, Y + 0.5 },\n  center = { X + 7, Y + 4 } }\nreturn { mx = math.floor(X + 7), my = math.floor(Y + 4), bx = math.floor(X + 0.5), by = math.floor(Y + 0.5),\n  powered = asms[1].electric_network_id ~= nil and asms[1].electric_network_id == eei.electric_network_id }\n",
+ "objectives": [
+  {
+   "name": "circuits-to-mall",
+   "minutes": 45,
+   "hold_samples": 4,
+   "goal": "@{agent} our inserter mall at [gps={mx},{my}] is starved of green circuits: its two assemblers need about 180 a minute and get none. Build a circuit block that makes at least 120 a minute from our iron and copper, and belt the circuits onto the mall's input belt, which starts at [gps={bx},{by}]. Belts, not bots.",
+   "answer": "Put them on the mall's input belt at [gps={bx},{by}]. Take iron and copper from our smelters, or add smelting if they can't spare it. The mall itself is fine; don't change it.",
+   "score": [
+    {
+     "name": "mall_inserters_per_min",
+     "lua": "local n=0 for _,u in pairs(storage.bench_mall.asm) do local a=s.find_entity('assembling-machine-2', u) if a then n=n+a.products_finished end end return n",
+     "rate": true,
+     "target": 120,
+     "note": "inserters the mall makes per minute = circuits delivered to it (1 circuit each)"
+    },
+    {
+     "name": "circuits_on_mall_belt",
+     "lua": "local m=storage.bench_mall local n=0 for _,b in pairs(s.find_entities_filtered{type='transport-belt', area={{m.belt[1]-1,m.belt[2]-1},{m.belt[1]+13,m.belt[2]+1}}}) do for i=1,2 do n=n+b.get_transport_line(i).get_item_count('electronic-circuit') end end return n"
+    },
+    {
+     "name": "circuits_made_per_min",
+     "lua": "pm('electronic-circuit')"
+    },
+    {
+     "name": "circuit_asm",
+     "lua": "making('electronic-circuit')"
+    },
+    {
+     "name": "cable_asm",
+     "lua": "making('copper-cable')"
+    },
+    {
+     "name": "mall_state",
+     "lua": "local st={} for k,v in pairs(defines.entity_status) do st[v]=k end local t={} for _,u in pairs(storage.bench_mall.asm) do local a=s.find_entity('assembling-machine-2', u) t[#t+1]= a and (st[a.status] or a.status)..'/'..a.products_finished or 'gone' end return table.concat(t,' ')"
+    }
+   ],
+   "selftest_lua": "local m=storage.bench_mall local x,y=m.belt[1],m.belt[2] local k=0\nfor _,dx in pairs{0,1} do\n  local c=s.create_entity{name='infinity-chest', position={x+dx, y+2}, force=f}\n  c.set_infinity_container_filter(1, {name='electronic-circuit', count=100, mode='exactly'})\n  if s.create_entity{name='fast-inserter', position={x+dx, y+1}, direction=defines.direction.south, force=f} then k=k+1 end\nend\nreturn k",
+   "selftest_wait": 75
+  }
+ ],
+ "score": [
+  {
+   "name": "science_packs_used",
+   "lua": "st.get_output_count('automation-science-pack')+st.get_output_count('logistic-science-pack')+st.get_output_count('chemical-science-pack')"
+  }
+ ]
+}
