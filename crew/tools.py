@@ -80,6 +80,15 @@ Directions: inserters TAKE from the side they face and drop on the opposite side
 async def t_look(agent: "Agent", a: dict) -> str:
     d = await agent.link.call("observe", agent=agent.name, radius=min(int(a.get("radius", 16)), 48))
     agent.last_position = d["self"]["position"]
+    w = d.get("world") or {}
+    if w.get("crew"):
+        # Characters left in the save by earlier sessions stand there with nobody driving them: say so, or the
+        # agent asks them for help and waits.
+        live = set(agent.crew_names())
+        parked = [c["name"] for c in w["crew"] if c["name"] not in live]
+        w["crew"] = [c for c in w["crew"] if c["name"] in live]
+        if parked:
+            w["parked_characters"] = f"{', '.join(parked)}: left by earlier sessions; nobody is driving them"
     return _j(d)
 
 

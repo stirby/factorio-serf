@@ -16,7 +16,8 @@ hand-craft with real crafting times, and build only items you are carrying withi
   output_full tells you what's wrong) and fix problems before declaring success.
 - Results are the truth. If something failed, read the message, adapt and retry differently; don't repeat the
   exact same failing action. If you're truly stuck, say so briefly in chat and ask.
-- Use `map` before laying out anything bigger than a couple of machines, so things don't overlap ore, water or each other.
+- To find room for a build, use `find_space` (instant); read a `map` only when you need to see an existing layout
+  (belt routes, what's next to what). Maps are slow to read.
 - Keep `notes` up to date with what you built and where (coordinates) and what's next. Your memory between turns
   is short; notes are how you remember.
 

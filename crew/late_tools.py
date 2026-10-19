@@ -10,7 +10,7 @@ import json
 import time
 from typing import TYPE_CHECKING
 
-from .tools import BY_NAME, Tool, _j, _num, _obj
+from .tools import BY_NAME, XY, Tool, _j, _num, _obj
 
 if TYPE_CHECKING:
     from .agent import Agent
@@ -110,6 +110,19 @@ async def t_calc(agent: "Agent", a: dict) -> str:
     return "\n".join(lines)
 
 
+async def t_find_space(agent: "Agent", a: dict) -> str:
+    d = await agent.link.call("find_space", w=a["w"], h=a["h"], x=a.get("x", 0), y=a.get("y", 0),
+                              radius=a.get("radius", 120), allow_resources=bool(a.get("allow_resources")))
+    if not d["candidates"]:
+        return f"no free {d['w']}x{d['h']} area within the search near {d['near']} (tried {d['searched']} spots): widen radius"
+    out = [f"free {d['w']}x{d['h']} areas near [gps={d['near'][0]},{d['near'][1]}], nearest first:"]
+    for c in d["candidates"]:
+        tl, ce = c["top_left"], c["center"]
+        out.append(f"- top-left ({tl[0]},{tl[1]}) to ({tl[0] + d['w']},{tl[1] + d['h']}), center [gps={ce[0]:g},{ce[1]:g}], "
+                   f"{c['dist']} tiles away" + (f", {c['trees_rocks']} trees/rocks (build clears them)" if c["trees_rocks"] else ""))
+    return "\n".join(out)
+
+
 async def t_network(agent: "Agent", a: dict) -> str:
     d = await agent.link.call("network", surface=a.get("surface", "nauvis"))
     if not d["networks"]:
@@ -205,6 +218,10 @@ LATE_TOOLS = [
                "supplied": {"type": "array", "items": {"type": "string"}},
                "assembler": {"type": "string"}, "furnace": {"type": "string"}, "drill": {"type": "string"}}, ["item"]),
          t_calc),
+    Tool("find_space", "Free ground for a w x h block (tiles) near x,y: no buildings, water, cliffs, ghosts or ore "
+         "(unless allow_resources). Faster than reading a map when you just need room for a build; then stamp/paste "
+         "there.", _obj({"w": {"type": "integer"}, "h": {"type": "integer"}, **XY, "radius": {"type": "integer"},
+                         "allow_resources": {"type": "boolean"}}, ["w", "h", "x", "y"]), t_find_space),
     Tool("network", "The logistic network(s): roboports, construction/logistic robots (idle/total), what's in "
          "storage, ghosts waiting, deconstruction pending. Check it before relying on robots to build.",
          _obj({"surface": {"type": "string"}}), t_network),

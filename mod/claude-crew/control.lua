@@ -260,6 +260,7 @@ API.paste = function(req) return late.paste(req) end
 API.order = function(req) return late.order(req) end
 API.network = function(req) return late.network(req) end
 API.calc = function(req) return late.calc(req) end
+API.find_space = function(req) return late.find_space(req) end
 API.zone = function(req) return orders.zone(req) end
 API.sources = function(req) return orders.sources(req) end
 API.check = function(req) return orders.check(req) end

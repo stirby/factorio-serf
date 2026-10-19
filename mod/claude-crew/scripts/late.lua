@@ -385,4 +385,48 @@ function late.calc(req)
     note = "no productivity/modules/beacons; yellow belt 900/min, red 1800, blue 2700 (both lanes)" }
 end
 
+-- Free ground for a w x h block near x,y (like FLE's nearest_buildable): no buildings, water, cliffs or (unless
+-- allowed) ore under it. Trees and rocks are allowed and reported: `build` clears them. Nearest candidates first.
+function late.find_space(req)
+  local s = surface_of(req)
+  local w, h = math.max(1, math.floor(req.w or 10)), math.max(1, math.floor(req.h or 10))
+  local cx, cy = math.floor(req.x or 0), math.floor(req.y or 0)
+  local maxr = math.min(req.radius or 120, 400)
+  local step = math.max(2, math.floor(math.min(w, h) / 3))
+  local margin = req.margin or 1
+  local found, tried = {}, 0
+  local function free(x1, y1)
+    local area = { { x1 - margin, y1 - margin }, { x1 + w + margin, y1 + h + margin } }
+    tried = tried + 1
+    if s.count_tiles_filtered { area = area, collision_mask = "water_tile" } > 0 then return nil end
+    local blockers = s.find_entities_filtered { area = area, type = { "tree", "simple-entity", "character", "corpse",
+      "resource", "entity-ghost", "item-entity", "fish", "smoke-with-trigger", "deconstructible-tile-proxy",
+      "tile-ghost" }, invert = true, limit = 1 }
+    if #blockers > 0 then return nil end
+    local ore = s.count_entities_filtered { area = { { x1, y1 }, { x1 + w, y1 + h } }, type = "resource" }
+    if ore > 0 and not req.allow_resources then return nil end
+    local trees = s.count_entities_filtered { area = { { x1, y1 }, { x1 + w, y1 + h } }, type = { "tree", "simple-entity" } }
+    local ghosts = s.count_entities_filtered { area = area, type = "entity-ghost" }
+    if ghosts > 0 then return nil end
+    return { top_left = { x1, y1 }, center = { x1 + w / 2, y1 + h / 2 }, trees_rocks = trees, ore_tiles = ore,
+      dist = math.floor(math.sqrt((x1 + w / 2 - cx) ^ 2 + (y1 + h / 2 - cy) ^ 2)) }
+  end
+  for r = 0, maxr, step do
+    for dx = -r, r, step do
+      for dy = -r, r, step do
+        if math.max(math.abs(dx), math.abs(dy)) >= r - step + 1 or r == 0 then
+          local c = free(cx + dx - math.floor(w / 2), cy + dy - math.floor(h / 2))
+          if c then found[#found + 1] = c end
+        end
+        if tried > 6000 then break end
+      end
+      if tried > 6000 then break end
+    end
+    if #found >= 3 or tried > 6000 then break end
+  end
+  table.sort(found, function(a, b) return a.dist < b.dist end)
+  while #found > 3 do table.remove(found) end
+  return { w = w, h = h, near = { cx, cy }, candidates = found, searched = tried }
+end
+
 return late
