@@ -215,7 +215,7 @@ LATE_TOOLS = [
                "x": {"type": "number"}, "y": {"type": "number"}, "rotation": {}, "direction": {"type": "string"},
                "zone": {"type": "array"}, "item": {"type": "string"}, "from": {"type": "array"},
                "to": {"type": "array"}, "join": {"type": "boolean"}}, ["kind"]), t_build),
-    Tool("diagnose", "Why is an item short? Made vs used per minute, every machine that makes or uses it grouped by "
+    Tool("diagnose", "Why is an item or fluid (petroleum-gas, steam, water...) short? Made vs used per minute, every machine that makes or uses it grouped by "
          "status (working, no_ingredients, full_output, no_power, no_minable_resources...) with sites and example "
          "positions, its ingredients' flow, and the likely cause. Start every bottleneck hunt here, then follow "
          "the cause upstream (diagnose the ingredient).",

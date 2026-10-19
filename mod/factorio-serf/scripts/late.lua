@@ -65,16 +65,32 @@ function late.diagnose(req)
   local item = req.item or "iron-plate"
   local s = surface_of(req)
   local f = game.forces.player
-  local stats = f.get_item_production_statistics(s)
+  -- Fluids (petroleum gas, steam, water...) have their own production statistics.
+  local istats, fstats = f.get_item_production_statistics(s), f.get_fluid_production_statistics(s)
+  local function flow(name, cat, idx)
+    return per_min(prototypes.fluid[name] and not prototypes.item[name] and fstats or istats, name, cat, idx)
+  end
+  local fluid = prototypes.fluid[item] ~= nil and not prototypes.item[item]
   local M1, M10 = defines.flow_precision_index.one_minute, defines.flow_precision_index.ten_minutes
-  local out = { item = item, surface = s.name,
-    made_per_min = per_min(stats, item, "input", M1), used_per_min = per_min(stats, item, "output", M1),
-    made_per_min_10m = per_min(stats, item, "input", M10), used_per_min_10m = per_min(stats, item, "output", M10) }
+  local out = { item = item, surface = s.name, fluid = fluid or nil,
+    made_per_min = flow(item, "input", M1), used_per_min = flow(item, "output", M1),
+    made_per_min_10m = flow(item, "input", M10), used_per_min_10m = flow(item, "output", M10) }
   local producers, consumers, ingredients = {}, {}, {}
-  local machines = s.find_entities_filtered { type = { "assembling-machine", "furnace", "mining-drill" }, force = f }
+  local types = { "assembling-machine", "furnace", "mining-drill" }
+  if fluid then -- water comes from offshore pumps, steam from boilers, and boilers use water
+    for _, t in pairs { "offshore-pump", "boiler", "generator" } do types[#types + 1] = t end
+  end
+  local machines = s.find_entities_filtered { type = types, force = f }
   for _, e in ipairs(machines) do
     local ore, r = makes(e)
-    if ore == item then producers[#producers + 1] = e
+    if e.type == "offshore-pump" then
+      local ok, fb = pcall(function() return e.fluidbox.get_filter(1) end)
+      if (ok and fb and fb.name or "water") == item then producers[#producers + 1] = e end
+    elseif e.type == "boiler" then
+      if item == "steam" then producers[#producers + 1] = e elseif item == "water" then consumers[#consumers + 1] = e end
+    elseif e.type == "generator" then
+      if item == "steam" then consumers[#consumers + 1] = e end
+    elseif ore == item then producers[#producers + 1] = e
     elseif r then
       for _, p in pairs(r.products) do
         if p.name == item then
@@ -100,7 +116,7 @@ function late.diagnose(req)
   out.consumers = { total = #consumers, by_status = cb, sites = csites }
   local ing = {}
   for name in pairs(ingredients) do
-    ing[name] = { made_per_min = per_min(stats, name, "input", M1), used_per_min = per_min(stats, name, "output", M1) }
+    ing[name] = { made_per_min = flow(name, "input", M1), used_per_min = flow(name, "output", M1) }
   end
   out.ingredients = ing
   -- drills: what's left under them
@@ -124,7 +140,7 @@ function late.diagnose(req)
   local nofuel, nopower = n(pb, "no_fuel"), n(pb, "no_power") + n(pb, "low_power")
   local dry = n(pb, "no_minable_resources")
   local cstarved = n(cb, "no_ingredients") + n(cb, "missing_science_packs") + n(cb, "waiting_for_source_items")
-    + n(cb, "item_ingredient_shortage")
+    + n(cb, "item_ingredient_shortage") + n(cb, "fluid_ingredient_shortage") + n(cb, "no_input_fluid")
   local function first(by, keys)
     for _, k in ipairs(keys) do if by[k] and by[k].at[1] then return by[k].at[1] end end
   end
@@ -137,8 +153,10 @@ function late.diagnose(req)
   elseif cstarved > 0 and blocked > 0 then
     hint = "DISTRIBUTION: " .. blocked .. " producers are backed up (full output, e.g. "
       .. gps(first(pb, { "full_output", "waiting_for_space_in_destination" })) .. ") while " .. cstarved
-      .. " consumers starve (e.g. " .. gps(first(cb, { "item_ingredient_shortage", "no_ingredients", "missing_science_packs", "waiting_for_source_items" }))
-      .. "). The " .. item .. " exists but doesn't reach them: belt/connect the backed-up site to the starved ones (or fix a broken belt/inserter between them) before building more producers"
+      .. " consumers starve (e.g. " .. gps(first(cb, { "item_ingredient_shortage", "fluid_ingredient_shortage", "no_input_fluid", "no_ingredients", "missing_science_packs", "waiting_for_source_items" }))
+      .. "). The " .. item .. " exists but doesn't reach them: " .. (fluid and "pipe/pump" or "belt/connect")
+      .. " the backed-up site to the starved ones (or fix a broken " .. (fluid and "pipe or pump" or "belt/inserter")
+      .. " between them) before building more producers"
   elseif blocked > #producers / 3 then hint = blocked .. " producers have full output: output transport is the limit (belt/inserter/chest backed up), or demand is low"
   elseif cstarved > 0 then hint = "producers mostly work but " .. cstarved .. " consumers are starved: build MORE producers (copy a working " .. item .. " site with copy/paste) and belt them to the starved consumers"
   else hint = "no obvious shortage: compare made vs used per minute" end
