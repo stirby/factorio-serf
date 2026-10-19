@@ -183,6 +183,9 @@ async def main(k: int) -> None:
         r12, = await act({"op": "insert", "x": x + 3.5, "y": y - 3.5, "item": "copper-plate"})
         check(not r12["ok"] and "uses iron-plate" in r12["msg"], f"insert says what the recipe uses: {r12['msg']}")
 
+        r13, = await act({"op": "mine", "x": x + 3.5, "y": y - 6.5})
+        check(not r13["ok"] and "assembling-machine-1 at" in r13["msg"], f"mine x,y names what's close by: {r13['msg']}")
+
         # find forgives slips instead of throwing a game error.
         f1 = await link.call("find", agent="t-place", name="tree")
         check("found" in f1, f"find name=tree works as a type: {str(f1)[:80]}")

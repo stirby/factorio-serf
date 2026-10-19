@@ -142,6 +142,21 @@ local function first_product(e)
   end
 end
 
+-- mine x,y found nothing there: coordinates are often a tile off, so name what is close.
+local function missed_at(c, args)
+  local near = {}
+  local at = util.pos(args.position or { args.x, args.y })
+  if at and at.x then
+    for _, e in pairs(c.surface.find_entities_filtered { position = at, radius = 3, limit = 20 }) do
+      if e.minable and e.type ~= "character" and #near < 4 then
+        near[#near + 1] = e.name .. " at " .. xystr(e.position)
+      end
+    end
+  end
+  return "nothing minable at " .. tostring(args.x) .. "," .. tostring(args.y)
+    .. (#near > 0 and ("; within 3 tiles: " .. table.concat(near, ", ")) or "; nothing minable within 3 tiles either")
+end
+
 -- Resources: count = items wanted (tracked by inventory delta, hopping tiles as they run out).
 -- Trees/rocks/buildings: count = entities to mine. With x,y: just that entity.
 H.mine = {
@@ -164,7 +179,7 @@ H.mine = {
           return ok("ore tile depleted after " .. job.got .. " " .. job.product, { mined = job.got })
         end
       elseif job.positional and job.searched then
-        return fail("nothing minable at " .. tostring(args.x) .. "," .. tostring(args.y))
+        return fail(missed_at(c, args))
       end
       job.searched = true
       e = find_mine_target(a, args)
@@ -173,6 +188,7 @@ H.mine = {
         if job.got > 0 then
           return ok("mined " .. job.got .. ", no more " .. (args.name or "") .. " nearby", { mined = job.got })
         end
+        if job.positional then return fail(missed_at(c, args)) end
         return fail("nothing minable" .. (args.name and (" named " .. args.name) or "") .. " found near " .. xystr(c.position))
       end
       local mate = e.unit_number and storage.built_by[e.unit_number]
