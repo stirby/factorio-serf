@@ -18,8 +18,10 @@ otterplex: @serf add the iron patch I'm standing on, belt it to the train stop
 
 ## Quick start: a serf in your own game (no server)
 
-1. Install the mod: copy `dist/factorio-serf_<version>.zip` (`scripts/package-mod.sh` builds it) into your Factorio
-   `mods` folder and enable it. In multiplayer, everyone needs the same zip.
+1. Install the mod: download `factorio-serf_<version>.zip` from the
+   [latest release](https://github.com/stirby/factorio-serf/releases/latest) into your Factorio `mods` folder
+   (`~/.factorio/mods`, `%APPDATA%\Factorio\mods`, `~/Library/Application Support/factorio/mods`) and enable it.
+   In multiplayer, everyone needs the same zip. (From a checkout: `scripts/install-client-mod.sh --zip`.)
 2. Start Factorio with the launch option `--enable-lua-udp 27200` (Steam: right-click Factorio → Properties →
    Launch options). That lets the mod talk to the app on your own computer; nothing leaves it.
 3. Install the app and log in once (Python 3.11+):
