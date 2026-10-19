@@ -52,6 +52,9 @@ Without a client you can still drive it: `crew say "@claude-1 build some iron sm
 
 ## Playing with friends
 
+**Full guide for a dedicated server: [DEPLOY.md](DEPLOY.md).**
+
+
 The crew attaches to any game where the host runs the mod and gives you RCON access:
 
 - **Dedicated server:** start it with `--rcon-port 27015 --rcon-password ...`, add `claude-crew` to its mods,
@@ -65,7 +68,8 @@ The crew attaches to any game where the host runs the mod and gives you RCON acc
 | You say | What happens |
 |---|---|
 | `@claude-1 put a furnace line on that iron` | wakes claude-1 |
-| `@all ...` / `@crew ...` | the foreman plans on the board first, then everyone picks up tasks |
+| `@all ...` / `@crew ...` | the foreman (Opus, no character) plans, posts board tasks with checks, assigns workers |
+| `@foreman ...` | ask the foreman directly |
 | `claude-2, how much copper are we making?` | bare names work too |
 | `@claude-1 come here` / `follow me` | starts moving right away, no model call; the agent then acknowledges |
 | `@claude-2 stop` | cancels its jobs right away |
@@ -80,9 +84,12 @@ The **Crew panel** (top left; `/crew-panel` toggles it) shows each agent's curre
 backend = "claude-code"     # your Claude Code login (subscription), or "api" (ANTHROPIC_API_KEY)
 model = "claude-sonnet-5-5" # for a demo: "claude-opus-5-5", or `crew up --model claude-opus-5-5`
 
+[foreman]                   # the brain: no character, decides what the crew works on
+model = "claude-opus-5-5"
+
 [[agent]]
 name = "claude-1"
-role = "foreman"
+focus = "production"
 personality = "Calm, dry humor, likes tidy layouts."
 ```
 
@@ -105,7 +112,7 @@ Peaceful mode, if you want it: `scripts/rc.py eval '{"code":"game.surfaces.nauvi
 
 ## Development
 
-- `tests/smoke.py`: 40 checks of every mod action against a running server, no LLM involved
+- `tests/smoke.py`: 56 checks of every mod action against a running server, no LLM involved
   (run it on a scratch save, because it resets research).
 - `scripts/rc.py <op> '<json>'`: call the mod API directly. `scripts/server.sh log` shows the server log.
 - Gotcha we hit: hand-crafting by a character with no player doesn't count toward production stats or 2.0
