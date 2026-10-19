@@ -13,7 +13,8 @@ guards and the add flow (`tests/test_udp.py`, an end-to-end add with a real Sonn
 tested: the real UDP path from a game client** (needs the user's game; a headless server crashes on Lua UDP).
 
 Nothing is running. All test servers start with biters off (`crew/peace.py`). Repo: github.com/stirby/factorio-serf
-(private; making it public needs a history rewrite to drop 23 committed saves, and a license).
+(renamed from claude-crew 2026-10-19; still private). Benchmark saves (`experiments/runs/*/final.zip`) are in Git LFS
+(history rewritten; pre-rewrite mirror at ~/dev/factorio-serf-backup-20261019.git). Before going public: a LICENSE.
 
 ## The thesis (the user's)
 
@@ -41,7 +42,7 @@ clear lanes; expand mining before it runs dry.
 ## Next (in order, paced: at most one heavy run at a time, mind the subscription limits)
 
 1. The user tries the real thing: launch option, `serf`, `/serf add` in single player, then with a friend.
-2. Open-source prep (if the user agrees): drop saves from history, license, mod name.
+2. Go public when the user says so (license still to pick; MIT suggested).
 3. Directive tests under the new "one order, report, ask" behavior: d3 circuits (strict check), d2 science steps,
    f1 iron (it must now hold the iron order instead of drifting to other fixes).
 4. Tools and consistency over speed (the user's call on thinking time; notes in docs/architecture.md).
