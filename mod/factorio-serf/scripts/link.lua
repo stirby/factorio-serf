@@ -43,6 +43,13 @@ function link.client_for_player(index)
   end
 end
 
+-- The server's own serf app (RCON, no player behind it), if one is running.
+function link.server_client()
+  for id, c in pairs(storage.clients) do
+    if not c.player and link.online(id) then return id end
+  end
+end
+
 -- Everything new for this client since its last poll.
 function link.poll(ctx, req)
   local c = storage.clients[ctx.client]

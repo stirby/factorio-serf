@@ -546,7 +546,8 @@ local function teach(p, name)
     p.print("[serf] Hold a blueprint or a blueprint book first (from your inventory or Game blueprints), then teach it.")
     return
   end
-  local client = link.client_for_player(p.index)
+  -- Their own app, else the server's: designs taught on a server go to the serfs that server runs.
+  local client = link.client_for_player(p.index) or link.server_client()
   if not client then
     p.print(SETUP)
     return
@@ -595,7 +596,7 @@ commands.add_command("serf", "Bring in an AI helper: /serf add [name], /serf rem
       return
     end
     if words[3] then
-      local client = link.client_for_player(p.index)
+      local client = link.client_for_player(p.index) or link.server_client()
       if not client then
         p.print(SETUP)
         return
