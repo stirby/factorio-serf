@@ -331,11 +331,45 @@ local function find_tiles(a, args)
 end
 
 -- Nearest entities/resources by name or type, searched outward up to max_radius.
+local entity_types
+local function is_entity_type(t)
+  if not entity_types then
+    entity_types = {}
+    for _, pr in pairs(prototypes.entity) do entity_types[pr.type] = true end
+  end
+  return entity_types[t] or false
+end
+
 function observe.find(a, args)
   if args.name == "water" or args.tile then return find_tiles(a, args) end
   local c = a.char
   local max_r = math.min(args.max_radius or 256, 1024)
   local filter = { name = args.name, type = args.type, force = args.force }
+  -- Forgive the usual slips: an item name (rail -> straight-rail), a type given as a name (tree), a near miss.
+  if args.name and not prototypes.entity[args.name] then
+    local item = prototypes.item[args.name]
+    if item and item.place_result then
+      filter.name = item.place_result.name
+    elseif is_entity_type(args.name) then
+      filter.name, filter.type = nil, args.name
+    else
+      local close = {}
+      local bits = args.name:gsub("%-", " ")
+      local junk = { explosion = true, corpse = true, ["rail-remnants"] = true, ["particle-source"] = true,
+        projectile = true, stream = true, sticker = true, fire = true, beam = true, ["smoke-with-trigger"] = true }
+      for name, pr in pairs(prototypes.entity) do
+        for w in bits:gmatch("%w+") do
+          if #w > 2 and not junk[pr.type] and name:find(w, 1, true) then close[#close + 1] = name break end
+        end
+        if #close >= 8 then break end
+      end
+      error("no entity called " .. args.name .. (#close > 0 and (" (did you mean " .. table.concat(close, ", ") .. "?)") or ""), 0)
+    end
+  end
+  if type(filter.type) == "string" and not is_entity_type(filter.type) then
+    error("no entity type " .. tostring(filter.type) .. " (types look like assembling-machine, furnace, mining-drill, "
+      .. "transport-belt, inserter, container, tree, resource)", 0)
+  end
   for _, r in ipairs { 32, 96, 256, 512, 1024 } do
     if r > max_r then r = max_r end
     filter.position, filter.radius = c.position, r

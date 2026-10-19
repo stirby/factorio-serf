@@ -90,6 +90,9 @@ return {plates_at_end = last and last.get_item_count('iron-plate') or -1, water_
     t[#t+1] = u.belt_to_ground_type .. '@' .. u.position.x .. '/' .. u.direction .. (u.neighbours and ' paired' or ' unpaired') end
     return table.concat(t, ' ') end)()}"""
 
+COUNT = """local c = storage.agents['t-place'].char
+return {belt = c.get_item_count('transport-belt'), fast = c.get_item_count('fast-transport-belt')}"""
+
 
 async def main(k: int) -> None:
     from instance import Instance
@@ -149,6 +152,27 @@ async def main(k: int) -> None:
         check(flow["plates_at_end"] > 0, f"plates put on the first belt reach the far end: {flow}")
         check(flow["water_at_end"] > 0, f"water put in the first pipe reaches the far end: {flow}")
         check(flow["crossing_intact"], f"the crossing belt was left alone: {flow}")
+
+        # Placing over what's there works like a player's click: rotate the same thing, upgrade within its family.
+        await link.call("eval", code="local c = storage.agents['t-place'].char c.insert{name='fast-transport-belt', count=5}")
+        bx, by = x + 15.5, uy - 5.5
+        await act({"op": "place", "name": "transport-belt", "x": bx, "y": by, "direction": "north"})
+        r8, = await act({"op": "place", "name": "transport-belt", "x": bx, "y": by, "direction": "east"})
+        check(r8["ok"] and "turned" in r8["msg"], f"same belt, other direction: rotated: {r8['msg']}")
+        before = (await link.call("eval", code=COUNT))["result"]
+        r9, = await act({"op": "place", "name": "fast-transport-belt", "x": bx, "y": by, "direction": "east"})
+        after = (await link.call("eval", code=COUNT))["result"]
+        check(r9["ok"] and "replaced" in r9["msg"], f"yellow -> red belt: fast-replaced: {r9['msg']}")
+        check(after["belt"] == before["belt"] + 1, f"the old belt went back to the inventory: {before} -> {after}")
+
+        # find forgives slips instead of throwing a game error.
+        f1 = await link.call("find", agent="t-place", name="tree")
+        check("found" in f1, f"find name=tree works as a type: {str(f1)[:80]}")
+        try:
+            await link.call("find", agent="t-place", name="iron-chets")
+            check(False, "a typo names close matches")
+        except Exception as e:
+            check("did you mean" in str(e) and "iron-chest" in str(e), f"a typo names close matches: {e}")
     print("ALL PASS" if not FAILS else f"{len(FAILS)} FAILED: {FAILS}")
     sys.exit(1 if FAILS else 0)
 

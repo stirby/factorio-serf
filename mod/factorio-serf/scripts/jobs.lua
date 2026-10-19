@@ -355,6 +355,24 @@ H.place = {
       name = job.entity, position = job.pos, direction = job.dir, force = c.force,
       build_check_type = defines.build_check_type.manual,
     }
+    -- Something already on this exact spot that a player would just click over: the same thing (done, or rotate it)
+    -- or the same family (yellow belt -> red, belt -> underground): fast-replace, the old one back to the inventory.
+    local proto = prototypes.entity[job.entity]
+    for _, e in pairs(surface.find_entities_filtered { position = job.pos, radius = 0.05, force = c.force }) do
+      if util.dist(e.position, job.pos) < 0.1 then
+        if e.name == job.entity and not (proto.type == "underground-belt" and args.type and e.belt_to_ground_type ~= args.type) then
+          if e.supports_direction and e.direction ~= job.dir and e.rotatable then
+            e.direction = job.dir
+            return ok("turned the " .. e.name .. " already at " .. xystr(e.position) .. " to face "
+              .. (util.DIR_NAMES[job.dir] or "?"), { entity = e.name, position = util.xy(e.position), rotated = true })
+          end
+          return ok(job.entity .. " is already at " .. xystr(e.position),
+            { entity = e.name, position = util.xy(e.position), unit_number = e.unit_number, already = true })
+        elseif proto.fast_replaceable_group and proto.fast_replaceable_group == e.prototype.fast_replaceable_group then
+          job.fast_replace = e.name
+        end
+      end
+    end
     if not surface.can_place_entity(spec) and prototypes.entity[job.entity].type == "offshore-pump" then
       -- Pumps only fit facing the water one way; try the others before giving up.
       for _, dn in ipairs { "north", "east", "south", "west" } do
@@ -442,6 +460,8 @@ H.place = {
     local created = surface.create_entity {
       name = job.entity, position = job.pos, direction = job.dir, force = c.force,
       raise_built = true, create_build_effect_smoke = false,
+      fast_replace = job.fast_replace and true or nil, character = job.fast_replace and c or nil,
+      spill = job.fast_replace and true or nil,
       -- underground belts: "input" is the entrance, "output" the exit; both face the travel direction
       type = (ptype == "underground-belt") and (args.type or "input") or nil,
     }
@@ -452,6 +472,7 @@ H.place = {
     local data = { entity = created.name, position = util.xy(created.position), unit_number = created.unit_number }
     local msg = "placed " .. created.name .. " at " .. xystr(created.position)
     if job.cleared then msg = msg .. " (cleared " .. job.cleared .. " trees/rocks first)" end
+    if job.fast_replace then msg = msg .. " (replaced the " .. job.fast_replace .. " there)" end
     if created.type == "mining-drill" then
       data.drops_at = util.xy(created.drop_position)
       msg = msg .. " (output drops at " .. xystr(created.drop_position) .. ")"
