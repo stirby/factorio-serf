@@ -28,6 +28,7 @@ import argparse
 import asyncio
 import atexit
 import json
+import os
 import logging
 import re
 import shutil
@@ -398,6 +399,8 @@ class Bench:
         (self.dir / "variant.json").write_text(json.dumps({"name": a.variant, **self.var}, indent=1))
         self.result.update(start=now_s(), t_start=time.time(), git=git_info())
         print(f"bench: run {self.run_id} on instance {a.instance} (stage {self.scn['stage']})", flush=True)
+        # Each run gets its own design library (the user's real one stays out of it, both ways).
+        os.environ["SERF_DESIGNS_DIR"] = str(self.dir / "designs")
         await asyncio.to_thread(self.inst.start, 240)
         orch = None
         rcon = Rcon(self.inst.host, self.inst.rcon_port, self.inst.password)
@@ -462,6 +465,11 @@ class Bench:
                 orch._snapshot = no_snapshot
                 self.orch = orch
                 await asyncio.wait_for(orch.start(), 180)
+                # Designs the player "taught" before the run: setup_lua returns learn = {name = blueprint string}.
+                for name, string in ((setup or {}).get("learn") or {}).items():
+                    await orch._serf_learn({"player": "ops", "designs": [{"name": name, "string": string}]})
+                if (setup or {}).get("learn"):
+                    self.result["learned"] = sorted(setup["learn"])
                 t0 = time.time()
                 self.result["t_agents_start"] = t0
                 await asyncio.sleep(1)
