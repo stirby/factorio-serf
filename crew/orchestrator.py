@@ -234,7 +234,8 @@ class Orchestrator:
         ui.human(player, text)
         fm = self.foreman_brain
         r = route(self._alias(player, text), list(self.agents) + ([fm.name] if fm else []), self.foreman)
-        line = f'{player} (at {msg.get("position")}): "{text}"'
+        at = f" (at {msg['position']})" if msg.get("position") else ""
+        line = f'{player}{at}: "{text}"'
         if fm and r.targets and not r.stop and not r.direct and set(r.targets) >= set(self.agents):
             # "@all fix our iron" / "bots, ...": a crew-wide order goes to the lead, who assigns it; workers see it.
             r.targets = {fm.name}
