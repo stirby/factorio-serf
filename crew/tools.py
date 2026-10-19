@@ -44,7 +44,7 @@ Ops and their fields:
   mine        name=<iron-ore|coal|stone|copper-ore|tree|rock|entity name> count=N   (nearest; ore count = items)
               or x,y to mine that one thing (pick up a building: add force_pickup=true only if a human asked)
   craft       recipe count [wait=false to queue and move on]   hand-craft (intermediates are crafted automatically)
-  place       name x y [direction=north|east|south|west]        build from inventory. Inserters: give
+  place       name x y [direction=north|east|south|west]        build from inventory (clears trees/rocks in the way itself). Inserters: give
               pickup=[x,y] (the tile it takes from) or drop=[x,y] instead of a direction; that's always right
               underground-belt: place the entrance with type=input and the exit with type=output, both facing
               the direction items travel (max 4 tiles between them for yellow); the result says if they paired

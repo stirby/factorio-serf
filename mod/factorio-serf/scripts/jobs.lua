@@ -334,6 +334,23 @@ H.place = {
     if type(near) == "table" then return near end
 
     local surface = c.surface
+    if job.clearing then
+      if game.tick < job.clearing.done_at then return nil end
+      local inv, n = c.get_main_inventory(), 0
+      for _, e in pairs(job.clearing.list) do
+        if e.valid then
+          local name = e.name
+          if not e.mine { inventory = inv, force = false, raise_destroyed = true } then
+            job.clearing = nil
+            return fail("inventory full while clearing " .. name .. " at " .. xystr(e.position) .. " to place "
+              .. job.entity)
+          end
+          n = n + 1
+          triggers.note(c.force, surface, "mine-entity", name, 1)
+        end
+      end
+      job.clearing, job.cleared = nil, (job.cleared or 0) + n
+    end
     local spec = {
       name = job.entity, position = job.pos, direction = job.dir, force = c.force,
       build_check_type = defines.build_check_type.manual,
@@ -371,9 +388,40 @@ H.place = {
         if surface.can_place_entity(spec) then goto place end
       end
       local blockers = {}
-      local found = surface.find_entities_filtered {
-        area = { { job.pos.x - half, job.pos.y - half }, { job.pos.x + half, job.pos.y + half } },
+      local area = { { job.pos.x - half, job.pos.y - half }, { job.pos.x + half, job.pos.y + half } }
+      local found = surface.find_entities_filtered { area = area }
+      for _, e in pairs(found) do
+        if e.name == job.entity and util.dist(e.position, job.pos) < 0.1 then
+          -- Already built (by us earlier, a teammate or a bot): that's the outcome asked for.
+          local note = (e.supports_direction and e.direction ~= job.dir)
+            and (", facing " .. (util.DIR_NAMES[e.direction] or "?") .. "; rotate it if that's wrong") or ""
+          return ok(job.entity .. " is already at " .. xystr(e.position) .. note,
+            { entity = e.name, position = util.xy(e.position), unit_number = e.unit_number, already = true })
+        end
+      end
+      -- Trees, rocks and items on the ground: clear them like a player would (mining time, products to the
+      -- inventory), then place. Search a little wider: a tree's center can sit outside the footprint.
+      local clutter = surface.find_entities_filtered {
+        area = { { area[1][1] - 0.6, area[1][2] - 0.6 }, { area[2][1] + 0.6, area[2][2] + 0.6 } },
+        type = { "tree", "simple-entity", "item-entity" },
       }
+      local others = 0
+      for _, e in pairs(found) do
+        if e.type ~= "resource" and e.type ~= "tree" and e.type ~= "simple-entity" and e.type ~= "item-entity" then
+          others = others + 1
+        end
+      end
+      if #clutter > 0 and others == 0 and (job.clears or 0) < 3 then
+        job.clears = (job.clears or 0) + 1
+        local speed = c.prototype.mining_speed * (1 + c.force.manual_mining_speed_modifier
+          + (c.character_mining_speed_modifier or 0))
+        local secs = 0
+        for _, e in pairs(clutter) do
+          if e.valid and e.minable then secs = secs + (e.prototype.mineable_properties.mining_time or 0.5) / speed end
+        end
+        job.clearing = { list = clutter, done_at = game.tick + (util.cheat() and 0 or math.ceil(secs * 60)) }
+        return nil
+      end
       for _, e in pairs(found) do
         if e.type ~= "resource" then blockers[#blockers + 1] = e.name .. "@" .. xystr(e.position) end
       end
@@ -403,6 +451,7 @@ H.place = {
     triggers.note(c.force, surface, "build-entity", created.name, 1)
     local data = { entity = created.name, position = util.xy(created.position), unit_number = created.unit_number }
     local msg = "placed " .. created.name .. " at " .. xystr(created.position)
+    if job.cleared then msg = msg .. " (cleared " .. job.cleared .. " trees/rocks first)" end
     if created.type == "mining-drill" then
       data.drops_at = util.xy(created.drop_position)
       msg = msg .. " (output drops at " .. xystr(created.drop_position) .. ")"
