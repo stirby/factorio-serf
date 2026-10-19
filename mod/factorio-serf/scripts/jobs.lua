@@ -589,6 +589,13 @@ H.take = {
           hint = "; no chest or machine output within 300 tiles has any"
         end
       end
+      local holds = {}
+      for i = 1, e.get_max_inventory_index() do
+        for name, n in pairs(util.contents(e.get_inventory(i))) do
+          if #holds < 6 then holds[#holds + 1] = n .. " " .. name end
+        end
+      end
+      hint = " (it holds " .. (#holds > 0 and table.concat(holds, ", ") or "nothing") .. ")" .. hint
       return fail("nothing to take from " .. e.name .. (args.item and (" (" .. args.item .. ")") or "") .. hint)
     end
     local parts = {}
