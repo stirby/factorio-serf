@@ -1,0 +1,1 @@
+- Never mine existing belts for materials; empty belts may still be in use. Get plates from furnaces instead.

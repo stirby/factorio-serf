@@ -686,32 +686,38 @@ class Bench:
             self.result["interrupted"] = True
 
     async def _debrief(self, orch, crew: Crew, names: list[str]) -> list[str]:
-        """The same questions after every run (overnight loop): what took the time, what was missing. Its answer in
-        chat is the data; a human sorts it in the morning (most complaints are wrong, some are the best leads)."""
-        said: list[str] = []
-        orig = orch.agent_said
+        """The same questions after every run (overnight loop): what took the time, what was missing. Its answer is
+        the data; a human sorts it in the morning (most complaints are wrong, some are the best leads). Read from
+        the transcript (the reply to the debrief prompt), not from chat: a turn still running when the question
+        arrives says its own last words first, and chat capture missed 156 of 378 debriefs on 2026-10-19."""
+        tp = self.state / "agents" / names[0] / "transcript.jsonl"
 
-        def hook(speaker: str, text: str) -> None:
-            orig(speaker, text)
-            said.append(text)
-        orch.agent_said = hook
+        def answer() -> list[str] | None:
+            rows = [json.loads(l) for l in tp.read_text().splitlines() if l.strip()] if tp.exists() else []
+            # the question arrives as a turn's prompt, or inside a tool result when a turn is still running
+            asked = [i for i, r in enumerate(rows)
+                     if r["kind"] in ("prompt", "result") and "Time's up" in str(r.get("text") or r.get("out") or "")]
+            said: list[str] = []  # a debrief sent with `say` ends in a reply like "posted it in chat"
+            for r in rows[asked[-1] + 1:] if asked else []:
+                if r["kind"] == "tool" and r["name"] == "say":
+                    said.append(str((r.get("args") or {}).get("message") or (r.get("args") or {}).get("text") or ""))
+                if r["kind"] == "thought" and r.get("text"):
+                    return [l for l in "\n".join(said + [r["text"]]).splitlines() if l.strip()]
+            return None
         try:
             await crew.call("chat", player="ops", message=(
                 f"@{names[0]} Time's up, stop building. Debrief in chat only, no actions, 3-6 short lines: what took "
                 "the most time, what you were missing (a tool, info, an item), what failed or confused you, and "
                 "what you'd do differently next time."))
-            t0, started = time.time(), False
-            while time.time() - t0 < 150 and not self.stop_evt.is_set():
-                busy = any(getattr(x, "in_turn", False) for x in orch.agents.values())
-                started = started or busy
-                if started and not busy and said:
-                    break
-                await asyncio.sleep(1)
+            t0 = time.time()
+            while time.time() - t0 < 240 and not self.stop_evt.is_set():
+                got = answer()
+                if got:
+                    return got
+                await asyncio.sleep(2)
         except Exception as e:  # noqa: BLE001
             self._err("debrief", e)
-        finally:
-            orch.agent_said = orig
-        return said
+        return []
 
     async def _drain(self, orch) -> float:
         """After scoring, let in-flight turns finish (up to --drain seconds) so their cost gets recorded.

@@ -31,6 +31,9 @@ The user asked for:
 4. An indexed list of proposed core improvements, each with its data and the expected effect.
 5. What the serfs built: scripts and playbooks worth promoting into the core, and junk.
 
+Every morning also write `nights/<night>/requests.md`: the serfs' requests from debriefs and friction notes,
+clustered, counted, quoted, and sorted (rendered right under the review).
+
 Sort the serfs' complaints (debriefs, friction) before believing them: a request for a do-everything function
 belongs in their own layer; a misconception needs a playbook or a better tool message; real friction is a core
 proposal. Most complaints are wrong; a few are the best leads (from the RuneScape Bench talk,

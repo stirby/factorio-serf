@@ -1,0 +1,27 @@
+{
+ "name": "my-smelter",
+ "description": "My smelter: taught by ops. Contains 24 transport-belt, 12 inserter, 6 small-electric-pole, 6 stone-furnace",
+ "size": [
+  12,
+  6
+ ],
+ "needs": {
+  "transport-belt": 24,
+  "inserter": 12,
+  "small-electric-pole": 6,
+  "stone-furnace": 6
+ },
+ "contents": {
+  "transport-belt": 24,
+  "inserter": 12,
+  "small-electric-pole": 6,
+  "stone-furnace": 6
+ },
+ "string": "0eNqdl92OmzAQhV+l8rWzAvyfd9gnWK0qknUrS2AicNpGEe/eAdRmW2GYyQ0YY38+lubA8Z2dmqu/9CEmdryzcO7iwI5vdzaE77Fupr5Yt54dWerrOFy6Ph1Ovkls5CzED/+LHcuRrwwfUhf94du1j/XZfxpdje+c+ZhCCn5ZaX64fY3X9uR7wPHMipxdugGmdXFaBlCyfFGc3WDKi4IFPkLvz8trOUn6j1vhuYLCFXhuReFKPFdRuArPlRSuxnMNhWvwXE3hWjzXUbgOz7UUblmgwYpkjBLvOFWQwHjLKZI1yofnQhx8n6Az/3UA9LgGeRhsaOumOfgG1uzD+XDpGr/h3hxPYUSJHYjGQNQOxBB3pnd4FiPK7EAcBuK2IVVB29nfes3xSoQotVNIVUWpRpWBiCerMceTlGrMQR4l/e/vfEXOzJGrFFJN56QYtBS5IcU+6YycKkdxRgYiCvTWdH5roqT4KyelQkuxG1LEky7NqZIUl+Yg6FpWxcbWNJqy4Qhh6BlXo7KopYdcHNjRUy4KLAt6zMWBS3rOxYEretDFgQU96eLAkh51cWBFz7o4sKZnXRzY0LMuDmzpWXcFDGfjn/A8HYzfIKAqDrlAvfOlDblubpup335qF3N7unGxjJ+m/Rkz3ZZ+oIfkW9D4OPRz1tSgE/peb1+GFhTPX9cfvh9mTUpXTjqnrNQGLuP4G9odQFI=",
+ "learned": {
+  "by": "ops",
+  "book": null,
+  "at": "2026-10-20 05:27"
+ },
+ "uses": 2
+}

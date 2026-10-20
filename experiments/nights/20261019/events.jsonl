@@ -1,0 +1,36 @@
+{"t": 1792469018.3365083, "at": "23:03:38", "event": "night_start", "suite": "/home/stephen/dev/factorio-slave/experiments/suites/night.json", "until": "07:30", "parallel": 6, "budget": 250.0}
+{"t": 1792469018.3368113, "at": "23:03:38", "event": "phase_start", "phase": "holdout-before", "cycle": null, "jobs": 4}
+{"t": 1792469482.5716715, "at": "23:11:22", "event": "phase_end", "phase": "holdout-before", "cycle": null, "runs": 4, "success": 4, "spent": 1.3, "minutes": 7.7, "usage_limited": 0}
+{"t": 1792469482.5720198, "at": "23:11:22", "event": "phase_start", "phase": "train-1", "cycle": 1, "jobs": 24}
+{"t": 1792470655.88901, "at": "23:30:55", "event": "phase_end", "phase": "train-1", "cycle": 1, "runs": 24, "success": 24, "spent": 6.92, "minutes": 19.6, "usage_limited": 0}
+{"t": 1792470655.8916607, "at": "23:30:55", "event": "phase_start", "phase": "train-2", "cycle": 2, "jobs": 24}
+{"t": 1792472066.5162003, "at": "23:54:26", "event": "phase_end", "phase": "train-2", "cycle": 2, "runs": 24, "success": 23, "spent": 13.32, "minutes": 23.5, "usage_limited": 0}
+{"t": 1792472066.5191867, "at": "23:54:26", "event": "phase_start", "phase": "train-3", "cycle": 3, "jobs": 26}
+{"t": 1792475663.3445363, "at": "00:54:23", "event": "phase_end", "phase": "train-3", "cycle": 3, "runs": 26, "success": 23, "spent": 28.49, "minutes": 59.9, "usage_limited": 0}
+{"t": 1792475663.3467906, "at": "00:54:23", "event": "phase_start", "phase": "train-4", "cycle": 4, "jobs": 24}
+{"t": 1792476942.605781, "at": "01:15:42", "event": "phase_end", "phase": "train-4", "cycle": 4, "runs": 24, "success": 24, "spent": 33.54, "minutes": 21.3, "usage_limited": 0}
+{"t": 1792476942.608758, "at": "01:15:42", "event": "phase_start", "phase": "train-5", "cycle": 5, "jobs": 24}
+{"t": 1792478259.427855, "at": "01:37:39", "event": "phase_end", "phase": "train-5", "cycle": 5, "runs": 24, "success": 23, "spent": 39.31, "minutes": 21.9, "usage_limited": 0}
+{"t": 1792478259.4304163, "at": "01:37:39", "event": "phase_start", "phase": "train-6", "cycle": 6, "jobs": 26}
+{"t": 1792479986.9321504, "at": "02:06:26", "event": "phase_end", "phase": "train-6", "cycle": 6, "runs": 26, "success": 26, "spent": 48.92, "minutes": 28.8, "usage_limited": 0}
+{"t": 1792479986.934776, "at": "02:06:26", "event": "phase_start", "phase": "train-7", "cycle": 7, "jobs": 24}
+{"t": 1792481154.9708192, "at": "02:25:54", "event": "phase_end", "phase": "train-7", "cycle": 7, "runs": 24, "success": 24, "spent": 53.84, "minutes": 19.5, "usage_limited": 0}
+{"t": 1792481154.9734607, "at": "02:25:54", "event": "phase_start", "phase": "train-8", "cycle": 8, "jobs": 24}
+{"t": 1792482363.9812944, "at": "02:46:03", "event": "phase_end", "phase": "train-8", "cycle": 8, "runs": 24, "success": 24, "spent": 59.58, "minutes": 20.2, "usage_limited": 0}
+{"t": 1792482363.9842124, "at": "02:46:03", "event": "phase_start", "phase": "train-9", "cycle": 9, "jobs": 26}
+{"t": 1792485543.3164935, "at": "03:39:03", "event": "phase_end", "phase": "train-9", "cycle": 9, "runs": 26, "success": 24, "spent": 73.9, "minutes": 53.0, "usage_limited": 0}
+{"t": 1792485543.3189194, "at": "03:39:03", "event": "phase_start", "phase": "train-10", "cycle": 10, "jobs": 24}
+{"t": 1792487079.6528747, "at": "04:04:39", "event": "phase_end", "phase": "train-10", "cycle": 10, "runs": 24, "success": 24, "spent": 78.85, "minutes": 25.6, "usage_limited": 0}
+{"t": 1792487079.6555603, "at": "04:04:39", "event": "phase_start", "phase": "train-11", "cycle": 11, "jobs": 24}
+{"t": 1792488440.9045606, "at": "04:27:20", "event": "phase_end", "phase": "train-11", "cycle": 11, "runs": 24, "success": 24, "spent": 84.75, "minutes": 22.7, "usage_limited": 0}
+{"t": 1792488440.907558, "at": "04:27:20", "event": "phase_start", "phase": "train-12", "cycle": 12, "jobs": 26}
+{"t": 1792490809.0032048, "at": "05:06:49", "event": "phase_end", "phase": "train-12", "cycle": 12, "runs": 26, "success": 24, "spent": 96.61, "minutes": 39.5, "usage_limited": 0}
+{"t": 1792490809.005741, "at": "05:06:49", "event": "phase_start", "phase": "train-13", "cycle": 13, "jobs": 24}
+{"t": 1792492318.631787, "at": "05:31:58", "event": "phase_end", "phase": "train-13", "cycle": 13, "runs": 24, "success": 24, "spent": 102.07, "minutes": 25.2, "usage_limited": 0}
+{"t": 1792492318.634319, "at": "05:31:58", "event": "phase_start", "phase": "train-14", "cycle": 14, "jobs": 24}
+{"t": 1792493799.4962232, "at": "05:56:39", "event": "phase_end", "phase": "train-14", "cycle": 14, "runs": 24, "success": 24, "spent": 107.43, "minutes": 24.7, "usage_limited": 0}
+{"t": 1792493799.4989192, "at": "05:56:39", "event": "phase_start", "phase": "train-15", "cycle": 15, "jobs": 26}
+{"t": 1792495220.6946633, "at": "06:20:20", "event": "phase_end", "phase": "train-15", "cycle": 15, "runs": 26, "success": 25, "spent": 114.15, "minutes": 23.7, "usage_limited": 0}
+{"t": 1792495220.697486, "at": "06:20:20", "event": "phase_start", "phase": "holdout-after", "cycle": null, "jobs": 4}
+{"t": 1792495565.3509896, "at": "06:26:05", "event": "phase_end", "phase": "holdout-after", "cycle": null, "runs": 4, "success": 4, "spent": 114.87, "minutes": 5.7, "usage_limited": 0}
+{"t": 1792495565.3510904, "at": "06:26:05", "event": "night_end", "spent": 114.87}

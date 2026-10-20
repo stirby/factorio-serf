@@ -1,0 +1,78 @@
+[matrix] start 20261020-042720-d2-science-steps-sonnet-i1 (instance 1)
+[matrix] start 20261020-042720-d2-science-steps-sonnet-i2 (instance 2)
+[matrix] start 20261020-042720-t-belt-ore-sonnet-i3 (instance 3)
+[matrix] start 20261020-042720-t-belt-ore-sonnet-i4 (instance 4)
+[matrix] start 20261020-042720-t-power-line-sonnet-i5 (instance 5)
+[matrix] start 20261020-042720-t-power-line-sonnet-i6 (instance 6)
+[matrix] done 20261020-042720-t-belt-ore-sonnet-i4: score 1.0 cost 0.2695 rc 0
+[matrix] start 20261020-043134-t-cross-bus-sonnet-i4 (instance 4)
+[matrix] done 20261020-042720-t-power-line-sonnet-i6: score 1.0 cost 0.1196 rc 0
+[matrix] start 20261020-043158-t-cross-bus-sonnet-i6 (instance 6)
+[matrix] done 20261020-042720-t-power-line-sonnet-i5: score 1.0 cost 0.1429 rc 0
+[matrix] start 20261020-043459-t-smelter-column-sonnet-i5 (instance 5)
+[matrix] done 20261020-042720-t-belt-ore-sonnet-i3: score 1.0 cost 0.2337 rc 0
+[matrix] start 20261020-043459-t-smelter-column-sonnet-i3 (instance 3)
+[matrix] done 20261020-043134-t-cross-bus-sonnet-i4: score 1.0 cost 0.1973 rc 0
+[matrix] start 20261020-043559-t-gear-cell-sonnet-i4 (instance 4)
+[matrix] done 20261020-043158-t-cross-bus-sonnet-i6: score 1.0 cost 0.1558 rc 0
+[matrix] start 20261020-043735-t-gear-cell-sonnet-i6 (instance 6)
+[matrix] done 20261020-043459-t-smelter-column-sonnet-i3: score 1.0 cost 0.2706 rc 0
+[matrix] start 20261020-043822-t-red-block-sonnet-i3 (instance 3)
+[matrix] done 20261020-043559-t-gear-cell-sonnet-i4: score 1.0 cost 0.297 rc 0
+[matrix] start 20261020-044213-t-red-block-sonnet-i4 (instance 4)
+[matrix] done 20261020-043735-t-gear-cell-sonnet-i6: score 1.0 cost 0.2325 rc 0
+[matrix] start 20261020-044312-t-inserter-mall-sonnet-i6 (instance 6)
+[matrix] done 20261020-043822-t-red-block-sonnet-i3: score 1.0 cost 0.2739 rc 0
+[matrix] start 20261020-044459-t-inserter-mall-sonnet-i3 (instance 3)
+[matrix] done 20261020-043459-t-smelter-column-sonnet-i5: score 0.2879 cost 0.4574 rc 0
+[matrix] start 20261020-044723-t-steel-sonnet-i5 (instance 5)
+[matrix] done 20261020-044312-t-inserter-mall-sonnet-i6: score 1.0 cost 0.1284 rc 0
+[matrix] start 20261020-044748-t-steel-sonnet-i6 (instance 6)
+[matrix] done 20261020-044213-t-red-block-sonnet-i4: score 1.0 cost 0.4062 rc 0
+[matrix] start 20261020-044805-t-starved-sonnet-i4 (instance 4)
+[matrix] done 20261020-044459-t-inserter-mall-sonnet-i3: score 1.0 cost 0.1379 rc 0
+[matrix] start 20261020-044941-t-starved-sonnet-i3 (instance 3)
+[matrix] done 20261020-044941-t-starved-sonnet-i3: score 1.0 cost 0.2317 rc 0
+[matrix] start 20261020-045226-t-brownout-sonnet-i3 (instance 3)
+[matrix] done 20261020-044723-t-steel-sonnet-i5: score 1.0 cost 0.2032 rc 0
+[matrix] start 20261020-045338-t-brownout-sonnet-i5 (instance 5)
+[matrix] done 20261020-044805-t-starved-sonnet-i4: score 1.0 cost 0.2236 rc 0
+[matrix] start 20261020-045412-t-deliver-sonnet-i4 (instance 4)
+[matrix] done 20261020-044748-t-steel-sonnet-i6: score 1.0 cost 0.2746 rc 0
+[matrix] start 20261020-045726-t-deliver-sonnet-i6 (instance 6)
+[matrix] done 20261020-045412-t-deliver-sonnet-i4: score 1.0 cost 0.1663 rc 0
+[matrix] start 20261020-045850-d4-library-sonnet-i4 (instance 4)
+[matrix] done 20261020-045226-t-brownout-sonnet-i3: score 1.0 cost 0.4527 rc 0
+[matrix] start 20261020-045917-d4-library-sonnet-i3 (instance 3)
+[matrix] done 20261020-045338-t-brownout-sonnet-i5: score 1.0 cost 0.2174 rc 0
+[matrix] done 20261020-045850-d4-library-sonnet-i4: score 1.0 cost 0.0921 rc 0
+[matrix] done 20261020-045726-t-deliver-sonnet-i6: score 1.0 cost 0.1137 rc 0
+[matrix] done 20261020-045917-d4-library-sonnet-i3: score 1.0 cost 0.0947 rc 0
+[matrix] done 20261020-042720-d2-science-steps-sonnet-i2: score 1.0 cost 3.5301 rc 0
+[matrix] done 20261020-042720-d2-science-steps-sonnet-i1: score 0.8438 cost 2.933 rc 0
+{"run_id": "20261020-042720-d2-science-steps-sonnet-i1", "score": 0.8438, "success": false, "cost_usd": 2.933, "errors": []}
+{"run_id": "20261020-042720-d2-science-steps-sonnet-i2", "score": 1.0, "success": true, "cost_usd": 3.5301, "errors": []}
+{"run_id": "20261020-042720-t-belt-ore-sonnet-i3", "score": 1.0, "success": true, "cost_usd": 0.2337, "errors": []}
+{"run_id": "20261020-042720-t-belt-ore-sonnet-i4", "score": 1.0, "success": true, "cost_usd": 0.2695, "errors": []}
+{"run_id": "20261020-042720-t-power-line-sonnet-i5", "score": 1.0, "success": true, "cost_usd": 0.1429, "errors": []}
+{"run_id": "20261020-042720-t-power-line-sonnet-i6", "score": 1.0, "success": true, "cost_usd": 0.1196, "errors": []}
+{"run_id": "20261020-043134-t-cross-bus-sonnet-i4", "score": 1.0, "success": true, "cost_usd": 0.1973, "errors": []}
+{"run_id": "20261020-043158-t-cross-bus-sonnet-i6", "score": 1.0, "success": true, "cost_usd": 0.1558, "errors": []}
+{"run_id": "20261020-043459-t-smelter-column-sonnet-i5", "score": 0.2879, "success": false, "cost_usd": 0.4574, "errors": []}
+{"run_id": "20261020-043459-t-smelter-column-sonnet-i3", "score": 1.0, "success": true, "cost_usd": 0.2706, "errors": []}
+{"run_id": "20261020-043559-t-gear-cell-sonnet-i4", "score": 1.0, "success": true, "cost_usd": 0.297, "errors": []}
+{"run_id": "20261020-043735-t-gear-cell-sonnet-i6", "score": 1.0, "success": true, "cost_usd": 0.2325, "errors": []}
+{"run_id": "20261020-043822-t-red-block-sonnet-i3", "score": 1.0, "success": true, "cost_usd": 0.2739, "errors": []}
+{"run_id": "20261020-044213-t-red-block-sonnet-i4", "score": 1.0, "success": true, "cost_usd": 0.4062, "errors": []}
+{"run_id": "20261020-044312-t-inserter-mall-sonnet-i6", "score": 1.0, "success": true, "cost_usd": 0.1284, "errors": []}
+{"run_id": "20261020-044459-t-inserter-mall-sonnet-i3", "score": 1.0, "success": true, "cost_usd": 0.1379, "errors": []}
+{"run_id": "20261020-044723-t-steel-sonnet-i5", "score": 1.0, "success": true, "cost_usd": 0.2032, "errors": []}
+{"run_id": "20261020-044748-t-steel-sonnet-i6", "score": 1.0, "success": true, "cost_usd": 0.2746, "errors": []}
+{"run_id": "20261020-044805-t-starved-sonnet-i4", "score": 1.0, "success": true, "cost_usd": 0.2236, "errors": []}
+{"run_id": "20261020-044941-t-starved-sonnet-i3", "score": 1.0, "success": true, "cost_usd": 0.2317, "errors": []}
+{"run_id": "20261020-045226-t-brownout-sonnet-i3", "score": 1.0, "success": true, "cost_usd": 0.4527, "errors": []}
+{"run_id": "20261020-045338-t-brownout-sonnet-i5", "score": 1.0, "success": true, "cost_usd": 0.2174, "errors": []}
+{"run_id": "20261020-045412-t-deliver-sonnet-i4", "score": 1.0, "success": true, "cost_usd": 0.1663, "errors": []}
+{"run_id": "20261020-045726-t-deliver-sonnet-i6", "score": 1.0, "success": true, "cost_usd": 0.1137, "errors": []}
+{"run_id": "20261020-045850-d4-library-sonnet-i4", "score": 1.0, "success": true, "cost_usd": 0.0921, "errors": []}
+{"run_id": "20261020-045917-d4-library-sonnet-i3", "score": 1.0, "success": true, "cost_usd": 0.0947, "errors": []}

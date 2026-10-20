@@ -1,0 +1,12 @@
+[matrix] start 20261019-230338-t-coal-boilers-sonnet-i1 (instance 1)
+[matrix] start 20261019-230338-t-circuit-sonnet-i2 (instance 2)
+[matrix] start 20261019-230338-t-backed-up-sonnet-i3 (instance 3)
+[matrix] start 20261019-230338-t-stamp-book-sonnet-i4 (instance 4)
+[matrix] done 20261019-230338-t-stamp-book-sonnet-i4: score 1.0 cost 0.1778 rc 0
+[matrix] done 20261019-230338-t-backed-up-sonnet-i3: score 1.0 cost 0.4136 rc 0
+[matrix] done 20261019-230338-t-coal-boilers-sonnet-i1: score 1.0 cost 0.3097 rc 0
+[matrix] done 20261019-230338-t-circuit-sonnet-i2: score 1.0 cost 0.4007 rc 0
+{"run_id": "20261019-230338-t-coal-boilers-sonnet-i1", "score": 1.0, "success": true, "cost_usd": 0.3097, "errors": []}
+{"run_id": "20261019-230338-t-circuit-sonnet-i2", "score": 1.0, "success": true, "cost_usd": 0.4007, "errors": []}
+{"run_id": "20261019-230338-t-backed-up-sonnet-i3", "score": 1.0, "success": true, "cost_usd": 0.4136, "errors": []}
+{"run_id": "20261019-230338-t-stamp-book-sonnet-i4", "score": 1.0, "success": true, "cost_usd": 0.1778, "errors": []}

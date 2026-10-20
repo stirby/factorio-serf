@@ -1,0 +1,29 @@
+{
+ "name": "gear-cell",
+ "description": "Gear cell: taught by ops. Contains 8 transport-belt, 4 inserter, 2 small-electric-pole, 2 assembling-machine-1, 2 iron-chest",
+ "size": [
+  8,
+  7
+ ],
+ "needs": {
+  "iron-chest": 2,
+  "transport-belt": 8,
+  "inserter": 4,
+  "small-electric-pole": 2,
+  "assembling-machine-1": 2
+ },
+ "contents": {
+  "transport-belt": 8,
+  "inserter": 4,
+  "small-electric-pole": 2,
+  "assembling-machine-1": 2,
+  "iron-chest": 2
+ },
+ "string": "0eNqtlW1ugzAMhq8y+TdUhRK+LrBDVFUVqNVGCoEl6bqq4u4zVGvRBFUy7Q8STvL4tWPHN6jkGTstlIXyBqJulYFyewMjjorLwaZ4g1ACNwabSgp1DBten4TCMII+AKEO+AVl1Aczh6zmynSttmGF0k62x/0uAFRWWIF3h+PPda/OTYWaeMECI4CuNXSsVYOfwTNbsQCuUIYsXzFycRAa6/uGZFD1ixy7kzM/8sadnPqRE3dy4Udm7uTcj5w6k+PIj5y5k9d+5NydHPuRiwdZKIPaku1VVVDl9TOUaP3AmIZLGaIkp1rUYddKfHlnS8TIQdgkjUuYZ1fNPhSvYmVj/ih7ohtl6FaFR+Q6vJwQJfws7T/OXJJP2qJaTdHDnI6Np45JaP+q49mxI6c+oXn9DsQLiWV+hbNZwKR/LpwlYuYU4SS/SxHmfhU46qHpcaGGG0bHlpqCBRQg25FVWGyI9JxqAUhOLUy2d7rLtxrlcJWfqM1IZ2lcJEXB8iTN6NP33zsTSqc=",
+ "learned": {
+  "by": "ops",
+  "book": null,
+  "at": "2026-10-20 06:20"
+ },
+ "uses": 0
+}

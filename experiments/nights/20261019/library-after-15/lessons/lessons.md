@@ -1,0 +1,4 @@
+- Never mine existing belts for materials; empty belts may still be in use. Get plates from furnaces instead.
+- Burner drill+furnace smelter arrays need manual coal; hand-fueling lasts minutes, so propose electric drills or a coal belt as the real fix.
+- Ghosts in a roboport network get built by robots within seconds: paste/blueprint only when the position is verified, since misplaced ghosts become real entities.
+- When a belt line is full up to an underground and empty after it, check the underground pairing (replace the exit with type=output).

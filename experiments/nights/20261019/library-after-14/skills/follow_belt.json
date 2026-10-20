@@ -1,0 +1,16 @@
+{
+ "name": "follow_belt",
+ "kind": "script",
+ "doc": "Follow a belt from x,y; jumps 40/10 tiles when the belt there has same dir, else single step. Rerun from returned position.",
+ "author": "serf",
+ "run": "20261020-024604-f1-feldspar-iron-sonnet-i2",
+ "code": "dx = {\"north\": 0, \"south\": 0, \"east\": 1, \"west\": -1}\ndy = {\"north\": -1, \"south\": 1, \"east\": 0, \"west\": 0}\ncx = x\ncy = y\ni = 0\nd = \"\"\nlast = \"\"\ncalls = 0\nwhile calls < 52:\n    r = parse(inspect(x=cx, y=cy, radius=0.4))\n    calls = calls + 1\n    found = 0\n    for e in r[\"entities\"]:\n        if e[\"type\"] == \"transport-belt\" or e[\"type\"] == \"underground-belt\" or e[\"type\"] == \"splitter\":\n            d = e[\"dir\"]\n            found = 1\n            last = e[\"type\"] + \" \" + d\n    if found == 0:\n        return \"lost at \" + str(cx) + \",\" + str(cy) + \" last \" + last\n    moved = 0\n    for k in [40, 10]:\n        if moved == 0 and calls < 50:\n            jx = cx + dx[d] * k\n            jy = cy + dy[d] * k\n            r2 = parse(inspect(x=jx, y=jy, radius=0.4))\n            calls = calls + 1\n            for e in r2[\"entities\"]:\n                if e[\"type\"] == \"transport-belt\" and e[\"dir\"] == d and moved == 0:\n                    cx = jx\n                    cy = jy\n                    moved = 1\n    if moved == 0:\n        cx = cx + dx[d]\n        cy = cy + dy[d]\nreturn \"at \" + str(cx) + \",\" + str(cy) + \" dir \" + d",
+ "params": [
+  "x",
+  "y",
+  "n"
+ ],
+ "version": 3,
+ "created": "2026-10-20 02:57:33",
+ "updated": "2026-10-20 02:57:59"
+}

@@ -1,0 +1,36 @@
+[night 23:03:38] night_start {"suite": "/home/stephen/dev/factorio-slave/experiments/suites/night.json", "until": "07:30", "parallel": 6, "budget": 250.0}
+[night 23:03:38] phase_start {"phase": "holdout-before", "cycle": null, "jobs": 4}
+[night 23:11:22] phase_end {"phase": "holdout-before", "cycle": null, "runs": 4, "success": 4, "spent": 1.3, "minutes": 7.7, "usage_limited": 0}
+[night 23:11:22] phase_start {"phase": "train-1", "cycle": 1, "jobs": 24}
+[night 23:30:55] phase_end {"phase": "train-1", "cycle": 1, "runs": 24, "success": 24, "spent": 6.92, "minutes": 19.6, "usage_limited": 0}
+[night 23:30:55] phase_start {"phase": "train-2", "cycle": 2, "jobs": 24}
+[night 23:54:26] phase_end {"phase": "train-2", "cycle": 2, "runs": 24, "success": 23, "spent": 13.32, "minutes": 23.5, "usage_limited": 0}
+[night 23:54:26] phase_start {"phase": "train-3", "cycle": 3, "jobs": 26}
+[night 00:54:23] phase_end {"phase": "train-3", "cycle": 3, "runs": 26, "success": 23, "spent": 28.49, "minutes": 59.9, "usage_limited": 0}
+[night 00:54:23] phase_start {"phase": "train-4", "cycle": 4, "jobs": 24}
+[night 01:15:42] phase_end {"phase": "train-4", "cycle": 4, "runs": 24, "success": 24, "spent": 33.54, "minutes": 21.3, "usage_limited": 0}
+[night 01:15:42] phase_start {"phase": "train-5", "cycle": 5, "jobs": 24}
+[night 01:37:39] phase_end {"phase": "train-5", "cycle": 5, "runs": 24, "success": 23, "spent": 39.31, "minutes": 21.9, "usage_limited": 0}
+[night 01:37:39] phase_start {"phase": "train-6", "cycle": 6, "jobs": 26}
+[night 02:06:26] phase_end {"phase": "train-6", "cycle": 6, "runs": 26, "success": 26, "spent": 48.92, "minutes": 28.8, "usage_limited": 0}
+[night 02:06:26] phase_start {"phase": "train-7", "cycle": 7, "jobs": 24}
+[night 02:25:54] phase_end {"phase": "train-7", "cycle": 7, "runs": 24, "success": 24, "spent": 53.84, "minutes": 19.5, "usage_limited": 0}
+[night 02:25:54] phase_start {"phase": "train-8", "cycle": 8, "jobs": 24}
+[night 02:46:03] phase_end {"phase": "train-8", "cycle": 8, "runs": 24, "success": 24, "spent": 59.58, "minutes": 20.2, "usage_limited": 0}
+[night 02:46:03] phase_start {"phase": "train-9", "cycle": 9, "jobs": 26}
+[night 03:39:03] phase_end {"phase": "train-9", "cycle": 9, "runs": 26, "success": 24, "spent": 73.9, "minutes": 53.0, "usage_limited": 0}
+[night 03:39:03] phase_start {"phase": "train-10", "cycle": 10, "jobs": 24}
+[night 04:04:39] phase_end {"phase": "train-10", "cycle": 10, "runs": 24, "success": 24, "spent": 78.85, "minutes": 25.6, "usage_limited": 0}
+[night 04:04:39] phase_start {"phase": "train-11", "cycle": 11, "jobs": 24}
+[night 04:27:20] phase_end {"phase": "train-11", "cycle": 11, "runs": 24, "success": 24, "spent": 84.75, "minutes": 22.7, "usage_limited": 0}
+[night 04:27:20] phase_start {"phase": "train-12", "cycle": 12, "jobs": 26}
+[night 05:06:49] phase_end {"phase": "train-12", "cycle": 12, "runs": 26, "success": 24, "spent": 96.61, "minutes": 39.5, "usage_limited": 0}
+[night 05:06:49] phase_start {"phase": "train-13", "cycle": 13, "jobs": 24}
+[night 05:31:58] phase_end {"phase": "train-13", "cycle": 13, "runs": 24, "success": 24, "spent": 102.07, "minutes": 25.2, "usage_limited": 0}
+[night 05:31:58] phase_start {"phase": "train-14", "cycle": 14, "jobs": 24}
+[night 05:56:39] phase_end {"phase": "train-14", "cycle": 14, "runs": 24, "success": 24, "spent": 107.43, "minutes": 24.7, "usage_limited": 0}
+[night 05:56:39] phase_start {"phase": "train-15", "cycle": 15, "jobs": 26}
+[night 06:20:20] phase_end {"phase": "train-15", "cycle": 15, "runs": 26, "success": 25, "spent": 114.15, "minutes": 23.7, "usage_limited": 0}
+[night 06:20:20] phase_start {"phase": "holdout-after", "cycle": null, "jobs": 4}
+[night 06:26:05] phase_end {"phase": "holdout-after", "cycle": null, "runs": 4, "success": 4, "spent": 114.87, "minutes": 5.7, "usage_limited": 0}
+[night 06:26:05] night_end {"spent": 114.87}

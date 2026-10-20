@@ -1,0 +1,17 @@
+{
+ "name": "probe_col",
+ "kind": "script",
+ "doc": "Probe a vertical line of tiles for belts; logs which y have a belt at x.",
+ "author": "serf",
+ "run": "20261020-024604-f1-feldspar-iron-sonnet-i2",
+ "code": "y = y0\nout = \"\"\nwhile y <= y1:\n    r = inspect(x=x, y=y, radius=0.6)\n    if \"transport-belt\" in r:\n        out = out + str(y) + \":Y \"\n    else:\n        out = out + str(y) + \":n \"\n    y = y + step\nreturn out",
+ "params": [
+  "x",
+  "y0",
+  "y1",
+  "step"
+ ],
+ "version": 1,
+ "created": "2026-10-20 02:57:16",
+ "updated": "2026-10-20 02:57:16"
+}

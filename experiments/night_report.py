@@ -63,9 +63,19 @@ def money(x) -> str:
 def md(text: str) -> str:
     """Just enough Markdown for review.md: headings, numbered/bulleted lists, bold, code, paragraphs."""
     import re
-    out, lst = [], None
-    for line in text.splitlines():
+    out, lst, rows = [], None, []
+    for line in text.splitlines() + [""]:
         s = line.rstrip()
+        if s.startswith("|"):
+            cells = [c.strip() for c in s.strip("|").split("|")]
+            if not all(re.fullmatch(r":?-+:?", c) for c in cells):
+                rows.append(cells)
+            continue
+        if rows:
+            out.append(f"<div class=scroll><table><tr>{''.join(f'<th>{inline(c)}</th>' for c in rows[0])}</tr>"
+                       + "".join("<tr>" + "".join(f"<td>{inline(c)}</td>" for c in r) + "</tr>" for r in rows[1:])
+                       + "</table></div>")
+            rows = []
         m = re.match(r"^(#{1,3}) (.*)", s)
         item = re.match(r"^\s*(\d+\.|[-*]) (.*)", s)
         if lst and not item:
@@ -105,6 +115,10 @@ def build(night: Path) -> str:
     review = night / "review.md"
     if review.exists():
         parts.append(f"<section>{md(review.read_text())}</section>")
+    # The serfs' own requests (debriefs and friction, clustered and sorted each morning).
+    requests = night / "requests.md"
+    if requests.exists():
+        parts.append(f"<section>{md(requests.read_text())}</section>")
 
     # Headline: holdout before vs after (only the agent layer changes overnight), then every phase.
     rows = []
