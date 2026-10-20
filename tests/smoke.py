@@ -117,7 +117,8 @@ async def main():
     check("place fails with no item / blocked", not res[0]["ok"], res[0])
     await give(crew, {"wooden-chest": 1})
     res = await run(crew, [{"op": "place", "name": "wooden-chest", "x": bx + 3.5, "y": by + 2.5}])
-    check("place blocked reports blocker", not res[0]["ok"] and "blocked by" in res[0]["msg"], res[0])
+    # The same chest is already there: placing it again is done, not an error (tests/test_place.py covers blockers).
+    check("place over the same entity is 'already there'", res[0]["ok"] and "already" in res[0]["msg"], res[0])
     res = await run(crew, [{"op": "craft", "recipe": "nope"}, {"op": "wait", "seconds": 1}])
     check("bad recipe fails, the rest still runs", not res[0]["ok"] and res[1]["ok"], res)
     res = await run(crew, [{"op": "craft", "recipe": "nope", "stop_on_fail": True}, {"op": "wait", "seconds": 1}])

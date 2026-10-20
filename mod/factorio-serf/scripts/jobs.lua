@@ -339,6 +339,13 @@ H.place = {
       if not args.pickup then d = ({ north = "south", south = "north", east = "west", west = "east" })[d] end
       job.dir = util.parse_dir(d)
     end
+    -- Onto the grid like the game's cursor: odd sizes on tile centers (x.5), even sizes on tile edges.
+    local w, h = ent.tile_width or 1, ent.tile_height or 1
+    if job.dir == defines.direction.east or job.dir == defines.direction.west then w, h = h, w end
+    local function grid(v, n) return n % 2 == 1 and (math.floor(v) + 0.5) or math.floor(v + 0.5) end
+    if ent.type ~= "curved-rail-a" and ent.type ~= "curved-rail-b" and not ent.type:find("rail") then
+      job.pos = { x = grid(job.pos.x, w), y = grid(job.pos.y, h) }
+    end
     if not util.cheat() and a.char.get_item_count(args.name) < 1 then
       return fail("no " .. args.name .. " in inventory")
     end

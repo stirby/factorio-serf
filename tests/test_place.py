@@ -186,6 +186,10 @@ async def main(k: int) -> None:
         r13, = await act({"op": "mine", "x": x + 3.5, "y": y - 6.5})
         check(not r13["ok"] and "assembling-machine-1 at" in r13["msg"], f"mine x,y names what's close by: {r13['msg']}")
 
+        await link.call("eval", code="storage.agents['t-place'].char.insert{name='small-electric-pole', count=2}")
+        r14, = await act({"op": "place", "name": "small-electric-pole", "x": x - 1, "y": y - 8})
+        check(r14["ok"] and f"{x - 0.5},{y - 7.5}" in r14["msg"], f"off-grid x,y lands on the tile: {r14['msg']}")
+
         # find forgives slips instead of throwing a game error.
         f1 = await link.call("find", agent="t-place", name="tree")
         check("found" in f1, f"find name=tree works as a type: {str(f1)[:80]}")
