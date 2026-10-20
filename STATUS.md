@@ -67,11 +67,20 @@ d4-library (build two more of a taught design, powered) met in 2 min ($0.18): 2 
    player does. Ideas: draw a marker with `rendering` in `render_mode = "chart"` that follows the character, or a
    chart tag updated every few seconds; a "find" button on the serf panel (`zoom_to_world` on its position);
    put `[gps=x,y]` in its status line. Mod change, so it ships with the next mod release.
-2. Model/fast-mode chat changes don't persist across `serf` restarts (they reset to serf.toml). Write them back?
-3. Fast mode on a subscription needs extra usage credits; the user's are exhausted, so `@serf fast on` only gets
+2. **Belts and pipes it lays join other lines** (user, 2026-10-19): belts get fed by, or side-load into, belts
+   carrying other items, and pipes join neighbouring fluid lines. Cause: the router (`route.find` in
+   `scripts/route.lua`, called by the connect job in `jobs.lua`) only asks "can I place an entity on this tile?",
+   never "what does this tile touch?". Fix: also count a tile as blocked when
+   - (belts) a neighbouring belt, underground exit or splitter outputs into it, and
+   - (pipes) a neighbouring entity has a pipe connection into it (`fluidbox.get_pipe_connections`),
+   except at the line's own start and end, so it goes around or under (it already uses undergrounds when
+   blocked). Add a regression test (connect next to a foreign belt and pipe) on a scratch instance. Mod change;
+   do it in a worktree (instances link the mod from their own checkout), release with the next mod version.
+3. Model/fast-mode chat changes don't persist across `serf` restarts (they reset to serf.toml). Write them back?
+4. Fast mode on a subscription needs extra usage credits; the user's are exhausted, so `@serf fast on` only gets
    "usage credits exhausted" for now. Verify it really speeds up once credits exist (`usage.speed`).
-4. Corpse looting is still TODO (mod change).
-5. Name suggestions for "serf" (low priority, the user would like a few more).
+5. Corpse looting is still TODO (mod change).
+6. Name suggestions for "serf" (low priority, the user would like a few more).
 
 ## For the morning conversation
 
