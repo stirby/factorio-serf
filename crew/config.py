@@ -15,6 +15,7 @@ class AgentConfig:
     backend: str = "claude-code"  # "claude-code" (Claude Code login / subscription) or "api" (ANTHROPIC_API_KEY)
     model: str = DEFAULT_MODEL
     effort: str | None = None  # low | medium | high
+    fast: bool = False  # fast mode: Opus only, premium price (extra usage credits on a subscription)
     focus: str = ""  # domain: production | resources | infrastructure | free text
     personality: str = ""
     color: list[float] | None = None

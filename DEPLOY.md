@@ -100,6 +100,8 @@ packet arrives ("Trying to add invalid input action to the closure"). Players' o
 | `@serf what are you working on?` | it answers |
 | `@all ...` | every agent hears it |
 | `@serf come here` / `follow me` / `stop` | instant, no model call |
+| `@serf model opus` (`sonnet`, `haiku`, `fable`, or a full id) / `@serf model` | switches its model on the spot (only its owner can); bare `model` says what it's on |
+| `@serf fast on` / `fast off` | fast mode: Opus only, faster replies at a premium price (extra usage credits on a Claude subscription) |
 
 `@serf` always means *your* serf, whatever it's called (the second one in a world is `serf-<player>`).
 

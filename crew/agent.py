@@ -32,6 +32,11 @@ def model_label(model: str) -> str:
     return m
 
 
+def model_text(cfg: AgentConfig) -> str:
+    """The model as players see it: "Opus 5.5", or "Opus 5.5 fast"."""
+    return model_label(cfg.model) + (" fast" if cfg.fast else "")
+
+
 class Agent:
     def __init__(self, cfg: AgentConfig, orch: "Orchestrator"):
         self.cfg = cfg
@@ -68,6 +73,7 @@ class Agent:
         self._last_thought_push = 0.0
         self.recent_fails: deque = deque(maxlen=8)
         self.owner = cfg.owner or orch.cfg.owner  # the player it works for
+        self._notices: set[str] = set()  # app-side messages already said in chat (each once)
         from .tools import TOOLS
         from .late_tools import LATE_TOOLS
         tools = list(TOOLS) + LATE_TOOLS
@@ -84,7 +90,7 @@ class Agent:
     # ------------------------------------------------------------------ lifecycle
     async def start(self) -> None:
         await self.backend.start()
-        await self.show(state="ready", model=model_label(self.cfg.model), thought="")
+        await self.show(state="ready", model=model_text(self.cfg), thought="")
         if self.solo and self.inbox.empty():
             self.inbox.put_nowait("(start) You just joined the game (your hello is already in chat). If someone "
                                   "already gave you an order, do it. Otherwise look around, read your notes and the "
@@ -119,6 +125,12 @@ class Agent:
         if cfg.model != self.cfg.model:
             await self.backend.set_model(cfg.model)
             changed.append(f"model {self.cfg.model} -> {cfg.model}")
+        if cfg.fast != self.cfg.fast:
+            await self.backend.set_fast(cfg.fast)
+            self._notices.clear()  # if fast mode is refused again, say so again
+            changed.append(f"fast mode {'on' if cfg.fast else 'off'}")
+        if changed:
+            self._show_soon(model=model_text(cfg))
         for field in ("max_turns_per_hour", "max_autonomous_turns", "effort", "personality"):
             if getattr(cfg, field) != getattr(self.cfg, field):
                 changed.append(f"{field} -> {getattr(cfg, field)}")
@@ -203,6 +215,16 @@ class Agent:
         await self.link.call("say", agent=self.name, text=text)
         ui.chat(self.name, text)
         self.orch.agent_said(self.name, text)
+
+    async def notice(self, text: str) -> None:
+        """A message from the app rather than the model (e.g. fast mode refused), said in chat once."""
+        if text in self._notices:
+            return
+        self._notices.add(text)
+        try:
+            await self.say(f"({text})")
+        except Exception as e:
+            log.warning("%s: notice not said: %r", self.name, e)
 
     async def set_status(self, text: str, mode: str) -> None:
         self.status_text, self.mode, self.mode_set_this_turn = text, mode, True

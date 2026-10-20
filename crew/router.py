@@ -14,6 +14,12 @@ ALL_WORDS = {"all", "crew", "everyone", "team", "yall", "y'all"}
 COME = re.compile(r"\b(come here|come to me|over here|get over here|come back)\b", re.I)
 FOLLOW = re.compile(r"\b(follow me|follow along|stick with me|tag along)\b", re.I)
 STOP_WORDS = re.compile(r"^\s*(stop|halt|freeze|cancel|abort)\b[\s!.]*$", re.I)
+MODEL_CMD = re.compile(r"^\s*model(?:\s+([\w.\-/:]+))?[\s!.?]*$", re.I)
+FAST_CMD = re.compile(r"^\s*fast(?:\s+mode)?(?:\s+(on|off))?[\s!.?]*$", re.I)
+
+MODEL_ALIASES = {"opus": "claude-opus-5-5", "sonnet": "claude-sonnet-5-5", "haiku": "claude-haiku-5-5",
+                 "fable": "claude-fable-5-1"}
+FAST_MODELS = ("claude-opus-5-5", "claude-opus-5", "claude-opus-4-8")  # the models with a fast mode
 
 
 @dataclass
@@ -22,6 +28,25 @@ class Routed:
     message: str
     stop: bool  # "@x stop" style hard stop: cancel jobs immediately, before the model even sees it
     direct: str | None = None  # "come" | "follow": start moving right away, no model call needed
+    # ("model", name or "") | ("fast", "on" | "off" | ""): a settings change the app makes itself, no model call
+    command: tuple[str, str] | None = None
+
+
+def parse_command(body: str) -> tuple[str, str] | None:
+    """"model opus" / "model" / "fast on" / "fast off" / "fast" -> (command, argument)."""
+    if m := MODEL_CMD.match(body):
+        return "model", (m.group(1) or "").lower()
+    if m := FAST_CMD.match(body):
+        return "fast", (m.group(1) or "").lower()
+    return None
+
+
+def resolve_model(name: str) -> str | None:
+    """"opus" -> claude-opus-5-5; full ids (claude-..., provider/model) pass through; anything else is unknown."""
+    name = name.lower()
+    if name in MODEL_ALIASES:
+        return MODEL_ALIASES[name]
+    return name if name.startswith("claude-") or "/" in name else None
 
 
 def route(text: str, agent_names: list[str], foreman: str | None) -> Routed:
@@ -47,7 +72,9 @@ def route(text: str, agent_names: list[str], foreman: str | None) -> Routed:
         targets.update([foreman] if foreman else agent_names)
 
     body = re.sub(r"@[\w\-']+[,:]?\s*", "", text).strip()
-    direct = None
+    direct = command = None
     if targets:
         direct = "follow" if FOLLOW.search(body) else "come" if COME.search(body) else None
-    return Routed(targets=targets, message=text, stop=bool(targets) and bool(STOP_WORDS.match(body)), direct=direct)
+        command = parse_command(body)
+    return Routed(targets=targets, message=text, stop=bool(targets) and bool(STOP_WORDS.match(body)), direct=direct,
+                  command=command)

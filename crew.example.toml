@@ -21,6 +21,8 @@ kind = "serf"
 backend = "claude-code"       # "claude-code" = your Claude Code login (subscription); "api" = ANTHROPIC_API_KEY
 model = "claude-sonnet-5-5"   # or "claude-opus-5-5": slower and pricier, better judgment
 # effort = "medium"           # low | medium | high
+# fast = true                 # fast mode, Opus only: faster, premium price (subscription: extra usage credits)
+                              # in game: "@serf model opus", "@serf fast on|off"
 max_turns_per_hour = 120
 
 # Hard cap on spend over the trailing hour; the agent pauses when it's reached.

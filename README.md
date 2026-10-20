@@ -30,7 +30,8 @@ otterplex: @serf add the iron patch I'm standing on, belt it to the train stop
    claude login        # Claude subscription (Claude Code), or: serf key   (an Anthropic API key)
    ```
 4. Load a game, run `serf`, and type `/serf add` in game. Talk to it with `@serf ...`. `/serf remove` sends it
-   away (you get its items), `/serf list` shows who's here.
+   away (you get its items), `/serf list` shows who's here. `@serf model opus` (or `sonnet`, `haiku`) switches
+   its model mid-game, and `@serf fast on|off` toggles fast mode (Opus only, premium price).
 
 **It builds from blueprints.** The serf keeps its own design library, shared by all your worlds: proven built-in
 designs (smelting column, science blocks, steam power...), every build it verified and saved, and anything you

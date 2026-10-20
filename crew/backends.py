@@ -62,6 +62,7 @@ class ClaudeCodeBackend:
             setting_sources=[],  # don't pick up the user's CLAUDE.md, hooks or settings
             model=cfg.model,
             effort=cfg.effort,
+            settings=json.dumps({"fastMode": cfg.fast}),  # the SDK only allows fast mode as a flag setting
             cwd=str(workdir),
             max_turns=max_steps,
             stderr=lambda line: log.debug("[%s cli] %s", agent.name, line),
@@ -98,13 +99,24 @@ class ClaudeCodeBackend:
         if self.client:
             await self.client.set_model(model)
 
+    async def set_fast(self, on: bool) -> None:
+        self.options.settings = json.dumps({"fastMode": on})  # for the next start()/reset()
+        if self.client:
+            # The SDK has no wrapper for this control request yet; the CLI merges it into its flag settings.
+            await self.client._query._send_control_request({"subtype": "apply_flag_settings",
+                                                            "settings": {"fastMode": on}})
+
     async def turn(self, prompt: str) -> TurnStats:
-        from claude_agent_sdk import AssistantMessage, ResultMessage, TextBlock, ToolUseBlock
+        from claude_agent_sdk import AssistantMessage, ResultMessage, SystemMessage, TextBlock, ToolUseBlock
 
         stats = TurnStats()
         await self.client.query(prompt)
         async for msg in self.client.receive_response():
-            if isinstance(msg, AssistantMessage):
+            if isinstance(msg, SystemMessage):
+                # e.g. "Fast mode disabled · usage credits exhausted": the request still ran, at standard speed
+                if msg.subtype == "notification" and str(msg.data.get("key", "")).startswith("fast-mode"):
+                    await self.agent.notice(msg.data.get("text") or msg.data["key"])
+            elif isinstance(msg, AssistantMessage):
                 for b in msg.content:
                     if isinstance(b, TextBlock) and b.text.strip():
                         self.agent.log_thought(b.text)
@@ -153,6 +165,9 @@ class ApiBackend:
     async def set_model(self, model: str) -> None:
         pass  # read from cfg on every request
 
+    async def set_fast(self, on: bool) -> None:
+        pass  # read from cfg on every request
+
     async def reset(self) -> None:
         self.messages = []
 
@@ -162,13 +177,19 @@ class ApiBackend:
                   messages=self.messages, cache_control={"type": "ephemeral"})
         if cfg.effort:
             kw["output_config"] = {"effort": cfg.effort}
+        betas = []
+        if cfg.fast:
+            betas.append("fast-mode-2026-02-01")
+            kw["speed"] = "fast"
         if self.use_fallbacks and cfg.model in ("claude-opus-5-5", "claude-sonnet-5-5"):
             try:
                 return await self.client.beta.messages.create(
-                    betas=["server-side-fallback-2026-07-01"], fallbacks="default", **kw)
+                    betas=betas + ["server-side-fallback-2026-07-01"], fallbacks="default", **kw)
             except self.anthropic.BadRequestError as e:
                 log.warning("fallbacks not accepted (%s); continuing without", e.message)
                 self.use_fallbacks = False
+        if betas:
+            return await self.client.beta.messages.create(betas=betas, **kw)
         return await self.client.messages.create(**kw)
 
     async def turn(self, prompt: str) -> TurnStats:
@@ -303,6 +324,9 @@ class OpenAIBackend:
 
     async def set_model(self, model: str) -> None:
         pass  # read from cfg on every request
+
+    async def set_fast(self, on: bool) -> None:
+        pass  # no fast mode on OpenAI-compatible endpoints (the chat command refuses it)
 
     async def reset(self) -> None:
         self.messages = []

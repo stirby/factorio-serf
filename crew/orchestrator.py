@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import json
 import re
 import time
@@ -9,14 +10,14 @@ import logging
 
 from . import ui
 from . import progress
-from .agent import Agent, model_label
+from .agent import Agent, model_label, model_text
 from .board import Board
 from .foreman import Foreman
 from . import config as config_mod
 from .config import AgentConfig, CrewConfig
 from .game import GameLink
 from .rcon import GameError
-from .router import route
+from .router import FAST_MODELS, MODEL_ALIASES, resolve_model, route
 
 log = logging.getLogger("crew")
 CHECK_EVERY = 20  # seconds between task check evaluations
@@ -245,6 +246,10 @@ class Orchestrator:
                 fm.human(player, text)
             elif r.targets:
                 fm.note(f"(chat to {', '.join(sorted(r.targets))}) {player}: \"{text}\"")
+        if r.command and r.targets:
+            for name in sorted(r.targets):
+                await self._settings_command(self.agents[name], player, *r.command)
+            return  # settings, not an order: the model never sees it
         if r.stop:
             for name in r.targets:
                 try:
@@ -265,6 +270,51 @@ class Orchestrator:
             line += f" [already done for you: you started to {r.direct} {player}; just acknowledge]"
         for name, agent in self.agents.items():
             agent.hear(line, wake=name in r.targets)
+
+    async def _settings_command(self, agent: Agent, player: str, cmd: str, arg: str) -> None:
+        """"@serf model opus" / "@serf fast on": switch the running agent's model or fast mode, then confirm in chat."""
+        if agent.owner and player != agent.owner:
+            await agent.say(f"Only {agent.owner} can change my model.")
+            return
+        cfg = agent.cfg
+        if cmd == "model" and not arg:
+            await agent.say(f"I'm on {model_text(cfg)}. Switch with @{agent.name} model "
+                            f"{'|'.join(MODEL_ALIASES)} (or a full model id), and @{agent.name} fast on|off.")
+            return
+        if cmd == "fast" and not arg:
+            await agent.say(f"Fast mode is {'on' if cfg.fast else 'off'} ({model_text(cfg)}). "
+                            f"@{agent.name} fast on|off to change it.")
+            return
+        if cmd == "model":
+            model = arg if cfg.backend == "openai" else resolve_model(arg)
+            if not model:
+                await agent.say(f"I don't know the model \"{arg}\". Try {', '.join(MODEL_ALIASES)} or a full id "
+                                "like claude-opus-5-5.")
+                return
+            new = dataclasses.replace(cfg, model=model, fast=cfg.fast and model in FAST_MODELS)
+            extra = " Fast mode is off: it only works on Opus." if cfg.fast and not new.fast else ""
+        else:
+            on = arg == "on"
+            if on and cfg.backend == "openai":
+                await agent.say("Fast mode only works with Claude (your Claude login or an Anthropic API key).")
+                return
+            if on and cfg.model not in FAST_MODELS:
+                await agent.say(f"Fast mode only works on Opus; I'm on {model_label(cfg.model)}. "
+                                f"Say @{agent.name} model opus first.")
+                return
+            new = dataclasses.replace(cfg, fast=on)
+            extra = (" Faster replies at a premium price: on a Claude subscription it bills extra usage credits."
+                     if on else "")
+        try:
+            changes = await agent.apply(new)
+        except Exception as e:
+            log.warning("%s: settings change failed: %r", agent.name, e)
+            await agent.say(f"Couldn't switch ({e}). Still on {model_text(agent.cfg)}.")
+            return
+        ui.info(f"{agent.name}: {', '.join(changes) or 'no change'} (asked by {player})")
+        if changes:
+            agent.hear(f"(app) {player} switched you to {model_text(agent.cfg)}; carry on.", wake=False)
+        await agent.say(f"Now on {model_text(agent.cfg)}.{extra}" if changes else f"Already on {model_text(cfg)}.")
 
     def _alias(self, player: str, text: str) -> str:
         """"@serf" from someone who has a serf means their own, whatever it's called and whoever runs it; from
