@@ -179,6 +179,9 @@ class Controller:
             cycles += 1
             if self._out_of_time():
                 z = await self.zone(zone)
+                if not z.get("ghosts"):
+                    return Outcome(True, "done", f"zone complete; built {built_total} in {int(time.time() - t0)}s",
+                                   built_total)
                 return Outcome(False, "paused", f"paused with {z.get('ghosts')} ghosts left (built {built_total}); "
                                "call build again to continue", built_total)
             z = await self.zone(zone)
