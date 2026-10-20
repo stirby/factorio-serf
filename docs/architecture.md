@@ -12,6 +12,63 @@ The product: **a player brings their own Claude login and their own agent just j
 (2026-10-19): start your game with `--enable-lua-udp 27200`, run `serf`, type `/serf add`. Several people means
 several independent serfs, each on its owner's login.
 
+## How it works: one player, one serf (2026-10-19)
+
+```mermaid
+flowchart TB
+  you(["You, in Factorio<br/>'@serf fix our iron'<br/>Teach serf button"])
+  subgraph game["Factorio: your game (single player) or the server"]
+    mod["factorio-serf mod (Lua)<br/>chat + events feed · JSON API<br/>job queue → the serf's character<br/>(walks, mines, crafts, builds under player rules)<br/>panel + overhead status"]
+  end
+  subgraph app["serf app (Python): your computer, or the server box"]
+    loop["Agent loop<br/>what's new → model turn → tool calls"]
+    tools["Tools<br/>look · inspect · diagnose · act · build"]
+    ctl["Controller (behind build)<br/>lays ghosts, fetches, crafts, builds:<br/>no model calls"]
+    lib[("Design library<br/>built-ins + saved + taught")]
+    task["Task + done_when check<br/>(the game measures it)"]
+  end
+  claude[("Claude<br/>your login")]
+  you -->|chat, /serf, button| mod
+  mod <-->|"UDP 27200 in single player · RCON on a server<br/>(the same JSON either way)"| tools
+  loop --> tools --> ctl
+  ctl --> lib
+  loop <--> task
+  loop <-->|HTTPS| claude
+```
+
+One order, start to finish:
+1. You type `@serf fix our iron` in chat. The mod adds it to its feed.
+2. The app polls the feed every half second, sees the chat, and starts a model turn with a short "what's new" and
+   a one-line state of the base.
+3. The model calls tools. Reading tools (`diagnose`, `inspect`, `look`) answer from the game at once. `act`
+   queues jobs on the character (walk, mine, place...), which then run in game time under player rules.
+   `build` hands a whole plan to the controller: stamp a design as ghosts, fetch the items, craft what's
+   missing, build it all (96 entities in 45 s in d4) with no model calls.
+4. The model puts the order on its task list with a `done_when` check ("iron used +600/min"). The app asks the
+   game every few seconds; the task closes only when the check holds for 2 minutes.
+5. The serf reports with numbers and 2-3 options, shows "waiting for orders" and stops until you answer.
+
+### Why each mechanism exists
+
+| Mechanism | Why, with one serf | Only needed for |
+|---|---|---|
+| Model outside the game, app + mod | Mods can't call the internet; the model has to run in a separate program | - |
+| UDP and RCON (two pipes, one API) | Single player has no RCON; servers do and most can't take UDP (the headless crash). Same requests, same code | - |
+| Packet framing and pacing | A map read is ~1 MB; a UDP packet holds 64 KB | - |
+| Job queue in the mod | The character must act in game time (walking takes seconds) while the model thinks | - |
+| Controller (`build`) | One model call does 50-100 placements; without it every belt is a model round trip | - |
+| Design library, Teach serf | Building from blueprints is how good players work, and it's how you tell the serf "build it like this" | - |
+| Task + `done_when` check | The serf proves the order worked (measured by the game) instead of saying so | - |
+| Panel, overhead state | You see what it's doing and thinking while it works | - |
+| Feed with a cursor per app | With one app: just the inbox. With several apps on one server, each reads its own copy | 2+ apps on one world |
+| Owner, ownership guards, per-player cap | A friend's app on your server can't drive your serf or run Lua | multiplayer |
+| `@serf` alias | "@serf" means *your* serf when everyone's is called serf | multiplayer |
+| **Crew leftovers** (paused design, still loaded): foreman (`crew/foreman.py`), chat router, `zone` (claim build sites from teammates), shared `marks`, `post_task` to others, idle sweep, "built by a teammate" and "feeds a teammate's belt" guards | Nothing for one serf | the paused crew mode |
+
+The leftovers do nothing for one serf: the foreman is off, the idle sweep skips solo agents, and nobody else claims
+zones. They still cost something: four of the serf's tools (`zone`, `mark`, `marks`, `post_task`) and prompt lines
+about teammates. Candidate cleanup: hide those tools and lines unless crew mode is on.
+
 ### How players' apps reach the game (mod 0.2.0)
 
 - **Transports** (`crew/game.py` picks one): RCON (`crew/rcon.py`, a server operator, trusted) or localhost UDP
