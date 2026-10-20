@@ -65,9 +65,29 @@ One order, start to finish:
 | `@serf` alias | "@serf" means *your* serf when everyone's is called serf | multiplayer |
 | **Crew leftovers** (paused design, still loaded): foreman (`crew/foreman.py`), chat router, `zone` (claim build sites from teammates), shared `marks`, `post_task` to others, idle sweep, "built by a teammate" and "feeds a teammate's belt" guards | Nothing for one serf | the paused crew mode |
 
-The leftovers do nothing for one serf: the foreman is off, the idle sweep skips solo agents, and nobody else claims
-zones. They still cost something: four of the serf's tools (`zone`, `mark`, `marks`, `post_task`) and prompt lines
-about teammates. Candidate cleanup: hide those tools and lines unless crew mode is on.
+### Current state, future state, debt (2026-10-19)
+
+**Current:** one serf per player, driven by an app outside the game. The same mod and API serve single player
+(UDP) and servers (RCON). An order runs chat → model → tools/jobs → controller → `done_when` check → report → wait.
+Design library and Teach serf are built (mod 0.3.1, unreleased). The multiplayer guards are built and tested
+through the RCON stand-in. Directive results: d4 met in 2 min, d3b in 13, d2 4 of 4 in 24, f1 in 31.
+
+**Future (the user's direction):** one code path; servers great first, then single player. Onboarding is: start
+a world or server, add a token, the serf pops in. The serf builds from blueprints by default, and the player's
+taught designs are its standard. Release 0.3.1 after the first real `/serf join`. Thinking time is accepted;
+improve tools and consistency instead.
+
+**Debt:**
+- Crew leftovers in the serf's path: `crew/foreman.py`, chat router, idle sweep, teammate guards, the tools
+  `zone`, `mark`, `marks` and `post_task`, and prompt lines about teammates. Plan: hide them unless crew mode is on.
+- Untested on a real client: UDP from a game client; reading library records through `cursor_record`; whether a
+  server is safe when a client's app talks UDP to that client's game (only the headless server receiving UDP
+  itself is known to crash); "My blueprints are unsafe on a server" is an assumption from the API docs.
+- Checks with loopholes: stock-chest feeds (closed for d2 only); delivery checks need a consumer that wants
+  the delivery.
+- Old names: checkout `~/dev/factorio-slave`, systemd units `claude-crew*`, the `/crew` command, `crew.toml`,
+  `crew up`.
+- Tool fixes without a direct test: the stuck wiggle in `movement.lua`.
 
 ### How players' apps reach the game (mod 0.2.0)
 
