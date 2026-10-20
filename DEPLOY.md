@@ -94,7 +94,7 @@ packet arrives ("Trying to add invalid input action to the closure"). Players' o
 
 | In game chat | What happens |
 |---|---|
-| `/serf add` | your serf joins next to you (`/serf remove`, `/serf list`) |
+| `/serf add` / `/serf add opus` (or `sonnet`, `haiku`) | your serf joins next to you, on that model if you name one (`/serf remove`, `/serf list`) |
 | Teach serf toolbar button / `/serf learn [name]` (holding a blueprint or book) | your serf adds them to its design library and builds with them |
 | `@serf our iron is the bottleneck, fix it` | it diagnoses, plans and builds; reports back and asks what's next |
 | `@serf what are you working on?` | it answers |

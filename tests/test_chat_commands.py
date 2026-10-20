@@ -97,7 +97,49 @@ async def test_commands():
     assert not o.cfg.fast and "only works with Claude" in o.said[-1]
 
 
+class FakeLink:
+    client = "p1"
+
+    async def call(self, op, **kw):
+        assert op == "list"
+        return {"agents": []}
+
+
+class FakeOrch:
+    """What _serf_add touches; _add_agent records the config the serf would start with."""
+
+    def __init__(self):
+        from crew.config import CrewConfig
+        self.cfg = CrewConfig()
+        self.cfg.defaults = {"model": "claude-opus-5-5", "fast": True}
+        self.link, self.world_owners, self.added, self.told = FakeLink(), set(), [], []
+
+    async def _add_agent(self, ac):
+        self.added.append(ac)
+        return ac
+
+    async def _greet(self, agent):
+        pass
+
+    async def _tell(self, player, text):
+        self.told.append(text)
+
+
+async def test_add_with_model():
+    o = FakeOrch()
+    await Orchestrator._serf_add(o, {"type": "add", "player": "otterplex", "name": "sonnet"})
+    ac = o.added[-1]
+    assert ac.name == o.cfg.kind and ac.model == "claude-sonnet-5-5" and not ac.fast  # a model, not a name
+
+    await Orchestrator._serf_add(o, {"type": "add", "player": "otterplex", "name": "bob"})
+    assert o.added[-1].name == "bob" and o.added[-1].model == "claude-opus-5-5" and o.added[-1].fast
+
+    await Orchestrator._serf_add(o, {"type": "add", "player": "otterplex"})
+    assert o.added[-1].name == o.cfg.kind and o.added[-1].model == "claude-opus-5-5"
+
+
 if __name__ == "__main__":
     test_parse()
     asyncio.run(test_commands())
+    asyncio.run(test_add_with_model())
     print("ok")

@@ -100,8 +100,9 @@ class Orchestrator:
 
     async def _greet(self, agent: Agent, back: bool = False) -> None:
         who = f", {agent.owner}" if agent.owner else ""
-        text = (f"{agent.name} {'is back' if back else 'here'} ({model_label(agent.cfg.model)}). Ready to build "
-                f"with you{who}. Talk to me with @{self._handle(agent)}.")
+        h = self._handle(agent)
+        text = (f"{agent.name} {'is back' if back else 'here'} ({model_text(agent.cfg)}). Ready to build "
+                f"with you{who}. Talk to me with @{h} (@{h} model opus|sonnet|haiku switches my model).")
         try:
             await self.link.call("say", agent=agent.name, text=text)
         except GameError:
@@ -133,6 +134,9 @@ class Orchestrator:
     async def _serf_add(self, ev: dict) -> None:
         """/serf add from a player: pick a free name, spawn next to them, start its brain, say hello."""
         player = ev.get("player") or "?"
+        model = resolve_model(ev.get("name") or "")  # "/serf add opus": the word is a model, not a name
+        if model:
+            ev = {**ev, "name": None}
         listed = (await self.link.call("list"))["agents"]
         taken = {a["name"].lower() for a in listed}
         if self.link.client == "rcon" or self.cfg.host_serfs:
@@ -151,8 +155,11 @@ class Orchestrator:
             n = 2
             while name in taken:
                 name, n = f"{base}-{n}", n + 1
+        ac = self.cfg.agent_for(name, player)
+        if model:
+            ac = dataclasses.replace(ac, model=model, fast=ac.fast and model in FAST_MODELS)
         try:
-            agent = await self._add_agent(self.cfg.agent_for(name, player))
+            agent = await self._add_agent(ac)
         except GameError as e:
             await self._tell(player, f"couldn't add a serf: {e}")
             return
