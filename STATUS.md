@@ -57,7 +57,7 @@ d4-library (build two more of a taught design, powered) met in 2 min ($0.18): 2 
 
 1. The user tries the real thing: launch option, `serf`, `/serf add` in single player, then with a friend.
 2. Done: public, MIT, v0.2.0.
-3. More directives: d2 science steps under the new behavior (running 2026-10-19 18:49).
+3. More directives. d2 science steps: #2 met on chest-fed stopgaps; #3 met with real belt-fed automation (35 min, $3.26).
 4. Tools and consistency over speed (the user's call on thinking time; notes in docs/architecture.md).
 5. Release mod 0.3.1 after the user's first real `/serf join`.
 
