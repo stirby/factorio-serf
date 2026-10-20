@@ -61,6 +61,18 @@ d4-library (build two more of a taught design, powered) met in 2 min ($0.18): 2 
 4. Tools and consistency over speed (the user's call on thinking time; notes in docs/architecture.md).
 5. Release mod 0.3.1 after the user's first real `/serf join`.
 
+## Improvements (from playing; a list to work through, not all at once)
+
+1. **Can't see where the serf is on the map** (user, 2026-10-19). A script character has no map marker the way a
+   player does. Ideas: draw a marker with `rendering` in `render_mode = "chart"` that follows the character, or a
+   chart tag updated every few seconds; a "find" button on the serf panel (`zoom_to_world` on its position);
+   put `[gps=x,y]` in its status line. Mod change, so it ships with the next mod release.
+2. Model/fast-mode chat changes don't persist across `serf` restarts (they reset to serf.toml). Write them back?
+3. Fast mode on a subscription needs extra usage credits; the user's are exhausted, so `@serf fast on` only gets
+   "usage credits exhausted" for now. Verify it really speeds up once credits exist (`usage.speed`).
+4. Corpse looting is still TODO (mod change).
+5. Name suggestions for "serf" (low priority, the user would like a few more).
+
 ## For the morning conversation
 
 What worked, what failed, and the evidence are in `docs/crew-design.md` (results table) and
