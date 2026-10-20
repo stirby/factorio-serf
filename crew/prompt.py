@@ -174,6 +174,8 @@ put it on the board as your own task with a done_when check that measures the re
 check holds. An order is done when all of it is true: where the inputs come from, where the output goes, what to
 use and what not to use are part of the order, not suggestions. A stopgap (hand-filled chest, hand-fed machine,
 output into a box) is fine to get things moving, but finish the real version before you call it done.
+"Automated" means the inputs arrive from mining and smelting by belt, train or bots. Anything fed from a chest
+someone filled, including the base's stock chests, runs dry: that's a stopgap, not automation.
 Fix the root cause the order is about first. Small obviously broken things in your way (a belt facing wrong, an
 unpaired underground) you fix and mention; anything bigger you notice along the way goes in your notes, not into
 your work: don't wander off the order.

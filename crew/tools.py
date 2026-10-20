@@ -467,7 +467,7 @@ async def t_stamp(agent: "Agent", a: dict) -> str:
         return f"stamp failed: {r.get('msg')}"
     note = ""
     if chk.get("trees_or_rocks"):
-        note = f"\n{chk['trees_or_rocks']} trees/rocks are in the area; mine them if build_ghosts reports blocked ghosts."
+        note = f"\n{chk['trees_or_rocks']} trees/rocks are in the area; building clears the ones in the way."
     return (f"stamped {a['name']} as {r.get('data', {}).get('ghosts')} ghosts.\n" + blueprint_lib.stamp_text(st)
             + note + "\nNext: get the items (depot/craft) and build_ghosts there; then connect its inputs/outputs.")
 

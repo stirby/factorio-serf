@@ -321,6 +321,39 @@ local function place_target(args)
   return ent
 end
 
+-- Clearing trees, rocks and items on the ground out of a footprint, like a player would: it takes mining time and
+-- the products go to the inventory. begin_clearing returns the state to keep on the job, or nil if nothing's there.
+local CLUTTER = { "tree", "simple-entity", "item-entity" }
+local function begin_clearing(c, area)
+  local list = c.surface.find_entities_filtered {
+    area = { { area[1][1] - 0.6, area[1][2] - 0.6 }, { area[2][1] + 0.6, area[2][2] + 0.6 } }, type = CLUTTER }
+  if #list == 0 then return nil end
+  local speed = c.prototype.mining_speed * (1 + c.force.manual_mining_speed_modifier
+    + (c.character_mining_speed_modifier or 0))
+  local secs = 0
+  for _, e in pairs(list) do
+    if e.valid and e.minable then secs = secs + (e.prototype.mineable_properties.mining_time or 0.5) / speed end
+  end
+  return { list = list, done_at = game.tick + (util.cheat() and 0 or math.ceil(secs * 60)) }
+end
+
+-- nil while the mining time runs; then the number cleared, or false and why (inventory full).
+local function finish_clearing(c, clearing)
+  if game.tick < clearing.done_at then return nil end
+  local inv, n = c.get_main_inventory(), 0
+  for _, e in pairs(clearing.list) do
+    if e.valid then
+      local name, pos = e.name, e.position
+      if not e.mine { inventory = inv, force = false, raise_destroyed = true } then
+        return false, "inventory full while clearing " .. name .. " at " .. xystr(pos)
+      end
+      n = n + 1
+      triggers.note(c.force, c.surface, "mine-entity", name, 1)
+    end
+  end
+  return n
+end
+
 H.place = {
   start = function(a, job)
     local args = job.args
@@ -358,21 +391,11 @@ H.place = {
 
     local surface = c.surface
     if job.clearing then
-      if game.tick < job.clearing.done_at then return nil end
-      local inv, n = c.get_main_inventory(), 0
-      for _, e in pairs(job.clearing.list) do
-        if e.valid then
-          local name = e.name
-          if not e.mine { inventory = inv, force = false, raise_destroyed = true } then
-            job.clearing = nil
-            return fail("inventory full while clearing " .. name .. " at " .. xystr(e.position) .. " to place "
-              .. job.entity)
-          end
-          n = n + 1
-          triggers.note(c.force, surface, "mine-entity", name, 1)
-        end
-      end
-      job.clearing, job.cleared = nil, (job.cleared or 0) + n
+      local n, why = finish_clearing(c, job.clearing)
+      if n == nil then return nil end
+      job.clearing = nil
+      if not n then return fail(why .. " to place " .. job.entity) end
+      job.cleared = (job.cleared or 0) + n
     end
     local spec = {
       name = job.entity, position = job.pos, direction = job.dir, force = c.force,
@@ -442,26 +465,18 @@ H.place = {
       end
       -- Trees, rocks and items on the ground: clear them like a player would (mining time, products to the
       -- inventory), then place. Search a little wider: a tree's center can sit outside the footprint.
-      local clutter = surface.find_entities_filtered {
-        area = { { area[1][1] - 0.6, area[1][2] - 0.6 }, { area[2][1] + 0.6, area[2][2] + 0.6 } },
-        type = { "tree", "simple-entity", "item-entity" },
-      }
       local others = 0
       for _, e in pairs(found) do
         if e.type ~= "resource" and e.type ~= "tree" and e.type ~= "simple-entity" and e.type ~= "item-entity" then
           others = others + 1
         end
       end
-      if #clutter > 0 and others == 0 and (job.clears or 0) < 3 then
-        job.clears = (job.clears or 0) + 1
-        local speed = c.prototype.mining_speed * (1 + c.force.manual_mining_speed_modifier
-          + (c.character_mining_speed_modifier or 0))
-        local secs = 0
-        for _, e in pairs(clutter) do
-          if e.valid and e.minable then secs = secs + (e.prototype.mineable_properties.mining_time or 0.5) / speed end
+      if others == 0 and (job.clears or 0) < 3 then
+        job.clearing = begin_clearing(c, area)
+        if job.clearing then
+          job.clears = (job.clears or 0) + 1
+          return nil
         end
-        job.clearing = { list = clutter, done_at = game.tick + (util.cheat() and 0 or math.ceil(secs * 60)) }
-        return nil
       end
       for _, e in pairs(found) do
         if e.type ~= "resource" then blockers[#blockers + 1] = e.name .. "@" .. xystr(e.position) end
@@ -1206,7 +1221,8 @@ H.build_ghosts = {
       if not g then
         local left = 0
         for _, cand in ipairs(list) do if not job.skip[cand.unit_number] then left = left + 1 end end
-        if left == 0 then return ok("built " .. job.built .. " ghosts; none left here", { built = job.built }) end
+        local trees = job.cleared and (" (cleared " .. job.cleared .. " trees/rocks in the way)") or ""
+        if left == 0 then return ok("built " .. job.built .. " ghosts" .. trees .. "; none left here", { built = job.built }) end
         return ok("built " .. job.built .. " ghosts; " .. left .. " left need items you don't have",
           { built = job.built, left = left, missing = missing })
       end
@@ -1220,9 +1236,23 @@ H.build_ghosts = {
       job.target = nil
       return nil
     end
+    if job.clearing then
+      local cleared, why = finish_clearing(c, job.clearing)
+      if cleared == nil then return nil end
+      job.clearing = nil
+      if not cleared then return fail(why .. " to build ghosts", { built = job.built }) end
+      job.cleared = (job.cleared or 0) + cleared
+    end
     local item, n = ghost_item(g)
     local name, pos = g.ghost_name, g.position
     local _, ent = g.revive { raise_revive = true }
+    if not ent and g.valid and job.clear_tried ~= g.unit_number then
+      -- Trees or rocks in its footprint: clear them, then try again.
+      job.clear_tried = g.unit_number
+      local bb = g.bounding_box
+      job.clearing = begin_clearing(c, { { bb.left_top.x, bb.left_top.y }, { bb.right_bottom.x, bb.right_bottom.y } })
+      if job.clearing then return nil end
+    end
     if not ent then
       -- Usually we're standing on it: step aside once, else skip it.
       if not job.stepped then

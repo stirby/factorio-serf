@@ -192,6 +192,20 @@ async def main(k: int) -> None:
         r14, = await act({"op": "place", "name": "small-electric-pole", "x": x - 1, "y": y - 8})
         check(r14["ok"] and f"{x - 0.5},{y - 7.5}" in r14["msg"], f"off-grid x,y lands on the tile: {r14['msg']}")
 
+        # A ghost planned over a tree (a stamp on rough ground): building it clears the tree first.
+        gx, gy = x + 20.5, y - 8.5
+        made = (await link.call("eval", code=f"local s = game.surfaces.nauvis "
+            f"local t = s.create_entity{{name='tree-01', position={{{gx}, {gy}}}}} "
+            f"local g = s.create_entity{{name='entity-ghost', inner_name='wooden-chest', position={{{gx}, {gy}}}, force='player'}} "
+            "storage.agents['t-place'].char.insert{name='wooden-chest', count=2} "
+            "return {tree = t and t.valid, ghost = g and g.valid}"))["result"]
+        r15, = await act({"op": "build_ghosts", "x": gx, "y": gy, "radius": 3}, timeout=90)
+        left = (await link.call("eval", code=f"local s = game.surfaces.nauvis return {{chest = s.find_entity('wooden-chest', "
+                                             f"{{{gx}, {gy}}}) ~= nil, trees = s.count_entities_filtered{{position={{{gx}, {gy}}}, "
+                                             "radius=1.5, type='tree'}}"))["result"]
+        check(made["tree"] and made["ghost"] and r15["ok"] and left["chest"] and left["trees"] == 0,
+              f"a ghost over a tree gets built: {made} {r15['msg']} {left}")
+
         # find forgives slips instead of throwing a game error.
         f1 = await link.call("find", agent="t-place", name="tree")
         check("found" in f1, f"find name=tree works as a type: {str(f1)[:80]}")
