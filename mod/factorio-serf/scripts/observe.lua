@@ -497,4 +497,241 @@ function observe.production(a, args)
   return { per_minute_produced = top(prod), per_minute_consumed = top(cons) }
 end
 
+-- Follow a belt line from one of its tiles, downstream (where the items go) or upstream (where they come from):
+-- the path as straight runs and underground hops, why it ends, what's on it, and who takes from or puts onto it.
+local BELTS = { "transport-belt", "underground-belt", "splitter", "linked-belt", "loader", "loader-1x1", "lane-splitter" }
+local IS_BELT = {}
+for _, t in ipairs(BELTS) do IS_BELT[t] = true end
+local VEC = { [0] = { 0, -1 }, [4] = { 1, 0 }, [8] = { 0, 1 }, [12] = { -1, 0 } }
+
+local function tile_key(x, y) return math.floor(x) .. "," .. math.floor(y) end
+
+local function belt_neighbours(e)
+  local ok, nb = pcall(function() return e.belt_neighbours end)
+  return ok and nb or { inputs = {}, outputs = {} }
+end
+
+-- The next belt along the flow (or against it when up), and whether it was reached by an underground hop.
+local function step(e, up)
+  if e.type == "underground-belt" and e.belt_to_ground_type == (up and "output" or "input") then
+    local pair = e.neighbours
+    return pair and { pair } or {}, true
+  end
+  if e.type == "linked-belt" and e.linked_belt_type == (up and "output" or "input") then
+    local pair = e.linked_belt_neighbour
+    return pair and { pair } or {}, true
+  end
+  local nb = belt_neighbours(e)
+  return (up and nb.inputs or nb.outputs) or {}, false
+end
+
+-- A belt that points into the side of a straight belt side-loads it; into a curve's input side, it's the curve.
+local function side_loads(from, to)
+  if to.direction == from.direction then return false end
+  if to.type == "transport-belt" then return to.belt_shape == "straight" end
+  return to.type == "underground-belt" or to.type == "splitter"
+end
+
+-- Why a downstream walk stopped at e: nothing ahead, a gap, head-on, or something that isn't a belt.
+local function end_reason(e)
+  local v = VEC[e.direction]
+  if not v or e.type == "splitter" then return "ends at the splitter" end
+  local s, x, y = e.surface, e.position.x, e.position.y
+  if e.type == "underground-belt" and e.belt_to_ground_type == "input" then
+    return "underground with no exit (nothing pairs with it within reach)"
+  end
+  local ahead
+  for _, o in pairs(s.find_entities_filtered { position = { x + v[1], y + v[2] } }) do
+    if IS_BELT[o.type] then ahead = o break end
+    if not SKIP[o.type] and o.type ~= "character" and o.type ~= "entity-ghost" then ahead = ahead or o end
+  end
+  if ahead and IS_BELT[ahead.type] then
+    if ahead.direction == util.opposite_dir(e.direction) then
+      return "head-on into the " .. ahead.name .. " at " .. table.concat(util.xy(ahead.position), ",") .. " (they don't connect)"
+    end
+    return "runs into the back of the " .. ahead.name .. " at " .. table.concat(util.xy(ahead.position), ",") .. " (not connected)"
+  elseif ahead then
+    return "ends against the " .. ahead.name .. " at " .. table.concat(util.xy(ahead.position), ",")
+      .. " (belts don't feed machines; an inserter has to)"
+  end
+  for k = 2, 4 do
+    local b = s.find_entities_filtered { position = { x + v[1] * k, y + v[2] * k }, type = BELTS, limit = 1 }[1]
+    if b then
+      return "gap of " .. (k - 1) .. " tile" .. (k > 2 and "s" or "") .. ": the next " .. b.name .. " is at "
+        .. table.concat(util.xy(b.position), ",") .. " facing " .. (util.DIR_NAMES[b.direction] or "?")
+    end
+  end
+  return "ends, nothing ahead"
+end
+
+function observe.trace(a, args)
+  local s = a and a.char and a.char.surface or game.surfaces[args.surface or "nauvis"]
+  local p = util.pos(args.position or { args.x, args.y })
+  if not (p and p.x and p.y) then error("trace needs x,y of a belt", 0) end
+  local up = args.direction == "up"
+  local max = math.min(args.max or 600, 3000)
+  local start = s.find_entities_filtered { position = p, type = BELTS, limit = 1 }[1]
+    or s.find_entities_filtered { position = p, radius = 0.8, type = BELTS, limit = 1 }[1]
+  if not start then error("no belt at " .. p.x .. "," .. p.y, 0) end
+
+  local seen, tiles, path, branches, extra_in = {}, {}, {}, {}, {}
+  local stop, n = nil, 0
+  local todo = { { e = start, hop = false } }
+  local walks = 0
+  while #todo > 0 and walks < 3 do
+    walks = walks + 1
+    local cur = table.remove(todo, 1)
+    local e, hop = cur.e, cur.hop
+    if walks > 1 then path[#path + 1] = { branch = true, p = util.xy(e.position) } end
+    while e do
+      if seen[e.unit_number] then
+        stop = stop or ("loops back to " .. table.concat(util.xy(e.position), ","))
+        break
+      end
+      seen[e.unit_number] = true
+      n = n + 1
+      path[#path + 1] = { e = e, hop = hop }
+      tiles[tile_key(e.position.x, e.position.y)] = e
+      if e.type == "splitter" then
+        local v = VEC[(e.direction + 4) % 16]
+        if v then
+          tiles[tile_key(e.position.x + v[1] * 0.5, e.position.y + v[2] * 0.5)] = e
+          tiles[tile_key(e.position.x - v[1] * 0.5, e.position.y - v[2] * 0.5)] = e
+        end
+      end
+      if n >= max then
+        stop = "stopped after " .. n .. " belts (max); trace again from " .. table.concat(util.xy(e.position), ",")
+        break
+      end
+      local nexts, hopped = step(e, up)
+      -- downstream: other belts feeding this one from the side; upstream: the inputs not followed
+      if not up then
+        for _, i in pairs(belt_neighbours(e).inputs or {}) do
+          local prev = path[#path - 1]
+          if not (prev and prev.e and prev.e.unit_number == i.unit_number) and side_loads(i, e) then
+            extra_in[#extra_in + 1] = i
+          end
+        end
+      end
+      local nx = nexts[1]
+      if up and #nexts > 1 then
+        -- prefer the belt straight behind; the rest are side-loads onto this line
+        for _, i in pairs(nexts) do if not side_loads(i, e) then nx = i end end
+        for _, i in pairs(nexts) do if i ~= nx then extra_in[#extra_in + 1] = i end end
+      elseif #nexts > 1 then
+        for k = 2, #nexts do todo[#todo + 1] = { e = nexts[k], hop = false } branches[#branches + 1] = util.xy(nexts[k].position) end
+      end
+      if not nx then
+        if up then
+          stop = "starts here (nothing feeds it from behind)"
+        else
+          stop = end_reason(e)
+        end
+        path[#path].last = true
+        break
+      end
+      if not up and not hopped and side_loads(e, nx) then
+        path[#path].last = true
+        stop = "side-loads onto the " .. nx.name .. " at " .. table.concat(util.xy(nx.position), ",")
+          .. " (facing " .. (util.DIR_NAMES[nx.direction] or "?") .. ")"
+        break
+      end
+      e, hop = nx, hopped
+    end
+    if walks == 1 then path.main_end = stop end
+  end
+
+  -- Straight runs: a new run on a direction or belt change and on every underground hop.
+  local runs, run = {}, nil
+  for _, st in ipairs(path) do
+    if st.branch then
+      run = nil
+      runs[#runs + 1] = { branch = st.p }
+    else
+      local e = st.e
+      local dir = util.DIR_NAMES[e.direction]
+      if st.hop and run then
+        run.to, run.under = util.xy(e.position), true
+        run = nil
+      elseif run and run.name == e.name and run.dir == dir and e.type ~= "underground-belt" then
+        run.to, run.n = util.xy(e.position), run.n + 1
+      else
+        run = { name = e.name, dir = dir, from = util.xy(e.position), to = util.xy(e.position), n = 1 }
+        runs[#runs + 1] = run
+      end
+    end
+  end
+
+  -- What's on it, and who takes from or puts onto it.
+  local lanes, full = { left = {}, right = {} }, 0
+  local x0, y0, x1, y1 = math.huge, math.huge, -math.huge, -math.huge
+  for _, st in ipairs(path) do
+    local e = st.e
+    if e then
+      local load = 0
+      for li = 1, 2 do
+        local okL, line = pcall(e.get_transport_line, li)
+        if okL and line then
+          local t = lanes[li == 1 and "left" or "right"]
+          for _, it in pairs(line.get_contents()) do
+            t[it.name] = (t[it.name] or 0) + it.count
+            load = load + it.count
+          end
+        end
+      end
+      if load >= 7 then full = full + 1 end
+      x0, y0 = math.min(x0, e.position.x), math.min(y0, e.position.y)
+      x1, y1 = math.max(x1, e.position.x), math.max(y1, e.position.y)
+    end
+  end
+  local takes, puts, nt, np = {}, {}, 0, 0
+  local function where(e) return e.name .. "@" .. table.concat(util.xy(e.position), ",") end
+  if x0 <= x1 then
+    -- one query per 64-tile box keeps a long line's search small
+    for bx = math.floor(x0 / 64), math.floor(x1 / 64) do
+      for by = math.floor(y0 / 64), math.floor(y1 / 64) do
+        local area = { { math.max(bx * 64, x0) - 3, math.max(by * 64, y0) - 3 },
+          { math.min(bx * 64 + 64, x1) + 3, math.min(by * 64 + 64, y1) + 3 } }
+        for _, i in pairs(s.find_entities_filtered { area = area, type = "inserter" }) do
+          local pk, dp = i.pickup_position, i.drop_position
+          if tiles[tile_key(pk.x, pk.y)] then
+            nt = nt + 1
+            if #takes < 8 then
+              local tgt = i.drop_target
+              takes[#takes + 1] = where(i) .. (tgt and (" -> " .. where(tgt)) or " -> ground")
+            end
+          elseif tiles[tile_key(dp.x, dp.y)] then
+            np = np + 1
+            if #puts < 8 then
+              local src = i.pickup_target
+              puts[#puts + 1] = where(i) .. (src and (" <- " .. where(src)) or "")
+            end
+          end
+        end
+        for _, d in pairs(s.find_entities_filtered { area = area, type = "mining-drill" }) do
+          local dp = d.drop_position
+          if tiles[tile_key(dp.x, dp.y)] then
+            np = np + 1
+            if #puts < 8 then
+              puts[#puts + 1] = where(d) .. (d.mining_target and (" mining " .. d.mining_target.name) or "")
+            end
+          end
+        end
+      end
+    end
+  end
+  for _, b in ipairs(extra_in) do
+    np = np + 1
+    if #puts < 8 then puts[#puts + 1] = "side-load from " .. where(b) end
+  end
+  local items = {}
+  for lane, t in pairs(lanes) do if next(t) then items[lane] = t end end
+  return {
+    from = util.xy(start.position), direction = up and "up" or "down", belts = n, runs = runs,
+    ["end"] = path.main_end or stop, branches = #branches > 0 and branches or nil,
+    items = next(items) and items or "empty", backed_up = n > 0 and math.floor(full / n * 100 + 0.5) or 0,
+    takes = takes, takes_total = nt, puts = puts, puts_total = np,
+  }
+end
+
 return observe

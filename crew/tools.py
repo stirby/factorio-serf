@@ -115,6 +115,42 @@ async def t_find(agent: "Agent", a: dict) -> str:
     return _j(await agent.link.call("find", agent=agent.name, **kw))
 
 
+async def t_trace(agent: "Agent", a: dict) -> str:
+    _num(a, "x", "y")
+    kw = {k: a[k] for k in ("direction", "max") if k in a}
+    d = await agent.link.call("trace", agent=agent.name, x=a["x"], y=a["y"], **kw)
+    if a.get("raw"):
+        return _j(d)
+
+    def xy(p):
+        return f"{p[0]},{p[1]}"
+    out = [f"belt line from {xy(d['from'])}, {'upstream' if d['direction'] == 'up' else 'downstream'}: "
+           f"{d['belts']} belts"]
+    runs = d["runs"]
+    if d["direction"] == "up":  # walked against the flow: list the runs in flow order, source first
+        runs = [{**r, "from": r["to"], "to": r["from"]} if "branch" not in r else r for r in reversed(runs)]
+    for r in runs:
+        if "branch" in r:
+            out.append(f" branch from the splitter, at {xy(r['branch'])}:")
+        elif r.get("under"):
+            out.append(f"  {r['name']} {r['dir']} {xy(r['from'])} under to {xy(r['to'])}")
+        else:
+            out.append(f"  {r['name']} {r['dir']} {xy(r['from'])}"
+                       + (f" to {xy(r['to'])} ({r['n']})" if r["n"] > 1 else ""))
+    out.append(f"end: {d['end']}")
+    items = d["items"]
+    if items == "empty":
+        out.append("items: empty")
+    else:
+        lanes = [f"{lane} " + ", ".join(f"{k} {v}" for k, v in t.items()) for lane, t in items.items()]
+        out.append("items: " + "; ".join(lanes) + f" ({d['backed_up']}% of belts backed up)")
+    for key, label in (("takes", "taken off by"), ("puts", "put on by")):
+        if d[key]:
+            more = d[f"{key}_total"] - len(d[key])
+            out.append(f"{label} {d[f'{key}_total']}: " + "; ".join(d[key]) + (f"; +{more} more" if more > 0 else ""))
+    return "\n".join(out)
+
+
 async def t_inspect(agent: "Agent", a: dict) -> str:
     _num(a, "x", "y")
     return _j(await agent.link.call("inspect", agent=agent.name, x=a["x"], y=a["y"], radius=a.get("radius", 1)))
@@ -558,6 +594,12 @@ TOOLS: list[Tool] = [
                "max_radius": {"type": "integer"}}), t_find),
     Tool("inspect", "Details of whatever is at x,y: inventories, recipe, progress, status, ore amount.",
          _obj({**XY, "radius": {"type": "number"}}, ["x", "y"]), t_inspect),
+    Tool("trace", "Follow a belt line from the belt at x,y: where it goes (direction=down, default) or where it "
+         "comes from (direction=up), as straight runs and underground hops, why it ends (nothing ahead, a gap, "
+         "head-on, side-loads onto another belt), what's on each lane, and which inserters/drills take from or put "
+         "onto it. raw=true returns JSON (for scripts).",
+         _obj({**XY, "direction": {"type": "string", "enum": ["down", "up"]}, "max": {"type": "integer"},
+               "raw": {"type": "boolean"}}, ["x", "y"]), t_trace),
     Tool("recipes", "Recipes your force can use now. filter = substring; detail=true adds ingredients/time.",
          _obj({"filter": {"type": "string"}, "detail": {"type": "boolean"}}), t_recipes),
     Tool("techs", "Research state and what can be researched next. Trigger techs unlock by doing "

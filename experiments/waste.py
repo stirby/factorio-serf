@@ -15,7 +15,7 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-LOOKS = {"inspect", "map", "look", "find", "find_space", "production", "diagnose"}
+LOOKS = {"inspect", "map", "look", "find", "find_space", "production", "diagnose", "trace"}
 FAIL_RE = re.compile(r"(FAILED [^{\n]{0,90}|exception: [^\n]{0,90}|error: [^\n]{0,90})")
 
 

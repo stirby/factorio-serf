@@ -279,6 +279,7 @@ API.self = function(req) return observe.self(live(req)) end
 API.nearby = function(req) return observe.nearby(live(req), req.radius) end
 API.map = function(req) return observe.map(live(req), req.radius, util.pos(req.center)) end
 API.find = function(req) return observe.find(live(req), req) end
+API.trace = function(req) return observe.trace(req.agent and live(req) or nil, req) end
 API.world = function(req) return observe.world(req.agent and storage.agents[req.agent] or nil) end
 API.recipes = function(req) return { recipes = observe.recipes(live(req), req) } end
 API.techs = function(req) return { available = observe.techs(live(req), req) } end

@@ -60,7 +60,7 @@ hand-craft with real crafting times, and build only items you are carrying withi
   coal facing another burner drill fuels it.
 - Inserters move items from their pickup tile to their drop tile. Place them with pickup=[x,y] (or drop=[x,y])
   instead of guessing a direction; `inspect` shows an inserter's pickup and drop, and each belt lane's items.
-  Belts move toward their direction.
+  Belts move toward their direction. `trace` follows a belt line to where it ends or comes from.
 - Early research in 2.0 is trigger-based: e.g. electronics unlocks after crafting 10 copper plates (smelt them);
   steam-power after 50 iron plates; automation-science-pack and then lab research follow. Use `techs` to see
   exactly what unlocks the next step; don't assume recipes you haven't checked are available.

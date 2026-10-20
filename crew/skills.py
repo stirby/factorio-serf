@@ -187,8 +187,8 @@ SAFE_BUILTINS = {
     "enumerate": enumerate, "zip": zip, "sum": sum, "any": any, "all": all, "reversed": reversed,
     "True": True, "False": False, "None": None,
 }
-TOOL_NAMES = ["act", "wait", "look", "map", "find", "inspect", "production", "diagnose", "recipes", "techs",
-              "build", "stamp", "designs", "say", "find_space", "skill"]
+TOOL_NAMES = ["act", "wait", "look", "map", "find", "inspect", "trace", "production", "diagnose", "recipes",
+              "techs", "build", "stamp", "designs", "say", "find_space", "skill"]
 HELPERS = ["parse", "failed", "log", "args"]
 
 
