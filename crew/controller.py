@@ -273,13 +273,7 @@ class Controller:
         while legs:
             a, b = legs.pop(0)
             dist = abs(a[0] - b[0]) + abs(a[1] - b[1])
-            per = 1 if ("belt" in item or item == "pipe") else max(1, dist // 6)
-            want = int(dist * 1.4) + 4 if per == 1 else per + 2
-            inv = await self._inventory()
-            if inv.get(item, 0) < want:
-                left = await self.source({item: want - inv.get(item, 0)}, order.zone)
-                if left:
-                    left = await self.craft(left)
+            # (connect fetches, then crafts, exactly the pieces its route needs, undergrounds included)
             args = {"op": "connect", "item": item, "from": a, "to": b}
             if not legs:  # only the final leg carries the caller's end options
                 for k in ("end_direction", "join"):

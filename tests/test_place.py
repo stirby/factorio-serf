@@ -209,12 +209,12 @@ async def main(k: int) -> None:
         check(r17["ok"], f"second leg starts on the first leg's last belt: {r17['msg']}")
         r18, = await act({"op": "connect", "item": "transport-belt", "from": [x + 10.5, ly + 10.5],
                           "to": [x + 20.5, ly + 10.5]}, timeout=90)
-        check(r18["ok"] and "feeding" in r18["msg"], f"last leg ends into the main line: {r18['msg']}")
+        check(r18["ok"] and "end: feeds" in r18["msg"], f"last leg ends into the main line: {r18['msg']}")
         r19, = await act({"op": "connect", "item": "transport-belt", "from": [x + 24.5, ly + 30.5],
                           "to": [x + 30.5, ly + 30.5]}, timeout=90)
         r20, = await act({"op": "connect", "item": "transport-belt", "from": [x + 7.5, ly + 31.5],
                           "to": [x + 7.5, ly + 37.5]}, timeout=90)
-        check(r20["ok"] and "crafted" in r20["msg"], f"missing undergrounds get hand-crafted: {r20['msg']}")
+        check(r20["ok"] and ("crafted" in r20["msg"] or "took" in r20["msg"]), f"missing undergrounds get fetched or hand-crafted: {r20['msg']}")
         await link.call("eval", code=f"local e = game.surfaces.nauvis.find_entity('transport-belt', {{{x + 0.5}, {ly + 0.5}}}) "
                                      "e.get_transport_line(1).insert_at_back({name='iron-plate', count=1}) "
                                      "e.get_transport_line(2).insert_at_back({name='iron-plate', count=1})")

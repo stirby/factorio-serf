@@ -50,6 +50,8 @@ Ops and their fields:
               the direction items travel (max 4 tiles between them for yellow); the result says if they paired
   insert      x y item [count]                                  put items into a machine/chest (fuel goes to fuel slot)
   take        x y [item] [count]                                take output (or a specific item) from a machine/chest
+  fetch       item count                                        get items from the nearest storage (chests, machine
+              outputs; it walks there and takes them), then hand-craft whatever storage lacks
   set_recipe  x y recipe                                        assembler recipe
   rotate      x y [direction] | [reverse=true]            reverse turns it around (180 degrees)
   research    tech [first=true | remove=true]                   add a lab tech to the research queue; first=true
@@ -63,9 +65,10 @@ Ops and their fields:
               first N slots; slots=none clears it. Stops a chest hoarding what others need
   connect     item=<transport-belt|pipe|small-electric-pole|...> from=[x,y] to=[x,y] [end_direction] [join]
               routes a line around obstacles and places it (belts point along the route; poles hop by wire reach
-              over anything; belts/pipes go under crossings and water with undergrounds, crafted if short).
-              Belts: from = the last belt of a line continues it (it turns the corner); to = an existing belt
-              feeds into it from behind or the side. So legs chain: next leg's from = last leg's to
+              over anything; belts/pipes go under crossings and water with undergrounds). Missing pieces are
+              fetched from storage, then hand-crafted. Belts: from = the last belt of a line (or the tile next
+              to it) continues it; to = an existing belt feeds into it from behind or the side. So legs chain:
+              next leg's from = last leg's to. The result says whether each end joined a belt
   follow      player=<name> | agent=<name> [distance=3] [seconds=300]   stay near them until stopped
   build_ghosts [x y radius=32] [limit]       build ghosts (planned buildings) near a point with items you carry;
               reports what's missing. Ghosts placed by humans are their plans: build them first.
@@ -112,7 +115,25 @@ async def t_map(agent: "Agent", a: dict) -> str:
 
 async def t_find(agent: "Agent", a: dict) -> str:
     kw = {k: a[k] for k in ("name", "type", "limit", "max_radius") if k in a}
-    return _j(await agent.link.call("find", agent=agent.name, **kw))
+    name = a.get("name")
+    stored = await agent.link.call("stored", agent=agent.name, item=name) if name and not a.get("type") else None
+    if not (stored and stored.get("item")):
+        return _j(await agent.link.call("find", agent=agent.name, **kw))
+    # An item: where it's stored, plus where it's placed when it's also a building (stone-furnace, chests...).
+    places = stored.get("stored") or []
+    lines = [f"{name} in storage (nearest first): " + ("; ".join(
+        f"{s['n']} in {s['in']} at {s['p'][0]},{s['p'][1]} ({s['d']} tiles)" for s in places)
+        or f"none in any chest or machine output within {stored.get('radius')} tiles")]
+    if stored.get("in_storage_total"):
+        lines[0] += f" [total within {stored.get('radius')} tiles: {stored['in_storage_total']}]"
+    if stored.get("craftable"):
+        lines.append(f"you can hand-craft {stored['craftable']} from what you carry")
+    if stored.get("entity"):  # iron-ore, stone-furnace...: also where it is in the world
+        try:
+            lines.insert(0, "in the world: " + _j(await agent.link.call("find", agent=agent.name, **kw)))
+        except GameError as e:
+            lines.insert(0, f"in the world: {e}")
+    return "\n".join(lines)
 
 
 async def t_trace(agent: "Agent", a: dict) -> str:
@@ -588,7 +609,9 @@ TOOLS: list[Tool] = [
     Tool("map", "ASCII map of the area around you (or around x,y). Best for planning where to build.",
          _obj({"radius": {"type": "integer", "description": "default 12, max 24"}, **XY}), t_map),
     Tool("find", "Find the nearest entities/resources by prototype name (e.g. iron-ore, coal, crude-oil, "
-         "stone-furnace) or type (e.g. tree, resource, assembling-machine), searching outward. "
+         "stone-furnace) or type (e.g. tree, resource, assembling-machine), searching outward. An item name "
+         "(e.g. copper-plate, underground-belt) also lists where it's stored: chests and machine outputs, nearest "
+         "first with counts (fetch takes it from there for you). "
          "name='water' finds the nearest water and returns ready offshore_pump_spots (position + direction).",
          _obj({"name": {"type": "string"}, "type": {"type": "string"}, "limit": {"type": "integer"},
                "max_radius": {"type": "integer"}}), t_find),
@@ -613,7 +636,7 @@ TOOLS: list[Tool] = [
          "wait for arrive with your next tool call. New actions queue behind running ones; replace=true cancels "
          "what you were doing first. If a human messages you, it returns early.",
          _obj({"actions": {"type": "array", "items": {"type": "object", "properties": {
-             "op": {"type": "string", "enum": ["move", "mine", "craft", "place", "insert", "take", "set_recipe",
+             "op": {"type": "string", "enum": ["move", "mine", "craft", "place", "insert", "take", "fetch", "set_recipe",
                                                "rotate", "research", "limit", "configure", "equip", "connect", "follow", "build_ghosts", "blueprint", "clear_ghosts", "loot", "wait"]}}, "required": ["op"],
              "additionalProperties": True}},
              "wait": {"description": "true | false | 'until_last'"}, "replace": {"type": "boolean"}}, ["actions"]),

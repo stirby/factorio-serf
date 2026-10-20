@@ -15,6 +15,9 @@ Date: 2026-10-19
     - diagnose understands fluids (petroleum gas, steam, water, crude oil).
     - trace follows a belt line from any of its belts, downstream or upstream: its runs and underground hops, why it ends (a gap, head-on, side-loading another belt), what's on each lane, and the inserters and drills taking from or putting onto it.
     - Clearer messages when take, insert, mine, place or find can't do what was asked.
+    - find with an item name (copper-plate, underground-belt) lists where it's stored: chests and machine outputs, nearest first, with counts.
+    - fetch walks to the nearest storage and takes the items it's asked for, then hand-crafts whatever storage lacks.
+    - Belt, pipe and pole lines fetch every piece their route needs from storage before hand-crafting it, and say whether each end joined a belt; a start next to a line's last belt continues that line.
 ---------------------------------------------------------------------------------------------------
 Version: 0.3.0
 Date: 2026-10-19

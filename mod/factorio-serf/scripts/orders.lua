@@ -53,9 +53,9 @@ function orders.sources(req)
   local s, f = surface_of(req), game.forces.player
   local cx, cy, r = req.x or 0, req.y or 0, req.radius or 400
   local ex = req.exclude and area_of({ zone = req.exclude }) or nil
-  local chests = s.find_entities_filtered { type = { "container", "logistic-container", "furnace",
-    "assembling-machine" }, force = f, position = { cx, cy }, radius = r }
-  local out = {}
+  local chests = s.find_entities_filtered { type = { "container", "logistic-container", "infinity-container",
+    "furnace", "assembling-machine" }, force = f, position = { cx, cy }, radius = r }
+  local out, totals = {}, {}
   for _, name in ipairs(req.items or {}) do
     local list = {}
     for _, c in ipairs(chests) do
@@ -70,15 +70,19 @@ function orders.sources(req)
           n = c.get_item_count(name)
         end
         if n > 0 then
-          list[#list + 1] = { p = util.xy(p), n = n, d = math.floor(math.sqrt((p.x - cx) ^ 2 + (p.y - cy) ^ 2)) }
+          list[#list + 1] = { p = util.xy(p), n = n, d = math.floor(math.sqrt((p.x - cx) ^ 2 + (p.y - cy) ^ 2)),
+            ["in"] = c.name }
         end
       end
     end
     table.sort(list, function(a, b) return a.d < b.d end)
-    while #list > 5 do table.remove(list) end
+    local total = 0
+    for _, l in ipairs(list) do total = total + l.n end
+    totals[name] = total
+    while #list > (req.limit or 5) do table.remove(list) end
     out[name] = list
   end
-  return { sources = out }
+  return { sources = out, totals = totals }
 end
 
 -- done_when conditions. Each returns ok, value.

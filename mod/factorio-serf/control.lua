@@ -279,6 +279,20 @@ API.self = function(req) return observe.self(live(req)) end
 API.nearby = function(req) return observe.nearby(live(req), req.radius) end
 API.map = function(req) return observe.map(live(req), req.radius, util.pos(req.center)) end
 API.find = function(req) return observe.find(live(req), req) end
+-- Where an item is stored (chests, machine outputs), nearest first; nil item = not an item name.
+API.stored = function(req)
+  local proto = req.item and prototypes.item[req.item]
+  if not proto then return { item = false } end
+  local c = live(req).char
+  local r = req.radius or 400
+  local src = orders.sources { items = { req.item }, x = c.position.x, y = c.position.y, radius = r, limit = 5 }
+  local recipe = c.force.recipes[req.item]
+  local per = recipe and recipe.enabled and recipe.products[1].name == req.item and (recipe.products[1].amount or 1)
+  local okC, runs = pcall(function() return per and c.get_craftable_count(recipe) or 0 end)
+  return { item = true, stored = src.sources[req.item], in_storage_total = src.totals[req.item], radius = r,
+    craftable = okC and per and runs * per or 0,
+    entity = proto.place_result ~= nil or prototypes.entity[req.item] ~= nil }
+end
 API.trace = function(req) return observe.trace(req.agent and live(req) or nil, req) end
 API.world = function(req) return observe.world(req.agent and storage.agents[req.agent] or nil) end
 API.recipes = function(req) return { recipes = observe.recipes(live(req), req) } end

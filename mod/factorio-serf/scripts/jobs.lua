@@ -964,6 +964,167 @@ local function feeder_of(surface, e)
   end
 end
 
+-- Getting items for a job the way a player would: walk to the nearest chests and machine outputs that hold them
+-- and take what's needed, then hand-craft whatever storage couldn't cover. supply_start(job, {item = n}) sets it
+-- up; supply_tick returns nil while walking/crafting, true once the inventory holds every n, or a failure.
+local SUPPLY_RADIUS = 400
+
+local function supply_start(job, need)
+  local items = {}
+  for name in pairs(need) do items[#items + 1] = name end
+  table.sort(items)
+  job.supply = { need = need, items = items, k = 1, took = {}, crafted = {} }
+end
+
+local function supply_tick(a, job)
+  local c, st = a.char, job.supply
+  if util.cheat() then
+    for name, n in pairs(st.need) do
+      local short = n - c.get_item_count(name)
+      if short > 0 then c.insert { name = name, count = short } end
+    end
+    return true
+  end
+  while st.items[st.k] do
+    local name = st.items[st.k]
+    local n = st.need[name]
+    local have = c.get_item_count(name)
+    if st.crafting then
+      if have >= n then
+        account_crafts(a)
+        st.crafting, st.k, st.srcs = nil, st.k + 1, nil
+      elseif c.crafting_queue_size == 0 then
+        return fail("needs " .. n .. " " .. name .. " but crafting fell short (have " .. have .. ")")
+      else
+        return nil
+      end
+    elseif have >= n then
+      st.k, st.srcs = st.k + 1, nil
+    else
+      if not st.srcs then
+        local okS, src = pcall(order_queries.sources, { items = { name }, x = c.position.x, y = c.position.y,
+          radius = SUPPLY_RADIUS, limit = 8, exclude = job.supply_exclude })
+        st.srcs, st.j = okS and src.sources[name] or {}, 1
+      end
+      local s = st.srcs[st.j]
+      if s then
+        local e = c.surface.find_entities_filtered { position = s.p, radius = 0.6, type = { "container",
+          "logistic-container", "infinity-container", "furnace", "assembling-machine" }, limit = 1 }[1]
+        if not (e and e.valid) then
+          st.j = st.j + 1
+        else
+          local near = approach(a, st, e.position, c.reach_distance - 0.5)
+          if near == nil then return nil end
+          if type(near) == "table" then
+            st.j = st.j + 1 -- unreachable: try the next one
+          else
+            local machine = e.type == "furnace" or e.type == "assembling-machine"
+            local inv = machine and e.get_output_inventory() or e.get_inventory(defines.inventory.chest)
+            local avail = inv and inv.get_item_count(name) or 0
+            local got = avail > 0 and c.insert { name = name, count = math.min(n - have, avail) } or 0
+            if got > 0 then
+              if e.type ~= "infinity-container" then inv.remove { name = name, count = got } end
+              st.took[#st.took + 1] = got .. " " .. name .. " from " .. e.name .. " at " .. xystr(e.position)
+            end
+            st.j = st.j + 1
+          end
+        end
+      else
+        -- Storage is out: hand-craft the rest if the ingredients are on hand.
+        local recipe = c.force.recipes[name]
+        local per = recipe and recipe.enabled and recipe.products[1].name == name and (recipe.products[1].amount or 1)
+        local runs = per and math.ceil((n - have) / per)
+        if not (runs and c.get_craftable_count(recipe) >= runs
+              and c.begin_crafting { count = runs, recipe = recipe, silent = true } == runs) then
+          local found = #st.srcs == 0 and ("no chest or machine output within " .. SUPPLY_RADIUS .. " tiles has any")
+            or ("storage within " .. SUPPLY_RADIUS .. " tiles ran out")
+          return fail("needs " .. n .. " " .. name .. " but you have " .. have .. "; " .. found
+            .. ", and you can't hand-craft the other " .. (n - have) .. " from what you carry",
+            { needed = n, have = have, item = name, took = st.took })
+        end
+        st.crafted[#st.crafted + 1] = (runs * per) .. " " .. name
+        st.crafting = true
+      end
+    end
+  end
+  return true
+end
+
+-- What supply did, for a result message: "; took 10 x from chest at 1,2; crafted 4 y".
+local function supply_note(job)
+  local st = job.supply
+  if not st then return "" end
+  local out = ""
+  if #st.took > 0 then out = out .. "; took " .. table.concat(st.took, ", ", 1, math.min(#st.took, 4)) end
+  if #st.crafted > 0 then out = out .. "; crafted " .. table.concat(st.crafted, ", ") end
+  return out
+end
+
+-- Whether a finished belt line joined anything at its ends, so nobody has to look: "; start: continues the belt at
+-- 1,2; end: not joined, nearest belt 1 tile away at 5,6 (east)".
+local function ends_note(a, job)
+  local places = job.places
+  if not (places and places[1] and prototypes.entity[job.item] and prototypes.entity[job.item].type == "transport-belt") then
+    return ""
+  end
+  local surface, mine = a.char.surface, {}
+  for _, pl in ipairs(places) do mine[math.floor(pl.pos.x) .. "," .. math.floor(pl.pos.y)] = true end
+  local function ours(e) return mine[math.floor(e.position.x) .. "," .. math.floor(e.position.y)] end
+  local function nearest(p)
+    local best, bd
+    for _, e in pairs(surface.find_entities_filtered { position = p, radius = 2.5, type = BELTS }) do
+      local d = util.dist(e.position, p)
+      if not ours(e) and (not bd or d < bd) then best, bd = e, d end
+    end
+    return best, bd
+  end
+  local first, last = places[1].pos, places[#places].pos
+  local start
+  if job.continues and job.continues.valid then
+    start = "continues the belt at " .. xystr(job.continues.position)
+  else
+    for _, v in pairs(DIR_VEC) do
+      local n = belt_at(surface, { x = first.x + v[1], y = first.y + v[2] })
+      local nv = n and not ours(n) and DIR_VEC[n.direction]
+      if nv and nv[1] == -v[1] and nv[2] == -v[2] then start = "fed by the " .. n.name .. " at " .. xystr(n.position) end
+    end
+  end
+  local finish
+  if job.join_into and job.join_into.valid then
+    finish = "feeds the " .. job.join_into.name .. " at " .. xystr(job.join_into.position)
+  else
+    local e = belt_at(surface, last)
+    local f = e and ahead(surface, e)
+    if f and not ours(f) then
+      finish = "feeds the " .. f.name .. " at " .. xystr(f.position)
+    else
+      local n, d = nearest(last)
+      finish = n and ("not joined, nearest belt " .. math.floor(d + 0.5) .. " tile(s) away at " .. xystr(n.position)
+        .. " (" .. (util.DIR_NAMES[n.direction] or "?") .. ")") or "open (no belt ahead)"
+    end
+  end
+  return "; start: " .. (start or "new line") .. "; end: " .. finish
+end
+
+-- fetch: get `count` of an item into the inventory from the nearest storage (then hand-craft the rest).
+H.fetch = {
+  start = function(a, job)
+    local name, count = job.args.item or job.args.name, tonumber(job.args.count) or 1
+    if not (name and prototypes.item[name]) then return fail("unknown item " .. tostring(name)) end
+    local have = a.char.get_item_count(name)
+    if have >= count then return ok("already have " .. have .. " " .. name, { have = have }) end
+    supply_start(job, { [name] = count })
+    job.item, job.count = name, count
+  end,
+  tick = function(a, job)
+    local r = supply_tick(a, job)
+    if r == nil then return nil end
+    if r ~= true then return r end
+    local have = a.char.get_item_count(job.item)
+    return ok("have " .. have .. " " .. job.item .. supply_note(job), { have = have })
+  end,
+}
+
 local function new_job(op, args)
   local job = { id = storage.next_job_id, op = op, args = args }
   storage.next_job_id = storage.next_job_id + 1
@@ -1071,10 +1232,26 @@ H.connect = {
       local ropts = { entity = ent.name, force = c.force, allow = {} }
       local fk, tk = route.key(math.floor(from.x), math.floor(from.y)), route.key(math.floor(to.x), math.floor(to.y))
       if ent.type == "transport-belt" then
+        -- Endpoints name tiles: x,y and x.5,y.5 are the same tile (a bare corner would touch four belts).
+        local function tile(p) return { x = math.floor(p.x) + 0.5, y = math.floor(p.y) + 0.5 } end
         -- Start on the last belt of a line: continue from it (it turns to face the new line).
         -- Start on an underground exit or a splitter: start on the tile it feeds.
-        local s = belt_at(c.surface, from)
+        -- Start next to a dangling line end (an off-by-one start): continue that line.
+        local s = belt_at(c.surface, tile(from))
+        if not s then
+          for _, v in pairs(DIR_VEC) do
+            local n = belt_at(c.surface, { x = tile(from).x + v[1], y = tile(from).y + v[2] })
+            local nv = n and n.type == "transport-belt" and DIR_VEC[n.direction]
+            -- (a line end pointing at the start tile already feeds it as is)
+            if nv and line_end(c.surface, n) and not (nv[1] == -v[1] and nv[2] == -v[2]) then
+              s, from = n, n.position
+              fk = route.key(math.floor(from.x), math.floor(from.y))
+              break
+            end
+          end
+        end
         if s and s.type == "transport-belt" and line_end(c.surface, s) then
+          job.continues = s
           from, ropts.allow[fk] = s.position, true
           local feeder = feeder_of(c.surface, s)
           if feeder then ropts.start_forbid = { util.sign(feeder.x - s.position.x), util.sign(feeder.y - s.position.y) } end
@@ -1086,7 +1263,16 @@ H.connect = {
           end
         end
         -- End on a belt: feed into it from behind or the side, never head-on, and leave it as it is.
-        local e = belt_at(c.surface, to)
+        -- An end on a tile something else blocks, next to exactly one belt, means that belt.
+        local e = belt_at(c.surface, tile(to))
+        if not e and not c.surface.can_place_entity { name = ent.name, position = tile(to), force = c.force,
+              build_check_type = defines.build_check_type.manual } then
+          local near = {}
+          for _, v in pairs(DIR_VEC) do
+            near[#near + 1] = belt_at(c.surface, { x = tile(to).x + v[1], y = tile(to).y + v[2] })
+          end
+          if #near == 1 then e = near[1] end
+        end
         local v = e and DIR_VEC[e.direction]
         if v then
           to, job.join_into = e.position, e
@@ -1162,21 +1348,8 @@ H.connect = {
       if not (here and here.name == item) then need[pl.item or item] = (need[pl.item or item] or 0) + 1 end
     end
     for name, n in pairs(need) do
-      local have = c.get_item_count(name)
-      if not util.cheat() and have < n then
-        -- Short: hand-craft the rest if the ingredients are on hand, like a player would.
-        local recipe = c.force.recipes[name]
-        local per = recipe and recipe.enabled and recipe.products[1].name == name and (recipe.products[1].amount or 1)
-        local runs = per and math.ceil((n - have) / per)
-        if not (runs and c.get_craftable_count(recipe) >= runs
-              and c.begin_crafting { count = runs, recipe = recipe, silent = true } == runs) then
-          return fail("route needs " .. n .. " " .. name .. " but you have " .. have .. " (and not the ingredients to craft "
-            .. (n - have) .. ")", { needed = n, have = have, item = name })
-        end
-        job.crafting = job.crafting or {}
-        job.crafting[name] = n
-        job.crafted = (job.crafted or "") .. " (crafted " .. (runs * per) .. " " .. name .. " first)"
-      end
+      -- Short: fetch the rest from storage, then hand-craft what's still missing, like a player would.
+      if c.get_item_count(name) < n and not job.supply then supply_start(job, need) end
       if name ~= item then job.under = " incl. " .. n .. " " .. name .. " to pass under what's in the way" end
     end
     -- Place every piece inside this job, so the result says what actually got built (not just what was planned).
@@ -1187,30 +1360,22 @@ H.connect = {
     end
   end,
   tick = function(a, job)
-    if job.crafting then
-      local c = a.char
-      for name, n in pairs(job.crafting) do
-        if c.get_item_count(name) < n then
-          if c.crafting_queue_size == 0 then
-            job.crafting = nil
-            return fail("route needs " .. n .. " " .. name .. " but crafting fell short (have "
-              .. c.get_item_count(name) .. ")")
-          end
-          return nil
-        end
+    if job.supply and not job.supplied then
+      local r = supply_tick(a, job)
+      if r == nil then return nil end
+      if r ~= true then
+        r.msg = "route " .. r.msg
+        return r
       end
-      account_crafts(a)
-      job.crafting = nil
+      job.supplied = true
     end
     local pl = job.places[job.i]
     if not pl then
       local span = "from " .. job.span[1][1] .. "," .. job.span[1][2] .. " to " .. job.span[2][1] .. "," .. job.span[2][2]
       local data = { placed = job.placed, planned = #job.places, failed = job.failed }
-      local into = job.join_into and job.join_into.valid
-        and (", feeding the " .. job.join_into.name .. " at " .. xystr(job.join_into.position)) or ""
       if #job.failed == 0 then
-        return ok("placed all " .. job.placed .. " " .. job.item .. (job.under or "") .. (job.crafted or "") .. " ("
-          .. job.span[3] .. " tiles) " .. span .. into, data)
+        return ok("placed all " .. job.placed .. " " .. job.item .. (job.under or "") .. " (" .. job.span[3]
+          .. " tiles) " .. span .. ends_note(a, job) .. supply_note(job), data)
       end
       return fail("placed " .. job.placed .. " of " .. #job.places .. " " .. job.item .. " " .. span .. "; failed: "
         .. table.concat(job.failed, "; ", 1, math.min(#job.failed, 3)), data)
