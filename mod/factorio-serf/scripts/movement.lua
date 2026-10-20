@@ -131,6 +131,11 @@ function movement.tick(char, m)
     end
     m.stuck_ref = nil
     movement.stop(char)
+    if m.repaths >= 2 then
+      -- Caught on a corner twice: wiggle free like a player would (at most a tile, to the nearest clear spot).
+      local spot = char.surface.find_non_colliding_position("character", pos, 1.2, 0.1)
+      if spot and util.dist(spot, pos) > 0.05 then char.teleport(spot) end
+    end
     request(char, m)
   end
   return nil
