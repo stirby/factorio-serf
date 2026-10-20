@@ -554,12 +554,18 @@ H.place = {
 }
 
 ------------------------------------------------------------------------- insert / take
+-- A locked entity (operable = false: a map's or test's fixture) can't be opened by players, so not by a serf either.
+local function locked(e)
+  return e.name .. " at " .. xystr(e.position) .. " is locked: nobody can open it"
+end
+
 H.insert = {
   start = function(a, job)
     local args = job.args
     if not args.item then return fail("insert needs item") end
     job.target = entity_at(a, args)
     if not job.target then return fail("no entity at " .. tostring(args.x) .. "," .. tostring(args.y)) end
+    if not job.target.operable then return fail(locked(job.target)) end
   end,
   tick = function(a, job)
     local c, args, e = a.char, job.args, job.target
@@ -623,6 +629,7 @@ H.take = {
   start = function(a, job)
     job.target = entity_at(a, job.args)
     if not job.target then return fail("no entity at " .. tostring(job.args.x) .. "," .. tostring(job.args.y)) end
+    if not job.target.operable then return fail(locked(job.target)) end
   end,
   tick = function(a, job)
     local c, args, e = a.char, job.args, job.target

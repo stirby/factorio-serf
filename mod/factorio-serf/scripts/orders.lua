@@ -61,7 +61,7 @@ function orders.sources(req)
     for _, c in ipairs(chests) do
       local p = c.position
       local inside = ex and p.x >= ex[1][1] and p.x <= ex[2][1] and p.y >= ex[1][2] and p.y <= ex[2][2]
-      if not inside then
+      if not inside and c.operable then  -- a locked chest isn't storage anyone can take from
         local n
         if c.type == "furnace" or c.type == "assembling-machine" then
           local out = c.get_output_inventory()  -- only finished products, never a machine's ingredients
