@@ -476,6 +476,19 @@ H.place = {
       else
         why = "invalid spot (water, cliff or wrong tile)"
       end
+      if #blockers > 0 then
+        local spot = surface.find_non_colliding_position(job.entity, job.pos, 12, 0.5)
+        if spot then
+          local w, h = proto.tile_width or 1, proto.tile_height or 1
+          if job.dir == defines.direction.east or job.dir == defines.direction.west then w, h = h, w end
+          local function grid(v, n) return n % 2 == 1 and (math.floor(v) + 0.5) or math.floor(v + 0.5) end
+          spot = { x = grid(spot.x, w), y = grid(spot.y, h) }
+          if surface.can_place_entity { name = job.entity, position = spot, direction = job.dir, force = c.force,
+                build_check_type = defines.build_check_type.manual } then
+            why = why .. "; nearest free spot: " .. xystr(spot)
+          end
+        end
+      end
       return fail("cannot place " .. job.entity .. " at " .. xystr(job.pos) .. ": " .. why)
     end
     ::place::

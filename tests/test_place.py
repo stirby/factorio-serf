@@ -123,6 +123,8 @@ async def main(k: int) -> None:
         check(r3["ok"] and "already" in r3["msg"], f"same entity already there counts as done: {r3['msg']}")
         r4, = await act({"op": "place", "name": "stone-furnace", "x": x + 8.5, "y": y + 0.5})
         check(not r4["ok"] and "blocked by wooden-chest" in r4["msg"], f"a real blocker still fails: {r4['msg']}")
+        spot = r4["msg"].split("nearest free spot: ")[-1].split(",") if "nearest free spot" in r4["msg"] else ["0.5"]
+        check(float(spot[0]) % 1 == 0, f"and names the nearest free spot, on the 2x2 grid: {spot}")
         after = (await link.call("eval", code="local c = storage.agents['t-place'].char return {wood = "
                                                "c.get_item_count('wood'), stone = c.get_item_count('stone'), "
                                                "chests = c.get_item_count('wooden-chest')}"))["result"]
