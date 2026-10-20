@@ -63,7 +63,9 @@ Ops and their fields:
               first N slots; slots=none clears it. Stops a chest hoarding what others need
   connect     item=<transport-belt|pipe|small-electric-pole|...> from=[x,y] to=[x,y] [end_direction] [join]
               routes a line around obstacles and places it (belts point along the route; poles hop by wire reach
-              over anything; belts/pipes go under crossings and water with undergrounds, if you have them)
+              over anything; belts/pipes go under crossings and water with undergrounds, crafted if short).
+              Belts: from = the last belt of a line continues it (it turns the corner); to = an existing belt
+              feeds into it from behind or the side. So legs chain: next leg's from = last leg's to
   follow      player=<name> | agent=<name> [distance=3] [seconds=300]   stay near them until stopped
   build_ghosts [x y radius=32] [limit]       build ghosts (planned buildings) near a point with items you carry;
               reports what's missing. Ghosts placed by humans are their plans: build them first.

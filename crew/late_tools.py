@@ -208,7 +208,8 @@ LATE_TOOLS = [
          "nobody has any, clears marked trees and rocks, builds every ghost, refuels burners in the zone. kind: "
          "stamp (name=<design from `designs`>, x, y = top-left, rotation), paste (name=<a `copy`>, x, y = centre, "
          "direction), ghosts (build ghosts already in zone=[x1,y1,x2,y2]: yours, a human's or a teammate's), line "
-         "(item=belt/pipe/pole or the cargo it carries, from=[x,y], to=[x,y]; long routes are split into legs). "
+         "(item=belt/pipe/pole or the cargo it carries, from=[x,y], to=[x,y]; long routes are split into legs; to = a belt feeds into it, "
+         "from = a line's last belt continues it). "
          "Works up to ~2 min, then returns; call again to continue (it resumes from what's left). Returns done, "
          "paused, or exactly what blocks it. Use it for any build bigger than a few pieces.",
          _obj({"kind": {"type": "string", "enum": ["stamp", "paste", "ghosts", "line"]}, "name": {"type": "string"},

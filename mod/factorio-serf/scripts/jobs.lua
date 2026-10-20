@@ -934,6 +934,35 @@ H.say = {
 
 ------------------------------------------------------------------------- connect / follow
 local VEC_DIR = { ["1,0"] = "east", ["-1,0"] = "west", ["0,1"] = "south", ["0,-1"] = "north" }
+local DIR_VEC = { [defines.direction.north] = { 0, -1 }, [defines.direction.east] = { 1, 0 },
+  [defines.direction.south] = { 0, 1 }, [defines.direction.west] = { -1, 0 } }
+local BELTS = { "transport-belt", "underground-belt", "splitter" }
+
+local function belt_at(surface, p)
+  return surface.find_entities_filtered { position = p, radius = 0.3, type = BELTS, limit = 1 }[1]
+end
+
+-- The belt in front of a belt, if any.
+local function ahead(surface, e)
+  local v = DIR_VEC[e.direction]
+  return v and belt_at(surface, { x = e.position.x + v[1], y = e.position.y + v[2] })
+end
+
+-- The last belt of a line: nothing in front of it takes its items (or what's there runs head-on into it).
+local function line_end(surface, e)
+  local f = ahead(surface, e)
+  return not f or f.direction == util.opposite_dir(e.direction)
+end
+
+-- The neighbouring belt that runs straight into this one, if any.
+local function feeder_of(surface, e)
+  for _, v in pairs(DIR_VEC) do
+    local p = { x = e.position.x + v[1], y = e.position.y + v[2] }
+    local n = belt_at(surface, p)
+    local nv = n and DIR_VEC[n.direction]
+    if nv and nv[1] == -v[1] and nv[2] == -v[2] then return p end
+  end
+end
 
 local function new_job(op, args)
   local job = { id = storage.next_job_id, op = op, args = args }
@@ -1019,8 +1048,13 @@ H.connect = {
           for dy = -r, r do
             if math.max(math.abs(dx), math.abs(dy)) == r then
               local q = { x = math.floor(p.x) + dx + 0.5, y = math.floor(p.y) + dy + 0.5 }
+              -- (can_place_entity says yes over a belt it could fast-replace; the router treats that as a wall)
               if c.surface.can_place_entity { name = ent.name, position = q, force = c.force,
-                    build_check_type = defines.build_check_type.manual } then return q end
+                    build_check_type = defines.build_check_type.manual }
+                  and (ent.type == "electric-pole" or c.surface.count_entities_filtered {
+                    area = { { q.x - 0.3, q.y - 0.3 }, { q.x + 0.3, q.y + 0.3 } }, invert = true, limit = 1,
+                    type = { "resource", "character", "corpse", "item-entity", "entity-ghost", "tile-ghost" } } == 0)
+              then return q end
             end
           end
         end
@@ -1034,7 +1068,34 @@ H.connect = {
       for _, p in ipairs(hops) do places[#places + 1] = { pos = p } end
       path = { hops.first, hops.last, n = math.floor(util.dist(hops.first, hops.last) + 0.5) }
     else
-      from, to = free_tile(from), free_tile(to)
+      local ropts = { entity = ent.name, force = c.force, allow = {} }
+      local fk, tk = route.key(math.floor(from.x), math.floor(from.y)), route.key(math.floor(to.x), math.floor(to.y))
+      if ent.type == "transport-belt" then
+        -- Start on the last belt of a line: continue from it (it turns to face the new line).
+        -- Start on an underground exit or a splitter: start on the tile it feeds.
+        local s = belt_at(c.surface, from)
+        if s and s.type == "transport-belt" and line_end(c.surface, s) then
+          from, ropts.allow[fk] = s.position, true
+          local feeder = feeder_of(c.surface, s)
+          if feeder then ropts.start_forbid = { util.sign(feeder.x - s.position.x), util.sign(feeder.y - s.position.y) } end
+        elseif s and s.type ~= "transport-belt" then
+          local v = DIR_VEC[s.direction]
+          if v and (s.type == "splitter" or s.belt_to_ground_type == "output") then
+            from = { x = from.x + v[1], y = from.y + v[2] }
+            fk = route.key(math.floor(from.x), math.floor(from.y))
+          end
+        end
+        -- End on a belt: feed into it from behind or the side, never head-on, and leave it as it is.
+        local e = belt_at(c.surface, to)
+        local v = e and DIR_VEC[e.direction]
+        if v then
+          to, job.join_into = e.position, e
+          tk = route.key(math.floor(to.x), math.floor(to.y))
+          ropts.allow[tk], ropts.goal_join, ropts.goal_forbid = true, true, { -v[1], -v[2] }
+        end
+      end
+      if not ropts.allow[fk] then from = free_tile(from) end
+      if not job.join_into then to = free_tile(to) end
       -- Undergrounds when the way is blocked, if the force can make them (or the agent carries some).
       local hop
       local ug = ent.type == "transport-belt" and ent.related_underground_belt and ent.related_underground_belt.name
@@ -1044,9 +1105,12 @@ H.connect = {
         local reach = ent.type == "transport-belt" and prototypes.entity[ug].max_underground_distance or 10
         hop = { name = ug, reach = math.max(2, reach) }
       end
+      ropts.hop = hop
       local err
-      path, err = route.find(c.surface, from, to, { entity = ent.name, force = c.force, hop = hop })
+      path, err = route.find(c.surface, from, to, ropts)
       if not path then return fail("can't route " .. item .. ": " .. err) end
+      if job.join_into then path[#path] = nil end -- the belt it feeds is already there
+      if #path == 0 then return ok("already connected: " .. xystr(from) .. " is next to the belt it feeds") end
       local SIGN = function(v) return v > 0 and 1 or (v < 0 and -1 or 0) end
       for i, p in ipairs(path) do
         local dir
@@ -1057,7 +1121,7 @@ H.connect = {
           places[#places + 1] = { pos = p, dir = dir, item = ug, ug = p.ug }
         else
           if ent.supports_direction then
-            local nxt = path[i + 1]
+            local nxt = path[i + 1] or (job.join_into and job.join_into.position)
             if nxt then
               dir = VEC_DIR[SIGN(nxt.x - p.x) .. "," .. SIGN(nxt.y - p.y)]
             else
@@ -1071,7 +1135,7 @@ H.connect = {
     end
 
     -- Don't silently feed a teammate's belt: check what the last tile points into and what points into the first.
-    if ent.type == "transport-belt" and not args.join and #places > 0 then
+    if ent.type == "transport-belt" and not args.join and not job.join_into and #places > 0 then
       local function foreign_belt_at(p)
         for _, e in pairs(c.surface.find_entities_filtered { position = p, radius = 0.3,
           type = { "transport-belt", "underground-belt", "splitter" } }) do
@@ -1092,11 +1156,26 @@ H.connect = {
       end
     end
     local need = {}
-    for _, pl in ipairs(places) do need[pl.item or item] = (need[pl.item or item] or 0) + 1 end
+    for _, pl in ipairs(places) do
+      -- A belt already there only gets turned; it needs no item.
+      local here = pl.item == nil and ent.type == "transport-belt" and belt_at(c.surface, pl.pos)
+      if not (here and here.name == item) then need[pl.item or item] = (need[pl.item or item] or 0) + 1 end
+    end
     for name, n in pairs(need) do
       local have = c.get_item_count(name)
       if not util.cheat() and have < n then
-        return fail("route needs " .. n .. " " .. name .. " but you have " .. have, { needed = n, have = have, item = name })
+        -- Short: hand-craft the rest if the ingredients are on hand, like a player would.
+        local recipe = c.force.recipes[name]
+        local per = recipe and recipe.enabled and recipe.products[1].name == name and (recipe.products[1].amount or 1)
+        local runs = per and math.ceil((n - have) / per)
+        if not (runs and c.get_craftable_count(recipe) >= runs
+              and c.begin_crafting { count = runs, recipe = recipe, silent = true } == runs) then
+          return fail("route needs " .. n .. " " .. name .. " but you have " .. have .. " (and not the ingredients to craft "
+            .. (n - have) .. ")", { needed = n, have = have, item = name })
+        end
+        job.crafting = job.crafting or {}
+        job.crafting[name] = n
+        job.crafted = (job.crafted or "") .. " (crafted " .. (runs * per) .. " " .. name .. " first)"
       end
       if name ~= item then job.under = " incl. " .. n .. " " .. name .. " to pass under what's in the way" end
     end
@@ -1108,13 +1187,30 @@ H.connect = {
     end
   end,
   tick = function(a, job)
+    if job.crafting then
+      local c = a.char
+      for name, n in pairs(job.crafting) do
+        if c.get_item_count(name) < n then
+          if c.crafting_queue_size == 0 then
+            job.crafting = nil
+            return fail("route needs " .. n .. " " .. name .. " but crafting fell short (have "
+              .. c.get_item_count(name) .. ")")
+          end
+          return nil
+        end
+      end
+      account_crafts(a)
+      job.crafting = nil
+    end
     local pl = job.places[job.i]
     if not pl then
       local span = "from " .. job.span[1][1] .. "," .. job.span[1][2] .. " to " .. job.span[2][1] .. "," .. job.span[2][2]
       local data = { placed = job.placed, planned = #job.places, failed = job.failed }
+      local into = job.join_into and job.join_into.valid
+        and (", feeding the " .. job.join_into.name .. " at " .. xystr(job.join_into.position)) or ""
       if #job.failed == 0 then
-        return ok("placed all " .. job.placed .. " " .. job.item .. (job.under or "") .. " (" .. job.span[3] .. " tiles) "
-          .. span, data)
+        return ok("placed all " .. job.placed .. " " .. job.item .. (job.under or "") .. (job.crafted or "") .. " ("
+          .. job.span[3] .. " tiles) " .. span .. into, data)
       end
       return fail("placed " .. job.placed .. " of " .. #job.places .. " " .. job.item .. " " .. span .. "; failed: "
         .. table.concat(job.failed, "; ", 1, math.min(#job.failed, 3)), data)

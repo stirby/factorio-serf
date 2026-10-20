@@ -2,6 +2,7 @@
 local route = {}
 
 local function key(x, y) return x * 65536 + y end
+route.key = key -- for opts.allow
 
 -- Minimal binary heap on f-score.
 local function push(h, node)
@@ -38,6 +39,8 @@ local DIRS = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }
 -- hop = { name = underground entity, reach = max tiles from entrance to exit }: when the way ahead is blocked,
 -- the line may go under it (belts under belts, pipes under pipes, either under water). Entrances are entered
 -- straight, exits lead straight on. Path entries for those tiles carry ug = "input" | "output" and dir = {dx, dy}.
+-- start_forbid / goal_forbid = {dx, dy}: a first step / last step in that direction is not allowed (it would run
+-- a belt head-on into the belt there). goal_join: the goal is an existing belt the line feeds; nothing lands on it.
 function route.find(surface, from, to, opts)
   local sx, sy = math.floor(from.x), math.floor(from.y)
   local gx, gy = math.floor(to.x), math.floor(to.y)
@@ -101,8 +104,12 @@ function route.find(surface, from, to, opts)
       local x, y = n.x + d[1], n.y + d[2]
       local k = key(x, y)
       local straight = not n.dir or (n.dir[1] == d[1] and n.dir[2] == d[2])
+      local sf, gf = opts.start_forbid, opts.goal_forbid
       if is_exit and not straight then
         -- an exit only leads straight on
+      elseif (sf and not n.dir and sf[1] == d[1] and sf[2] == d[2])
+          or (gf and x == gx and y == gy and gf[1] == d[1] and gf[2] == d[2]) then
+        -- head-on into a belt
       elseif free(x, y) then
         -- Turns cost a little extra so routes come out straight.
         local turn = (n.dir and (n.dir[1] ~= d[1] or n.dir[2] ~= d[2])) and 0.5 or 0
@@ -116,7 +123,7 @@ function route.find(surface, from, to, opts)
         -- Blocked ahead: go under, to the nearest free tile within reach.
         for j = 2, hop.reach do
           local ex, ey = n.x + d[1] * j, n.y + d[2] * j
-          if free(ex, ey) then
+          if free(ex, ey) and not (opts.goal_join and ex == gx and ey == gy) then
             local ek = key(ex, ey)
             local cost = g[nk] + j + 3 -- undergrounds cost items: prefer the surface when it's close
             if (g[ek] == nil or cost < g[ek]) and tunnel_ok(n.x, n.y, d, j) then

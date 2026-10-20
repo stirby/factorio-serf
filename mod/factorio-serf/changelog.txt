@@ -10,6 +10,7 @@ Date: 2026-10-19
     - Building ghosts clears trees and rocks in their way.
     - Pole lines hop by wire reach over belts, machines and water.
     - Belt and pipe lines go under crossings and water with undergrounds.
+    - Belt lines built in legs chain up: a line from the last belt of another continues it around the corner, a line to an existing belt feeds into it (never head-on), and missing undergrounds or belts get hand-crafted.
     - Walking to a spot nobody can stand on ends at the nearest free spot; a serf caught on a corner wiggles free.
     - diagnose understands fluids (petroleum gas, steam, water, crude oil).
     - Clearer messages when take, insert, mine, place or find can't do what was asked.

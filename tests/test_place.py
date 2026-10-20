@@ -93,6 +93,33 @@ return {plates_at_end = last and last.get_item_count('iron-plate') or -1, water_
 COUNT = """local c = storage.agents['t-place'].char
 return {belt = c.get_item_count('transport-belt'), fast = c.get_item_count('fast-transport-belt')}"""
 
+LEGS = """local s, f = game.surfaces.nauvis, game.forces.player
+local X, Y = %d, %d
+local t = {}
+for x = X-2, X+40 do for y = Y-4, Y+40 do t[#t+1] = {name='grass-1', position={x,y}} end end
+s.set_tiles(t)
+for _, e in pairs(s.find_entities_filtered{area={{X-2,Y-4},{X+40,Y+40}}}) do
+  if e.type ~= 'character' then e.destroy() end end
+-- a main line running north at x=X+20, and a lone belt facing west at (X+30, Y+30)
+for y = Y-3, Y+20 do s.create_entity{name='transport-belt', position={X+20.5, y+0.5}, direction=defines.direction.north, force=f} end
+s.create_entity{name='transport-belt', position={X+30.5, Y+30.5}, direction=defines.direction.west, force=f}
+-- a wall of belts to cross, for the underground test
+for x = X+2, X+12 do s.create_entity{name='transport-belt', position={x+0.5, Y+34.5}, direction=defines.direction.east, force=f} end
+local c = storage.agents['t-place'].char
+c.teleport({X+2, Y+2})
+c.remove_item{name='underground-belt', count=1000}
+c.insert{name='transport-belt', count=100} c.insert{name='iron-plate', count=40}"""
+
+LEGS_CHECK = """local s = game.surfaces.nauvis local X, Y = %d, %d
+local function dir(x, y) local e = s.find_entities_filtered{position={x, y}, radius=0.3, type='transport-belt'}[1]
+  return e and e.direction end
+local main = 0
+for y = Y-3, Y+9 do local e = s.find_entity('transport-belt', {X+20.5, y+0.5})
+  if e then main = main + e.get_item_count('iron-plate') end end
+return {corner = dir(X+10.5, Y+0.5), main_items = main, before_target = dir(X+19.5, Y+10.5),
+  on_main = s.find_entity('transport-belt', {X+20.5, Y+10.5}).direction,
+  head_on = dir(X+29.5, Y+30.5) == defines.direction.east}"""
+
 POND = """local s = game.surfaces.nauvis local X, Y = %d, %d
 local t = {} for x = X+4, X+13 do for y = Y, Y+9 do t[#t+1] = {name='water', position={x,y}} end end
 s.set_tiles(t) return {X+9, Y+5}"""
@@ -170,6 +197,33 @@ async def main(k: int) -> None:
         after = (await link.call("eval", code=COUNT))["result"]
         check(r9["ok"] and "replaced" in r9["msg"], f"yellow -> red belt: fast-replaced: {r9['msg']}")
         check(after["belt"] == before["belt"] + 1, f"the old belt went back to the inventory: {before} -> {after}")
+
+        # A line built in legs: the next leg starts on the last belt (turning it), the last leg feeds into a belt
+        # that's there (from the side, not head-on), and missing undergrounds get crafted.
+        ly = y + 130
+        await link.call("eval", code=LEGS % (x, ly))
+        r16, = await act({"op": "connect", "item": "transport-belt", "from": [x + 0.5, ly + 0.5],
+                          "to": [x + 10.5, ly + 0.5]}, timeout=90)
+        r17, = await act({"op": "connect", "item": "transport-belt", "from": [x + 10.5, ly + 0.5],
+                          "to": [x + 10.5, ly + 10.5]}, timeout=90)
+        check(r17["ok"], f"second leg starts on the first leg's last belt: {r17['msg']}")
+        r18, = await act({"op": "connect", "item": "transport-belt", "from": [x + 10.5, ly + 10.5],
+                          "to": [x + 20.5, ly + 10.5]}, timeout=90)
+        check(r18["ok"] and "feeding" in r18["msg"], f"last leg ends into the main line: {r18['msg']}")
+        r19, = await act({"op": "connect", "item": "transport-belt", "from": [x + 24.5, ly + 30.5],
+                          "to": [x + 30.5, ly + 30.5]}, timeout=90)
+        r20, = await act({"op": "connect", "item": "transport-belt", "from": [x + 7.5, ly + 31.5],
+                          "to": [x + 7.5, ly + 37.5]}, timeout=90)
+        check(r20["ok"] and "crafted" in r20["msg"], f"missing undergrounds get hand-crafted: {r20['msg']}")
+        await link.call("eval", code=f"local e = game.surfaces.nauvis.find_entity('transport-belt', {{{x + 0.5}, {ly + 0.5}}}) "
+                                     "e.get_transport_line(1).insert_at_back({name='iron-plate', count=1}) "
+                                     "e.get_transport_line(2).insert_at_back({name='iron-plate', count=1})")
+        await asyncio.sleep(20)  # ~31 tiles at 1.875 tiles/s
+        legs = (await link.call("eval", code=LEGS_CHECK % (x, ly)))["result"]
+        check(legs["corner"] == 8, f"the corner belt turned south: {legs}")
+        check(legs["before_target"] == 4 and legs["on_main"] == 0, f"the last belt points into the main line, which is untouched: {legs}")
+        check(legs["main_items"] > 0, f"plates from the first leg reach the main line: {legs}")
+        check(r19["ok"] and not legs["head_on"], f"a belt facing the line isn't joined head-on: {r19['msg']} {legs}")
 
         # move to a spot nobody can stand on (the middle of a pond): walk to the nearest shore instead of "no path".
         pond = (await link.call("eval", code=POND % (x, uy + 20)))["result"]

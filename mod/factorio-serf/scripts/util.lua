@@ -32,6 +32,8 @@ util.DIR_NAMES = DIR_NAMES
 
 local OPPOSITE = { north = "south", south = "north", east = "west", west = "east" }
 function util.opposite(name) return OPPOSITE[name] end
+function util.opposite_dir(d) return (d + 8) % 16 end -- defines.direction has 16 steps in 2.0
+function util.sign(v) return v > 0 and 1 or (v < 0 and -1 or 0) end
 
 function util.parse_dir(d)
   if d == nil then return defines.direction.north end
