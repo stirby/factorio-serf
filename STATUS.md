@@ -63,7 +63,7 @@ d4-library (build two more of a taught design, powered) met in 2 min ($0.18): 2 
 
 ## Improvements (from playing; a list to work through, not all at once)
 
-Lessons reviewed through: 2026-10-19 (see "Lessons loop" in CLAUDE.md; the only lesson so far is #2 below).
+Lessons reviewed through: 2026-10-19 22:30 (see "Lessons loop" in CLAUDE.md). Session 1 review (21:37-22:22, express-belt line, Opus 5.5, 13 turns, $4.49): 3 logistics corrections added as lessons 2-4 by hand (the serf still ran pre-lessons code); bugs below.
 
 1. **Can't see where the serf is on the map** (user, 2026-10-19). A script character has no map marker the way a
    player does. Ideas: draw a marker with `rendering` in `render_mode = "chart"` that follows the character, or a
@@ -78,6 +78,16 @@ Lessons reviewed through: 2026-10-19 (see "Lessons loop" in CLAUDE.md; the only 
    except at the line's own start and end, so it goes around or under (it already uses undergrounds when
    blocked). Add a regression test (connect next to a foreign belt and pipe) on a scratch instance. Mod change;
    do it in a worktree (instances link the mod from their own checkout), release with the next mod version.
+   Seen in session 1: its lube pipe joined a sulfuric acid line (21:55, it noticed and re-laid); belts collided
+   with the circuit input line three times (user pointed them out at 21:52, 22:05, 22:09).
+2b. **"don't follow me anymore" started a follow** (session 1, 21:45). `router.FOLLOW` matches "follow me" with no
+   negation check, and "stop following me" (21:41) matched nothing, so the serf kept following. Python only:
+   skip FOLLOW/COME when negated, and make "stop following" a direct cancel of the follow job.
+2c. **Map pings don't reach it** (session 1, 22:15: the user pinged, it said it only sees chat). No ping shows up
+   in its transcript at all. Find out whether a ping raises on_console_chat (with a [gps] tag) in 2.0; if it
+   does, route a ping right after an @serf message to it; if not, say "type [gps=x,y]" up front.
+2d. Connect placed a pipe-to-ground on an invalid tile (21:53, "water, cliff or wrong tile"): `route.find` checks
+   placement with the pipe, not the underground it puts at hop ends. Check hop ends with the underground entity.
 3. Model/fast-mode chat changes don't persist across `serf` restarts (they reset to serf.toml). Write them back?
 4. Fast mode on a subscription needs extra usage credits; the user's are exhausted, so `@serf fast on` only gets
    "usage credits exhausted" for now. Verify it really speeds up once credits exist (`usage.speed`).
