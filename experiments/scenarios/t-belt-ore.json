@@ -1,0 +1,44 @@
+{
+ "name": "t-belt-ore",
+ "stage": "stage-s3-steel-oil-ready",
+ "minutes": 10,
+ "agents": 1,
+ "kind": "directive",
+ "group": "logistics",
+ "note": "Micro (logistics): belt ore from a drill stub to a furnace row 26 tiles away, past a crossing belt (undergrounds or a detour) and trees. Passes only if ore actually flows: the drills keep working (their stub would otherwise back up), the furnaces smelt, and ore sits on the furnaces' input belt.",
+ "setup_lua": "-- Shared helpers for the t-* logistics micro scenarios (pasted at the top of each setup_lua by t-logistics-gen.py).\n-- find(w, h): an open w x h area away from the base (no water, ore or buildings; trees and rocks are cleared).\n-- put(name, x, y, dir, extra): create a player-force entity at X+x, Y+y or fail loudly.\nlocal s, f = game.surfaces.nauvis, game.forces.player\nlocal D = defines.direction\nlocal function open(x, y, w, h)\n  local a = { { x, y }, { x + w, y + h } }\n  for _, c in pairs { { x, y }, { x + w, y }, { x, y + h }, { x + w, y + h } } do\n    if not s.is_chunk_generated { math.floor(c[1] / 32), math.floor(c[2] / 32) } then return false end\n  end\n  if s.count_tiles_filtered { area = a, collision_mask = \"water_tile\" } > 0 then return false end\n  if s.count_entities_filtered { area = a, type = \"resource\" } > 0 then return false end\n  return s.count_entities_filtered { area = a, invert = true,\n    type = { \"tree\", \"simple-entity\", \"corpse\", \"fish\", \"item-entity\", \"character\" } } == 0\nend\nlocal function find(w, h, r0)\n  for r = r0 or 50, 260, 6 do\n    for _, d in pairs { { 1, 0 }, { 0, 1 }, { -1, 0 }, { 0, -1 }, { 1, 1 }, { -1, 1 }, { 1, -1 }, { -1, -1 } } do\n      local x, y = d[1] * r, d[2] * r\n      if open(x, y, w, h) then return x, y end\n    end\n  end\n  error(\"no open \" .. w .. \"x\" .. h .. \" area\")\nend\nlocal X, Y\nlocal function clear(x1, y1, x2, y2)\n  for _, e in pairs(s.find_entities_filtered { area = { { x1, y1 }, { x2, y2 } },\n    type = { \"tree\", \"simple-entity\", \"item-entity\", \"corpse\" } }) do e.destroy() end\nend\nlocal function put(name, x, y, dir, extra)\n  local spec = { name = name, position = { X + x, Y + y }, direction = dir, force = f }\n  for k, v in pairs(extra or {}) do spec[k] = v end\n  local e = s.create_entity(spec)\n  if not e then error(\"could not place \" .. name .. \" at \" .. (X + x) .. \",\" .. (Y + y)) end\n  return e\nend\nlocal function grid(x, y) -- an always-on power source with its own pole, like a corner of the main grid\n  local e = put(\"electric-energy-interface\", x, y)\n  e.power_production, e.electric_buffer_size = 100000, 10000000 -- 6 MW\n  return e\nend\nlocal function gps(x, y) return math.floor(X + x) .. \",\" .. math.floor(Y + y) end\n\n-- t-belt-ore: 4 electric drills on a small iron patch drop onto a short belt stub that goes nowhere; 26 tiles east,\n-- 5 fuelled stone furnaces wait on an empty input belt. Between them: a long north-south belt and a few trees.\n-- Layout (X, Y = top-left of the patch): drills face south at y 1.5, their stub runs east along y 3.5 to x 15.5;\n-- the furnace input belt runs east along y 5.5 from x 40.5; furnaces at y 8, inserters y 6.5 (in) and 10.5 (out).\nlocal ox, oy = find(66, 30)\nX, Y = ox + 8, oy + 10\nclear(ox, oy, ox + 66, oy + 30)\nfor x = -1, 13 do for y = -1, 3 do s.create_entity { name = \"iron-ore\", position = { X + x + 0.5, Y + y + 0.5 }, amount = 4000 } end end\ngrid(-4, 1)\nput(\"small-electric-pole\", -1.5, -1.5)\nput(\"small-electric-pole\", 4.5, -1.5)\nput(\"small-electric-pole\", 10.5, -1.5)\nfor k = 0, 3 do put(\"electric-mining-drill\", 1.5 + 3 * k, 1.5, D.south) end\nfor x = 0, 15 do put(\"transport-belt\", x + 0.5, 3.5, D.east) end\n-- the stub is already backed up: the drills are stalled until their ore goes somewhere\nfor x = 0, 15 do\n  local b = s.find_entity(\"transport-belt\", { X + x + 0.5, Y + 3.5 })\n  for i = 1, 2 do\n    local l, k = b.get_transport_line(i), 0\n    while k < 20 and l.can_insert_at_back() do l.insert_at_back { name = \"iron-ore\", count = 1 } k = k + 1 end\n  end\nend\n-- the obstacle: a belt someone else uses, running the whole height of the area\nfor y = -9, 18 do put(\"transport-belt\", 24.5, y + 0.5, D.south) end\nfor _, p in pairs { { 18.3, 2.7 }, { 20.6, 4.2 }, { 29.4, 3.1 }, { 31.8, 5.6 }, { 34.2, 2.4 }, { 27.1, 6.8 } } do\n  s.create_entity { name = \"tree-01\", position = { X + p[1], Y + p[2] } }\nend\nlocal FX = 41\ngrid(FX + 13, 8)\nfor x = FX - 0.5, FX + 10.5 do put(\"transport-belt\", x, 5.5, D.east) end\nfor k = 0, 4 do\n  local cx = FX + 1 + 2 * k\n  local fu = put(\"stone-furnace\", cx, 8)\n  fu.insert { name = \"coal\", count = 50 }\n  put(\"inserter\", cx - 0.5, 6.5, D.north) -- picks from the belt (north), drops into the furnace\n  put(\"inserter\", cx - 0.5, 10.5, D.north) -- picks from the furnace, drops into the chest\n  put(\"wooden-chest\", cx - 0.5, 11.5)\nend\nfor _, px in pairs { FX + 1.5, FX + 5.5, FX + 9.5, FX + 12.5 } do\n  put(\"small-electric-pole\", px, 6.5)\n  put(\"small-electric-pole\", px, 10.5)\nend\nstorage.bench_belt_ore = { area = { { ox, oy }, { ox + 66, oy + 30 } }, drills = { { X - 1, Y - 1 }, { X + 13, Y + 4 } },\n  furnaces = { { X + FX, Y + 4 }, { X + FX + 11, Y + 10 } }, X = X, Y = Y, FX = FX }\nreturn { drills = gps(6, 1), furnaces = gps(FX + 5, 8) }\n",
+ "objectives": [
+  {
+   "name": "ore-to-furnaces",
+   "minutes": 10,
+   "hold_samples": 2,
+   "goal": "@{agent} the drills at [gps={drills}] are backing up. Belt their ore to the furnaces at [gps={furnaces}] (their input belt is already there).",
+   "answer": "Any route is fine, just don't cut the belt that runs north-south between them, it's in use.",
+   "score": [
+    {
+     "name": "drills_working",
+     "lua": "local b=storage.bench_belt_ore local n=0 for _,e in pairs(s.find_entities_filtered{area=b.drills, name='electric-mining-drill'}) do if e.status==defines.entity_status.working then n=n+1 end end return n",
+     "target": 3
+    },
+    {
+     "name": "furnaces_smelting",
+     "lua": "local b=storage.bench_belt_ore b.seen=b.seen or {} local n=0 for _,e in pairs(s.find_entities_filtered{area=b.furnaces, name='stone-furnace'}) do local p=e.products_finished if p>(b.seen[e.unit_number] or 0) then n=n+1 end b.seen[e.unit_number]=p end return n",
+     "target": 4
+    },
+    {
+     "name": "ore_on_input_belt",
+     "lua": "local b=storage.bench_belt_ore local n=0 for _,e in pairs(s.find_entities_filtered{area=b.furnaces, type={'transport-belt','underground-belt','splitter'}}) do for i=1,e.get_max_transport_line_index() do n=n+e.get_transport_line(i).get_item_count('iron-ore') end end return n",
+     "target": 1
+    },
+    {
+     "name": "crossing_belt_intact",
+     "lua": "local b=storage.bench_belt_ore local n=0 for _,e in pairs(s.find_entities_filtered{area={{b.X+24,b.Y-9},{b.X+25,b.Y+19}}, name='transport-belt'}) do if e.direction==defines.direction.south then n=n+1 end end return n",
+     "target": 28
+    }
+   ],
+   "selftest_lua": "local b=storage.bench_belt_ore local X,Y=b.X,b.Y local D=defines.direction local function put(n,x,y,d,t) for _,e in pairs(s.find_entities_filtered{position={X+x,Y+y},radius=0.9,type={'tree','simple-entity'}}) do e.destroy() end local e=s.create_entity{name=n,position={X+x,Y+y},direction=d,force='player',type=t} if not e then error('selftest: no '..n..' at '..x..','..y) end return e end\nlocal FX=b.FX for x=16,FX-3 do if x==23 then put('underground-belt',23.5,3.5,D.east,'input') elseif x==25 then put('underground-belt',25.5,3.5,D.east,'output') elseif x~=24 then put('transport-belt',x+0.5,3.5,D.east) end end put('transport-belt',FX-1.5,3.5,D.south) put('transport-belt',FX-1.5,4.5,D.south) put('transport-belt',FX-1.5,5.5,D.east) return 'belted'",
+   "selftest_wait": 45
+  }
+ ],
+ "score": []
+}

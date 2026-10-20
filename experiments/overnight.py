@@ -128,7 +128,8 @@ class Night:
                 break
             names = list(s["train"])
             if s.get("long") and cycle % s.get("long_every", 3) == 0:
-                names.append(s["long"][(cycle // s.get("long_every", 3) - 1) % len(s["long"])])
+                # first, so the long run overlaps the short ones instead of trailing the cycle
+                names.insert(0, s["long"][(cycle // s.get("long_every", 3) - 1) % len(s["long"])])
             self.phase(f"train-{cycle}", self.jobs(names, a.repeat),
                        {"SERF_NIGHT_LIBRARY": str(self.lib), "SERF_DEBRIEF": "1"}, cycle)
             self.snapshot_library(f"after-{cycle}")

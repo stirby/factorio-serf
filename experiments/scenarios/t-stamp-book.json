@@ -1,0 +1,37 @@
+{
+ "name": "t-stamp-book",
+ "stage": "stage-s3-steel-oil-ready",
+ "minutes": 10,
+ "agents": 1,
+ "kind": "directive",
+ "note": "Micro (blueprints): two taught designs ('gear-cell', 'mini-smelter'); the goal describes the smelter without its name. Met = 4 furnaces and 8 powered inserters around the target. Measure stamp vs hand-place calls from the transcript.",
+ "setup_lua": "-- t-stamp-book setup (stage S3): the player taught two designs before the run: \"gear-cell\" (2 gear assemblers\n-- between an input belt and output chests) and \"mini-smelter\" (4 stone furnaces with inserters, ore belt on top,\n-- plate belt below, 4 poles). Each is built once, blueprinted and removed again. The goal describes the smelter\n-- without naming it, so the serf has to pick the right design from its library. Met = 4 furnaces and 8 powered\n-- inserters around the target spot.\nlocal s, f = game.surfaces.nauvis, game.forces.player\nlocal function free(x, y, w, h)\n  local a = { { x, y }, { x + w, y + h } }\n  if s.count_tiles_filtered { area = a, collision_mask = \"water_tile\" } > 0 then return false end\n  return s.count_entities_filtered { area = a, type = { \"tree\", \"simple-entity\", \"resource\", \"corpse\", \"fish\" },\n    invert = true } == 0 and s.count_entities_filtered { area = a, type = \"resource\" } == 0\nend\nlocal function find(w, h, r0)\n  for r = r0, 240, 4 do\n    for _, d in pairs { { 1, 0 }, { 0, 1 }, { -1, 0 }, { 0, -1 }, { 1, 1 }, { -1, 1 }, { 1, -1 }, { -1, -1 } } do\n      local x, y = d[1] * r, d[2] * r\n      if free(x, y, w, h) then return x, y end\n    end\n  end\nend\nlocal function clear(x, y, w, h)\n  for _, e in pairs(s.find_entities_filtered { area = { { x, y }, { x + w, y + h } }, type = { \"tree\", \"simple-entity\" } }) do\n    e.destroy()\n  end\nend\nlocal function put(name, x, y, dir, extra)\n  local spec = { name = name, position = { x, y }, direction = dir, force = f }\n  for k, v in pairs(extra or {}) do spec[k] = v end\n  local e = s.create_entity(spec)\n  if not e then error(\"could not place \" .. name .. \" at \" .. x .. \",\" .. y) end\n  return e\nend\nlocal function source(x, y, item) -- an infinity chest that never runs out\n  local c = put(\"infinity-chest\", x, y)\n  c.set_infinity_container_filter(1, { name = item, count = 100, mode = \"exactly\", index = 1 })\n  return c\nend\nlocal N, E, S, W = defines.direction.north, defines.direction.east, defines.direction.south, defines.direction.west\nlocal function blueprint(name, label, x1, y1, x2, y2, made)\n  local inv = game.create_inventory(1)\n  inv[1].set_stack { name = \"blueprint\" }\n  inv[1].create_blueprint { surface = s, force = f, area = { { x1, y1 }, { x2, y2 } } }\n  inv[1].label = label\n  local str, n = inv[1].export_stack(), inv[1].get_blueprint_entity_count()\n  inv.destroy()\n  for _, e in pairs(made) do e.destroy() end\n  return str, n\nend\nlocal ox, oy = find(28, 10, 60)\nif not ox then error(\"no free 28x10 area for the reference builds\") end\nclear(ox, oy, 28, 10)\nlocal X, Y = ox + 1, oy + 1\n-- mini-smelter, 8x6\nlocal made = {}\nlocal function add(e) made[#made + 1] = e return e end\nfor i = 0, 7 do\n  add(put(\"transport-belt\", X + i + 0.5, Y + 0.5, E))\n  add(put(\"transport-belt\", X + i + 0.5, Y + 5.5, E))\nend\nfor k = 0, 3 do\n  local cx = X + 1 + 2 * k\n  add(put(\"inserter\", cx - 0.5, Y + 1.5, N))\n  add(put(\"stone-furnace\", cx, Y + 3))\n  add(put(\"inserter\", cx - 0.5, Y + 4.5, N))\nend\nfor _, px in pairs { 1.5, 5.5 } do\n  add(put(\"small-electric-pole\", X + px, Y + 1.5))\n  add(put(\"small-electric-pole\", X + px, Y + 4.5))\nend\nlocal smelter, n1 = blueprint(\"mini-smelter\", \"Mini smelter\", X - 0.5, Y - 0.5, X + 8.5, Y + 6.5, made)\n-- gear-cell, 8x6: iron belt on top, 2 gear assemblers, output inserters into chests below\nmade = {}\nlocal G = X + 14\nfor i = 0, 7 do add(put(\"transport-belt\", G + i + 0.5, Y + 0.5, E)) end\nfor k = 0, 1 do\n  local ax = G + 1.5 + 4 * k\n  add(put(\"assembling-machine-1\", ax, Y + 3.5)).set_recipe(\"iron-gear-wheel\")\n  add(put(\"inserter\", ax, Y + 1.5, N))\n  add(put(\"inserter\", ax, Y + 5.5, N))\n  add(put(\"iron-chest\", ax, Y + 6.5))\nend\nadd(put(\"small-electric-pole\", G + 3.5, Y + 1.5))\nadd(put(\"small-electric-pole\", G + 3.5, Y + 5.5))\nlocal cell, n2 = blueprint(\"gear-cell\", \"Gear cell\", G - 0.5, Y - 0.5, G + 8.5, Y + 7.5, made)\nlocal tx, ty = find(16, 10, 24)\nif not tx then error(\"no free 16x10 area for the copy\") end\nstorage.bench_book = { area = { { tx - 10, ty - 10 }, { tx + 26, ty + 20 } } }\nreturn { learn = { [\"mini-smelter\"] = smelter, [\"gear-cell\"] = cell }, entities = { n1, n2 },\n  tx = math.floor(tx + 2), ty = math.floor(ty + 2) }\n",
+ "objectives": [
+  {
+   "name": "smelter-down",
+   "minutes": 10,
+   "hold_samples": 1,
+   "goal": "@{agent} put down that little furnace row I taught you (the 4-furnace one) around [gps={tx},{ty}], powered from our grid. Don't feed it yet, just build it.",
+   "answer": "Anywhere open around there is fine. Power it from the nearest pole of our grid.",
+   "score": [
+    {
+     "name": "furnaces",
+     "target": 4,
+     "lua": "return s.count_entities_filtered{area=storage.bench_book.area, name='stone-furnace'}"
+    },
+    {
+     "name": "powered_inserters",
+     "target": 8,
+     "lua": "local n=0 for _,e in pairs(s.find_entities_filtered{area=storage.bench_book.area, name='inserter'}) do if e.is_connected_to_electric_network() then n=n+1 end end return n"
+    },
+    {
+     "name": "ghosts_left",
+     "lua": "return s.count_entities_filtered{area=storage.bench_book.area, name='entity-ghost'}"
+    }
+   ],
+   "selftest_lua": "local a=storage.bench_book.area local x,y=a[1][1]+12,a[1][2]+12\nlocal eei=s.create_entity{name='electric-energy-interface', position={x-3,y}, force=f} eei.power_production=50000 eei.electric_buffer_size=5000000\nfor k=0,3 do s.create_entity{name='stone-furnace', position={x+2*k+1,y+3}, force=f}\n s.create_entity{name='inserter', position={x+2*k+0.5,y+1.5}, force=f}\n s.create_entity{name='inserter', position={x+2*k+0.5,y+4.5}, force=f} end\nfor k=0,2 do s.create_entity{name='small-electric-pole', position={x+4*k-1.5,y+1.5}, force=f} s.create_entity{name='small-electric-pole', position={x+4*k-1.5,y+4.5}, force=f} end\nreturn s.count_entities_filtered{area=a, name='inserter'}",
+   "selftest_wait": 3
+  }
+ ],
+ "score": []
+}

@@ -1,0 +1,14 @@
+{
+ "note": "Overnight suite. holdout = one task per group, never tuned against, run only at the start and end of a night. long = integration directives, one every long_every cycles.",
+ "train": [
+  "t-belt-ore", "t-power-line", "t-cross-bus", "t-smelter-column",
+  "t-gear-cell", "t-red-block", "t-inserter-mall", "t-steel",
+  "t-starved", "t-brownout",
+  "t-deliver", "d4-library"
+ ],
+ "holdout": ["t-coal-boilers", "t-circuit", "t-backed-up", "t-stamp-book"],
+ "long": ["d2-science-steps", "d3b-circuit-mall", "f1-feldspar-iron"],
+ "long_every": 3,
+ "cycle_minutes_estimate": 60,
+ "holdout_minutes_estimate": 20
+}

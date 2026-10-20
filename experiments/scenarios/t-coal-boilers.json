@@ -1,0 +1,43 @@
+{
+ "name": "t-coal-boilers",
+ "stage": "stage-s3-steel-oil-ready",
+ "minutes": 10,
+ "agents": 1,
+ "kind": "directive",
+ "group": "logistics",
+ "note": "Micro (logistics): the boiler keeps running out of coal; belt coal to it from burner drills 28 tiles away (stub already backed up) and feed it with an inserter. Hand-feeding alone fails: an inserter must feed the boiler from a belt that has coal on it near the boiler.",
+ "setup_lua": "-- Shared helpers for the t-* logistics micro scenarios (pasted at the top of each setup_lua by t-logistics-gen.py).\n-- find(w, h): an open w x h area away from the base (no water, ore or buildings; trees and rocks are cleared).\n-- put(name, x, y, dir, extra): create a player-force entity at X+x, Y+y or fail loudly.\nlocal s, f = game.surfaces.nauvis, game.forces.player\nlocal D = defines.direction\nlocal function open(x, y, w, h)\n  local a = { { x, y }, { x + w, y + h } }\n  for _, c in pairs { { x, y }, { x + w, y }, { x, y + h }, { x + w, y + h } } do\n    if not s.is_chunk_generated { math.floor(c[1] / 32), math.floor(c[2] / 32) } then return false end\n  end\n  if s.count_tiles_filtered { area = a, collision_mask = \"water_tile\" } > 0 then return false end\n  if s.count_entities_filtered { area = a, type = \"resource\" } > 0 then return false end\n  return s.count_entities_filtered { area = a, invert = true,\n    type = { \"tree\", \"simple-entity\", \"corpse\", \"fish\", \"item-entity\", \"character\" } } == 0\nend\nlocal function find(w, h, r0)\n  for r = r0 or 50, 260, 6 do\n    for _, d in pairs { { 1, 0 }, { 0, 1 }, { -1, 0 }, { 0, -1 }, { 1, 1 }, { -1, 1 }, { 1, -1 }, { -1, -1 } } do\n      local x, y = d[1] * r, d[2] * r\n      if open(x, y, w, h) then return x, y end\n    end\n  end\n  error(\"no open \" .. w .. \"x\" .. h .. \" area\")\nend\nlocal X, Y\nlocal function clear(x1, y1, x2, y2)\n  for _, e in pairs(s.find_entities_filtered { area = { { x1, y1 }, { x2, y2 } },\n    type = { \"tree\", \"simple-entity\", \"item-entity\", \"corpse\" } }) do e.destroy() end\nend\nlocal function put(name, x, y, dir, extra)\n  local spec = { name = name, position = { X + x, Y + y }, direction = dir, force = f }\n  for k, v in pairs(extra or {}) do spec[k] = v end\n  local e = s.create_entity(spec)\n  if not e then error(\"could not place \" .. name .. \" at \" .. (X + x) .. \",\" .. (Y + y)) end\n  return e\nend\nlocal function grid(x, y) -- an always-on power source with its own pole, like a corner of the main grid\n  local e = put(\"electric-energy-interface\", x, y)\n  e.power_production, e.electric_buffer_size = 100000, 10000000 -- 6 MW\n  return e\nend\nlocal function gps(x, y) return math.floor(X + x) .. \",\" .. math.floor(Y + y) end\n\n-- t-coal-boilers: a boiler with two steam engines (water from a pipe, a steady 1 MW load) that's been hand-fed and is\n-- about to run dry; 28 tiles west, two burner drills on coal drop onto a belt stub that goes nowhere (backed up).\n-- The task: belt the coal to the boiler. Passes when the boiler burns, an inserter feeds it from a belt, and the\n-- coal drills keep working (their stub would back up otherwise).\nlocal ox, oy = find(54, 26)\nX, Y = ox + 6, oy + 12\nclear(ox, oy, ox + 54, oy + 26)\nfor x = 0, 3 do for y = 0, 1 do s.create_entity { name = \"coal\", position = { X + x + 0.5, Y + y + 0.5 }, amount = 5000 } end end\nfor _, cx in pairs { 1, 3 } do\n  local d = put(\"burner-mining-drill\", cx, 1, D.south)\n  d.insert { name = \"coal\", count = 50 }\nend\nfor x = 0, 7 do put(\"transport-belt\", x + 0.5, 2.5, D.east) end\nfor x = 0, 7 do\n  local b = s.find_entity(\"transport-belt\", { X + x + 0.5, Y + 2.5 })\n  for i = 1, 2 do\n    local l, k = b.get_transport_line(i), 0\n    while k < 20 and l.can_insert_at_back() do l.insert_at_back { name = \"coal\", count = 1 } k = k + 1 end\n  end\nend\nlocal BX = 36.5\nlocal boiler = put(\"boiler\", BX, 2, D.north)\nboiler.insert { name = \"coal\", count = 5 }\nlocal water = put(\"infinity-pipe\", BX - 2, 2.5)\nwater.set_infinity_pipe_filter { name = \"water\", percentage = 1, mode = \"at-least\" }\nput(\"steam-engine\", BX, -1.5, D.north)\nput(\"steam-engine\", BX, -6.5, D.north)\nput(\"small-electric-pole\", BX + 2, -1.5)\nlocal load = put(\"electric-energy-interface\", BX + 4, -3)\nload.power_production, load.power_usage, load.electric_buffer_size = 0, 1000000 / 60, 1000000\nstorage.bench_coal = { boiler = boiler, drills = { { X - 1, Y - 1 }, { X + 5, Y + 3 } }, X = X, Y = Y, BX = BX }\nreturn { coal = gps(4, 2.5), boiler = gps(BX, 2) }\n",
+ "objectives": [
+  {
+   "name": "coal-to-boiler",
+   "minutes": 10,
+   "hold_samples": 2,
+   "goal": "@{agent} the boiler at [gps={boiler}] keeps running out of coal. Belt coal to it from the drills at [gps={coal}] so it stays fed.",
+   "answer": "Belt it, don't hand-feed it. Any route is fine.",
+   "score": [
+    {
+     "name": "boiler_burning",
+     "lua": "local b=storage.bench_coal.boiler return b.valid and b.status==defines.entity_status.working and 1 or 0",
+     "target": 1
+    },
+    {
+     "name": "belt_fed",
+     "lua": "local b=storage.bench_coal.boiler local n=0 if not b.valid then return 0 end for _,i in pairs(s.find_entities_filtered{position=b.position, radius=4, type='inserter'}) do local p=i.pickup_target if i.drop_target==b and p and (p.type=='transport-belt' or p.type=='underground-belt' or p.type=='splitter') then n=n+1 end end return n",
+     "target": 1
+    },
+    {
+     "name": "coal_on_belt_at_boiler",
+     "lua": "local b=storage.bench_coal.boiler local n=0 if not b.valid then return 0 end for _,e in pairs(s.find_entities_filtered{position=b.position, radius=4, type={'transport-belt','underground-belt','splitter'}}) do for i=1,e.get_max_transport_line_index() do n=n+e.get_transport_line(i).get_item_count('coal') end end return n",
+     "target": 1
+    },
+    {
+     "name": "coal_drills_working",
+     "lua": "local b=storage.bench_coal local n=0 for _,e in pairs(s.find_entities_filtered{area=b.drills, name='burner-mining-drill'}) do if e.status==defines.entity_status.working then n=n+1 end end return n"
+    }
+   ],
+   "selftest_lua": "local b=storage.bench_coal local X,Y=b.X,b.Y local D=defines.direction local function put(n,x,y,d,t) for _,e in pairs(s.find_entities_filtered{position={X+x,Y+y},radius=0.9,type={'tree','simple-entity'}}) do e.destroy() end local e=s.create_entity{name=n,position={X+x,Y+y},direction=d,force='player',type=t} if not e then error('selftest: no '..n..' at '..x..','..y) end return e end\nfor x=8,32 do put('transport-belt',x+0.5,2.5,D.east) end put('transport-belt',33.5,2.5,D.south) put('transport-belt',33.5,3.5,D.south) for x=33,36 do put('transport-belt',x+0.5,4.5,D.east) end local i=put('burner-inserter',36.5,3.5,D.south) i.insert{name='coal',count=2} return 'belted'",
+   "selftest_wait": 40
+  }
+ ],
+ "score": []
+}

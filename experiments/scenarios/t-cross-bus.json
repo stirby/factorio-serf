@@ -1,0 +1,40 @@
+{
+ "name": "t-cross-bus",
+ "stage": "stage-s3-steel-oil-ready",
+ "minutes": 10,
+ "agents": 1,
+ "kind": "directive",
+ "group": "logistics",
+ "note": "Micro (logistics): get copper from a stub on one side of a 4-lane main bus to a chest's inserter on the other side, without cutting the bus (undergrounds span it exactly, or go around its end). Passes on copper arriving in the chest at >= 20/min through its inserter from a belt, with all 180 bus belts still in place facing south.",
+ "setup_lua": "-- Shared helpers for the t-* logistics micro scenarios (pasted at the top of each setup_lua by t-logistics-gen.py).\n-- find(w, h): an open w x h area away from the base (no water, ore or buildings; trees and rocks are cleared).\n-- put(name, x, y, dir, extra): create a player-force entity at X+x, Y+y or fail loudly.\nlocal s, f = game.surfaces.nauvis, game.forces.player\nlocal D = defines.direction\nlocal function open(x, y, w, h)\n  local a = { { x, y }, { x + w, y + h } }\n  for _, c in pairs { { x, y }, { x + w, y }, { x, y + h }, { x + w, y + h } } do\n    if not s.is_chunk_generated { math.floor(c[1] / 32), math.floor(c[2] / 32) } then return false end\n  end\n  if s.count_tiles_filtered { area = a, collision_mask = \"water_tile\" } > 0 then return false end\n  if s.count_entities_filtered { area = a, type = \"resource\" } > 0 then return false end\n  return s.count_entities_filtered { area = a, invert = true,\n    type = { \"tree\", \"simple-entity\", \"corpse\", \"fish\", \"item-entity\", \"character\" } } == 0\nend\nlocal function find(w, h, r0)\n  for r = r0 or 50, 260, 6 do\n    for _, d in pairs { { 1, 0 }, { 0, 1 }, { -1, 0 }, { 0, -1 }, { 1, 1 }, { -1, 1 }, { 1, -1 }, { -1, -1 } } do\n      local x, y = d[1] * r, d[2] * r\n      if open(x, y, w, h) then return x, y end\n    end\n  end\n  error(\"no open \" .. w .. \"x\" .. h .. \" area\")\nend\nlocal X, Y\nlocal function clear(x1, y1, x2, y2)\n  for _, e in pairs(s.find_entities_filtered { area = { { x1, y1 }, { x2, y2 } },\n    type = { \"tree\", \"simple-entity\", \"item-entity\", \"corpse\" } }) do e.destroy() end\nend\nlocal function put(name, x, y, dir, extra)\n  local spec = { name = name, position = { X + x, Y + y }, direction = dir, force = f }\n  for k, v in pairs(extra or {}) do spec[k] = v end\n  local e = s.create_entity(spec)\n  if not e then error(\"could not place \" .. name .. \" at \" .. (X + x) .. \",\" .. (Y + y)) end\n  return e\nend\nlocal function grid(x, y) -- an always-on power source with its own pole, like a corner of the main grid\n  local e = put(\"electric-energy-interface\", x, y)\n  e.power_production, e.electric_buffer_size = 100000, 10000000 -- 6 MW\n  return e\nend\nlocal function gps(x, y) return math.floor(X + x) .. \",\" .. math.floor(Y + y) end\n\n-- t-cross-bus: copper plates come out onto a short belt stub on the west side of a 4-lane main bus (4 parallel belts\n-- running north-south, 45 tiles long, carrying iron); the chest that needs them is on the east side, with its\n-- inserter already in place. The task: get copper to the chest without cutting the bus (undergrounds fit exactly,\n-- or go around the end).\nlocal ox, oy = find(52, 52)\nX, Y = ox + 4, oy + 24\nclear(ox, oy, ox + 52, oy + 52)\ngrid(0, 5)\nput(\"small-electric-pole\", 2.5, 4.5)\nlocal src = put(\"infinity-chest\", 2.5, 2.5)\nsrc.set_infinity_container_filter(1, { name = \"copper-plate\", count = 100, mode = \"at-least\" })\nput(\"inserter\", 3.5, 2.5, D.west) -- picks from the chest (west), drops onto the stub (east)\nfor x = 4, 7 do put(\"transport-belt\", x + 0.5, 2.5, D.east) end\nfor bx = 20, 23 do\n  for y = -20, 24 do put(\"transport-belt\", bx + 0.5, y + 0.5, D.south) end\nend\n-- the bus is in use: iron on every lane, backed up at its south end\nfor bx = 20, 23 do\n  for y = 14, 24 do\n    local b = s.find_entity(\"transport-belt\", { X + bx + 0.5, Y + y + 0.5 })\n    for i = 1, 2 do\n      local l, k = b.get_transport_line(i), 0\n      while k < 20 and l.can_insert_at_back() do l.insert_at_back { name = \"iron-plate\", count = 1 } k = k + 1 end\n    end\n  end\nend\ngrid(43, 5)\nput(\"small-electric-pole\", 41.5, 4.5)\nlocal dest = put(\"iron-chest\", 41.5, 2.5)\nlocal ins = put(\"inserter\", 40.5, 2.5, D.west) -- picks from x 39.5 (west), drops into the chest\nstorage.bench_bus = { dest = dest, ins = ins, bus = { { X + 20, Y - 20 }, { X + 24, Y + 25 } }, X = X, Y = Y }\nreturn { stub = gps(7.5, 2.5), chest = gps(41.5, 2.5) }\n",
+ "objectives": [
+  {
+   "name": "copper-across-bus",
+   "minutes": 10,
+   "hold_samples": 2,
+   "goal": "@{agent} I need copper plates in the chest at [gps={chest}]. They come out on the belt at [gps={stub}]; get them across, and don't break the main bus in between.",
+   "answer": "The inserter next to the chest is already set up, just bring the belt to it.",
+   "score": [
+    {
+     "name": "copper_per_min",
+     "lua": "local d=storage.bench_bus.dest return d.valid and d.get_item_count('copper-plate') or 0",
+     "rate": true,
+     "target": 20
+    },
+    {
+     "name": "inserter_takes_from_belt",
+     "lua": "local i=storage.bench_bus.ins local p=i.valid and i.pickup_target return p and (p.type=='transport-belt' or p.type=='underground-belt' or p.type=='splitter') and 1 or 0",
+     "target": 1
+    },
+    {
+     "name": "bus_intact",
+     "lua": "local b=storage.bench_bus local n=0 for _,e in pairs(s.find_entities_filtered{area=b.bus, name='transport-belt'}) do if e.direction==defines.direction.south then n=n+1 end end return n",
+     "target": 180
+    }
+   ],
+   "selftest_lua": "local b=storage.bench_bus local X,Y=b.X,b.Y local D=defines.direction local function put(n,x,y,d,t) for _,e in pairs(s.find_entities_filtered{position={X+x,Y+y},radius=0.9,type={'tree','simple-entity'}}) do e.destroy() end local e=s.create_entity{name=n,position={X+x,Y+y},direction=d,force='player',type=t} if not e then error('selftest: no '..n..' at '..x..','..y) end return e end\nfor x=8,18 do put('transport-belt',x+0.5,2.5,D.east) end put('underground-belt',19.5,2.5,D.east,'input') put('underground-belt',24.5,2.5,D.east,'output') for x=25,39 do put('transport-belt',x+0.5,2.5,D.east) end return 'belted'",
+   "selftest_wait": 60
+  }
+ ],
+ "score": []
+}
