@@ -489,6 +489,47 @@ async def t_lesson(agent: "Agent", a: dict) -> str:
     return msg
 
 
+async def t_skill_save(agent: "Agent", a: dict) -> str:
+    from . import skills
+    params = a.get("params") or []
+    if isinstance(params, str):
+        params = [p.strip() for p in params.split(",") if p.strip()]
+    msg = skills.save(str(a.get("name", "")), str(a.get("kind", "script")), str(a.get("doc", "")),
+                      code=str(a.get("code", "")), text=str(a.get("text", "")), params=params, author=agent.name,
+                      run=skills._run_id(agent))
+    if not msg.startswith("error"):
+        await agent.notice(f"saved to my library: {a.get('name')} ({a.get('doc', '')})")
+    return msg
+
+
+async def t_friction(agent: "Agent", a: dict) -> str:
+    from . import skills
+    return skills.friction(str(a.get("note", "")), agent=agent.name, run=skills._run_id(agent))
+
+
+async def t_skill_run(agent: "Agent", a: dict) -> str:
+    from . import skills
+    args = a.get("args") or {}
+    if isinstance(args, str):
+        args = json.loads(args)
+    _ok, out = await skills.run(agent, str(a.get("name", "")), args)
+    return out
+
+
+async def t_skill_read(agent: "Agent", a: dict) -> str:
+    from . import skills
+    name = str(a.get("name", "list"))
+    if name == "list":
+        return skills.render_index(limit=200) or "your library is empty"
+    sk = skills.load_all().get(name)
+    if not sk:
+        return f"no skill called {name}; skill_read name=list shows them all"
+    st = skills.stats().get(name)
+    use = f"used {st['uses']}x, {st['ok']} ok" + (f"; last error: {st['err']}" if st["err"] else "") if st else "unused"
+    body = sk.get("code") or sk.get("text", "")
+    return f"{sk['kind']} {name} v{sk.get('version', 1)} ({use}): {sk['doc']}\nparams: {sk.get('params', [])}\n{body}"
+
+
 async def t_status(agent: "Agent", a: dict) -> str:
     mode = a.get("mode", "working")
     await agent.set_status(str(a.get("text", "")), "idle" if mode == "idle" else "working")
@@ -586,6 +627,27 @@ TOOLS: list[Tool] = [
          "corrects you, or when a mistake cost you. One short, general, imperative sentence (no coordinates). "
          "Your lessons are shown to you every turn. replaces=<number> rewrites an outdated lesson.",
          _obj({"text": {"type": "string"}, "replaces": {"type": "integer"}}, ["text"]), t_lesson),
+    Tool("skill_save", "Save to YOUR library (it persists across worlds; you get faster every time you reuse it). "
+         "kind=playbook: text = a short how-to that worked (steps, ratios, layouts, gotchas). kind=script: code = a "
+         "small program that does a multi-step job by calling your tools, params = its argument names. Script "
+         "language: plain Python without def/lambda/import/try; call tools as functions with keyword args, e.g. "
+         "r = act([{\"op\": \"move\", \"x\": x, \"y\": y}]); build(kind=\"line\", item=\"transport-belt\", "
+         "**{\"from\": a, \"to\": b}); inspect(x=x, y=y, radius=2); skill(name=\"other\", ...). Tools return text: "
+         "parse(text) gives its JSON, failed(text) says if it failed, log(...) notes something, return a result "
+         "string. act waits for all its actions. Same name = new version. Save one when you've done the same "
+         "multi-step thing twice, or right after something tricky worked.",
+         _obj({"name": {"type": "string"}, "kind": {"type": "string", "enum": ["script", "playbook"]},
+               "doc": {"type": "string", "description": "one line: what it does, when to use it"},
+               "params": {"type": "array", "items": {"type": "string"}}, "code": {"type": "string"},
+               "text": {"type": "string"}}, ["name", "kind", "doc"]), t_skill_save),
+    Tool("skill_run", "Run a script from your library with args={param: value}. Returns what it did and its result; "
+         "it stops if a human speaks. If it fails, fix it with skill_save (same name) rather than working around it.",
+         _obj({"name": {"type": "string"}, "args": {"type": "object"}}, ["name"]), t_skill_run),
+    Tool("friction", "Tell the people who maintain your tools what just got in your way: a tool that's missing or "
+         "awkward, a result that misled you, something you had to work around. One or two sentences, right when "
+         "it happens. Then carry on.", _obj({"note": {"type": "string"}}, ["note"]), t_friction),
+    Tool("skill_read", "Read a playbook or a script's code (name=list shows your whole library).",
+         _obj({"name": {"type": "string"}}, ["name"]), t_skill_read),
     Tool("status", "Set the one-line status shown under your name in everyone's Crew panel. mode='idle' only when "
          "you own no open task and there's nothing useful to do; you keep working while you own a task.",
          _obj({"text": {"type": "string"}, "mode": {"type": "string", "enum": ["working", "idle"]}}, ["text"]),

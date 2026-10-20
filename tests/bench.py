@@ -399,9 +399,13 @@ class Bench:
         (self.dir / "variant.json").write_text(json.dumps({"name": a.variant, **self.var}, indent=1))
         self.result.update(start=now_s(), t_start=time.time(), git=git_info())
         print(f"bench: run {self.run_id} on instance {a.instance} (stage {self.scn['stage']})", flush=True)
-        # Each run gets its own design library (the user's real one stays out of it, both ways).
-        os.environ["SERF_DESIGNS_DIR"] = str(self.dir / "designs")
-        os.environ["SERF_LESSONS_DIR"] = str(self.dir / "lessons")  # same for lessons
+        # Each run gets its own library (the user's real one stays out of it, both ways), unless the overnight
+        # loop shares one across the night's runs (SERF_NIGHT_LIBRARY) so what the serfs build accumulates.
+        lib = Path(os.environ["SERF_NIGHT_LIBRARY"]) if os.environ.get("SERF_NIGHT_LIBRARY") else self.dir
+        os.environ["SERF_DESIGNS_DIR"] = str(lib / "designs")
+        os.environ["SERF_LESSONS_DIR"] = str(lib / "lessons")
+        os.environ["SERF_SKILLS_DIR"] = str(lib / "skills")
+        os.environ["SERF_RUN_ID"] = self.run_id
         await asyncio.to_thread(self.inst.start, 240)
         orch = None
         rcon = Rcon(self.inst.host, self.inst.rcon_port, self.inst.password)
@@ -499,6 +503,8 @@ class Bench:
             self.result["agents_end"] = list_end
             if orch:
                 self.result["drain_s"] = await self._drain(orch)
+                if os.environ.get("SERF_DEBRIEF") == "1":
+                    self.result["debrief"] = await self._debrief(orch, crew, names)
                 await self._stop_orch(orch)
                 orch = None
             # Characterless leads (foreman, architect) count toward cost and time like the workers.
@@ -678,6 +684,34 @@ class Bench:
                 pass
         if self.stop_evt.is_set():
             self.result["interrupted"] = True
+
+    async def _debrief(self, orch, crew: Crew, names: list[str]) -> list[str]:
+        """The same questions after every run (overnight loop): what took the time, what was missing. Its answer in
+        chat is the data; a human sorts it in the morning (most complaints are wrong, some are the best leads)."""
+        said: list[str] = []
+        orig = orch.agent_said
+
+        def hook(speaker: str, text: str) -> None:
+            orig(speaker, text)
+            said.append(text)
+        orch.agent_said = hook
+        try:
+            await crew.call("chat", player="ops", message=(
+                f"@{names[0]} Time's up, stop building. Debrief in chat only, no actions, 3-6 short lines: what took "
+                "the most time, what you were missing (a tool, info, an item), what failed or confused you, and "
+                "what you'd do differently next time."))
+            t0, started = time.time(), False
+            while time.time() - t0 < 150 and not self.stop_evt.is_set():
+                busy = any(getattr(x, "in_turn", False) for x in orch.agents.values())
+                started = started or busy
+                if started and not busy and said:
+                    break
+                await asyncio.sleep(1)
+        except Exception as e:  # noqa: BLE001
+            self._err("debrief", e)
+        finally:
+            orch.agent_said = orig
+        return said
 
     async def _drain(self, orch) -> float:
         """After scoring, let in-flight turns finish (up to --drain seconds) so their cost gets recorded.

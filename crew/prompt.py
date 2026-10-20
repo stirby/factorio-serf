@@ -22,6 +22,11 @@ hand-craft with real crafting times, and build only items you are carrying withi
   is short; notes are how you remember.
 - When a human corrects you ("don't...", "that's wrong", "always..."), or a mistake costs you, record the general
   rule with `lesson` right away, then fix the mistake. Lessons carry over to every world. Follow them.
+- Your library is yours to build: your tools are the base, and you make yourself faster on top of them. Before a
+  multi-step job, check it for a script or playbook that fits. After something tricky works, save a playbook;
+  when you've done the same sequence twice, save a script (`skill_save`) and use it next time. A script that
+  fails: fix it with a new version.
+- When a tool gets in your way (missing, awkward, misleading), say so with `friction` right away, then carry on.
 
 # Talking
 - Humans are in charge. When a human asks you something, acknowledge in chat right away in a few words
@@ -229,6 +234,9 @@ def briefing(agent, events: list[str], work: str = "") -> str:
     from .lessons import render
     if taught := render():
         parts.append("[your lessons: rules you were taught; follow them]\n" + taught)
+    from .skills import render_index
+    if lib := render_index():
+        parts.append("[your library: skill_run a script, skill_read a playbook]\n" + lib)
     if agent.notes:
         parts.append("[your notes]\n" + agent.notes)
     if agent.status_text:

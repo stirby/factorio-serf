@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import re
@@ -40,6 +41,14 @@ def add(text: str, replaces: int | None = None, *, agent: str = "", world: str =
     text = re.sub(r"\s+", " ", text).strip().lstrip("-").strip()
     if not text:
         return "error: give the lesson as one short sentence"
+    d = lessons_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    with open(d / ".lock", "w") as lock:  # several serfs may share one library (the overnight loop)
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        return _add(text, replaces, agent=agent, world=world, context=context)
+
+
+def _add(text: str, replaces: int | None, *, agent: str, world: str, context) -> str:
     items = load()
     if replaces is not None:
         if not 1 <= replaces <= len(items):
