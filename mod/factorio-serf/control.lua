@@ -137,7 +137,7 @@ end
 API.observe = function(req)
   local a = live(req)
   local out = { self = observe.self(a), world = observe.world(a) }
-  if req.nearby ~= false then out.nearby = observe.nearby(a, req.radius) end
+  if req.nearby ~= false then out.nearby = observe.nearby(a, req.radius, req.center and util.pos(req.center)) end
   return out
 end
 
@@ -277,6 +277,22 @@ API.check = function(req) return orders.check(req) end
 
 API.self = function(req) return observe.self(live(req)) end
 API.nearby = function(req) return observe.nearby(live(req), req.radius) end
+-- Power for what was just built: area={x1,y1,x2,y2} (a build zone) or positions=[[x,y],...] (what an act placed).
+API.power_check = function(req)
+  local s = req.agent and live(req).char.surface or game.surfaces[req.surface or "nauvis"]
+  local f = game.forces.player
+  local list, area = {}, nil
+  if req.positions then
+    for _, p in ipairs(req.positions) do
+      for _, e in pairs(s.find_entities_filtered { position = { p[1], p[2] }, radius = 0.5, force = f }) do list[#list + 1] = e end
+    end
+  else
+    area = { { req.x1, req.y1 }, { req.x2, req.y2 } }
+    list = s.find_entities_filtered { area = area, force = f }
+  end
+  return observe.power_check(s, list, area, req.ghosts)
+end
+
 API.map = function(req) return observe.map(live(req), req.radius, util.pos(req.center)) end
 API.find = function(req) return observe.find(live(req), req) end
 API.trace = function(req) return observe.trace(req.agent and live(req) or nil, req) end
@@ -310,10 +326,18 @@ API.inspect = function(req)
         if okR and r then d.recipe = r.name end
         d.progress = e.crafting_progress
       end
-      if e.energy then d.energy = e.energy end
+      d.power = util.power(e)
+      if e.type == "accumulator" and e.electric_buffer_size and e.electric_buffer_size > 0 then
+        d.charge = math.floor(e.energy / e.electric_buffer_size * 100) .. "%"
+      end
+      if e.type == "electric-pole" then d.grid = observe.grid(e) end
       if e.supports_direction then d.dir = util.DIR_NAMES[e.direction] end
       if e.type == "inserter" then
         d.pickup, d.drop = util.xy(e.pickup_position), util.xy(e.drop_position)
+        d.sides = util.inserter_sides(e)
+      end
+      if e.type == "underground-belt" then
+        d.ug = e.belt_to_ground_type == "input" and "input (entrance)" or "output (exit)"
       end
       if e.type == "transport-belt" or e.type == "underground-belt" or e.type == "splitter" then
         local lanes = {}

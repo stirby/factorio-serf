@@ -57,6 +57,78 @@ function util.contents(inv)
   return out
 end
 
+-- Which side of `center` the point p is on: north/south/east/west (the dominant axis).
+function util.side(center, p)
+  local dx, dy = (p.x or p[1]) - (center.x or center[1]), (p.y or p[2]) - (center.y or center[2])
+  if math.abs(dx) > math.abs(dy) then return dx > 0 and "east" or "west" end
+  return dy > 0 and "south" or "north"
+end
+
+-- An inserter's pickup and drop sides in words, so its direction can't be read backwards.
+function util.inserter_sides(e)
+  return "picks from " .. util.side(e.position, e.pickup_position) .. ", drops " .. util.side(e.position, e.drop_position)
+end
+
+function util.watts(w)
+  if w >= 1e9 then return string.format("%.1f GW", w / 1e9) end
+  if w >= 1e6 then return string.format("%.1f MW", w / 1e6) end
+  if w >= 1e3 then return string.format("%d kW", math.floor(w / 1e3 + 0.5)) end
+  return string.format("%d W", math.floor(w + 0.5))
+end
+
+-- Electricity producers and wires: everything else with an electric energy source consumes.
+local NOT_CONSUMERS = { ["electric-pole"] = true, generator = true, ["solar-panel"] = true, accumulator = true,
+  ["electric-energy-interface"] = true, ["burner-generator"] = true, ["fusion-generator"] = true,
+  ["lightning-attractor"] = true, ["power-switch"] = true }
+util.NOT_CONSUMERS = NOT_CONSUMERS
+function util.needs_power(e)
+  if NOT_CONSUMERS[e.type] then return false end
+  local ok, src = pcall(function() return e.prototype.electric_energy_source_prototype end)
+  return ok and src ~= nil
+end
+
+-- The nearest pole on a grid that is producing power (the one to connect to), within r tiles.
+function util.grid_pole(surface, force, p, r)
+  local live = {}
+  local best, bd
+  for _, q in pairs(surface.find_entities_filtered { type = "electric-pole", force = force, position = p, radius = r or 64 }) do
+    local id = q.electric_network_id
+    if id and live[id] == nil then
+      local made = 0
+      local st = q.electric_network_statistics
+      for name in pairs(st.output_counts) do
+        made = made + st.get_flow_count { name = name, category = "output",
+          precision_index = defines.flow_precision_index.five_seconds, count = false }
+      end
+      live[id] = made > 0
+    end
+    if id and live[id] then
+      local d = util.dist(q.position, p)
+      if not bd or d < bd then best, bd = q, d end
+    end
+  end
+  return best, bd
+end
+
+-- "powered", "low power NN%", "no power: ..." for anything that runs on electricity; nil otherwise.
+function util.power(e)
+  if not util.needs_power(e) then return nil end
+  local okC, on = pcall(function() return e.is_connected_to_electric_network() end)
+  if okC and not on then
+    local pole, d = util.grid_pole(e.surface, e.force, e.position)
+    local okN, nid = pcall(function() return e.electric_network_id end)
+    return (okN and nid and "no power: its poles don't reach any generator" or "no power: not on the grid") .. (pole and string.format(" (nearest grid pole %g,%g, %d tiles)",
+      r1(pole.position.x), r1(pole.position.y), math.floor(d + 0.5)) or " (no powered pole within 64 tiles)")
+  end
+  local st = e.status
+  if st == defines.entity_status.no_power then return "no power: its grid makes no electricity (inspect a pole)" end
+  if st == defines.entity_status.low_power then
+    local buf = e.electric_buffer_size
+    return "low power" .. ((buf and buf > 0) and string.format(" %d%%", math.floor(e.energy / buf * 100)) or "")
+  end
+  return "powered"
+end
+
 function util.cheat()
   local s = settings.global["factorio-serf-cheat"]
   return s and s.value or false

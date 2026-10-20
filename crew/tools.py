@@ -43,7 +43,8 @@ Ops and their fields:
   move        x,y [radius]  | player=<name> | agent=<name>      walk there (pathfinding)
   mine        name=<iron-ore|coal|stone|copper-ore|tree|rock|entity name> count=N   (nearest; ore count = items)
               or x,y to mine that one thing (pick up a building: add force_pickup=true only if a human asked)
-  craft       recipe count [wait=false to queue and move on]   hand-craft (intermediates are crafted automatically)
+  craft       recipe count [wait=false to queue and move on]   hand-craft count ITEMS (copper-cable count=10 = 5
+              crafts of 2); intermediates are crafted automatically; the result says if ingredients ran short
   place       name x y [direction=north|east|south|west]        build from inventory (clears trees/rocks in the way itself). Inserters: give
               pickup=[x,y] (the tile it takes from) or drop=[x,y] instead of a direction; that's always right
               underground-belt: place the entrance with type=input and the exit with type=output, both facing
@@ -80,8 +81,24 @@ Directions: inserters TAKE from the side they face and drop on the opposite side
 (the result tells you exactly where); belts move items toward their direction."""
 
 
+ACT_OPS = ["move", "mine", "craft", "place", "insert", "take", "set_recipe", "rotate", "research", "limit", "configure",
+           "equip", "connect", "follow", "build_ghosts", "blueprint", "clear_ghosts", "loot", "wait"]
+
+
+def wrong_form(name: str, as_op: bool = False) -> str:
+    """The error for an act op called as a tool (or in a script), or a tool name used as an act op."""
+    if as_op and name in BY_NAME and name not in ACT_OPS:
+        return f"{name} is a tool, not an act op: call {name}(...) directly (e.g. {name}(x=..., y=...))"
+    if not as_op and name in ACT_OPS:
+        return (f"{name} is an act op, not a tool: call act(actions=[{{\"op\": \"{name}\", ...}}])"
+                f" (in a script: act([{{\"op\": \"{name}\", ...}}]))")
+    return ""
+
+
 async def t_look(agent: "Agent", a: dict) -> str:
-    d = await agent.link.call("observe", agent=agent.name, radius=min(int(a.get("radius", 16)), 48))
+    _num(a, "x", "y")
+    kw = {"center": [a["x"], a["y"]]} if "x" in a and "y" in a else {}
+    d = await agent.link.call("observe", agent=agent.name, radius=min(int(a.get("radius", 16)), 48), **kw)
     agent.last_position = d["self"]["position"]
     w = d.get("world") or {}
     if w.get("crew"):
@@ -241,10 +258,47 @@ async def vitals_line(agent: "Agent") -> str:
             f"(made {kv(v.get('science_made') or {})}) | per min: " + kv(v.get("plates") or {}))
 
 
+async def power_note(agent: "Agent", **where) -> str:
+    """A warning line when machines that need electricity don't have it ('' when all is fine)."""
+    try:
+        d = await agent.link.call("power_check", agent=agent.name, **where)
+    except GameError:
+        return ""
+    out = []
+    if d.get("unpowered"):
+        p = d.get("nearest_pole")
+        out.append(f"WARNING: {d['unpowered']} of {d['machines']} machines have no power"
+                   + (f" (nearest grid pole at {p[0]:g},{p[1]:g})" if p else " (no powered pole within 64 tiles)"))
+    if d.get("low"):
+        out.append(f"{d['low']} of {d['machines']} machines are on low power: the grid is short (inspect a pole)")
+    if d.get("ghost_machines") and not d.get("poles_near"):
+        out.append(f"note: no power pole in or next to this area yet; its {d['ghost_machines']} machines will need one")
+    return "\n".join(out)
+
+
+def zone_box(zone) -> dict | None:
+    """x1,y1,x2,y2 from a zone given as [x1,y1,x2,y2] or [[x1,y1],[x2,y2]]."""
+    try:
+        if len(zone) == 2:
+            (x1, y1), (x2, y2) = zone
+        else:
+            x1, y1, x2, y2 = zone
+        return {"x1": float(x1), "y1": float(y1), "x2": float(x2), "y2": float(y2)}
+    except (TypeError, ValueError):
+        return None
+
+
 async def _after(agent: "Agent", results: list[dict], running: list[int]) -> str:
     lines = _fmt_results(results)
     if running:
         lines.append(f"still running: jobs {running} (call wait to keep waiting, or stop to cancel)")
+    else:  # everything placed in this batch is down: say if machines in it have no power
+        placed = [r["data"]["position"] for r in results if r.get("op") == "place" and r.get("ok")
+                  and isinstance(r.get("data"), dict) and r["data"].get("position")]
+        if placed:
+            note = await power_note(agent, positions=placed)
+            if note:
+                lines.append(note.replace("machines have", "machines you placed have", 1))
     try:
         me = await agent.link.call("self", agent=agent.name)
         agent.last_position = me["position"]
@@ -267,6 +321,10 @@ async def t_act(agent: "Agent", a: dict) -> str:
         actions = json.loads(actions)
     if not actions:
         return "no actions given"
+    for act in actions:
+        op = (act.get("op") or act.get("action")) if isinstance(act, dict) else None
+        if op not in ACT_OPS:
+            return wrong_form(str(op), as_op=True) or f"unknown act op {op!r}; ops: {', '.join(ACT_OPS)}"
     for act in actions:
         _num(act, "x", "y", "count", "radius", "seconds")
         if "count" in act and isinstance(act["count"], float):
@@ -497,8 +555,10 @@ async def t_stamp(agent: "Agent", a: dict) -> str:
         d = await agent.link.call("paste", string=st["string"], x=st["center"][0], y=st["center"][1],
                                   direction=st["direction"])
         blueprint_lib.used(a["name"])
+        pw = await power_note(agent, x1=x1, y1=y1, x2=x2, y2=y2, ghosts=True)
         return (f"stamped {a['name']} (yours) as {d['placed']}/{d['of']} ghosts in x {x1}..{x2}, y {y1}..{y2}; "
-                f"it needs {_j(d['needs'])}. Next: build it (build kind=ghosts zone=[{x1},{y1},{x2},{y2}]).")
+                f"it needs {_j(d['needs'])}. Next: build it (build kind=ghosts zone=[{x1},{y1},{x2},{y2}])."
+                + (f"\n{pw}" if pw else ""))
     d = await agent.link.call("act", agent=agent.name, actions=[{"op": "blueprint", "entities": st["entities"]}])
     r = await asyncio.wait_for(agent.link.job_future(d["job_ids"][0]), 20)
     if not r.get("ok"):
@@ -506,6 +566,9 @@ async def t_stamp(agent: "Agent", a: dict) -> str:
     note = ""
     if chk.get("trees_or_rocks"):
         note = f"\n{chk['trees_or_rocks']} trees/rocks are in the area; building clears the ones in the way."
+    pw = await power_note(agent, x1=x1, y1=y1, x2=x2, y2=y2, ghosts=True)
+    if pw:
+        note += "\n" + pw
     return (f"stamped {a['name']} as {r.get('data', {}).get('ghosts')} ghosts.\n" + blueprint_lib.stamp_text(st)
             + note + "\nNext: get the items (depot/craft) and build_ghosts there; then connect its inputs/outputs.")
 
@@ -583,8 +646,9 @@ XY = {"x": {"type": "number"}, "y": {"type": "number"}}
 
 TOOLS: list[Tool] = [
     Tool("look", "See yourself (position, inventory, current job), the world (research, players, crew) and "
-         "what's around you: buildings with status/recipe/fuel/contents, ore patches, trees, rocks, enemies.",
-         _obj({"radius": {"type": "integer", "description": "tiles, default 16, max 48"}}), t_look),
+         "what's around you (or around x,y, without walking there): buildings with status/recipe/fuel/contents "
+         "and power problems, ore patches, trees, rocks, enemies.",
+         _obj({"radius": {"type": "integer", "description": "tiles, default 16, max 48"}, **XY}), t_look),
     Tool("map", "ASCII map of the area around you (or around x,y). Best for planning where to build.",
          _obj({"radius": {"type": "integer", "description": "default 12, max 24"}, **XY}), t_map),
     Tool("find", "Find the nearest entities/resources by prototype name (e.g. iron-ore, coal, crude-oil, "
@@ -592,7 +656,9 @@ TOOLS: list[Tool] = [
          "name='water' finds the nearest water and returns ready offshore_pump_spots (position + direction).",
          _obj({"name": {"type": "string"}, "type": {"type": "string"}, "limit": {"type": "integer"},
                "max_radius": {"type": "integer"}}), t_find),
-    Tool("inspect", "Details of whatever is at x,y: inventories, recipe, progress, status, ore amount.",
+    Tool("inspect", "Details of whatever is at x,y: inventories, recipe, progress, status, ore amount, power "
+         "(powered / low power / no power and the nearest grid pole). On any power pole: the whole grid (load vs "
+         "capacity, generators, boiler fuel, top users).",
          _obj({**XY, "radius": {"type": "number"}}, ["x", "y"]), t_inspect),
     Tool("trace", "Follow a belt line from the belt at x,y: where it goes (direction=down, default) or where it "
          "comes from (direction=up), as straight runs and underground hops, why it ends (nothing ahead, a gap, "
@@ -613,8 +679,7 @@ TOOLS: list[Tool] = [
          "wait for arrive with your next tool call. New actions queue behind running ones; replace=true cancels "
          "what you were doing first. If a human messages you, it returns early.",
          _obj({"actions": {"type": "array", "items": {"type": "object", "properties": {
-             "op": {"type": "string", "enum": ["move", "mine", "craft", "place", "insert", "take", "set_recipe",
-                                               "rotate", "research", "limit", "configure", "equip", "connect", "follow", "build_ghosts", "blueprint", "clear_ghosts", "loot", "wait"]}}, "required": ["op"],
+             "op": {"type": "string", "enum": ACT_OPS}}, "required": ["op"],
              "additionalProperties": True}},
              "wait": {"description": "true | false | 'until_last'"}, "replace": {"type": "boolean"}}, ["actions"]),
          t_act),
@@ -704,7 +769,7 @@ async def run_tool(agent: "Agent", name: str, args: dict) -> str:
     """Run a tool and append anything that arrived meanwhile (human chat, crew pings)."""
     tool = BY_NAME.get(name)
     if not tool:
-        return f"unknown tool {name}"
+        return wrong_form(name) or f"unknown tool {name}"
     agent.log_tool(name, args)
     try:
         out = await tool.handler(agent, args or {})

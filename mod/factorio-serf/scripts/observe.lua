@@ -41,7 +41,11 @@ local function entity_info(e)
   end
   if e.type == "inserter" then
     d.from, d.to = util.xy(e.pickup_position), util.xy(e.drop_position)
+    d.sides = util.inserter_sides(e)
   end
+  if e.type == "underground-belt" then d.ug = e.belt_to_ground_type end
+  local pw = util.power(e)
+  if pw and pw ~= "powered" then d.power = pw end
   if e.unit_number then
     local by = storage.built_by and storage.built_by[e.unit_number]
     if by then d.by = by elseif e.last_user then d.by = e.last_user.name end
@@ -137,10 +141,10 @@ local function belt_groups(belts)
   return out
 end
 
-function observe.nearby(a, radius)
+function observe.nearby(a, radius, center)
   local c = a.char
   radius = math.min(radius or 16, 64)
-  local pos = c.position
+  local pos = center or c.position
   local list = c.surface.find_entities_filtered { position = pos, radius = radius }
   local ents, counts, res, trees, rocks, enemies = {}, {}, {}, { n = 0 }, { n = 0 }, { n = 0 }
   local belts = {}
@@ -475,6 +479,103 @@ function observe.techs(a, args)
 end
 
 -- Items per minute over the last minute (top N) on the agent's surface.
+-- The grid a pole is on, in four lines: load vs capacity over the last 5 s, generators, boiler fuel, top users.
+local GENERATORS = { "generator", "solar-panel", "electric-energy-interface", "burner-generator", "fusion-generator" }
+function observe.grid(pole)
+  local id = pole.electric_network_id
+  if not id then return nil end
+  local st = pole.electric_network_statistics
+  local function watts(cat, name)  -- the flow is J per tick
+    return st.get_flow_count { name = name, category = cat, precision_index = defines.flow_precision_index.five_seconds,
+      count = false } * 60
+  end
+  local used, users = 0, {}
+  for name in pairs(st.input_counts) do
+    local w = watts("input", name)
+    if w > 0 then used, users[#users + 1] = used + w, { name, w } end
+  end
+  local gens, names, cap, solar = {}, {}, 0, false
+  local burners, seen = {}, {}  -- what burns fuel for this grid: boilers next to its steam engines, burner generators
+  for _, g in pairs(pole.surface.find_entities_filtered { force = pole.force, type = GENERATORS }) do
+    if g.electric_network_id == id then
+      local near = g.type == "generator" and pole.surface.find_entities_filtered {
+        force = pole.force, type = "boiler", position = g.position, radius = 6 } or { g }
+      for _, b in pairs(near) do
+        if b.burner and not seen[b] then seen[b], burners[#burners + 1] = true, b end
+      end
+      if not gens[g.name] then names[#names + 1] = g.name end
+      gens[g.name] = (gens[g.name] or 0) + 1
+      local okP, j = pcall(function()
+        if g.type == "electric-energy-interface" then return g.power_production end
+        if g.type == "solar-panel" then return g.prototype.get_max_energy_production(g.quality) end
+        return g.prototype.get_max_power_output(g.quality)
+      end)
+      if okP and j then cap = cap + j * 60 end
+      solar = solar or g.type == "solar-panel"
+    end
+  end
+  local out = {}
+  if cap == 0 then
+    out[1] = "grid #" .. id .. ": no generators on it (using " .. util.watts(used) .. ")"
+  else
+    local pct = math.floor(used / cap * 100 + 0.5)
+    out[1] = "grid #" .. id .. ": using " .. util.watts(used) .. " of " .. util.watts(cap) .. " capacity (" .. pct
+      .. "%, last 5 s)" .. (pct >= 97 and "; MAXED OUT: machines run slow, add generators or fuel" or "")
+    local list = {}
+    for _, n in ipairs(names) do list[#list + 1] = gens[n] .. " " .. n end
+    out[2] = "generators: " .. table.concat(list, ", ") .. (solar and " (solar counted at full daylight)" or "")
+  end
+  local boilers, low, at = #burners, 0, nil
+  for _, b in ipairs(burners) do
+    local fuel = b.get_fuel_inventory()
+    if not (fuel and fuel.get_item_count() >= 5) then low, at = low + 1, at or b.position end
+  end
+  if boilers > 0 then
+    out[#out + 1] = low == 0 and ("fuel: all " .. boilers .. " boilers fuelled")
+      or string.format("fuel: %d of %d boilers low or out (e.g. %g,%g)", low, boilers, at.x, at.y)
+  end
+  table.sort(users, function(x, y) return x[2] > y[2] end)
+  if #users > 0 then
+    local top = {}
+    for i = 1, math.min(3, #users) do top[i] = users[i][1] .. " " .. util.watts(users[i][2]) end
+    out[#out + 1] = "top users: " .. table.concat(top, ", ")
+  end
+  return out
+end
+
+-- Power for a set of placed entities (a build zone, or what an act just placed): how many need electricity and
+-- don't have it. With ghosts=true, also whether any pole (built or planned) is in or next to the area.
+function observe.power_check(surface, list, area, ghosts)
+  local seen, n, off, low, first = {}, 0, 0, 0, nil
+  for _, e in pairs(list) do
+    if e.valid and not seen[e] and util.needs_power(e) then
+      seen[e] = true
+      n = n + 1
+      local p = util.power(e)
+      if p:find("^no power") then off, first = off + 1, first or e
+      elseif p:find("^low power") then low = low + 1 end
+    end
+  end
+  local out = { machines = n, unpowered = off, low = low }
+  if first then
+    local pole = util.grid_pole(surface, first.force, first.position)
+    out.nearest_pole = pole and util.xy(pole.position) or nil
+    out.example = util.xy(first.position)
+  end
+  if ghosts and area then
+    local gm = 0
+    for _, g in pairs(surface.find_entities_filtered { area = area, type = "entity-ghost" }) do
+      local okE, src = pcall(function() return g.ghost_prototype.electric_energy_source_prototype end)
+      if okE and src and not util.NOT_CONSUMERS[g.ghost_type] then gm = gm + 1 end
+    end
+    local wide = { { area[1][1] - 8, area[1][2] - 8 }, { area[2][1] + 8, area[2][2] + 8 } }
+    out.ghost_machines = gm
+    out.poles_near = surface.count_entities_filtered { area = wide, type = "electric-pole" }
+      + surface.count_entities_filtered { area = wide, ghost_type = "electric-pole" }
+  end
+  return out
+end
+
 function observe.production(a, args)
   local stats = game.forces.player.get_item_production_statistics(a.char.surface)
   local prod, cons = {}, {}

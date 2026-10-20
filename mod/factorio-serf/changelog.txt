@@ -13,6 +13,10 @@ Date: 2026-10-19
     - Belt lines built in legs chain up: a line from the last belt of another continues it around the corner, a line to an existing belt feeds into it (never head-on), and missing undergrounds or belts get hand-crafted.
     - Walking to a spot nobody can stand on ends at the nearest free spot; a serf caught on a corner wiggles free.
     - diagnose understands fluids (petroleum gas, steam, water, crude oil).
+    - Power is visible: inspecting a machine says powered, low power, or no power and the nearest grid pole; inspecting any pole shows its grid (load vs capacity, generators, boiler fuel, top users).
+    - Placing, stamping and building warn when machines have no power, and a pole line that doesn't reach the grid says so.
+    - craft count is the number of items (copper-cable count=10 is 5 crafts), and a short craft says which ingredient ran out.
+    - Inserters say which side they pick from and drop to; underground belts say entrance or exit; look can look around any x,y.
     - trace follows a belt line from any of its belts, downstream or upstream: its runs and underground hops, why it ends (a gap, head-on, side-loading another belt), what's on each lane, and the inserters and drills taking from or putting onto it.
     - Clearer messages when take, insert, mine, place or find can't do what was asked.
 ---------------------------------------------------------------------------------------------------
