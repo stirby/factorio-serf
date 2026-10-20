@@ -1,0 +1,25 @@
+---------------------------------------------------------------------------------------------------
+Version: 0.3.1
+Date: 2026-10-19
+  Features:
+    - Teach serf: hold a blueprint or a whole blueprint book and click Teach serf in the toolbar (or ctrl+shift+T, or /serf learn [name]). Every blueprint goes into your serf's design library, named from its label.
+    - Blueprints held straight from Game blueprints work everywhere; My blueprints work in single player (on a server, drag it to Game blueprints or your inventory first).
+    - /serf join works as another name for /serf add.
+  Changes:
+    - Placing clears trees and rocks in the way (with mining time), rotates or upgrades what's already there like a click would, and lines coordinates up with the grid.
+    - Building ghosts clears trees and rocks in their way.
+    - Pole lines hop by wire reach over belts, machines and water.
+    - Belt and pipe lines go under crossings and water with undergrounds.
+    - Walking to a spot nobody can stand on ends at the nearest free spot; a serf caught on a corner wiggles free.
+    - diagnose understands fluids (petroleum gas, steam, water, crude oil).
+    - Clearer messages when take, insert, mine, place or find can't do what was asked.
+---------------------------------------------------------------------------------------------------
+Version: 0.3.0
+Date: 2026-10-19
+  Features:
+    - Design library: serfs build from proven designs, the builds they verified and saved, and designs players teach them.
+---------------------------------------------------------------------------------------------------
+Version: 0.2.0
+Date: 2026-10-19
+  Features:
+    - /serf add: bring your own AI helper into single player or a multiplayer game, driven by the serf app on your computer.
