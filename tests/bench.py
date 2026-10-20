@@ -401,6 +401,7 @@ class Bench:
         print(f"bench: run {self.run_id} on instance {a.instance} (stage {self.scn['stage']})", flush=True)
         # Each run gets its own design library (the user's real one stays out of it, both ways).
         os.environ["SERF_DESIGNS_DIR"] = str(self.dir / "designs")
+        os.environ["SERF_LESSONS_DIR"] = str(self.dir / "lessons")  # same for lessons
         await asyncio.to_thread(self.inst.start, 240)
         orch = None
         rcon = Rcon(self.inst.host, self.inst.rcon_port, self.inst.password)

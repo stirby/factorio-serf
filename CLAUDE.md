@@ -26,6 +26,16 @@ client, start the server with RCON, `uv venv && uv pip install -e .`, write `cre
 - Don't expose RCON to the internet.
 - Factorio binaries and third-party mods are not in this repo and must not be committed (`server/` is ignored).
 
+## Lessons loop (the user's corrections while playing)
+
+- The serf records rules it is taught with its `lesson` tool (`crew/lessons.py`): `lessons.md` in
+  `~/.local/state/factorio-serf/` (or `claude-crew/` until that folder exists) holds them, shown to it every turn,
+  in every world; the user may edit it. `lessons.jsonl` next to it logs each one with the chat that prompted it.
+- At the start of a session on this repo, read the `lessons.jsonl` entries newer than "Lessons reviewed through"
+  in STATUS.md. A lesson that works around a tool or mod bug ("connect joins existing pipes, place manually") is a
+  bug report: add it to the Improvements list in STATUS.md, and once the code is fixed, reword or delete that
+  lesson in `lessons.md` and tell the user. Then move the marker.
+
 ## Working on the code
 
 - `tests/smoke.py`: every mod action against a running server, no LLM (resets research: scratch saves only).

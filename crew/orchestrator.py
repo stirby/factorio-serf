@@ -276,6 +276,8 @@ class Orchestrator:
             ui.info(f"{', '.join(sorted(r.targets))}: {r.direct} {player} (instant)")
             line += f" [already done for you: you started to {r.direct} {player}; just acknowledge]"
         for name, agent in self.agents.items():
+            if agent.owner in (None, player):
+                agent.recent_human.append(f"{player}: {text}")
             agent.hear(line, wake=name in r.targets)
 
     async def _settings_command(self, agent: Agent, player: str, cmd: str, arg: str) -> None:

@@ -63,6 +63,8 @@ d4-library (build two more of a taught design, powered) met in 2 min ($0.18): 2 
 
 ## Improvements (from playing; a list to work through, not all at once)
 
+Lessons reviewed through: 2026-10-19 (see "Lessons loop" in CLAUDE.md; the only lesson so far is #2 below).
+
 1. **Can't see where the serf is on the map** (user, 2026-10-19). A script character has no map marker the way a
    player does. Ideas: draw a marker with `rendering` in `render_mode = "chart"` that follows the character, or a
    chart tag updated every few seconds; a "find" button on the serf panel (`zoom_to_world` on its position);

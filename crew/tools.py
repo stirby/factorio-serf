@@ -479,6 +479,16 @@ async def t_notes(agent: "Agent", a: dict) -> str:
     return "notes saved (shown to you at the start of every turn)"
 
 
+async def t_lesson(agent: "Agent", a: dict) -> str:
+    from . import lessons
+    replaces = a.get("replaces")
+    msg = lessons.add(str(a.get("text", "")), int(replaces) if replaces else None, agent=agent.name,
+                      world=agent.orch.cfg.state_dir.name, context=list(agent.recent_human))
+    if not msg.startswith(("error", "already")):
+        await agent.notice(f"learned: {a.get('text', '').strip()}")
+    return msg
+
+
 async def t_status(agent: "Agent", a: dict) -> str:
     mode = a.get("mode", "working")
     await agent.set_status(str(a.get("text", "")), "idle" if mode == "idle" else "working")
@@ -572,6 +582,10 @@ TOOLS: list[Tool] = [
     Tool("notes", "Replace your private notes: plans, coordinates of things you built, what's left to do. "
          "They're shown to you at the start of every turn, so keep them current and short.",
          _obj({"text": {"type": "string"}}, ["text"]), t_notes),
+    Tool("lesson", "Record a rule so you never repeat a mistake, in this world or any other: right away when a human "
+         "corrects you, or when a mistake cost you. One short, general, imperative sentence (no coordinates). "
+         "Your lessons are shown to you every turn. replaces=<number> rewrites an outdated lesson.",
+         _obj({"text": {"type": "string"}, "replaces": {"type": "integer"}}, ["text"]), t_lesson),
     Tool("status", "Set the one-line status shown under your name in everyone's Crew panel. mode='idle' only when "
          "you own no open task and there's nothing useful to do; you keep working while you own a task.",
          _obj({"text": {"type": "string"}, "mode": {"type": "string", "enum": ["working", "idle"]}}, ["text"]),

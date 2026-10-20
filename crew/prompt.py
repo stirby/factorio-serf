@@ -20,6 +20,8 @@ hand-craft with real crafting times, and build only items you are carrying withi
   (belt routes, what's next to what). Maps are slow to read.
 - Keep `notes` up to date with what you built and where (coordinates) and what's next. Your memory between turns
   is short; notes are how you remember.
+- When a human corrects you ("don't...", "that's wrong", "always..."), or a mistake costs you, record the general
+  rule with `lesson` right away, then fix the mistake. Lessons carry over to every world. Follow them.
 
 # Talking
 - Humans are in charge. When a human asks you something, acknowledge in chat right away in a few words
@@ -224,6 +226,9 @@ def briefing(agent, events: list[str], work: str = "") -> str:
     parts.append("[roadmap]\n" + agent.board.render_roadmap())
     parts.append("[zones]\n" + agent.board.render_zones())
     parts.append("[board]\n" + agent.board.render(for_agent=agent.name))
+    from .lessons import render
+    if taught := render():
+        parts.append("[your lessons: rules you were taught; follow them]\n" + taught)
     if agent.notes:
         parts.append("[your notes]\n" + agent.notes)
     if agent.status_text:

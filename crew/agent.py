@@ -73,7 +73,8 @@ class Agent:
         self._last_thought_push = 0.0
         self.recent_fails: deque = deque(maxlen=8)
         self.owner = cfg.owner or orch.cfg.owner  # the player it works for
-        self._notices: set[str] = set()  # app-side messages already said in chat (each once)
+        self._notices: set[str] = set()
+        self.recent_human: deque = deque(maxlen=4)  # last chat lines from its human(s): context for a lesson  # app-side messages already said in chat (each once)
         from .tools import TOOLS
         from .late_tools import LATE_TOOLS
         tools = list(TOOLS) + LATE_TOOLS
