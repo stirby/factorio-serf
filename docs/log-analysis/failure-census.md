@@ -68,23 +68,23 @@ Share is out of 1,438 root plus tool failures. Models are listed as o=opus, p=ds
 
 | # | Signature | Count | Share | Models (o/p/f/h/s) | Median recovery | Est. wasted (agent-min) | Cascade (skipped) | Cause class | Fixed at HEAD? |
 |---|---|---|---|---|---|---|---|---|---|
-| 1 | take: nothing to take | 226 | 15.7% | 169/22/27/2/6 | 21 s | 80–471 | 589 | tool design (+ model) | No (`build` sources chests itself) |
+| 1 | take: nothing to take | 226 | 15.7% | 169/22/27/2/6 | 21 s | 80–471 | 589 | tool design (+ model) | Partly: `build` sources chests itself; the message now says what the container holds (2026-10-19) |
 | 2 | place: blocked by building | 160 | 11.1% | 73/29/46/10/2 | 18 s | 49–267 | 527 | model mistake (+ non-idempotent place) | No |
-| 3 | place: blocked by tree/stump | 157 | 10.9% | 139/5/4/8/1 | 9 s | 24–69 | 699 | tool design (missing auto-clear) | No for `place`; `build` clears only marked trees |
+| 3 | place: blocked by tree/stump | 157 | 10.9% | 139/5/4/8/1 | 9 s | 24–69 | 699 | tool design (missing auto-clear) | **Fixed 2026-10-19**: `place` clears trees/rocks itself (with mining time) |
 | 4 | mine: teammate guard (both message versions) | 115 | 8.0% | 88/11/11/5/0 | 11 s (v2), 83 s (v1) | 49–147 | 815 | harness bug (inherited ownership) + tool design | Message reworded in `ea1ee71`; guard and leak not fixed |
 | 5 | connect: route needs N but you have M | 78 | 5.4% | 46/10/8/10/4 | 31 s | 41–222 | 24 | model + tool design (all-or-nothing) | Partly (`build kind=line` sources/crafts items) |
-| 6 | move: no path | 78 | 5.4% | 40/22/13/1/2 | 21 s | 27–39 | 103 | tool design (no goal snapping) + model | No |
-| 7 | connect: no route, A* node limit | 58 | 4.0% | 36/10/11/1/0 | 39 s | 38–173 | 44 | tool design (missing capability) | Partly (`build` splits legs over 30 tiles) |
-| 8 | find: "Unknown entity name" game error | 55 | 3.8% | 22/17/5/9/2 | n/a | small | 0 | tool design | No |
-| 9 | mine (x,y): nothing minable | 51 | 3.5% | 39/7/1/4/0 | 40 s | 34–97 | 165 | model + misleading message | No |
+| 6 | move: no path | 78 | 5.4% | 40/22/13/1/2 | 21 s | 27–39 | 103 | tool design (no goal snapping) + model | **Fixed 2026-10-19**: an unstandable goal walks to the nearest free spot |
+| 7 | connect: no route, A* node limit | 58 | 4.0% | 36/10/11/1/0 | 39 s | 38–173 | 44 | tool design (missing capability) | **Mostly fixed 2026-10-19**: belts/pipes go under crossings and water (undergrounds) |
+| 8 | find: "Unknown entity name" game error | 55 | 3.8% | 22/17/5/9/2 | n/a | small | 0 | tool design | **Fixed 2026-10-19**: item names and types resolve; typos get suggestions |
+| 9 | mine (x,y): nothing minable | 51 | 3.5% | 39/7/1/4/0 | 40 s | 34–97 | 165 | model + misleading message | **Fixed 2026-10-19**: the miss names what's within 3 tiles |
 | 10 | move: stuck while walking | 45 | 3.1% | 35/6/4/0/0 | 23 s | 17–57 | 100 | harness (movement) | No |
-| 11 | place: create_entity failed (after can_place passed) | 39 | 2.7% | 26/7/3/3/0 | 15 s | 10–29 | 118 | harness bug (fast-replace) | No |
+| 11 | place: create_entity failed (after can_place passed) | 39 | 2.7% | 26/7/3/3/0 | 15 s | 10–29 | 118 | harness bug (fast-replace) | **Fixed 2026-10-19**: same entity = done or rotated; same family = fast-replace |
 | 12 | place: item not in inventory | 35 | 2.4% | 24/3/8/0/0 | 21 s | 12–41 | 76 | model | n/a |
-| 13 | place: invalid spot, nothing listed | 35 | 2.4% | 11/11/7/6/0 | 28 s | 17–74 | 83 | tool design (no snapping, vague message) | No |
+| 13 | place: invalid spot, nothing listed | 35 | 2.4% | 11/11/7/6/0 | 28 s | 17–74 | 83 | tool design (no snapping, vague message) | Partly 2026-10-19: x,y aligned to the grid like the cursor |
 | 14 | connect: would feed a teammate's belt | 34 | 2.4% | 19/6/6/3/0 | 5 s | 3–40 | 25 | tool design (by design; inherits the ownership leak) | No |
-| 15 | connect: no route (blocked) | 33 | 2.3% | 26/2/3/2/0 | 63 s | 34–103 | 10 | tool design (24 of 33 are poles) | No |
+| 15 | connect: no route (blocked) | 33 | 2.3% | 26/2/3/2/0 | 63 s | 34–103 | 10 | tool design (24 of 33 are poles) | **Fixed 2026-10-19**: pole lines hop by wire reach |
 | 16 | craft: missing ingredients | 29 | 2.0% | 20/1/8/0/0 | 31 s | 15–68 | 62 | model (message is good) | n/a |
-| 17 | insert: won't accept (11 of the 34 are fuel-slot cases) | 34 | 2.4% | 26/0/4/4/0 | 16–19 s | 10–48 | 138 | model + vague message | No |
+| 17 | insert: won't accept (11 of the 34 are fuel-slot cases) | 34 | 2.4% | 26/0/4/4/0 | 16–19 s | 10–48 | 138 | model + vague message | **Fixed 2026-10-19**: says why (no recipe, what the recipe uses, full) |
 | 18 | insert: item not in inventory | 15 | 1.0% | 10/2/1/2/0 | 106 s | 26–42 | 6 | model | n/a |
 | 19 | act: game error "unknown action op" | 10 | 0.7% | 0/2/8/0/0 | n/a | small | 0 | model + harness bug (partial enqueue) | No |
 | 20 | mine: Lua error "Unknown entity name: tree" | 9 | 0.6% | 4/0/2/2/1 | 11 s | 2 | 35 | harness bug | No |
@@ -446,3 +446,4 @@ entity. Also skip a connect's own remaining placements. Let the model opt in wit
     - `insert` "won't accept" should say why: no recipe, not an ingredient, or full.
     - Catch `asyncio.TimeoutError` in `run_tool`.
     - Run `stamp`/`plan_ghosts` ghost placement outside the agent's job queue: it's instant and needs no character.
+
