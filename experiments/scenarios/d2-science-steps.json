@@ -4,7 +4,7 @@
  "minutes": 70,
  "agents": 1,
  "kind": "directive",
- "note": "Science progression as a player hands it out, one objective at a time on the S3 base (2 idle labs, no science automated). Run score: science packs consumed (labs' use), robust to which techs are picked. Checks measure capacity (assemblers not starved) plus delivery, because made/min drops when labs consume less than the block makes.",
+ "note": "Science progression as a player hands it out, one objective at a time on the S3 base (2 idle labs, no science automated). Run score: science packs consumed (labs' use), robust to which techs are picked. Checks measure capacity (assemblers not starved) plus delivery, because made/min drops when labs consume less than the block makes. 2026-10-19: capacity checks skip assemblers fed from plain/passive chests (d2 #2 passed on stock-chest feeds).",
  "objectives": [
   {
    "name": "research-on",
@@ -32,9 +32,9 @@
    "score": [
     {
      "name": "red_capacity_per_min",
-     "lua": "local cap=0 for _,a in pairs(s.find_entities_filtered{type='assembling-machine', force=f}) do local r=a.get_recipe() if r and r.name=='automation-science-pack' and (a.status==defines.entity_status.working or a.status==defines.entity_status.full_output) then cap=cap+60*a.crafting_speed/r.energy end end return cap",
+     "lua": "local function chestfed(a) for _,i in pairs(s.find_entities_filtered{type='inserter', force=f, area={{a.position.x-3,a.position.y-3},{a.position.x+3,a.position.y+3}}}) do if i.drop_target==a then local p=i.pickup_target if p and (p.type=='container' or (p.type=='logistic-container' and p.prototype.logistic_mode~='requester' and p.prototype.logistic_mode~='buffer')) then return true end end end return false end local cap=0 for _,a in pairs(s.find_entities_filtered{type='assembling-machine', force=f}) do local r=a.get_recipe() if r and r.name=='automation-science-pack' and (a.status==defines.entity_status.working or a.status==defines.entity_status.full_output) and not chestfed(a) then cap=cap+60*a.crafting_speed/r.energy end end return cap",
      "target": 15,
-     "note": "packs/min the red assemblers can make: those working or backed up (not starved)"
+     "note": "capacity of working science assemblers whose inputs don't come out of a plain chest (a stocked chest is a stopgap; requester chests count)"
     },
     {
      "name": "labs_working",
@@ -55,8 +55,9 @@
    "score": [
     {
      "name": "green_capacity_per_min",
-     "lua": "local cap=0 for _,a in pairs(s.find_entities_filtered{type='assembling-machine', force=f}) do local r=a.get_recipe() if r and r.name=='logistic-science-pack' and (a.status==defines.entity_status.working or a.status==defines.entity_status.full_output) then cap=cap+60*a.crafting_speed/r.energy end end return cap",
-     "target": 10
+     "lua": "local function chestfed(a) for _,i in pairs(s.find_entities_filtered{type='inserter', force=f, area={{a.position.x-3,a.position.y-3},{a.position.x+3,a.position.y+3}}}) do if i.drop_target==a then local p=i.pickup_target if p and (p.type=='container' or (p.type=='logistic-container' and p.prototype.logistic_mode~='requester' and p.prototype.logistic_mode~='buffer')) then return true end end end return false end local cap=0 for _,a in pairs(s.find_entities_filtered{type='assembling-machine', force=f}) do local r=a.get_recipe() if r and r.name=='logistic-science-pack' and (a.status==defines.entity_status.working or a.status==defines.entity_status.full_output) and not chestfed(a) then cap=cap+60*a.crafting_speed/r.energy end end return cap",
+     "target": 10,
+     "note": "capacity of working science assemblers whose inputs don't come out of a plain chest (a stocked chest is a stopgap; requester chests count)"
     },
     {
      "name": "green_used_per_min",
