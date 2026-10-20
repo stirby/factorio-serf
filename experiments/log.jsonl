@@ -904,3 +904,7 @@
 {"t": 1792495558.223206, "time": "2026-10-20 06:25:58", "kind": "run_end", "run_id": "20261020-062020-t-backed-up-sonnet-i3", "scenario": "t-backed-up", "variant": "sonnet", "instance": 3, "exit_code": 0, "secs": 337.5, "score": 1.0, "cost_usd": 0.1877, "errors": []}
 {"t": 1792495558.3861303, "time": "2026-10-20 06:25:58", "kind": "run_end", "run_id": "20261020-062020-t-coal-boilers-sonnet-i1", "scenario": "t-coal-boilers", "variant": "sonnet", "instance": 1, "exit_code": 0, "secs": 337.6, "score": 1.0, "cost_usd": 0.1833, "errors": []}
 {"t": 1792495565.3355553, "time": "2026-10-20 06:26:05", "kind": "run_end", "run_id": "20261020-062020-t-circuit-sonnet-i2", "scenario": "t-circuit", "variant": "sonnet", "instance": 2, "exit_code": 0, "secs": 344.6, "score": 1.0, "cost_usd": 0.2772, "errors": []}
+{"t": 1792527344.6439266, "time": "2026-10-20 15:15:44", "kind": "run_start", "run_id": "20261020-151544-tbm-1-sonnet", "scenario": "tbm-1", "variant": "sonnet", "instance": 62}
+{"t": 1792527470.9078758, "time": "2026-10-20 15:17:50", "kind": "run_end", "run_id": "20261020-151544-tbm-1-sonnet", "score": 1.0, "cost_usd": 0.2572, "errors": []}
+{"t": 1792527480.2883387, "time": "2026-10-20 15:18:00", "kind": "run_start", "run_id": "20261020-151800-tbm-5-sonnet", "scenario": "tbm-5", "variant": "sonnet", "instance": 63}
+{"t": 1792529025.0999005, "time": "2026-10-20 15:43:45", "kind": "run_end", "run_id": "20261020-151800-tbm-5-sonnet", "score": 0.0, "cost_usd": 2.7785, "errors": []}
