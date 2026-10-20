@@ -11,7 +11,7 @@ import time
 from typing import TYPE_CHECKING
 
 from .rcon import GameError
-from .tools import BY_NAME, XY, Tool, _j, _num, _obj
+from .tools import BY_NAME, XY, Tool, _j, _num, _obj, power_note, zone_box
 
 if TYPE_CHECKING:
     from .agent import Agent
@@ -197,6 +197,11 @@ async def t_build(agent: "Agent", a: dict) -> str:
                      deadline=time.time() + float(a.get("seconds", BUILD_SECONDS)))
     out = await (ctl.connect(order) if kind == "line" else ctl.fulfill(order))
     text = f"{out.kind}: {out.detail}"
+    box = zone_box(zone) if zone else None
+    if box and out.kind in ("done", "paused"):
+        pw = await power_note(agent, **box)
+        if pw:
+            text += "\n" + pw
     if out.blocker:
         text += f"\nblocker: {json.dumps(out.blocker)[:700]}"
     return text

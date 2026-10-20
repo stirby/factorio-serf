@@ -277,36 +277,40 @@ H.craft = {
     if not recipe.enabled then
       return fail("recipe " .. recipe.name .. " is locked; see techs for what unlocks it")
     end
-    local count = args.count or 1
+    -- count = items wanted (not recipe runs): copper-cable count=10 is 5 runs of 2.
     local first = recipe.products[1]
+    local per = first.amount or first.amount_min or 1
+    local count = args.count or per
+    local runs = math.max(1, math.ceil(count / per))
     if util.cheat() then
-      local inserted = c.insert { name = first.name, count = (first.amount or 1) * count }
+      local inserted = c.insert { name = first.name, count = per * runs }
       return ok("crafted " .. inserted .. " " .. first.name)
     end
     local craftable = c.get_craftable_count(recipe)
     if craftable == 0 then
-      return fail("cannot craft " .. recipe.name .. ": missing ingredients",
-        { missing = missing_for(a, recipe, count), category = recipe.category })
+      return fail("cannot craft " .. first.name .. ": missing ingredients",
+        { missing = missing_for(a, recipe, runs), category = recipe.category })
     end
-    local n = math.min(count, craftable)
+    local n = math.min(runs, craftable)
+    local short = ""
+    if n < runs then
+      local miss = missing_for(a, recipe, runs)
+      local ing = next(miss)
+      short = " (only " .. n * per .. " of " .. runs * per .. ": not enough " .. (ing or "ingredients") .. ")"
+    end
     local started = c.begin_crafting { count = n, recipe = recipe, silent = true }
     if started == 0 then
       return fail("cannot hand-craft " .. recipe.name .. " (category " .. recipe.category .. ")")
     end
-    job.item, job.want = first.name, c.get_item_count(first.name) + started * (first.amount or 1)
-    job.started_n, job.asked, job.per = started, count, first.amount or 1
-    if args.wait == false then return ok("queued " .. started .. "x " .. recipe.name) end
+    job.item, job.want = first.name, c.get_item_count(first.name) + started * per
+    job.made, job.short = started * per, short
+    if args.wait == false then return ok("queued " .. started * per .. " " .. first.name .. short) end
   end,
   tick = function(a, job)
     local c = a.char
     if c.crafting_queue_size == 0 or c.get_item_count(job.item) >= job.want then
-      if c.crafting_queue_size > 0 and c.get_item_count(job.item) >= job.want then
-        -- Our part is done; other queued crafts keep going.
-      end
       account_crafts(a) -- credit stats/triggers now, not on the next 30-tick sweep
-      local msg = "crafted " .. job.started_n .. "x " .. job.args.recipe
-      if job.started_n < job.asked then msg = msg .. " (only had ingredients for " .. job.started_n .. " of " .. job.asked .. ")" end
-      return ok(msg, { have = c.get_item_count(job.item) })
+      return ok("crafted " .. job.made .. " " .. job.item .. job.short, { have = c.get_item_count(job.item) })
     end
     return nil
   end,
@@ -542,7 +546,8 @@ H.place = {
       msg = msg .. " (" .. created.belt_to_ground_type .. (n and (", paired with " .. xystr(n.position)) or ", not paired yet") .. ")"
     elseif created.type == "inserter" then
       data.from, data.to = util.xy(created.pickup_position), util.xy(created.drop_position)
-      msg = msg .. " (takes from " .. xystr(created.pickup_position) .. ", drops to " .. xystr(created.drop_position) .. ")"
+      msg = msg .. " (" .. util.inserter_sides(created) .. ": takes from " .. xystr(created.pickup_position)
+        .. ", drops to " .. xystr(created.drop_position) .. ")"
     end
     return ok(msg, data)
   end,
@@ -1191,6 +1196,30 @@ local function pole_hops(c, ent, from, to, free_tile)
   return nil, "too many poles (over 200); split the line"
 end
 
+-- A finished pole line: the first new pole that isn't on the same network as the existing pole at either end
+-- (from, else to), or nil when it's all one grid (or no existing pole to compare with).
+local function pole_gap(surface, job)
+  local it = prototypes.item[job.item]
+  if not (it and it.place_result and it.place_result.type == "electric-pole") then return nil end
+  local function pole_at(p, r)
+    p = util.pos(p)
+    return p and surface.find_entities_filtered { type = "electric-pole", position = p, radius = r }[1]
+  end
+  local placed = {}
+  for _, pl in ipairs(job.places) do placed[#placed + 1] = pole_at(pl.pos, 0.5) end
+  local new = {}
+  for _, q in ipairs(placed) do new[q] = true end
+  local ref
+  for _, end_ in ipairs { job.args.from, job.args.to } do
+    local q = end_ and pole_at(end_, 1.5)
+    if q and not new[q] and q.electric_network_id then ref = q break end
+  end
+  if not ref then return nil end
+  for _, q in ipairs(placed) do
+    if q.electric_network_id ~= ref.electric_network_id then return q end
+  end
+end
+
 -- Route a belt / pipe / pole line between two points around obstacles, then queue the placements.
 H.connect = {
   start = function(a, job)
@@ -1373,6 +1402,12 @@ H.connect = {
     if not pl then
       local span = "from " .. job.span[1][1] .. "," .. job.span[1][2] .. " to " .. job.span[2][1] .. "," .. job.span[2][2]
       local data = { placed = job.placed, planned = #job.places, failed = job.failed }
+      local gap = #job.failed == 0 and job.places[1] and pole_gap(a.char.surface, job)
+      if gap then
+        return fail("placed all " .. job.placed .. " " .. job.item .. " " .. span .. ", but the line doesn't reach the "
+          .. "grid at its other end: the pole at " .. xystr(gap.position) .. " isn't wired to it (a hop is too long "
+          .. "or blocked; add a pole between)", data)
+      end
       if #job.failed == 0 then
         return ok("placed all " .. job.placed .. " " .. job.item .. (job.under or "") .. " (" .. job.span[3]
           .. " tiles) " .. span .. ends_note(a, job) .. supply_note(job), data)

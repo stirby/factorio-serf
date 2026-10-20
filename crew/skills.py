@@ -326,6 +326,8 @@ async def run(agent: "Agent", name: str, args: dict, depth: int = 0) -> tuple[bo
         ok, err = False, f"ran over {SCRIPT_SECS}s"
     except ScriptError as e:
         ok, err = False, str(e)
+    except NameError as e:  # e.g. place(...): an act op called like a tool
+        ok, err = False, T.wrong_form(getattr(e, "name", "") or "") or f"NameError: {e}"
     except Exception as e:  # the serf's code: report it, don't crash the agent
         ok, err = False, f"{type(e).__name__}: {e}"
     if ok and isinstance(result, str) and failed(result):
