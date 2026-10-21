@@ -496,8 +496,13 @@ class Actor:
             self.log({"kind": "quickbelt", "order": o.id, "p": round(p, 3)})
             if p < 0.7:
                 return None
-            ep = quickbelt.endpoints(await self.world(a, 16), a, await self.world(b, 16), b)
-            self.log({"kind": "quickbelt_ends", "order": o.id, "ends": ep})
+            ep = None
+            for k in range(2):
+                ep = quickbelt.endpoints(await self.world(a, 16), a, await self.world(b, 16), b)
+                self.log({"kind": "quickbelt_ends", "order": o.id, "ends": ep})
+                if ep:
+                    break
+                await asyncio.sleep(6)  # a source belt only just starting up may not carry anything yet
             if not ep:
                 return None
         except Exception as e:  # noqa: BLE001
