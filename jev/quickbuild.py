@@ -118,7 +118,7 @@ async def read_order(jev: Jev, order: str, products: list[str], carried: list[st
              "iron-plate": "plates smelted from iron ore", "copper-plate": "plates smelted from copper ore",
              "stone-brick": "bricks smelted from stone"}
     opts = {p: p.replace("-", " ") + (f" ({alias[p]})" if p in alias else "") for p in products[:200]}
-    opts["none_of_these"] = "something not in this list, or several of these"
+    opts["none_of_these"] = "something not in this list, or two or more different products"
     state = {"order": order}
     if carried:
         state["the_belts_there_carry"] = carried
@@ -136,11 +136,12 @@ async def read_order(jev: Jev, order: str, products: list[str], carried: list[st
                       "from the iron belt', 'make gears and pipes'",
                       "no: the product just goes into chests or onto a belt; fuel taken from the belt; steel from "
                       "iron plates and coal; inserters from belts of plates, gears and circuits"),
-        "elsewhere": noul("Does `order` ask for the product to be taken on to some other place it names: a chest "
-                          "further away, a bus, another machine, a player?",
-                          "yes: 'send the plates on a belt to the chest at [gps]', 'and send it to the mall'",
-                          "no: it stays by the machines; 'into a chest', 'into a chest around [gps]', 'onto a belt' "
-                          "and naming which belt to build off don't count"),
+        "elsewhere": noul("Does `order` ask for the product to be transported somewhere after it's made: run, "
+                          "belted, sent, carried or brought to some place?",
+                          "yes: 'run them to the circuit build at [gps]', 'send the plates on a belt to the chest at "
+                          "[gps]', 'belt them over to the science', 'and bring them to me'",
+                          "no: 'into a chest', 'into a chest around [gps]', 'gears into a chest by the machines', "
+                          "'onto a belt', 'put it on a belt', 'plates into chests'"),
         "onto_belt": noul("Does `order` ask for the finished product to be put onto an output belt rather than into "
                           "chests?",
                           "yes: 'put the cable on a belt', 'gears onto a belt', 'output onto a belt'",
@@ -154,7 +155,7 @@ async def read_order(jev: Jev, order: str, products: list[str], carried: list[st
     return {"build": a["build"].p, "chain": a["chain"].p, "elsewhere": a["elsewhere"].p,
             "onto_belt": a["onto_belt"].p, "product": prod, "product_p": float(a["product"].probs.get(prod) or 0),
             "count": cnt, "count_p": float(a["count"].probs.get(cnt) or 0),
-            "output": "belt" if a["onto_belt"].p >= 0.6 else "chest"}
+            "output": "belt" if a["onto_belt"].p >= 0.75 else "chest"}
 
 
 def accept(r: dict, far_point: bool = True) -> bool:
