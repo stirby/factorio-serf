@@ -572,6 +572,11 @@ class Actor:
                 await self.say(plan["say"])
             if plan.get("watch"):
                 o.watch_what = [str(x) for x in plan["watch"]][:5]
+            if not plan.get("steps"):
+                # nothing to do in the world (an answer, an acknowledgement): done
+                if plan.get("done_text"):
+                    await self.say(plan["done_text"])
+                return True
             ok, report = await self._run_plan(o, plan)
             if o.status == "cancelled":
                 return False
@@ -668,7 +673,17 @@ class Actor:
         for things to start running."""
         exp = [e for e in (plan.get("expect") or []) if isinstance(e, dict)]
         goal = plan.get("goal") or o.text
+        builds = [st for st in plan.get("steps") or [] if st.get("do") in ("ghosts", "block", "design", "stamp",
+                                                                            "place", "build_ghosts", "route")]
+        if builds and not any(e.get("check") == "built" for e in exp):
+            from .lint import plan_points
+            pts = plan_points(builds)
+            if pts:
+                xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+                exp.append({"check": "built", "x": (min(xs) + max(xs)) / 2, "y": (min(ys) + max(ys)) / 2,
+                            "radius": max(max(xs) - min(xs), max(ys) - min(ys)) / 2 + 2})
         last = ""
+        jev_checks = 0
         for k in range(8):
             await asyncio.sleep(6 if k else 4)
             if exp:
@@ -678,6 +693,9 @@ class Actor:
                     return True, "all expectations met"
                 last = "Expectations not met: " + "; ".join(bad)
             else:
+                jev_checks += 1
+                if jev_checks > 3:
+                    break
                 center = o.focus or tuple((await self.g.me()).get("position") or (0, 0))
                 w = await self.world(center, 20)
                 p = await decide.goal_met(self.jev, goal, w.summary(coords=False, focus=center))
@@ -711,6 +729,16 @@ class Actor:
                     return True, ""
                 states = ", ".join(sorted({f"{m['n']} {w.label.get(m['u'])}: {m.get('s')}" for m in ms})[:8])
                 return False, f"{n_ok}/{need} {e.get('recipe') or 'machines'} working near {fmt_xy(near)} ({states or 'none found'})"
+            if c == "built":
+                p = (float(e["x"]), float(e["y"]))
+                sc = await self.g.scan(center=p, radius=int(float(e.get("radius", 10))) + 1)
+                left = [x for x in (sc.get("ents") or []) if x.get("ghost")]
+                if not left:
+                    return True, ""
+                kinds = {}
+                for x in left:
+                    kinds[x["n"]] = kinds.get(x["n"], 0) + 1
+                return False, f"{len(left)} planned buildings still unbuilt near {fmt_xy(p)}: {items_words(kinds, 5)}"
             if c == "has_item":
                 w = await self.world((e["x"], e["y"]), 3)
                 ent = w.at(e["x"], e["y"])
