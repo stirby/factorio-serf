@@ -6,6 +6,8 @@ lines that carry the ingredients and lays out the tested row step (jev/rowgen.py
 the usual plan runner builds and verifies it. Anything else, or any doubt, goes to the planner as before."""
 from __future__ import annotations
 
+import math
+
 from .rowgen import DIRS
 from .typesafe import Jev, choice, noul
 from .world import World
@@ -131,12 +133,21 @@ def lane_items(w: World, ln) -> list[set]:
 LEFT_OF = {"east": "north", "north": "west", "west": "south", "south": "east"}
 
 
-def feeders_needed(recipes: dict, product: str, made: str, n: int) -> int:
-    """Feeder assemblers to keep n main machines supplied (same machine speed, so recipe times compare)."""
+INSERTER_RATE = 0.83  # items/s a basic inserter moves
+
+
+def feeders_needed(recipes: dict, product: str, made: str, n: int, speed: float = 0.5) -> int:
+    """Feeder assemblers to keep n main machines supplied: recipe rates at assembler 1 speed, capped by what one
+    basic inserter moves in and out (a gear feeder takes 2 plates per gear, so it makes ~0.4 gears/s, not 1), with
+    half again as margin."""
     r, rb = recipes.get(product) or {}, recipes.get(made) or {}
-    use = (r.get("ingredients") or {}).get(made, 1) / max(float(r.get("time") or 1), 0.1)
-    make = float(rb.get("makes") or 1) / max(float(rb.get("time") or 1), 0.1)
-    return max(1, -(-int(round(n * use * 1000)) // int(round(make * 1000))))
+    use = min((r.get("ingredients") or {}).get(made, 1) * speed / max(float(r.get("time") or 1), 0.1), INSERTER_RATE)
+    per_craft_in = sum((rb.get("ingredients") or {}).values()) or 1
+    makes = float(rb.get("makes") or 1)
+    make = min(makes * speed / max(float(rb.get("time") or 1), 0.1),  # the recipe
+               INSERTER_RATE / per_craft_in * makes,                  # what its input inserter brings
+               INSERTER_RATE)                                         # what its output inserter moves
+    return max(1, math.ceil(n * use * 1.5 / make - 1e-9))
 
 
 def feeder_layout(w: World, opt: dict, k: int, skip: int = 2) -> tuple[list[dict], tuple]:

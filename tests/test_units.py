@@ -274,9 +274,11 @@ def test_feeder_option():
     circ = o.get("electronic-circuit") or {}
     check("feeder: circuits from the iron belt plus cable made off the copper belt",
           circ.get("feeder", {}).get("recipe") == "copper-cable" and circ.get("feeder", {}).get("left") is False, circ)
-    check("feeder: 1 gear assembler feeds 3 science; 3 cable for 2 circuit",
-          quickbuild.feeders_needed(rec, "automation-science-pack", "iron-gear-wheel", 3) == 1 and
-          quickbuild.feeders_needed(rec, "electronic-circuit", "copper-cable", 2) == 3)
+    check("feeder: 2 gear assemblers for 3 science (inserter-limited to ~0.4 gears/s each); 3 cable for 2 circuit",
+          quickbuild.feeders_needed(rec, "automation-science-pack", "iron-gear-wheel", 3) == 2 and
+          quickbuild.feeders_needed(rec, "electronic-circuit", "copper-cable", 2) == 3,
+          (quickbuild.feeders_needed(rec, "automation-science-pack", "iron-gear-wheel", 3),
+           quickbuild.feeders_needed(rec, "electronic-circuit", "copper-cable", 2)))
     ents, c = quickbuild.feeder_layout(w, red, 1)
     am = [e for e in ents if e["name"] == "assembling-machine-1"][0]
     ins = sorted(e["y"] for e in ents if e["name"] == "inserter")
