@@ -242,6 +242,21 @@ def lint(steps: list[dict], w: World, available: set[str] | None = None, recipes
             if not fed:
                 out.append(f"nothing feeds the {e['name']} at {fmt_xy((e['x'], e['y']))} (no inserter drops into it)")
     # ingredients: every planned assembler needs an inserter bringing each ingredient from somewhere that has it
+    def made_by(tile):
+        """What a planned machine on that tile outputs (its recipe), if any."""
+        for x in planned:
+            if tile in x["tiles"] and x["name"] in ASSEMBLERS and x["recipe"]:
+                return x["recipe"]
+        return None
+    added_to_line: dict = {}  # belt line id -> items planned inserters will drop onto it
+    for x in planned:
+        if x["name"] in INSERTERS and x.get("dp") and x.get("pk"):
+            u = w.tile.get(x["dp"])
+            ln = w.line_of.get(u) if u else None
+            item = made_by(x["pk"])
+            if ln and item:
+                added_to_line.setdefault(ln.id, set()).add(item)
+
     def source_items(tile: tuple[int, int]) -> set[str] | None:
         """Items available at a tile an inserter picks from; None = unknown (a belt still to be routed, etc.)."""
         if tile in maybe_belt and tile not in w.tile:
@@ -259,7 +274,10 @@ def lint(steps: list[dict], w: World, available: set[str] | None = None, recipes
             return set()
         if e["t"] in BELT_T:
             ln = w.line_of.get(u)
-            return set(ln.items) if ln and ln.items else None  # an empty line may still fill
+            if not ln:
+                return None
+            have = set(ln.items or {}) | added_to_line.get(ln.id, set())
+            return have or None  # an empty line may still fill
         if e["t"] in ("container", "logistic-container", "infinity-container"):
             return set((e.get("inv") or {}).keys()) or None
         if e["t"] in ("assembling-machine", "furnace"):
