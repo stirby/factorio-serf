@@ -93,6 +93,7 @@ class Actor:
         self.think_enabled = think
         self.prefetch = True
         self.quick_build = True
+        self.review_quick = True  # the planner looks over what the quick paths built, when it's free
         self.thinker = Thinker(name, self._thinker_tools(), self._on_plan, workdir / "thinker", self.log,
                                effort=thinker_effort, lint_fn=self._lint) if think else None
         self.metrics = {"orders": 0, "fast_path": 0, "plans": 0, "steps_ok": 0, "steps_failed": 0,
@@ -303,6 +304,8 @@ class Actor:
 
     async def _do_order(self, o: Order) -> bool:
         self.log({"kind": "order", "order": o.id, "text": o.text, "playbook": o.playbook, "points": o.points})
+        if o.next_plan and o.speaker == "planner":  # the planner's follow-up: run its plan
+            return await self._planned(o, f"Your follow-up: {o.text}")
         if time.time() - getattr(self, "_recipes_t", 0) > 120:  # research unlocks recipes during a game
             try:
                 rec = await self.g.call("recipes", agent=self.name, detail=True)
@@ -520,10 +523,30 @@ class Actor:
             if verified:
                 self.metrics["fast_path"] += 1
                 await self.say(f"done: {what}")
+                await self._ask_review(o, plan)
                 return True
             report = vreport
         o.history.append(report)
         return f"it tried: {plan['goal']}. {report}"
+
+    async def _ask_review(self, o: Order, plan: dict) -> None:
+        """Asynchronous guidance: the planner looks at what the actor built on its own, when it has nothing else to
+        do. A plan it sends back becomes a follow-up order; usually it just ends its turn."""
+        th = self.thinker
+        if not (self.review_quick and th and not th.stats.usage_limited and th.queue.empty() and th.current is None
+                and o.focus):
+            return
+        try:
+            sm = (await self.world(o.focus, 16)).summary(coords=True)
+        except Exception:  # noqa: BLE001
+            return
+        th.ask(Request("review", (
+            f"For order {o.id} from {o.speaker} (\"{o.text}\") the actor built this by itself, without you, and its "
+            f"checks passed: {plan.get('goal')}.\nArea now: {json.dumps(sm, separators=(',', ':'))[:6000]}\n"
+            "Look only for a real problem with how it answers the order (wrong product, wrong place, something that "
+            "will stop working soon). If there is one, submit a plan that fixes just that. If it's fine, end your turn "
+            "without a plan and without chatting."), o.id))
+        self.log({"kind": "review_asked", "order": o.id})
 
     async def _quick_copy(self, o: Order) -> bool | str | None:
         """'Two more just like it at [gps] and [gps]': the last build, copied where the new points sit the same way
@@ -851,6 +874,16 @@ class Actor:
             # the next part of a big order, designed while the previous part was being built
             self.current.queued_plans.append(plan)
             self.log({"kind": "plan_queued", "order": oid, "parts_waiting": len(self.current.queued_plans)})
+        elif (oid is not None and not plan.get("no_plan") and plan.get("steps") and
+              (done := next((x for x in self.orders if x.id == oid and x.status in ("done", "failed")), None))):
+            # the planner's review of something the actor did by itself found a problem: a follow-up order
+            fo = Order(self.next_id, f"(the planner's follow-up to order {oid}) {plan.get('goal') or ''}"[:300],
+                       "planner", "plan", list(done.points))
+            fo.next_plan = plan
+            self.next_id += 1
+            self.orders.append(fo)
+            self.log({"kind": "followup", "order": fo.id, "of": oid})
+            self.wake.set()
         elif (oid is not None and self.current and self.current.id == oid and self.current.status == "working"
               and not plan.get("no_plan") and plan.get("steps")):
             # the planner revised the plan (e.g. after a correction) while the old one runs: switch at the next step
