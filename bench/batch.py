@@ -44,6 +44,25 @@ async def one(name: str, inst: int, a, sem: asyncio.Queue) -> dict:
         sem.put_nowait(k)
 
 
+def busy_slots() -> set[int]:
+    """Instance numbers in use by any run (a server, or a run.py between servers): a run starting on a slot kills
+    whatever server holds it, so batches must not share one."""
+    import re
+    import subprocess
+    out = subprocess.run(["pgrep", "-af", "bench/[r]un.py|bin/x64/[f]actorio -c|bench/[l]oop.py|bench/[b]atch.py"],
+                         capture_output=True, text=True).stdout
+    used = {int(m) for m in re.findall(r"--instance (\d+)", out)}
+    used |= {int(m) for m in re.findall(r"instances/(\d+)/", out)}
+    # running loops and batches own their whole range, even between runs
+    for line in out.splitlines():
+        if "loop.py" in line or "batch.py" in line:
+            b = re.search(r"--base (\d+)", line)
+            n = re.search(r"-P (\d+)", line)
+            if b:
+                used |= set(range(int(b.group(1)), int(b.group(1)) + (int(n.group(1)) if n else 5)))
+    return used
+
+
 async def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("scenarios", nargs="+")
@@ -56,8 +75,15 @@ async def main() -> None:
     p.add_argument("--minutes", type=float)
     a = p.parse_args()
     sem: asyncio.Queue = asyncio.Queue()
-    for i in range(a.P):
-        sem.put_nowait(a.base + i)
+    used, k, got = busy_slots(), a.base, []
+    while len(got) < a.P and k <= 99:
+        if k not in used and k != 20:  # (20 is the serf repo's)
+            got.append(k)
+        k += 1
+    if got != list(range(a.base, a.base + a.P)):
+        print(f"(slots {got}: others in use)", flush=True)
+    for k in got:
+        sem.put_nowait(k)
     jobs = [n for n in a.scenarios for _ in range(a.repeat)]
     rs = await asyncio.gather(*(one(n, 0, a, sem) for n in jobs))
     ok = sum(1 for r in rs if r.get("success"))
