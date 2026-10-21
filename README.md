@@ -23,9 +23,13 @@ See [docs/DESIGN.md](docs/DESIGN.md) for how the parts fit together.
 Talk to it with `@serf`, for example:
 - `@serf red science stopped at [gps=..]`
 - `@serf I need 20 inserters in the chest at [gps=..]`
-- `@serf automate gears off this belt`
+- `@serf make gears off this belt [gps=..]`
+- `@serf belt the coal from [gps=..] to the boiler at [gps=..]`
+- `@serf research solar`
+- `@serf swap the belts on the line at [gps=..] for red ones`
 
-Add `--no-think` to run with Jev and code only.
+The first five never need Opus: Jev reads the order and code does it. Anything Jev isn't sure of goes to Opus.
+Add `--no-think` to run with Jev and code only (also what happens when Opus hits a usage limit).
 
 The Jev key is read from `~/dev/jev.env`. Opus runs through the local Claude Code login (the Agent SDK).
 
@@ -49,14 +53,22 @@ Each lab replays Jev's decisions on hand-labelled cases, without starting the ga
 .venv/bin/python lab/eval_chat.py         # chat sorting (CHAT_SET=chat_holdout.jsonl for the check set)
 .venv/bin/python lab/eval_recovery.py     # what to do after a failed step
 .venv/bin/python lab/eval_changes.py      # does a mid-job message change the plan
+.venv/bin/python lab/eval_quick.py        # quick builds: product, count, output, refusals (--holdout for the check set)
+.venv/bin/python lab/eval_belt.py         # is it a belt job
+.venv/bin/python lab/eval_research.py     # which research
 ```
+
+`bench/digest.py <tag>` summarises a loop: time per order, where the time went, Jev's low-confidence calls to label,
+and the lessons Opus wrote.
 
 ## Layout
 
 | Path | What |
 |---|---|
 | `jev/actor.py` | the character's loops: chat, orders, plans, recovery, verifying, fast playbooks |
-| `jev/decide.py` | every Jev question (state encodings and options) |
+| `jev/decide.py` | the core Jev questions (state encodings and options) |
+| `jev/quickbuild.py`, `jev/quickbelt.py` | builds and belt jobs without Opus: Jev reads the order, code lays it out |
+| `jev/craft.py` | how many of a building can be had from storage, machine outputs and crafting |
 | `jev/thinker.py` | Opus: tools, prompt, plan submission |
 | `jev/world.py` | scan → belt lines, feeders, machine states, faults with fixes, summaries |
 | `jev/steps.py` | plan steps → mod actions (fetching, power, routing, building ghosts) |
