@@ -520,7 +520,8 @@ class Runner:
         (line=[x,y], a tile of it). `into` names the new tier; `only` limits it to one old name."""
         mp = upgrade_map(str(s.get("into") or ""))
         if s.get("only"):
-            mp = {k: v for k, v in mp.items() if k == s["only"]}
+            only = [s["only"]] if isinstance(s["only"], str) else list(s["only"])
+            mp = {k: v for k, v in mp.items() if k in only}
         if not mp:
             return {"ok": False, "msg": f"nothing upgrades into {s.get('into')!r} (try e.g. fast-transport-belt, "
                                         "assembling-machine-2, steel-furnace, fast-inserter)"}
