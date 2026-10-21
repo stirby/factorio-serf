@@ -346,11 +346,12 @@ API.query = function(req)
     return { materials = t }
   elseif w == "live_pole" then
     local p = { x = tonumber(req.x) or 0, y = tonumber(req.y) or 0 }
-    local best, bd
+    local best, bd, nets = nil, nil, {}
     for _, e in pairs(s.find_entities_filtered { type = "electric-pole", position = p,
       radius = math.min(tonumber(req.radius) or 300, 500), force = "player" }) do
-      local st = e.electric_network_statistics
-      if st and next(st.output_counts) then
+      local id = e.electric_network_id
+      if id and nets[id] == nil then nets[id] = scan.grid(e).live end
+      if id and nets[id] then
         local d = (e.position.x - p.x) ^ 2 + (e.position.y - p.y) ^ 2
         if not bd or d < bd then best, bd = e, d end
       end

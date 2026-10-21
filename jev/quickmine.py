@@ -71,6 +71,38 @@ def layout(tiles: set, n: int, toward_x: float, pole: str = "small-electric-pole
             "center": [(bx0 + bx1) / 2 + 0.5, yb + 0.5]}
 
 
+FLIP = {"east": "south", "south": "east", "west": "north", "north": "west"}  # mirrored over the diagonal
+
+
+def best_layout(tiles: set, n: int, toward: tuple, pole: str = "small-electric-pole") -> dict | None:
+    """layout() along x, or along y (the patch mirrored over the diagonal, laid out, mirrored back): whichever places
+    more drills; on a tie, the one whose belt heads more toward `toward`."""
+    cands = []
+    a = layout(tiles, n, toward[0], pole)
+    if a:
+        cands.append(a)
+    t = layout({(y, x) for x, y in tiles}, n, toward[1], pole)
+    if t:
+        ents = []
+        for e in t["ents"]:
+            f = {**e, "x": e["y"], "y": e["x"]}
+            if "direction" in e:
+                f["direction"] = FLIP[e["direction"]]
+            ents.append(f)
+        cands.append({"ents": ents, "belt_end": [t["belt_end"][1], t["belt_end"][0]],
+                      "direction": FLIP[t["direction"]], "drills": t["drills"],
+                      "center": [t["center"][1], t["center"][0]]})
+    if not cands:
+        return None
+    vec = {"east": (1, 0), "west": (-1, 0), "south": (0, 1), "north": (0, -1)}
+
+    def heads(c):
+        v = vec[c["direction"]]
+        dx, dy = toward[0] - c["center"][0], toward[1] - c["center"][1]
+        return (v[0] * dx + v[1] * dy) / (math.hypot(dx, dy) or 1)
+    return max(cands, key=lambda c: (c["drills"], heads(c)))
+
+
 async def read_order(jev: Jev, order: str, ores: list[str]) -> tuple[float, str | None, float]:
     opts = {o: o.replace("-", " ") for o in ores}
     opts["none_of_these"] = "another resource, or not about mining"

@@ -155,10 +155,22 @@ local function grid(pole)
       precision_index = defines.flow_precision_index.five_seconds, count = false } * 60
   end
   local cap, gens, boilers, low, low_at = 0, {}, 0, 0, {}
+  -- live: it can power something now (made power in the last 5 s, or has a source that would if asked: an energy
+  -- interface, solar, an engine holding steam, a burning burner generator). Steam engines alone are capacity, not power.
+  local live = made > 0
   local seen = {}
   for _, g in pairs(pole.surface.find_entities_filtered { force = pole.force, type = GENERATORS }) do
     if g.electric_network_id == id then
       gens[g.name] = (gens[g.name] or 0) + 1
+      if not live then
+        pcall(function()
+          if g.type == "electric-energy-interface" then live = (g.power_production or 0) > 0
+          elseif g.type == "solar-panel" then live = true
+          elseif g.type == "generator" then local fb = g.fluidbox[1] live = fb ~= nil and fb.amount > 0
+          elseif g.type == "burner-generator" then live = g.burner ~= nil and g.burner.currently_burning ~= nil
+          end
+        end)
+      end
       local okP, j = pcall(function()
         if g.type == "electric-energy-interface" then return g.power_production end
         if g.type == "solar-panel" then return g.prototype.get_max_energy_production(g.quality) end
@@ -182,8 +194,9 @@ local function grid(pole)
     end
   end
   return { id = id, used_w = math.floor(used), made_w = math.floor(made), cap_w = math.floor(cap), gens = gens,
-    boilers = boilers, boilers_low_fuel = low, boilers_low_at = #low_at > 0 and low_at or nil }
+    boilers = boilers, boilers_low_fuel = low, boilers_low_at = #low_at > 0 and low_at or nil, live = live }
 end
+scan.grid = grid
 
 -- req: center {x,y} (default the agent), radius (default 24, max 96), agent (for the default center)
 function scan.area(a, req)

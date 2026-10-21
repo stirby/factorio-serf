@@ -13,7 +13,7 @@ from __future__ import annotations
 import math
 
 from .typesafe import Jev, noul
-from .world import World, items_words
+from .world import World, grid_live, items_words
 
 TAKES = ("container", "logistic-container", "boiler", "furnace", "assembling-machine", "lab", "burner-generator")
 
@@ -88,7 +88,7 @@ def sink(w: World, p, toward) -> dict | None:
         return None
     ins, belt = min(cands, key=lambda c: _d(c[1], toward))
     powered = any(e.get("t") == "electric-pole" and _d((e["x"], e["y"]), ins) <= 7 and
-                  (w.grids.get(e.get("net")) or {}).get("cap_w") for e in w.ents.values())
+                  grid_live(w.grids.get(e.get("net")) or {}) for e in w.ents.values())
     # fuel into a burner (a boiler, a stone furnace): a burner inserter, which fuels itself from the coal it moves.
     # An electric one on a boiler's own grid stops when the boiler runs dry and never starts it again.
     burner_target = tgt.get("t") in ("boiler", "burner-generator") or tgt.get("n") in ("stone-furnace", "steel-furnace",

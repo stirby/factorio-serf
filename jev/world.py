@@ -105,6 +105,11 @@ class Line:
         return len(self.belts)
 
 
+def grid_live(g: dict) -> bool:
+    """The grid can power something now (the mod says; older scans: it has generator capacity)."""
+    return bool(g.get("live")) if "live" in g else (g.get("cap_w") or 0) > 0
+
+
 class World:
     def __init__(self, scan: dict, recipes: dict | None = None, me: dict | None = None):
         self.raw = scan
@@ -648,6 +653,8 @@ class World:
                   "generators": ", ".join(f"{n} {k}" for k, n in (g.get("gens") or {}).items()) or "none"}
             if g.get("boilers"):
                 gd["boilers"] = f"{g['boilers']} ({g.get('boilers_low_fuel', 0)} low on fuel)"
+            if not grid_live(g):
+                gd["load"] = "dead: nothing on it is making power"
             grids.append(gd)
         out = {"machines": machines, "belt_lines": lines, "chests": chests, "power": grids}
         poles = self.of_type("electric-pole")

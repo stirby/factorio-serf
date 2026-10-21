@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import math
 
-from .world import BELT_T, DIRS, World, fmt_xy
+from .world import BELT_T, DIRS, World, fmt_xy, grid_live
 
 SIZE = {
     "assembling-machine-1": (3, 3), "assembling-machine-2": (3, 3), "assembling-machine-3": (3, 3),
@@ -342,7 +342,7 @@ def lint(steps: list[dict], w: World, available: set[str] | None = None, recipes
             out.append(f"the {e['name']} at {fmt_xy((e['x'], e['y']))} makes {e['recipe']} but nothing brings it "
                        f"{', '.join(sorted(missing))} (its inserters pick up {', '.join(sorted(have)) or 'nothing'})")
     # power for planned electric things
-    live = {g["id"] for g in w.grids.values() if (g.get("cap_w") or 0) > 0}
+    live = {g["id"] for g in w.grids.values() if grid_live(g)}
     poles = [(x["x"], x["y"], SUPPLY.get(x["n"], 2.5)) for x in w.ents.values()
              if x["t"] == "electric-pole" and x.get("net") in live]
     poles += [(x["x"], x["y"], SUPPLY.get(x["name"], 2.5)) for x in planned if x["name"] in SUPPLY]

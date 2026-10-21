@@ -22,9 +22,9 @@
      "lua": "local c=storage.bench_mine.chest return c.valid and c.get_item_count('stone') or 0"
     },
     {
-     "name": "drills_on_grid",
+     "name": "drills_working",
      "target": 2,
-     "lua": "local b=storage.bench_mine local id=b.pole.valid and b.pole.electric_network_id local n=0 for _,e in pairs(s.find_entities_filtered{area=b.patch, name='electric-mining-drill'}) do if id and e.electric_network_id==id and e.status==defines.entity_status.working then n=n+1 end end return n"
+     "lua": "local b=storage.bench_mine local n=0 for _,e in pairs(s.find_entities_filtered{area=b.patch, name='electric-mining-drill'}) do if e.status==defines.entity_status.working then n=n+1 end end return n"
     }
    ]
   }

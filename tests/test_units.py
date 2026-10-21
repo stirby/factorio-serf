@@ -319,6 +319,19 @@ def test_mine_layout():
         tiles_used = [(math.floor(e["x"] - 1.5 + 0.01) + i, math.floor(e["y"] - 1.5 + 0.01) + j)
                       for e in drills for i in range(3) for j in range(3)]
         check("mine: drills don't overlap", len(tiles_used) == len(set(tiles_used)))
+    tall = {(x, y) for x in range(10, 18) for y in range(0, 16)}  # 8 wide, 16 tall
+    lay = quickmine.best_layout(tall, 6, (10, 200))
+    across = quickmine.layout(tall, 6, 14)
+    check("mine: a tall narrow patch gets a north-south belt and more drills than rows across it",
+          lay and lay["direction"] == "south" and lay["drills"] == 6 and across and across["drills"] < 6,
+          (lay and {k: v for k, v in lay.items() if k != "ents"}, across and across["drills"]))
+    if lay:
+        drills = [e for e in lay["ents"] if e["name"] == "electric-mining-drill"]
+        bx = [e for e in lay["ents"] if e["name"] == "transport-belt"][0]["x"]
+        check("mine: mirrored drills face the belt (east of it facing west, west of it facing east)",
+              all((d["direction"] == "east" and d["x"] < bx) or (d["direction"] == "west" and d["x"] > bx)
+                  for d in drills), drills)
+        check("mine: mirrored drills sit on ore", all((math.floor(d["x"]), math.floor(d["y"])) in tall for d in drills))
     check("mine: '60 ore a minute' is 3 drills; '4 drills' is 4", quickmine.wanted_drills(
         "I want at least 60 ore a minute") == 3 and quickmine.wanted_drills("put 4 drills on it") == 4)
 

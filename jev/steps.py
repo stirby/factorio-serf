@@ -18,6 +18,7 @@ import re
 import time
 
 from .game import Game
+from .world import grid_live
 
 log = logging.getLogger("jev.steps")
 
@@ -455,7 +456,7 @@ class Runner:
         for rnd in range(10):
             sc = await self.g.scan(center=p, radius=int(max(rad + 40, 48)))
             ents = [e for e in (sc.get("ents") or []) if not e.get("ghost")]
-            live = {g["id"] for g in (sc.get("grids") or []) if isinstance(g, dict) and (g.get("cap_w") or 0) > 0}
+            live = {g["id"] for g in (sc.get("grids") or []) if isinstance(g, dict) and grid_live(g)}
             near = [e for e in ents if abs(e["x"] - p[0]) <= rad + 1.5 and abs(e["y"] - p[1]) <= rad + 1.5]
             off = [e for e in near if e.get("t") != "electric-pole" and "net" in e and e.get("net") not in live]
             off += [e for e in near if e.get("s") == "not_plugged_in_electric_network" and e not in off]
@@ -472,7 +473,10 @@ class Runner:
             prev_off = len(off)
             live_poles = [e for e in ents if e.get("t") == "electric-pole" and e.get("net") in live]
             if not live_poles:
-                return await self._long_power(p, s)
+                # the line ends at a pole of what needs power (the point itself may be a belt or a machine)
+                mine = [e for e in near if e.get("t") == "electric-pole"]
+                end = min(mine, key=lambda e: (e["x"] - p[0]) ** 2 + (e["y"] - p[1]) ** 2, default=None)
+                return await self._long_power((end["x"], end["y"]) if end else p, s)
             dead_poles = [e for e in ents if e.get("t") == "electric-pole" and e.get("net") not in live
                           and any(abs(e["x"] - m["x"]) <= 4 and abs(e["y"] - m["y"]) <= 4 for m in off)]
             targets = dead_poles or off

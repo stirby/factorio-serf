@@ -288,7 +288,7 @@ class FastPaths:
                 stock[k] = stock.get(k, 0) + v
             pole = ("small-electric-pole" if craft.most("small-electric-pole", stock, self.recipes, 12) >= 8
                     else "medium-electric-pole")
-            lay = quickmine.layout(tiles, quickmine.wanted_drills(o.text), dest[0] if dest else at[0] + 100, pole)
+            lay = quickmine.best_layout(tiles, quickmine.wanted_drills(o.text), dest or (at[0] + 100, at[1]), pole)
             if not lay:
                 return None
             if any((e := w.at(x["x"], x["y"])) is not None and e["u"] > 0 for x in lay["ents"]):

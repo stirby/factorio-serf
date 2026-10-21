@@ -1426,6 +1426,9 @@ H.connect = {
               -- (can_place_entity says yes over a belt it could fast-replace; the router treats that as a wall)
               if c.surface.can_place_entity { name = ent.name, position = q, force = c.force,
                     build_check_type = defines.build_check_type.manual }
+                  and (ent.type ~= "electric-pole" or c.surface.count_entities_filtered {
+                    area = { { q.x - 0.3, q.y - 0.3 }, { q.x + 0.3, q.y + 0.3 } }, limit = 1,
+                    type = { "transport-belt", "underground-belt", "splitter" } } == 0)
                   and (ent.type == "electric-pole" or c.surface.count_entities_filtered {
                     area = { { q.x - 0.3, q.y - 0.3 }, { q.x + 0.3, q.y + 0.3 } }, invert = true, limit = 1,
                     type = { "resource", "character", "corpse", "item-entity", "entity-ghost", "tile-ghost" } } == 0)

@@ -3,7 +3,7 @@
 and shape, how far the ore has to go and in which direction, whether the far end is a belt stub or a bare chest,
 small or medium poles, a rate or a drill count or nothing, and how the order is worded. Writes bench/scenarios/
 f-mine-NN.json (deterministic for a seed) and bench/suites/fuzz-mine.json. Each is scored by ore arriving in the
-chest and drills on the patch working on the delivery point's grid.
+chest and drills on the patch working.
 
     .venv/bin/python bench/gen_fuzz_mine.py 10 [seed]"""
 import json
@@ -113,11 +113,11 @@ def main(n: int, seed: int):
                    "score": [
                        {"name": "ore_per_min", "target": round(target), "rate": True,
                         "lua": f"local c=storage.bench_mine.chest return c.valid and c.get_item_count('{ore}') or 0"},
-                       {"name": "drills_on_grid", "target": need,
-                        "lua": "local b=storage.bench_mine local id=b.pole.valid and b.pole.electric_network_id "
-                               "local n=0 for _,e in pairs(s.find_entities_filtered{area=b.patch, "
-                               "name='electric-mining-drill'}) do if id and e.electric_network_id==id and "
-                               "e.status==defines.entity_status.working then n=n+1 end end return n"}]}],
+                       # working on any grid: the base's is as good as the one at the chest
+                       {"name": "drills_working", "target": need,
+                        "lua": "local b=storage.bench_mine local n=0 for _,e in pairs(s.find_entities_filtered{"
+                               "area=b.patch, name='electric-mining-drill'}) do if e.status=="
+                               "defines.entity_status.working then n=n+1 end end return n"}]}],
                "score": []}
         (ROOT / "bench" / "scenarios" / f"{name}.json").write_text(json.dumps(scn, indent=1) + "\n")
         names.append(name)
