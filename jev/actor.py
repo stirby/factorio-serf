@@ -359,6 +359,10 @@ class Actor:
         try:
             w = await self.world(o.focus, 32)
             opts = quickbuild.options(w, self.recipes, o.points)
+            if not opts and any(not ln.items and ln.length >= 4 for ln in w.lines):
+                await asyncio.sleep(6)  # belts only just starting up may not carry anything yet
+                w = await self.world(o.focus, 32)
+                opts = quickbuild.options(w, self.recipes, o.points)
             if not opts:
                 return None
             r = await quickbuild.read_order(self.jev, o.text, sorted(opts), quickbuild.carried(w, o.points))
