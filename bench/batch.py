@@ -26,6 +26,8 @@ async def one(name: str, inst: int, a, sem: asyncio.Queue) -> dict:
             cmd.append("--no-think")
         if a.effort:
             cmd += ["--effort", a.effort]
+        if a.minutes:
+            cmd += ["--minutes", str(a.minutes)]
         logf = ROOT / "bench" / "runs" / f"{rid}.log"
         logf.parent.mkdir(parents=True, exist_ok=True)
         with open(logf, "w") as f:
@@ -51,6 +53,7 @@ async def main() -> None:
     p.add_argument("--repeat", type=int, default=1)
     p.add_argument("--no-think", action="store_true")
     p.add_argument("--effort")
+    p.add_argument("--minutes", type=float)
     a = p.parse_args()
     sem: asyncio.Queue = asyncio.Queue()
     for i in range(a.P):
