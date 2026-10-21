@@ -52,10 +52,28 @@ What we learned about encoding, both from the lab and from TypeSafe's notes on J
 
 ## Fast paths (no Opus)
 
-- **fix:** a point is named, so code finds the faults, Jev picks one, and the fix runs. If the order names many sites, code scans a grid of areas and fixes everything nearest-first.
+Tried in this order; any of them can hand the order to Opus with what it tried.
+- **fix:** a point is named, so code finds the faults, Jev picks one, and the fix runs. If the player wants the whole
+  setup working ("get it running properly"), every fault code can fix there goes in one round. Faults with code fixes
+  include reversed belts, gaps, fuel, power, full chests, a boiler driving one steam engine on a maxed grid (adds the
+  second), and a machine set to the wrong recipe (switches it and takes the old product off its belt). If the order
+  names many sites, code scans a grid of areas and fixes everything nearest-first.
 - **deliver:** items and a chest are named.
-- **route:** the order lists belt start/end pairs, so the router lays them all. This solves all five Transport Belt Madness levels in 1.5–18 s.
-- **quick build:** the order points at belts and asks for one product off them ("make gears off this belt", "4 furnaces making steel", "an assembler making inserters from these belts"). Code lists what a row off the nearby belts could make (one belt, or two at row spacing; furnaces only if the belt carries fuel), Jev reads the order, code finds a free spot along the belt and lays the tested row step. The usual runner builds and checks it; if that fails, Opus gets the order plus what was tried. t-steel and t-inserter-mall pass this way with no Opus call.
+- **route:** the order lists belt start/end pairs, so the router lays them all. This solves all five Transport Belt
+  Madness levels in 1.5–18 s.
+- **upgrade:** "swap the belts on that line for red ones". Jev names the tier and line-or-spot; code upgrades the line
+  (with its undergrounds and splitters) or the group of same-kind machines nearest the point.
+- **research:** Jev picks the tech among those available now, each described by what it unlocks.
+- **copy:** "two more just like it at [gps] and [gps]". Code matches the new points to the last build order's (the same
+  shape shifted, or one point per copy when they're a build apart) and lays what the character built there, shifted.
+- **quick build:** the order points at belts and asks for one product off them. Code lists what a row off the nearby
+  belts could make: one belt; two belts at row spacing; furnaces if the belt carries fuel; or two-stage, where the
+  other ingredient is made by feeder assemblers from a parallel belt onto the first belt's free lane (red science,
+  green circuits). Jev reads the product, the count, and whether the output stays put or is sent on (then the belt
+  path takes the row's output belt there). Code finds a free spot and lays the tested row step.
+- **belt job:** "belt the coal from the drills to the boiler". Code finds both ends: an open-ended belt carrying items,
+  and an input belt, an inserter picking from the ground, or a machine with a free side (it places the inserter; a
+  burner one for fuel into burners).
 - **quick answers:** status, location and inventory questions.
 
 ## The agent layer
