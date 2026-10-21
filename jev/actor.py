@@ -359,7 +359,9 @@ class Actor:
         try:
             w = await self.world(o.focus, 32)
             opts = quickbuild.options(w, self.recipes, o.points)
-            if not opts and any(not ln.items and ln.length >= 4 for ln in w.lines):
+            if not opts and any(not ln.items and ln.length >= 4 and any(
+                    min(math.hypot(ln.start[0] - q[0], ln.start[1] - q[1]),
+                        math.hypot(ln.end[0] - q[0], ln.end[1] - q[1])) <= 12 for q in o.points) for ln in w.lines):
                 await asyncio.sleep(6)  # belts only just starting up may not carry anything yet
                 w = await self.world(o.focus, 32)
                 opts = quickbuild.options(w, self.recipes, o.points)
