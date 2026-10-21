@@ -57,7 +57,8 @@ Belts: to take items off an existing belt, put the inserter (and the machine) ri
 TOOLS = [
     ("area", "What's in an area: machines with state and why they're stopped, belt lines (direction, items, where "
              "they start/end and why), chests, power grids, ore, water, planned ghosts, and detected faults with "
-             "suggested fixes. Coordinates are exact.",
+             "suggested fixes. Coordinates are exact. With more than 30 machines it groups them (count, recipe, "
+             "state, extent); look again with a smaller radius for each machine's detail.",
      {"type": "object", "properties": {"x": {"type": "number"}, "y": {"type": "number"},
                                        "radius": {"type": "integer", "description": "default 20, max 64"}},
       "required": ["x", "y"]}),
