@@ -221,6 +221,37 @@ class World:
         d = DIRS.get(e.get("d", ""), (0, 0))
         return e["x"] - d[0], e["y"] - d[1]
 
+    def _engine_slots(self, grid_id) -> list[dict]:
+        """Fixes for a maxed grid that code can do: a boiler on it driving fewer than its 2 steam engines gets the
+        next one, end to end along its steam output (a free 3x5 spot needed). More boilers are the planner's job."""
+        fixes = []
+        engines = {(e["x"], e["y"]) for e in self.ents.values() if e.get("n") == "steam-engine"}
+        on_grid = [e for e in self.ents.values() if e.get("n") == "steam-engine" and e.get("net") == grid_id]
+        for b in self.ents.values():
+            if b.get("t") != "boiler" or b.get("d") not in DIRS:
+                continue
+            dx, dy = DIRS[b["d"]]
+            first = (b["x"] + dx * 3.5, b["y"] + dy * 3.5)
+            second = (first[0] + dx * 5, first[1] + dy * 5)
+            if first in engines and not any(abs(e["x"] - first[0]) < 0.1 and abs(e["y"] - first[1]) < 0.1
+                                            for e in on_grid):
+                continue  # this boiler's engines are on another grid
+            spot = second if first in engines else first
+            if spot in engines:
+                continue  # both engines there
+            long_x = dx != 0
+            w, h = (5, 3) if long_x else (3, 5)
+            x0, y0 = math.floor(spot[0] - w / 2 + 0.01), math.floor(spot[1] - h / 2 + 0.01)
+            if any((x0 + i, y0 + j) in self.tile or self.off_view(x0 + i + 0.5, y0 + j + 0.5)
+                   for i in range(w) for j in range(h)):
+                continue
+            fixes.append({"do": "place", "name": "steam-engine", "x": spot[0], "y": spot[1], "direction": b["d"],
+                          "text": f"add a steam engine to the boiler at {fmt_xy((b['x'], b['y']))}",
+                          "done": f"added a steam engine to the boiler at {fmt_xy((b['x'], b['y']))}",
+                          "then_power": True})
+            break
+        return fixes
+
     def off_view(self, x: float, y: float) -> bool:
         """Is this point outside the square the scan covered (so "nothing there" only means "not looked at")?"""
         if not self.radius:
@@ -487,7 +518,7 @@ class World:
             if cap and used >= 0.97 * cap:
                 out.append({"kind": "power_maxed", "grid": g["id"], "at": self.center,
                             "text": f"grid {g['id']} is maxed out: using {used / 1e6:.1f} MW of {cap / 1e6:.1f} MW",
-                            "fixes": []})
+                            "fixes": self._engine_slots(g["id"])})
         # 4. chests that are full and block an inserter
         for e in self.ents.values():
             if (e["t"] in ("container", "logistic-container") and e.get("free") == 0 and self.feeders.get(e["u"])
