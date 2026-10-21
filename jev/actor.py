@@ -81,6 +81,7 @@ class Actor:
                         "recoveries": {}, "verified": 0, "unverified": 0, "chat_lines": 0}
         self._tasks: list[asyncio.Task] = []
         self.watches: list[dict] = []  # areas this character built: kept running while it's idle
+        self.stocked: list[dict] = []  # chests a plan filled by hand: refilled when they run low
         self.watch_every = 45.0
         self.busy_since: float | None = None
         self.idle_secs = 0.0
@@ -357,7 +358,25 @@ class Actor:
         the planner asked to watch for (Jev judges those)."""
         while True:
             await asyncio.sleep(self.watch_every)
-            if not self.watches or any(x.status in ("new", "working", "thinking") for x in self.orders):
+            if any(x.status in ("new", "working", "thinking") for x in self.orders):
+                continue
+            # chests a plan stocked by hand (e.g. coal for a boiler or plastic plant): top them up before they run dry
+            for c in list(self.stocked):
+                try:
+                    w = await self.world((c["x"], c["y"]), 2)
+                    e = w.at(c["x"], c["y"])
+                    if not e:
+                        self.stocked.remove(c)
+                        continue
+                    have = (e.get("inv") or {}).get(c["item"], 0)
+                    if have < c["count"] * 0.2:
+                        self.log({"kind": "restock", "chest": [c["x"], c["y"]], "item": c["item"], "have": have})
+                        await self.say(f"topping up {c['item']} in the chest at [gps={c['x']:.0f},{c['y']:.0f}]")
+                        await self.runner.run({"do": "insert", "x": c["x"], "y": c["y"], "item": c["item"],
+                                               "count": c["count"] - have})
+                except Exception as ex:  # noqa: BLE001
+                    self.log({"kind": "error", "where": "restock", "error": repr(ex)})
+            if not self.watches:
                 continue
             try:
                 for wt in list(self.watches):
@@ -733,6 +752,11 @@ class Actor:
                 if r.get("ok"):
                     self.metrics["steps_ok"] += 1
                     done.append(f"{i + 1}. {describe(st)}: ok ({str(r.get('msg'))[:120]})")
+                    if st.get("do") == "insert" and "chest" in str(r.get("msg")) and int(st.get("count") or 0) >= 20:
+                        key = (float(st["x"]), float(st["y"]), st["item"])
+                        self.stocked = [c for c in self.stocked if (c["x"], c["y"], c["item"]) != key]
+                        self.stocked.append({"x": key[0], "y": key[1], "item": key[2], "count": int(st["count"])})
+                        self.stocked = self.stocked[-10:]
                     break
                 self.metrics["steps_failed"] += 1
                 msg = str(r.get("msg") or "failed")
