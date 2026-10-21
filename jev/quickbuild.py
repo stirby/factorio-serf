@@ -112,6 +112,14 @@ PRODUCT_Q = "Which of these does `order` ask to have made?"
 COUNTS = {"not_said": "the order doesn't say how many machines", **{str(n): f"{n} machine(s)" for n in range(1, 13)}}
 
 
+def plain_counts(order: str) -> str:
+    """'a couple of machines' -> '2 machines', 'a few' -> '3': Jev read 'a couple' as several products."""
+    import re
+    order = re.sub(r"\ba couple(?: of)?\b", "2", order, flags=re.I)
+    order = re.sub(r"\ba few\b", "3", order, flags=re.I)
+    return order
+
+
 async def read_order(jev: Jev, order: str, products: list[str], carried: list[str] | None = None) -> dict:
     alias = {"iron-gear-wheel": "gears", "steel-plate": "steel", "firearm-magazine": "yellow ammo",
              "electronic-circuit": "green circuits", "automation-science-pack": "red science",
@@ -119,7 +127,7 @@ async def read_order(jev: Jev, order: str, products: list[str], carried: list[st
              "stone-brick": "bricks smelted from stone"}
     opts = {p: p.replace("-", " ") + (f" ({alias[p]})" if p in alias else "") for p in products[:200]}
     opts["none_of_these"] = "something not in this list, or two or more different products"
-    state = {"order": order}
+    state = {"order": plain_counts(order)}
     if carried:
         state["the_belts_there_carry"] = carried
     a = await jev.ask(state, {
