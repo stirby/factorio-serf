@@ -114,6 +114,11 @@ class Scorer:
 
 async def run(a) -> dict:
     scn = json.loads(Path(a.scenario).read_text())
+    if not scn.get("objectives") and scn.get("goal"):
+        # the older single-goal format: one objective, met the first time every target is met (as the serf's bench
+        # stopped early)
+        scn["objectives"] = [{"name": scn["name"], "goal": scn["goal"], "score": scn.get("score") or [],
+                              "minutes": scn.get("minutes", 30), "hold_samples": 1}]
     run_id = a.run_id or time.strftime("%Y%m%d-%H%M%S") + f"-{scn['name']}-{a.tag}"
     d = RUNS / run_id
     d.mkdir(parents=True, exist_ok=True)

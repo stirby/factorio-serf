@@ -45,6 +45,14 @@ def tiles_of(x: float, y: float, w: int, h: int) -> list[tuple[int, int]]:
 def plan_points(steps: list[dict]) -> list[tuple[float, float]]:
     pts = []
     for s in steps:
+        if s.get("do") == "block":
+            from . import blueprints as bp
+            try:
+                for e in bp.stamp_entities(s["name"], float(s["x"]), float(s["y"]), s.get("rotation", 0),
+                                           s.get("anchor")):
+                    pts.append((float(e["x"]), float(e["y"])))
+            except (KeyError, TypeError, ValueError):
+                pass
         if s.get("do") == "design":
             from .library import place_design
             for e in place_design(s.get("name", ""), s.get("x", 0), s.get("y", 0)) or []:
@@ -117,6 +125,17 @@ def lint(steps: list[dict], w: World, available: set[str] | None = None, recipes
                 for e in ents or []:
                     add(e["name"], float(e["x"]), float(e["y"]), e.get("direction"), None, None, e.get("recipe"),
                         src="design")
+            elif d == "block":
+                from . import blueprints as bp
+                try:
+                    ents = bp.stamp_entities(s["name"], float(s["x"]), float(s["y"]), s.get("rotation", 0),
+                                             s.get("anchor"))
+                except KeyError as e:
+                    out.append(f"step {i + 1}: {e}")
+                    ents = []
+                for e in ents:
+                    add(e["name"], float(e["x"]), float(e["y"]), e.get("direction"), None, None, e.get("recipe"),
+                        src="block")
             elif d == "mine_at":
                 removed.add((math.floor(float(s["x"])), math.floor(float(s["y"]))))
             elif d == "connect":

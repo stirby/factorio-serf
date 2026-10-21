@@ -1,0 +1,19 @@
+{
+ "name": "steam-power-1-2",
+ "description": "Offshore pump + 1 boiler + 2 steam engines: up to 1.8 MW. Burns up to 0.45 coal/s at full load (a burner inserter feeds the boiler from the coal input tile: end a coal belt there or put a chest of coal there).",
+ "size": [12, 6],
+ "placement": "must sit on a shore: stamp it with anchor='offshore-pump' at an offshore_pump_spots entry from find name=water, rotation=<that spot's direction> (the pump faces the water). The rest needs 12x6 tiles of land behind the pump.",
+ "inputs": [{"what": "coal: end a coal belt on, or put a chest of coal at, this tile", "at": [0, 6], "side": "south", "kind": "chest", "item": "coal"}],
+ "outputs": [{"what": "electricity up to 1.8 MW: wire your poles to the small pole on this tile", "at": [6, 1], "kind": "power", "rate": 1.8}],
+ "test": {"producers": ["steam-engine", "boiler", "offshore-pump"], "warmup_s": 20, "anchor": "offshore-pump"},
+ "needs": {"boiler": 1, "burner-inserter": 1, "offshore-pump": 1, "pipe": 1, "small-electric-pole": 1, "steam-engine": 2},
+ "entities": [
+  {"name": "offshore-pump", "x": 0.5, "y": 0.5, "direction": "north"},
+  {"name": "pipe", "x": 0.5, "y": 1.5, "direction": "north"},
+  {"name": "boiler", "x": 1, "y": 3.5, "direction": "east"},
+  {"name": "steam-engine", "x": 4.5, "y": 3.5, "direction": "east"},
+  {"name": "steam-engine", "x": 9.5, "y": 3.5, "direction": "east"},
+  {"name": "small-electric-pole", "x": 6.5, "y": 1.5, "direction": "north"},
+  {"name": "burner-inserter", "x": 0.5, "y": 5.5, "direction": "south"}
+ ]
+}

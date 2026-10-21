@@ -425,6 +425,18 @@ class Runner:
             b["msg"] += f" ({len(ents) - placed} couldn't be planned: blocked or invalid spots)"
         return b
 
+    async def _do_block(self, s):
+        """A built-in, game-tested design (jev/blueprints) placed with its rotated top-left corner at x,y (or with
+        anchor=<entity name> at x,y), laid as ghosts and built."""
+        from . import blueprints as bp
+        try:
+            ents = bp.stamp_entities(s["name"], float(s["x"]), float(s["y"]), s.get("rotation", 0), s.get("anchor"))
+        except KeyError as e:
+            return {"ok": False, "msg": str(e)}
+        r = await self._do_ghosts({"entities": ents})
+        r["msg"] = f"block {s['name']}: " + str(r.get("msg"))
+        return r
+
     async def _do_design(self, s):
         """A saved design (library) built at anchor x,y."""
         from .library import place_design
@@ -571,6 +583,13 @@ def plan_needs(steps: list[dict]) -> dict:
             from .library import place_design
             for e in place_design(s.get("name", ""), s.get("x", 0), s.get("y", 0)) or []:
                 add(e.get("name"), 1)
+        elif d == "block":
+            from . import blueprints as bp
+            try:
+                for item, n in bp.needs(s.get("name", "")).items():
+                    add(item, n)
+            except KeyError:
+                pass
         elif d == "connect" and isinstance(s.get("from"), (list, tuple)) and isinstance(s.get("to"), (list, tuple)):
             dist = abs(s["from"][0] - s["to"][0]) + abs(s["from"][1] - s["to"][1])
             item = s.get("item")

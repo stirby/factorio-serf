@@ -31,6 +31,7 @@ Step ops (each step is an object {{"do": op, ...}}):
   ghosts entities=[{{name,x,y,direction,recipe}}]   lay out a whole design as planned ghosts, then build all of them (items fetched automatically). Best for any build of more than ~3 entities. In ghosts, an inserter's direction is the side it PICKS UP FROM (direction north = takes from the tile north of it, drops on the tile south of it).
   stamp string x y [direction]              lay a blueprint string as ghosts and build it
   design name x y                           build a saved design (save_design) with its 0,0 anchor at x,y
+  block name x y [rotation] [anchor]        build a built-in, game-tested block (list below): its rotated top-left corner goes at x,y (rotation 0/90/180/270 clockwise, or east/south/west); use block_info first to see exactly where its input and output belts end up
   route pairs=[{{name, from:[x,y], to:[x,y]}}]   lay several separate belt lines at once without mixing (crossings go under with undergrounds); code solves the layout exactly. Use it for any set of 2+ belt lines that must not touch, e.g. belt puzzles or buses
   build_ghosts [x y radius]                 build planned ghosts (also the players' own)
   insert x y item [count] | take x y [item] [count] | empty_chest x y
@@ -76,6 +77,10 @@ TOOLS = [
      {"type": "object", "properties": {"item": {"type": "string"}}, "required": ["item"]}),
     ("techs", "Research: what's being researched, the queue, and what can be researched next with its packs "
               "(trigger techs say what unlocks them instead).", {"type": "object", "properties": {}}),
+    ("block_info", "Where a built-in block would sit if placed at x,y with that rotation: its footprint, where each "
+                   "input belt enters and each output leaves (absolute tiles), and what it needs to build.",
+     {"type": "object", "properties": {"name": {"type": "string"}, "x": {"type": "number"}, "y": {"type": "number"},
+                                       "rotation": {}}, "required": ["name", "x", "y"]}),
     ("save_design", "Save a layout to reuse with a {\"do\": \"design\", \"name\", \"x\", \"y\"} step: entities "
                     "relative to an anchor at 0,0 (an integer tile corner; keep .5 centers as .5). Use it when an "
                     "order asks for the same thing more than once, or for something worth repeating.",
@@ -147,6 +152,13 @@ class Thinker:
                     try:
                         if n == "submit_plan":
                             out = await self._submit(args)
+                        elif n == "block_info":
+                            from . import blueprints as bp
+                            try:
+                                out = bp.stamp_text(bp.stamp(args["name"], float(args["x"]), float(args["y"]),
+                                                             args.get("rotation", 0)))
+                            except Exception as e:  # noqa: BLE001
+                                out = f"error: {e}"
                         elif n == "save_design":
                             from .library import save_design
                             out = save_design(args.get("name", ""), args.get("entities") or [], args.get("note", ""))
@@ -167,6 +179,9 @@ class Thinker:
         self.workdir.mkdir(parents=True, exist_ok=True)
         from .library import lessons
         system = SYSTEM.format(name=self.name)
+        from . import blueprints as bp
+        system += ("\n\nBuilt-in blocks (game-tested layouts; place with a block step, check ports with block_info; "
+                   "a block's input belt must be fed by a belt that ends right at its input tile):\n" + bp.summary_text())
         learned = lessons()
         from .library import designs
         ds = designs()
