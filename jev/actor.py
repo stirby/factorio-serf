@@ -55,6 +55,7 @@ class Order:
     quick: bool = False  # built by the actor's quick-build path (no planner)
     belt_len: float = 0  # the longest new belt any of its plans laid (items need time to travel it)
     built_pts: list = field(default_factory=list)  # where its plans built (for "two more just like it")
+    copy_of: "Order | None" = None  # for a copy order: the order whose build is the unit it copied
 
     @property
     def focus(self):
@@ -529,6 +530,8 @@ class Actor:
         the earlier order's points did (jev/quickcopy.py)."""
         prev = next((x for x in reversed(self.orders) if x is not o and x.status == "done" and x.built_pts
                      and x.points), None)
+        if prev and prev.copy_of:  # "now four more" after "two more": copies of the same unit, not of the pair
+            prev = prev.copy_of
         if not prev:
             return None
         xs = [q[0] for q in prev.built_pts + [prev.focus]]  # (not every point it named: a supply chest or grid
@@ -567,6 +570,7 @@ class Actor:
             r = max(max(mx) - min(mx), max(my) - min(my)) / 2 + 2
             plan["expect"] = [{"check": "working", "count": max(1, len(machines) // 2), "near": [mc[0] + d[0], mc[1] + d[1]],
                                "radius": r} for d in ds]
+        o.copy_of = prev
         return await self._run_quick(o, plan, f"{n} more like the last one")
 
     async def _quick_upgrade(self, o: Order) -> bool | str | None:
