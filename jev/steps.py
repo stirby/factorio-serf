@@ -158,7 +158,11 @@ class Runner:
         return await self._act({"op": "fetch", "item": s["item"], "count": int(s.get("count", 1))}, timeout=300)
 
     async def _do_craft(self, s):
-        return await self._act({"op": "craft", "recipe": s["recipe"], "count": int(s.get("count", 1))}, timeout=300)
+        """Have `count` more of an item: the mod's fetch takes it from storage or hand-crafts it, fetching the
+        ingredients from storage first when they aren't carried."""
+        inv = await self.refresh_inventory()
+        item, n = s["recipe"], int(s.get("count", 1))
+        return await self._act({"op": "fetch", "item": item, "count": inv.get(item, 0) + n}, timeout=400)
 
     async def _do_mine(self, s):
         a = {"op": "mine", "name": s.get("name") or s.get("item"), "count": int(s.get("count", 10))}
@@ -198,33 +202,55 @@ class Runner:
     async def _do_refuel(self, s):
         p = _xy(s)
         inv = await self.refresh_inventory()
-        fuel = s.get("fuel") or next((f for f in FUELS if inv.get(f, 0) >= 5), None)
         n = int(s.get("count", 20))
-        if not fuel:
-            fuel = "coal"
-            r = await self.ensure("coal", n)
-            if not r.get("ok"):
+        fuel = s.get("fuel") or next((f for f in FUELS if inv.get(f, 0) >= 5), None) or "coal"
+        if inv.get(fuel, 0) < min(n, 5):
+            r = await self.ensure(fuel, n)
+            if not r.get("ok") and fuel == "coal":
                 r = await self._act({"op": "mine", "name": "coal", "count": n}, timeout=400)
-                if not r.get("ok"):
-                    return {"ok": False, "msg": f"no fuel: {r.get('msg')}", "missing": {"coal": n}}
-        return await self._act({"op": "insert", "x": p[0], "y": p[1], "item": fuel,
-                                "count": min(n, max(1, (await self.refresh_inventory()).get(fuel, n)))})
+            if not r.get("ok"):
+                return {"ok": False, "msg": f"no {fuel}: {r.get('msg')}", "missing": {fuel: n}, "unobtainable": True}
+        have = (await self.refresh_inventory()).get(fuel, 0)
+        return await self._act({"op": "insert", "x": p[0], "y": p[1], "item": fuel, "count": max(1, min(n, have))})
 
     async def _do_power(self, s):
-        """Poles from a grid pole (given, or the nearest powered one the mod knows) to the machine."""
+        """Make sure every electric machine within `radius` (default 6) of x,y is on a grid that has generators:
+        bridge from the nearest live pole to the closest unpowered pole (or machine), rescan, repeat."""
         p = _xy(s)
-        src = s.get("from")
-        if not src:
-            sc = await self.g.scan(center=p, radius=64)
+        rad = float(s.get("radius", 6))
+        item = s.get("item", "small-electric-pole")
+        msgs = []
+        for rnd in range(4):
+            sc = await self.g.scan(center=p, radius=int(max(rad + 40, 48)))
+            ents = [e for e in (sc.get("ents") or []) if not e.get("ghost")]
             live = {g["id"] for g in (sc.get("grids") or []) if isinstance(g, dict) and (g.get("cap_w") or 0) > 0}
-            poles = [e for e in (sc.get("ents") or []) if e.get("t") == "electric-pole" and e.get("net") in live
-                     and not e.get("ghost")]
-            poles.sort(key=lambda e: (e["x"] - p[0]) ** 2 + (e["y"] - p[1]) ** 2)
-            src = [poles[0]["x"], poles[0]["y"]] if poles else None
-        if not src:
-            return {"ok": False, "msg": "no pole found to run power from; give from=[x,y]"}
-        return await self._act({"op": "connect", "item": s.get("item", "small-electric-pole"),
-                                "from": list(src), "to": [p[0], p[1]]}, timeout=420)
+            near = [e for e in ents if abs(e["x"] - p[0]) <= rad + 1.5 and abs(e["y"] - p[1]) <= rad + 1.5]
+            off = [e for e in near if e.get("t") != "electric-pole" and "net" in e and e.get("net") not in live]
+            off += [e for e in near if e.get("t") != "electric-pole" and str(e.get("pw", "")).startswith("no power")
+                    and e not in off]
+            if not off:
+                return {"ok": True, "msg": ("everything there is powered" if not msgs else "; ".join(msgs))}
+            live_poles = [e for e in ents if e.get("t") == "electric-pole" and e.get("net") in live]
+            if not live_poles:
+                return {"ok": False, "msg": "no powered pole within 50 tiles to run power from"}
+            dead_poles = [e for e in ents if e.get("t") == "electric-pole" and e.get("net") not in live
+                          and any(abs(e["x"] - m["x"]) <= 4 and abs(e["y"] - m["y"]) <= 4 for m in off)]
+            targets = dead_poles or off
+
+            def d2(a, b):
+                return (a["x"] - b["x"]) ** 2 + (a["y"] - b["y"]) ** 2
+            best = min(((lp, t) for lp in live_poles for t in targets), key=lambda pr: d2(*pr))
+            src = best[0]
+            if s.get("from") and rnd == 0:
+                f = s["from"]
+                cand = [lp for lp in live_poles if abs(lp["x"] - f[0]) <= 1 and abs(lp["y"] - f[1]) <= 1]
+                if cand:
+                    src = cand[0]
+            tgt = best[1]
+            r = await self._act({"op": "connect", "item": item, "from": [src["x"], src["y"]],
+                                 "to": [tgt["x"], tgt["y"]]}, timeout=420)
+            msgs.append(str(r.get("msg"))[:160])
+        return {"ok": False, "msg": "still unpowered after 4 tries: " + " | ".join(msgs[-2:])}
 
     async def _do_research(self, s):
         return await self._act({"op": "research", "tech": s["tech"], **({"first": True} if s.get("first") else {})})
@@ -240,6 +266,16 @@ class Runner:
     async def _do_move(self, s):
         p = _xy(s)
         return await self._act({"op": "move", "x": p[0], "y": p[1]}, timeout=300)
+
+    async def _do_follow(self, s):
+        """Stay near a player (seconds, default 300); the step returns at once and the character keeps following."""
+        a = {"op": "follow", "player": s.get("player"), "distance": s.get("distance", 3),
+             "seconds": s.get("seconds", 300)}
+        try:
+            await self.g.act([a])
+        except Exception as e:  # noqa: BLE001
+            return {"ok": False, "msg": repr(e)}
+        return {"ok": True, "msg": f"following {s.get('player')}"}
 
     async def _do_configure(self, s):
         a = {"op": "configure", **{k: v for k, v in s.items() if k != "do"}}
@@ -274,6 +310,14 @@ class Runner:
         if placed is not None and placed < len(ents):
             b["msg"] += f" ({len(ents) - placed} couldn't be planned: blocked or invalid spots)"
         return b
+
+    async def _do_design(self, s):
+        """A saved design (library) built at anchor x,y."""
+        from .library import place_design
+        ents = place_design(s.get("name", ""), s["x"], s["y"])
+        if ents is None:
+            return {"ok": False, "msg": f"no saved design {s.get('name')!r}"}
+        return await self._do_ghosts({"entities": ents})
 
     async def _do_stamp(self, s):
         a = {"op": "blueprint", "string": s["string"], "x": float(s["x"]), "y": float(s["y"])}
@@ -338,6 +382,10 @@ def plan_needs(steps: list[dict]) -> dict:
             add(s.get("name"), 1)
         elif d == "ghosts":
             for e in s.get("entities") or []:
+                add(e.get("name"), 1)
+        elif d == "design":
+            from .library import place_design
+            for e in place_design(s.get("name", ""), s.get("x", 0), s.get("y", 0)) or []:
                 add(e.get("name"), 1)
         elif d == "insert" and s.get("item") not in FUELS:
             add(s.get("item"), s.get("count") or 1)

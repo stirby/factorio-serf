@@ -15,24 +15,34 @@ from dataclasses import dataclass
 from .typesafe import Jev, choice, noul
 
 KINDS = {
-    "new_job": "asks the character to do something in the game: build, fix, fetch, deliver, connect, automate, "
-               "research, clear, move, check on something",
-    "more_info": "adds detail to or corrects the job it is already doing (where, how, which, a constraint)",
-    "question": "asks the character a question that needs an answer in words, without asking it to do anything",
-    "stop": "tells the character to stop, cancel, or wait",
-    "approval": "answers a question the character asked: yes, go ahead, your call, sounds good",
-    "chatter": "thanks, praise, greetings, or talk that needs no action",
+    "new_job": {"means": "asks for new work in the game", "examples": ["automate gears here", "build 8 furnaces",
+                "the boiler is out of coal, fix it", "follow me", "bring me 50 plates"]},
+    "more_info": {"means": "about the work in `what_i_am_doing`: a correction, a hint, a constraint, pointing out a "
+                  "problem with it, or a push to keep going", "examples": ["put it on the other side",
+                  "you see the problem there?", "not done yet, keep going", "use the logistic network for that"]},
+    "question": {"means": "wants an answer in words, not work", "examples": ["what are you doing?",
+                 "can you read my pings?", "how much copper do we make?"]},
+    "stop": {"means": "stop, cancel, drop it, stop following", "examples": ["stop", "leave that one for now"]},
+    "approval": {"means": "go-ahead or 'your call' (possibly with a hint) answering something the character asked",
+                 "examples": ["yes do it", "your call", "your call on the layout, one is enough", "sounds good"]},
+    "chatter": {"means": "thanks, praise, greetings, small talk, the speaker thinking out loud",
+                "examples": ["thanks!", "gg", "how u doin", "nice work", "nvm I see it now"]},
 }
 
 PLAYBOOKS = {
     "fix": {"what": "something that used to work has stopped, is slow, starving, out of fuel, without power, backed "
-                    "up or broken, and the player wants it running again",
-            "not_for": "building something new or expanding production"},
+                    "up or broken, and the player only says WHAT is wrong, leaving how to fix it to the character",
+            "not_for": "orders that say what to build or connect (belt X to Y, hook up power, build, automate), even "
+                       "when they mention a problem",
+            "examples": ["red science stopped at [gps]. can you get it going?", "the smelters ran out of coal",
+                         "power keeps dipping, sort it out"]},
     "deliver": {"what": "bring a stated number of specific items to a chest or to the player",
-                "not_for": "automating production of those items"},
-    "plan": {"what": "anything else: build or automate something new, route belts or power somewhere, set up "
-                     "mining, expand, design a layout, a puzzle",
-             "not_for": None},
+                "not_for": "automating production of those items",
+                "examples": ["I need 20 inserters in the chest at [gps]", "bring me 50 iron plates"]},
+    "plan": {"what": "anything else: build or automate something new, belt or power something from A to B, set up "
+                     "mining, expand, design a layout, follow someone, a puzzle",
+             "examples": ["belt coal to the boiler from the drills", "automate gears here", "hook these up to the grid",
+                          "follow me"]},
 }
 
 
@@ -49,9 +59,9 @@ async def chat(jev: Jev, me: str, speaker: str, message: str, doing: str | None,
     state = {"me": me, "speaker": speaker, "message": message,
              "what_i_am_doing": doing or "nothing", "my_last_chat_line": last_said or "none"}
     qs = {
-        "addressed": noul(f"Is `message` meant for `me` ({me}): it names {me}, says @all or everyone, or talks to "
-                          "whoever is listening, rather than to another named player?"),
-        "kind": choice("What is `message`?", KINDS),
+        "addressed": noul(f"Is `message` meant for `me`: it names {me}, says @all or everyone, or talks to whoever "
+                          "is listening, rather than to another named player or bot?"),
+        "kind": choice("What does `message` do?", KINDS),
         "playbook": choice("If `message` asks for a job, which kind of job is it?", PLAYBOOKS),
     }
     a = await jev.ask(state, qs, kind="chat", meta={"speaker": speaker})

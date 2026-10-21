@@ -21,6 +21,7 @@ from pathlib import Path
 
 from . import decide
 from .game import Game
+from .lint import lint, plan_points
 from .steps import Runner, describe, parse_missing, plan_needs
 from .thinker import Request, Thinker
 from .typesafe import Jev, JevError
@@ -44,6 +45,7 @@ class Order:
     notes: list[str] = field(default_factory=list)
     plans: int = 0
     history: list[str] = field(default_factory=list)
+    speaker_at: tuple | None = None
 
     @property
     def focus(self):
@@ -67,7 +69,7 @@ class Actor:
         self._plan_waiters: dict[int, asyncio.Future] = {}
         self.think_enabled = think
         self.thinker = Thinker(name, self._thinker_tools(), self._on_plan, workdir / "thinker", self.log,
-                               effort=thinker_effort) if think else None
+                               effort=thinker_effort, lint_fn=self._lint) if think else None
         self.metrics = {"orders": 0, "fast_path": 0, "plans": 0, "steps_ok": 0, "steps_failed": 0,
                         "recoveries": {}, "verified": 0, "unverified": 0, "chat_lines": 0}
         self._tasks: list[asyncio.Task] = []
@@ -158,6 +160,9 @@ class Actor:
         if kind == "new_job" or (kind in ("more_info", "approval") and not doing and call.kind_conf < 0.7):
             pts = [(float(a), float(b)) for a, b in GPS.findall(msg)]
             o = Order(self.next_id, msg, speaker, call.playbook if call.playbook_conf >= 0.6 else "plan", pts)
+            sp = c.get("position")
+            if isinstance(sp, (list, tuple)) and len(sp) == 2:
+                o.speaker_at = (float(sp[0]), float(sp[1]))
             self.next_id += 1
             self.orders.append(o)
             self.metrics["orders"] += 1
@@ -201,6 +206,12 @@ class Actor:
                 o.status = "failed"
             self.log({"kind": "order_end", "order": o.id, "status": o.status, "secs": round(time.time() - t0, 1),
                       "plans": o.plans})
+            if self.thinker and (o.plans >= 2 or (o.status == "failed" and o.plans >= 1)):
+                self.thinker.ask(Request("lesson", f"Order {o.id} (\"{o.text}\") took {o.plans} plans and ended "
+                                         f"{o.status}. What went wrong: " + " | ".join(h[:300] for h in o.history[-3:]) +
+                                         "\nWrite ONE general rule (no coordinates, max 2 sentences) that would have "
+                                         "made your first plan work, with save_lesson. Then end your turn. Don't submit "
+                                         "a plan.", None))
             await self.g.status(text="")
 
     async def _do_order(self, o: Order) -> bool:
@@ -275,6 +286,37 @@ class Actor:
             return "said"
         return {"area": area, "find": find, "recipe": recipe, "free_space": free_space, "me": me, "say": say}
 
+    async def _lint(self, plan: dict) -> list[str]:
+        pts = plan_points(plan.get("steps") or [])
+        if not pts:
+            return []
+        xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+        cx, cy = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
+        r = int(min(96, max(max(xs) - min(xs), max(ys) - min(ys)) / 2 + 8))
+        w = await self.world((cx, cy), r)
+        return lint(plan.get("steps") or [], w, await self.available(), self.recipes)
+
+    async def available(self) -> set[str]:
+        """Items the character can get: in storage or inventory, or hand-craftable from those (a few levels)."""
+        stock = {k for k, n in await self.materials() if n > 0}
+        me = await self.g.me()
+        stock |= {k for k, n in (me.get("inventory") or {}).items() if n > 0}
+        hand = {"crafting", "advanced-crafting", "electronics", "pressing", "crafting-with-fluid-or-metallurgy"}
+        memo: dict[str, bool] = {}
+
+        def ok(item: str, depth: int = 0) -> bool:
+            if item in stock:
+                return True
+            if item in memo:
+                return memo[item]
+            memo[item] = False
+            r = self.recipes.get(item)
+            if not r or depth > 4 or (r.get("category") or "crafting") not in hand:
+                return False
+            memo[item] = all(ok(i, depth + 1) for i in (r.get("ingredients") or {}))
+            return memo[item]
+        return {i for i in set(self.items) if ok(i)}
+
     async def _on_plan(self, plan: dict, req: Request | None) -> None:
         oid = req.order_id if req else None
         self.log({"kind": "plan", "order": oid, "plan": plan})
@@ -303,6 +345,8 @@ class Actor:
         if o.focus:
             parts.append(f"The order points at {fmt_xy(o.focus)}" + (f" (and {', '.join(fmt_xy(p) for p in o.points[1:])})"
                                                                      if len(o.points) > 1 else "") + ".")
+        if o.speaker_at:
+            parts.append(f"{o.speaker} is standing at {fmt_xy(o.speaker_at)}.")
         if o.notes:
             parts.append("The player also said: " + " | ".join(o.notes))
         return " ".join(parts)

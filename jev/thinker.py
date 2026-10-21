@@ -30,12 +30,13 @@ Step ops (each step is an object {{"do": op, ...}}):
   connect item from=[x,y] to=[x,y] [end_direction]   route and build a line around obstacles: transport-belt, pipe, small-electric-pole/medium-electric-pole. Belts point along the route; they go under crossings and water with undergrounds. from = the last belt of an existing line (or the tile next to it) continues it; to = an existing belt joins it from behind or the side. Poles hop by wire reach.
   ghosts entities=[{{name,x,y,direction,recipe}}]   lay out a whole design as planned ghosts, then build all of them (items fetched automatically). Best for any build of more than ~3 entities. In ghosts, an inserter's direction is the side it PICKS UP FROM (direction north = takes from the tile north of it, drops on the tile south of it).
   stamp string x y [direction]              lay a blueprint string as ghosts and build it
+  design name x y                           build a saved design (save_design) with its 0,0 anchor at x,y
   build_ghosts [x y radius]                 build planned ghosts (also the players' own)
   insert x y item [count] | take x y [item] [count] | empty_chest x y
   refuel x y [fuel]                         put fuel into a burner (fetches coal)
   power x y [from=[x,y]] [item]             run poles from the nearest powered pole (or from) to x,y
   fetch item count | craft recipe count | mine name count | mine_at x y (pick up one entity)
-  research tech | move x y | wait seconds | say text
+  research tech | move x y | follow player [seconds] | wait seconds | say text
   configure x y requests={{..}}|filter=item | limit x y slots
 
 Geometry: tile (x,y) spans x..x+1. 1x1 and 3x3 entities sit at .5 centers (e.g. 10.5,4.5); 2x2 entities at integer corners (e.g. 10,4). An assembling machine is 3x3, stone/steel furnace 2x2, electric mining drill 3x3 (drops one tile in front, the direction it faces), burner drill 2x2, boiler 3x2, steam engine 3x5, small pole reaches wires 7.5 tiles and powers a 5x5 area, medium pole 9 tiles / 7x7. Inserters move items from the tile on one side to the tile on the opposite side; belts carry two lanes; a yellow belt carries 15 items/s. An inserter taking from a belt and dropping into a machine needs the machine's edge right next to it. Underground belts: max 4 tiles between entrance and exit for yellow.
@@ -64,6 +65,15 @@ TOOLS = [
      {"type": "object", "properties": {"w": {"type": "integer"}, "h": {"type": "integer"}, "x": {"type": "number"},
                                        "y": {"type": "number"}}, "required": ["w", "h", "x", "y"]}),
     ("me", "The character: position, inventory, current job.", {"type": "object", "properties": {}}),
+    ("save_design", "Save a layout to reuse with a {\"do\": \"design\", \"name\", \"x\", \"y\"} step: entities "
+                    "relative to an anchor at 0,0 (an integer tile corner; keep .5 centers as .5). Use it when an "
+                    "order asks for the same thing more than once, or for something worth repeating.",
+     {"type": "object", "properties": {"name": {"type": "string"}, "note": {"type": "string"},
+                                       "entities": {"type": "array", "items": {"type": "object"}}},
+      "required": ["name", "entities"]}),
+    ("save_lesson", "Save one general rule for your future self (no coordinates): what would have made a first plan "
+                    "work. Only when asked for a lesson.",
+     {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}),
     ("say", "Say a line in game chat now.", {"type": "object", "properties": {"text": {"type": "string"}},
                                              "required": ["text"]}),
     ("submit_plan", "Submit the plan for the actor to run now (replaces any running plan for this order). End your "
@@ -73,7 +83,8 @@ TOOLS = [
          "steps": {"type": "array", "items": {"type": "object"}},
          "expect": {"type": "array", "items": {"type": "object"}},
          "say": {"type": "string"},
-         "done_text": {"type": "string"}},
+         "done_text": {"type": "string"},
+         "force": {"type": "boolean", "description": "run it even though the checker reported problems"}},
       "required": ["goal", "steps"]}),
 ]
 
@@ -99,8 +110,11 @@ class Request:
 class Thinker:
     def __init__(self, name: str, tools: dict[str, Callable[[dict], Awaitable[str]]],
                  on_plan: Callable[[dict, Request], Awaitable[None]], workdir: Path, log_fn=None,
-                 model: str = MODEL, effort: str | None = None):
+                 model: str = MODEL, effort: str | None = None,
+                 lint_fn: Callable[[dict], Awaitable[list[str]]] | None = None):
         self.name, self.tools, self.on_plan = name, tools, on_plan
+        self.lint_fn = lint_fn
+        self.lint_rounds = 0
         self.workdir, self.model, self.effort = workdir, model, effort
         self.log_fn = log_fn or (lambda rec: None)
         self.queue: asyncio.Queue[Request] = asyncio.Queue()
@@ -122,6 +136,12 @@ class Thinker:
                     try:
                         if n == "submit_plan":
                             out = await self._submit(args)
+                        elif n == "save_design":
+                            from .library import save_design
+                            out = save_design(args.get("name", ""), args.get("entities") or [], args.get("note", ""))
+                        elif n == "save_lesson":
+                            from .library import save_lesson
+                            out = save_lesson(args.get("text", ""), {"order": getattr(self.current, "order_id", None)})
                         else:
                             out = await self.tools[n](args)
                     except Exception as e:  # noqa: BLE001
@@ -134,7 +154,18 @@ class Thinker:
             sdk_tools.append(tool(tname, desc, schema)(make(tname)))
         server = create_sdk_mcp_server("game", tools=sdk_tools)
         self.workdir.mkdir(parents=True, exist_ok=True)
-        kw = dict(system_prompt=SYSTEM.format(name=self.name), mcp_servers={"game": server}, tools=[],
+        from .library import lessons
+        system = SYSTEM.format(name=self.name)
+        learned = lessons()
+        from .library import designs
+        ds = designs()
+        if ds:
+            system += "\n\nSaved designs (build one with {\"do\": \"design\", \"name\": N, \"x\": X, \"y\": Y}; X,Y = where its 0,0 anchor goes):\n" + \
+                "\n".join(f"- {n}: {d.get('note') or ''} ({len(d['entities'])} entities)" for n, d in ds.items())
+        if learned:
+            system += "\n\nLessons from earlier games (rules you wrote after plans that failed):\n" + \
+                "\n".join(f"- {x}" for x in learned)
+        kw = dict(system_prompt=system, mcp_servers={"game": server}, tools=[],
                   allowed_tools=[f"mcp__game__{t[0]}" for t in TOOLS], setting_sources=[], model=self.model,
                   cwd=str(self.workdir), max_turns=30,
                   stderr=lambda line: log.debug("[thinker cli] %s", line))
@@ -166,6 +197,17 @@ class Thinker:
         steps = args.get("steps") or []
         if not isinstance(steps, list) or not all(isinstance(s, dict) and s.get("do") for s in steps):
             return "rejected: steps must be a list of objects with a 'do' op"
+        if self.lint_fn and not args.get("force") and self.lint_rounds < 2:
+            try:
+                problems = await self.lint_fn(args)
+            except Exception as e:  # noqa: BLE001
+                problems = []
+                log.warning("lint failed: %r", e)
+            if problems:
+                self.lint_rounds += 1
+                self.log_fn({"t": time.time(), "kind": "lint", "problems": problems})
+                return ("NOT started yet. The plan checker found problems:\n- " + "\n- ".join(problems) +
+                        "\nFix them and call submit_plan again (or resubmit with force=true if a warning is wrong).")
         self._plan_submitted = True
         await self.on_plan(args, self.current)
         return f"plan accepted ({len(steps)} steps); the actor is running it now. End your turn."
@@ -197,6 +239,8 @@ class Thinker:
 
         t0 = time.time()
         self._plan_submitted = False
+        self.lint_rounds = 0
+        interrupted = False
         self.log_fn({"t": t0, "kind": "thinker_prompt", "req": req.kind, "order": req.order_id, "text": prompt})
         await self.client.query(prompt)
         texts = []
@@ -205,6 +249,12 @@ class Thinker:
                 for b in msg.content:
                     if isinstance(b, TextBlock) and b.text.strip():
                         texts.append(b.text)
+                        if self._plan_submitted and not interrupted:
+                            interrupted = True  # the plan is in; the commentary after it only costs time
+                            try:
+                                await self.client.interrupt()
+                            except Exception:  # noqa: BLE001
+                                pass
                         if "usage limit" in b.text.lower() or "hit your session limit" in b.text:
                             self.stats.usage_limited = True
             elif isinstance(msg, ResultMessage):

@@ -119,7 +119,9 @@ async def run(a) -> dict:
     d.mkdir(parents=True, exist_ok=True)
     (d / "scenario.json").write_text(json.dumps(scn, indent=1))
     minutes = float(a.minutes or scn.get("minutes", 10))
+    from jev.library import lessons
     res: dict = {"run_id": run_id, "scenario": scn["name"], "tag": a.tag, "think": not a.no_think,
+                 "lessons_at_start": len(lessons()),
                  "start": time.strftime("%Y-%m-%d %H:%M:%S"), "minutes_planned": minutes, "errors": [],
                  "objectives": []}
     inst = Instance(a.instance, scn["stage"])

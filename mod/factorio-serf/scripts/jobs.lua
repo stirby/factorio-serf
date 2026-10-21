@@ -1046,6 +1046,25 @@ local function supply_tick(a, job)
         local recipe = c.force.recipes[name]
         local per = recipe and recipe.enabled and recipe.products[1].name == name and (recipe.products[1].amount or 1)
         local runs = per and math.ceil((n - have) / per)
+        st.expanded = st.expanded or {}
+        if runs and c.get_craftable_count(recipe) < runs and not st.expanded[name] then
+          -- Not enough on hand to craft it: fetch the ingredients from storage first (each of those may in turn be
+          -- crafted from its own), then come back to this item. Like a player grabbing plates to craft chests.
+          st.expanded[name] = true
+          local pos = st.k
+          for _, ing in pairs(recipe.ingredients) do
+            if ing.type == "item" then
+              local want = ing.amount * runs
+              if c.get_item_count(ing.name) < want then
+                st.need[ing.name] = math.max(st.need[ing.name] or 0, want)
+                table.insert(st.items, pos, ing.name)  -- a later duplicate is skipped once it's in inventory
+                pos = pos + 1
+              end
+            end
+          end
+          st.srcs = nil
+          return nil
+        end
         if not (runs and c.get_craftable_count(recipe) >= runs
               and c.begin_crafting { count = runs, recipe = recipe, silent = true } == runs) then
           local found = #st.srcs == 0 and ("no chest or machine output within " .. SUPPLY_RADIUS .. " tiles has any")
