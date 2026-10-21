@@ -45,6 +45,21 @@ def test_world_reversed_belt():
     check("world: fix rotates it east", fx["do"] == "rotate" and fx["direction"] == "east" and fx["x"] == 2.5, fx)
 
 
+def test_world_summary():
+    ents = [belt(1, 0.5, 0.5, "east", o=[2], items={"copper-plate": 4}), belt(2, 1.5, 0.5, "east", i=[1]),
+            {"u": 7, "n": "inserter", "t": "inserter", "x": 1.5, "y": 1.5, "d": "north", "s": "working",
+             "pk": [1.5, 0.5], "dp": [1.5, 2.7], "pku": 2, "dpu": 8},
+            {"u": 8, "n": "assembling-machine-1", "t": "assembling-machine", "x": 1.5, "y": 3.5, "w": 3, "h": 3,
+             "s": "item_ingredient_shortage", "r": "copper-cable"},
+            {"u": 9, "n": "small-electric-pole", "t": "electric-pole", "x": 3.5, "y": 1.5, "net": 4}]
+    w = World({"ents": ents, "center": [2, 2]}, {"copper-cable": {"ingredients": {"copper-plate": 1}}})
+    s1 = w.summary(coords=True)
+    check("summary: inserters listed with moves", isinstance(s1.get("inserters"), list) and "->" in s1["inserters"][0]["moves"], s1.get("inserters"))
+    check("summary: poles listed", s1.get("poles") and "grid 4" in s1["poles"][0], s1.get("poles"))
+    s2 = w.summary(coords=False)
+    check("summary: relative words for Jev", "tiles" in s2["machines"][0]["at"] or s2["machines"][0]["at"] == "right here", s2["machines"][0])
+
+
 def test_world_gap():
     ents = [belt(1, 0.5, 0.5, "east", o=[2], items={"iron-ore": 5}), belt(2, 1.5, 0.5, "east", i=[1]),
             belt(3, 4.5, 0.5, "east", o=[4]), belt(4, 5.5, 0.5, "east", i=[3])]

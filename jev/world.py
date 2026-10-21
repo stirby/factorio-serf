@@ -544,15 +544,35 @@ class World:
                 gd["boilers"] = f"{g['boilers']} ({g.get('boilers_low_fuel', 0)} low on fuel)"
             grids.append(gd)
         out = {"machines": machines, "belt_lines": lines, "chests": chests, "power": grids}
+        poles = self.of_type("electric-pole")
         others = {}
         for e in self.ents.values():
-            if e["t"] not in CRAFTERS | CHESTS | BELT_T | {"inserter"}:
+            if e["t"] not in CRAFTERS | CHESTS | BELT_T | {"inserter"} and not (coords and e["t"] == "electric-pole"
+                                                                                  and len(poles) <= 30):
                 others[e["n"]] = others.get(e["n"], 0) + 1
         if others:
             out["other"] = others
         ins = self.of_type("inserter")
-        if ins:
+        if ins and coords and len(ins) <= 40:
+            # where each inserter is and what it moves between: the planner needs exact tiles to reuse or fix them
+            lst = []
+            for e in sorted(ins, key=lambda e: (e["y"], e["x"])):
+                d = {"id": self.label.get(e["u"]), "what": e["n"], "at": where(e["x"], e["y"])}
+                src = self.name(e["pku"]) if e.get("pku") in self.ents else ("ground " + fmt_xy(e["pk"]) if e.get("pk") else "?")
+                dst = self.name(e["dpu"]) if e.get("dpu") in self.ents else ("ground " + fmt_xy(e["dp"]) if e.get("dp") else "?")
+                d["moves"] = f"{src} -> {dst}"
+                st_ = e.get("s")
+                if st_ and st_ not in ("working", "waiting_for_source_items"):
+                    d["state"] = STATUS_WORDS.get(st_, st_)
+                if e.get("pw"):
+                    d["power"] = e["pw"]
+                lst.append(d)
+            out["inserters"] = lst
+        elif ins:
             out["inserters"] = len(ins)
+        if poles and coords and len(poles) <= 30:
+            out["poles"] = [f"{e['n']} {fmt_xy((e['x'], e['y']))} grid {e.get('net')}" for e in
+                            sorted(poles, key=lambda e: (e["y"], e["x"]))]
         if self.ghosts:
             gh: dict = {}
             for g in self.ghosts:
