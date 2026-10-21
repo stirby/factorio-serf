@@ -262,6 +262,19 @@ def test_connected():
           (sorted(linked), gaps))
 
 
+def test_inserter_backwards():
+    line = _line(1, 0.5, 6, {"iron-ore": 3, "coal": 2})
+    fur = {"u": 30, "n": "stone-furnace", "t": "furnace", "x": 3.0, "y": 3.0, "w": 2, "h": 2, "r": "iron-plate",
+           "s": "no_ingredients"}
+    back = {"u": 31, "n": "inserter", "t": "inserter", "x": 2.5, "y": 1.5, "d": "south", "pku": 30, "dpu": 3}
+    out = {"u": 32, "n": "inserter", "t": "inserter", "x": 2.5, "y": 4.5, "d": "north", "pku": 30, "dpu": 33}
+    chest = {"u": 33, "n": "iron-chest", "t": "container", "x": 2.5, "y": 5.5}
+    w = World({"ents": line + [fur, back, out, chest], "center": [3, 3]}, {"iron-plate": {"ingredients": {"iron-ore": 1}}})
+    f = [x for x in w.faults() if x["kind"] == "inserter_backwards"]
+    check("world: an inserter taking from an unfed furnace onto its ore belt is turned around (and only that one)",
+          len(f) == 1 and f[0]["u"] == 31 and f[0]["fixes"][0]["direction"] == "north", f)
+
+
 def test_engine_slot():
     ents = [{"u": 1, "n": "boiler", "t": "boiler", "x": 0.5, "y": 5.0, "d": "north", "w": 3, "h": 2},
             {"u": 2, "n": "steam-engine", "t": "generator", "x": 0.5, "y": 1.5, "d": "north", "w": 3, "h": 5, "net": 7}]

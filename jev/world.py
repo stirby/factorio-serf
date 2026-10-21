@@ -638,6 +638,27 @@ class World:
                             "fixes": [{"do": "empty_chest", "x": e["x"], "y": e["y"],
                                        "text": f"empty {self.name(e['u'])}",
                                        "done": f"made room in the full chest at {fmt_xy((e['x'], e['y']))}"}]})
+        # 4b. an inserter facing backwards: it takes from a machine that nothing feeds and drops onto a belt carrying
+        # that machine's ingredients (its input belt)
+        for e in self.ents.values():
+            if e["t"] not in ("furnace", "assembling-machine") or self.feeders.get(e["u"]) or not e.get("r"):
+                continue
+            need = set((self.recipes.get(e["r"]) or {}).get("ingredients") or {})
+            if e["t"] == "furnace" and not need:
+                need = {"iron-ore", "copper-ore", "stone", "iron-plate"}
+            for i in self.takers.get(e["u"], []):
+                ins = self.ents.get(i) or {}
+                ln = self.line_of.get(ins.get("dpu"))
+                if ln and need & set(ln.items) and ins.get("d"):
+                    back = {"north": "south", "south": "north", "east": "west", "west": "east"}.get(ins["d"])
+                    out.append({"kind": "inserter_backwards", "u": i, "at": (ins["x"], ins["y"]),
+                                "text": f"{self.name(i)} at {fmt_xy((ins['x'], ins['y']))} takes from {self.name(e['u'])} "
+                                        f"and drops onto its input belt: it faces backwards, so nothing feeds the "
+                                        f"{e['n']}",
+                                "fixes": [{"do": "rotate", "x": ins["x"], "y": ins["y"], "direction": back,
+                                           "text": f"turn {self.name(i)} around",
+                                           "done": f"turned the inserter at {fmt_xy((ins['x'], ins['y']))} around"}]})
+                    break
         # 5. inserters dropping on the ground or picking from nothing
         for e in self.ents.values():
             if e["t"] == "inserter" and e.get("s") == "waiting_for_source_items" and not e.get("pku"):
