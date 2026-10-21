@@ -573,6 +573,12 @@ class Actor:
     async def _ask_plan(self, o: Order, text: str, timeout: float = 600) -> dict | None:
         if not self.thinker:
             return None
+        if self.thinker.stats.usage_limited:
+            if not getattr(self, "_told_limit", False):
+                self._told_limit = True
+                await self.say("my planner is out of capacity right now (usage limit); I can still fix, deliver and "
+                               "route belts, but bigger builds will have to wait")
+            return None
         fut = asyncio.get_running_loop().create_future()
         self._plan_waiters[o.id] = fut
         o.status = "thinking"
@@ -692,8 +698,13 @@ class Actor:
                 continue
             self.metrics["plans"] += 1
             if not plan:
-                await self.say("sorry, I'm stuck on this one (no plan)")
+                if not (self.thinker and self.thinker.stats.usage_limited):
+                    await self.say("sorry, I'm stuck on this one (no plan)")
                 return False
+            if plan.get("no_plan") and plan.get("error"):
+                await self.say("my planner hit an error; trying again")
+                plan = None
+                continue
             if plan.get("no_plan"):
                 # answered in words only (e.g. a question) -- nothing to run
                 return True

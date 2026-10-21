@@ -206,11 +206,28 @@ class Thinker:
                   stderr=lambda line: log.debug("[thinker cli] %s", line))
         if self.effort:
             kw["effort"] = self.effort
+        self._options = ClaudeAgentOptions(**kw)
+        await self._connect()
+        self._task = asyncio.create_task(self._loop())
+
+    async def _connect(self) -> None:
         from claude_agent_sdk import ClaudeSDKClient
-        self.client = ClaudeSDKClient(ClaudeAgentOptions(**kw))
+        self.client = ClaudeSDKClient(self._options)
         await self.client.connect()
         self._session_cost = 0.0
-        self._task = asyncio.create_task(self._loop())
+
+    async def _restart(self) -> None:
+        """A broken session (the CLI died, a stream error): start a fresh one. The conversation is lost; lessons,
+        designs and the actor's reports carry what matters."""
+        try:
+            await self.client.disconnect()
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            await self._connect()
+            self.log_fn({"t": time.time(), "kind": "thinker_restart"})
+        except Exception as e:  # noqa: BLE001
+            self.log_fn({"t": time.time(), "kind": "thinker_error", "error": f"restart failed: {e!r}"})
 
     async def stop(self) -> None:
         if self._task:
@@ -269,6 +286,12 @@ class Thinker:
                 self.stats.errors += 1
                 log.exception("thinker turn failed")
                 self.log_fn({"t": time.time(), "kind": "thinker_error", "error": repr(e)})
+                await self._restart()
+                # whoever waits on this request gets a no-plan answer instead of waiting forever
+                try:
+                    await self.on_plan({"goal": None, "steps": [], "no_plan": True, "error": repr(e)[:200]}, req)
+                except Exception:  # noqa: BLE001
+                    pass
             finally:
                 self.busy = False
                 self.current = None
