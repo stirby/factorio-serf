@@ -27,8 +27,11 @@ Talk to it with `@serf`, for example:
 - `@serf belt the coal from [gps=..] to the boiler at [gps=..]`
 - `@serf research solar`
 - `@serf swap the belts on the line at [gps=..] for red ones`
+- `@serf set up an iron mine on the patch at [gps=..] and belt the ore to [gps=..]`
+- `@serf two more just like it at [gps=..] and [gps=..]`
 
-The first five never need Opus: Jev reads the order and code does it. Anything Jev isn't sure of goes to Opus.
+None of these need Opus: Jev reads the order and code does it. Anything Jev isn't sure of goes to Opus, which also
+looks over what the actor built by itself when it has nothing else to do.
 Add `--no-think` to run with Jev and code only (also what happens when Opus hits a usage limit).
 
 The Jev key is read from `~/dev/jev.env`. Opus runs through the local Claude Code login (the Agent SDK).
@@ -67,7 +70,8 @@ and the lessons Opus wrote.
 |---|---|
 | `jev/actor.py` | the character's loops: chat, orders, plans, recovery, verifying, fast playbooks |
 | `jev/decide.py` | the core Jev questions (state encodings and options) |
-| `jev/quickbuild.py`, `jev/quickbelt.py` | builds and belt jobs without Opus: Jev reads the order, code lays it out |
+| `jev/fastpaths.py` | the actor's own paths for common orders (tried before Opus), and Opus's background reviews of them |
+| `jev/quickbuild.py`, `quickbelt.py`, `quickmine.py`, `quickcopy.py` | what Jev is asked and how code lays it out for each path |
 | `jev/craft.py` | how many of a building can be had from storage, machine outputs and crafting |
 | `jev/thinker.py` | Opus: tools, prompt, plan submission |
 | `jev/world.py` | scan → belt lines, feeders, machine states, faults with fixes, summaries |

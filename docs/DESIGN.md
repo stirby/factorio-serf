@@ -71,10 +71,16 @@ Tried in this order; any of them can hand the order to Opus with what it tried.
   other ingredient is made by feeder assemblers from a parallel belt onto the first belt's free lane (red science,
   green circuits). Jev reads the product, the count, and whether the output stays put or is sent on (then the belt
   path takes the row's output belt there). Code finds a free spot and lays the tested row step.
+- **mining:** "set up an iron mine on the patch at [gps] and belt the ore to [gps]". Two rows of electric drills facing
+  a belt along the patch's richest band (from the ore tiles), pole rows beside them (small poles if they can be had,
+  else medium), the drill count from the text ("60 ore a minute" -> 3), power from the grid, then the belt path.
 - **belt job:** "belt the coal from the drills to the boiler". Code finds both ends: an open-ended belt carrying items,
   and an input belt, an inserter picking from the ground, or a machine with a free side (it places the inserter; a
   burner one for fuel into burners).
 - **quick answers:** status, location and inventory questions.
+
+A message with several jobs in it skips the fast paths. After a fast path succeeds, the planner reviews the result when
+it has nothing else queued (asynchronous guidance); a plan it sends back becomes a follow-up order.
 
 ## The agent layer
 
