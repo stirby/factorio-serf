@@ -30,6 +30,7 @@
   "t-maintain",
   "t-session",
   "t-quick-mix",
-  "t-upgrade"
+  "t-upgrade",
+  "t-quick-dirs"
  ]
 }
