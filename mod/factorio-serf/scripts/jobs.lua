@@ -441,6 +441,29 @@ H.place = {
           break
         end
       end
+      -- still nowhere: the water's edge is near but not right there; look around (a player shifts the cursor)
+      if not surface.can_place_entity(spec) then
+        local found
+        for r = 1, 6 do
+          for dx = -r, r do
+            for dy = -r, r do
+              if not found and math.max(math.abs(dx), math.abs(dy)) == r then
+                for _, dn in ipairs { "north", "east", "south", "west" } do
+                  local q = { x = math.floor(job.pos.x) + dx + 0.5, y = math.floor(job.pos.y) + dy + 0.5 }
+                  local s2 = { name = spec.name, position = q, direction = defines.direction[dn], force = spec.force,
+                    build_check_type = spec.build_check_type }
+                  if surface.can_place_entity(s2) then found = s2 break end
+                end
+              end
+            end
+          end
+          if found then break end
+        end
+        if found then
+          spec, job.dir, job.pos = found, found.direction, found.position
+          job.moved = true
+        end
+      end
     end
     -- (can_place_entity can't be told an underground is an exit, so it judges an exit's swap as an entrance: skip it
     -- for an underground replacing its own kind; create_entity's fast_replace does the real check)
@@ -531,6 +554,31 @@ H.place = {
       -- underground belts: "input" is the entrance, "output" the exit; both face the travel direction
       type = (ptype == "underground-belt") and (args.type or "input") or nil,
     }
+    if not created and BELT_KIND[ptype] then
+      -- a splitter or underground dropped onto belts: the game swaps them in for a player; do the same
+      created = surface.create_entity {
+        name = job.entity, position = job.pos, direction = job.dir, force = c.force, raise_built = true,
+        fast_replace = true, character = c, spill = true,
+        type = (ptype == "underground-belt") and (args.type or "input") or nil,
+      }
+      if not created then
+        local box = prototypes.entity[job.entity].collision_box
+        local area = { { job.pos.x + box.left_top.x, job.pos.y + box.left_top.y },
+          { job.pos.x + box.right_bottom.x, job.pos.y + box.right_bottom.y } }
+        if job.dir == defines.direction.east or job.dir == defines.direction.west then
+          area = { { job.pos.x + box.left_top.y, job.pos.y + box.left_top.x },
+            { job.pos.x + box.right_bottom.y, job.pos.y + box.right_bottom.x } }
+        end
+        for _, o in pairs(surface.find_entities_filtered { area = area, force = c.force }) do
+          if o.valid and BELT_KIND[o.type] then pcall(function() return c.mine_entity(o, true) end) end
+        end
+        created = surface.create_entity {
+          name = job.entity, position = job.pos, direction = job.dir, force = c.force, raise_built = true,
+          type = (ptype == "underground-belt") and (args.type or "input") or nil,
+        }
+        if created then job.replaced = "belts" end
+      end
+    end
     if not created then return fail("create_entity failed for " .. job.entity) end
     if not util.cheat() then c.remove_item { name = args.name, count = 1 } end
     if created.unit_number then storage.built_by[created.unit_number] = a.name end
@@ -540,6 +588,7 @@ H.place = {
     if job.cleared then msg = msg .. " (cleared " .. job.cleared .. " trees/rocks first)" end
     if job.fast_replace then msg = msg .. " (replaced the " .. job.fast_replace .. " there)" end
     if job.replaced then msg = msg .. " (picked up the " .. job.replaced .. " there first)" end
+    if job.moved then msg = msg .. " (the nearest spot where it fits)" end
     if created.type == "mining-drill" then
       data.drops_at = util.xy(created.drop_position)
       msg = msg .. " (output drops at " .. xystr(created.drop_position) .. ")"
