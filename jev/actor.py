@@ -19,7 +19,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import decide
+from . import decide, quickbuild
 from .game import Game
 from .lint import lint, plan_points
 from .steps import Runner, describe, parse_missing, plan_needs
@@ -52,6 +52,7 @@ class Order:
     next_plan: dict | None = None  # a revised plan that arrived while the old one was running
     queued_plans: list = field(default_factory=list)  # next parts of a big order (plans submitted with more=true)
     running_more: bool = False  # the plan running now is a part with more to come
+    quick: bool = False  # built by the actor's quick-build path (no planner)
 
     @property
     def focus(self):
@@ -75,6 +76,7 @@ class Actor:
         self._plan_waiters: dict[int, asyncio.Future] = {}
         self.think_enabled = think
         self.prefetch = True
+        self.quick_build = True
         self.thinker = Thinker(name, self._thinker_tools(), self._on_plan, workdir / "thinker", self.log,
                                effort=thinker_effort, lint_fn=self._lint) if think else None
         self.metrics = {"orders": 0, "fast_path": 0, "plans": 0, "steps_ok": 0, "steps_failed": 0,
@@ -270,7 +272,8 @@ class Actor:
                 o.status = "failed"
             self.log({"kind": "order_end", "order": o.id, "status": o.status, "secs": round(time.time() - t0, 1),
                       "plans": o.plans})
-            if o.status == "done" and o.focus and o.speaker != self.name and (o.plans > 0 or o.playbook == "fix"):
+            if (o.status == "done" and o.focus and o.speaker != self.name
+                    and (o.plans > 0 or o.quick or o.playbook == "fix")):
                 self._add_watch(o)
             if self.thinker and (o.plans >= 2 or (o.status == "failed" and o.plans >= 1)):
                 self.thinker.ask(Request("lesson", f"Order {o.id} (\"{o.text}\") took {o.plans} plans and ended "
@@ -321,8 +324,87 @@ class Actor:
                 return True
             return await self._planned(o, f"New order from {o.speaker}: \"{o.text}\"\n\nThe actor tried the belt "
                                           f"router itself: {r}")
+        if o.focus and self.quick_build:
+            r = await self._quick(o)
+            if r is True:
+                return True
+            if r is False:
+                return False
+            if isinstance(r, str):
+                return await self._planned(o, f"New order from {o.speaker}: \"{o.text}\"\n\nThe actor tried a quick "
+                                              f"build itself and it didn't work out: {r}\nWhat it built is still there.")
         await self.say("on it")
         return await self._planned(o, f"New order from {o.speaker}: \"{o.text}\"")
+
+    async def _quick(self, o: Order) -> bool | str | None:
+        """A row of machines making one product off belts that are already there (jev/quickbuild.py): Jev reads the
+        order, code lays out and checks the row, the plan runner builds and verifies it. None: not that kind of order,
+        the planner gets it untouched. A string: tried and it didn't work (what happened)."""
+        try:
+            w = await self.world(o.focus, 32)
+            opts = quickbuild.options(w, self.recipes, o.points)
+            if not opts:
+                return None
+            r = await quickbuild.read_order(self.jev, o.text, sorted(opts), quickbuild.carried(w, o.points))
+            self.log({"kind": "quickbuild", "order": o.id, "options": sorted(opts)[:40],
+                      **{k: (round(v, 3) if isinstance(v, float) else v) for k, v in r.items()}})
+            far = any(math.hypot(q[0] - o.focus[0], q[1] - o.focus[1]) > 40 for q in o.points)
+            if not quickbuild.accept(r, far):
+                return None
+            opt = opts[r["product"]]
+            if r["output"] == "belt" and len(opt["lines"]) == 2:
+                return None
+            n = (int(r["count"]) if r["count"] not in (None, "not_said") and r["count_p"] >= 0.5
+                 else quickbuild.DEFAULT_COUNT[opt["machine"]])
+            layout = None
+            for skip in (2, 4, 7, 11):
+                step = quickbuild.row_step(w, opt, r["product"], n, skip)
+                if r["output"] == "belt":
+                    step["output"] = "belt"
+                ents, info, side, _ = await self.runner.row_layout(step)
+                # our own buildings in the way (trees and rocks get cleared by the builder)
+                bad = [x for x in ents if (e := w.at(x["x"], x["y"])) is not None and e["u"] > 0]
+                if not bad and not any(w.off_view(x["x"], x["y"]) for x in ents):
+                    step["side"] = side
+                    layout = (step, ents)
+                    break
+            if not layout:
+                self.log({"kind": "quickbuild_skip", "order": o.id, "why": "no free spot along the belt"})
+                return None
+        except Exception as e:  # noqa: BLE001
+            self.log({"kind": "error", "where": "quickbuild", "error": repr(e)})
+            return None
+        step, ents = layout
+        machines = [x for x in ents if x["name"] == opt["machine"]]
+        xs, ys = [m["x"] for m in machines], [m["y"] for m in machines]
+        center = [(min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2]
+        word = r["product"].replace("-", " ")
+        what = f"{n} {opt['machine'].replace('-', ' ')}{'s' if n > 1 else ''} making {word}"
+        expect = [{"check": "working", "count": max(1, (n + 1) // 2), "near": center,
+                   "radius": max(max(xs) - min(xs), max(ys) - min(ys)) / 2 + 2}]
+        if opt["machine"] != "stone-furnace":
+            expect[0]["recipe"] = r["product"]
+        chest = next((x for x in ents if x["name"] == "iron-chest"), None)
+        if chest:
+            expect.append({"check": "has_item", "x": chest["x"], "y": chest["y"], "item": r["product"]})
+        plan = {"goal": f"{what} off the belt at {fmt_xy(step['belt'])}, "
+                        f"{'into chests' if step['output'] == 'chest' else 'onto an output belt'}",
+                "steps": [step], "expect": expect}
+        o.quick = True
+        self.log({"kind": "quick_plan", "order": o.id, "plan": plan})
+        await self.say(f"on it: {what}")
+        ok, report = await self._run_plan(o, plan)
+        if o.status == "cancelled":
+            return False
+        if ok:
+            verified, vreport = await self._verify(o, plan)
+            if verified:
+                self.metrics["fast_path"] += 1
+                await self.say(f"done: {what}")
+                return True
+            report = vreport
+        o.history.append(report)
+        return f"it built {plan['goal']}. {report}"
 
     async def _route(self, o: Order, pairs) -> bool | str:
         step = {"do": "route", "pairs": [{"name": n, "from": [float(a), float(b)], "to": [float(c), float(d)]}
@@ -835,7 +917,14 @@ class Actor:
         jev_checks = 0
         # a plan that already waited has given things time to start: don't wait as long again
         waited = sum(float(st.get("seconds") or 0) for st in plan.get("steps") or [] if st.get("do") == "wait")
-        for k in range(2 if waited >= 30 else 8):
+        rounds = 2 if waited >= 30 else 8
+        # items need time to travel a long new belt (a yellow belt moves 1.875 tiles/s): wait that long too
+        belt = sum(abs(float(st["to"][0]) - float(st["from"][0])) + abs(float(st["to"][1]) - float(st["from"][1]))
+                   for st in plan.get("steps") or [] if st.get("do") == "connect" and "belt" in str(st.get("item"))
+                   and st.get("from") and st.get("to"))
+        if belt > 60:
+            rounds = max(rounds, min(40, 4 + int((belt / 1.875 - waited) / 6)))
+        for k in range(rounds):
             await asyncio.sleep(6 if k else 4)
             if exp:
                 results = [(e, *await self._check(e)) for e in exp]

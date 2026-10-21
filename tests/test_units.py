@@ -13,6 +13,7 @@ from jev.router import Grid, solve  # noqa: E402
 from jev.rowgen import row_entities  # noqa: E402
 from jev.steps import expand, ghost_result, plan_needs, unplaced  # noqa: E402
 from jev.world import World  # noqa: E402
+from jev import quickbuild  # noqa: E402
 
 FAILS = []
 
@@ -96,6 +97,45 @@ def test_ghost_refusals():
     check("ghosts: a refused part fails the step and names the blocker", not res["ok"] and "inserter@2.5,0.5" in res["msg"],
           res)
     check("ghosts: nothing refused stays ok", ghost_result({"ok": True, "msg": "x"}, {"_unplaced": []})["ok"])
+
+
+def _line(u0, y, n, items, d="east"):
+    out = []
+    for k in range(n):
+        out.append(belt(u0 + k, 0.5 + k, y, d, o=[u0 + k + 1] if k < n - 1 else None, i=[u0 + k - 1] if k else None,
+                        items=items))
+    return out
+
+
+RECIPES = {"iron-gear-wheel": {"ingredients": {"iron-plate": 2}, "category": "crafting"},
+           "inserter": {"ingredients": {"iron-plate": 1, "iron-gear-wheel": 1, "electronic-circuit": 1},
+                        "category": "crafting"},
+           "electronic-circuit": {"ingredients": {"iron-plate": 1, "copper-cable": 3}, "category": "electronics"},
+           "sulfuric-acid": {"ingredients": {"iron-plate": 1, "water": 100}, "category": "chemistry"}}
+
+
+def test_quickbuild_options():
+    w = World({"ents": _line(1, 4.5, 20, {"iron-plate": 3}), "center": [10, 4], "radius": 32}, RECIPES)
+    o = quickbuild.options(w, RECIPES, [(0.5, 4.5)])
+    check("quick: gears off an iron belt", "iron-gear-wheel" in o and len(o["iron-gear-wheel"]["lines"]) == 1, o)
+    check("quick: no circuit without cables, no chemistry", "electronic-circuit" not in o and "sulfuric-acid" not in o)
+    st = quickbuild.row_step(w, o["iron-gear-wheel"], "iron-gear-wheel", 2)
+    check("quick: row starts 2 tiles in", st["belt"] == [2.5, 4.5] and st["recipe"] == "iron-gear-wheel", st)
+    ents = _line(1, 4.5, 20, {"iron-plate": 3, "iron-gear-wheel": 2}) + _line(101, 10.5, 20, {"electronic-circuit": 4})
+    w = World({"ents": ents, "center": [10, 7], "radius": 32}, RECIPES)
+    o = quickbuild.options(w, RECIPES, [(0.5, 4.5), (0.5, 10.5)])
+    check("quick: inserters off two belts 6 apart", "inserter" in o and len(o["inserter"]["lines"]) == 2, o.keys())
+    if "inserter" in o:
+        a, b = o["inserter"]["lines"]
+        st = quickbuild.row_step(w, o["inserter"], "inserter", 1)
+        want = "south" if w.ents[b.belts[0]]["y"] > w.ents[a.belts[0]]["y"] else "north"
+        check("quick: machines go between the two belts", st.get("second_belt") and st["side"] == want, st)
+    w = World({"ents": _line(1, 4.5, 20, {"iron-plate": 3, "coal": 3}), "center": [10, 4], "radius": 32}, RECIPES)
+    o = quickbuild.options(w, RECIPES, [(0.5, 4.5)])
+    check("quick: steel furnaces off an iron+coal belt", o.get("steel-plate", {}).get("machine") == "stone-furnace", o)
+    r = {"build": 0.9, "chain": 0.1, "elsewhere": 0.1, "product": "x", "product_p": 0.8}
+    check("quick: accept gate", quickbuild.accept(r) and not quickbuild.accept({**r, "elsewhere": 0.7})
+          and not quickbuild.accept({**r, "product": "none_of_these"}))
 
 
 def test_router_cross():

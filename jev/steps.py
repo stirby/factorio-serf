@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import re
 import time
 
@@ -257,7 +258,45 @@ class Runner:
         for k in ("end_direction", "join"):
             if s.get(k) is not None:
                 a[k] = s[k]
-        return await self._act(a, timeout=420)
+        fr, to = [float(v) for v in s["from"]], [float(v) for v in s["to"]]
+        dist = math.hypot(to[0] - fr[0], to[1] - fr[1])
+        if dist <= 230:
+            return await self._act(a, timeout=420)
+        # one route goes ~250 tiles at most: lay it in legs, each continuing from the end of the last
+        n = math.ceil(dist / 180)
+        start, msgs = fr, []
+        for k in range(1, n + 1):
+            end = to if k == n else await self._free_tile(fr[0] + (to[0] - fr[0]) * k / n,
+                                                          fr[1] + (to[1] - fr[1]) * k / n)
+            leg = {**a, "from": list(start), "to": list(end)}
+            if k < n:
+                leg.pop("end_direction", None)
+                leg.pop("join", None)
+            r = await self._act(leg, timeout=420)
+            if not r.get("ok"):
+                return {"ok": False, "msg": f"long line, leg {k}/{n} from {start[0]:g},{start[1]:g} to {end[0]:g},"
+                                            f"{end[1]:g} failed: {r.get('msg')}" + (f" (legs before it are laid; "
+                                            f"it ends at {start[0]:g},{start[1]:g})" if k > 1 else "")}
+            msgs.append(str(r.get("msg") or "")[:160])
+            start = end
+        return {"ok": True, "msg": f"laid it in {n} legs: " + " | ".join(msgs)}
+
+    async def _free_tile(self, x: float, y: float) -> list[float]:
+        """The free land tile nearest x,y (a waypoint for a long line)."""
+        cx, cy = math.floor(x), math.floor(y)
+        try:
+            sc = await self.g.scan(center=(cx + 0.5, cy + 0.5), radius=6, tiles=True)
+        except Exception:  # noqa: BLE001
+            return [cx + 0.5, cy + 0.5]
+        from .world import World
+        w = World(sc)
+        blocked = {tuple(map(int, b)) for b in (sc.get("blocked") or [])} | set(w.tile)
+        for r in range(0, 6):
+            for dx in range(-r, r + 1):
+                for dy in range(-r, r + 1):
+                    if max(abs(dx), abs(dy)) == r and (cx + dx, cy + dy) not in blocked:
+                        return [cx + dx + 0.5, cy + dy + 0.5]
+        return [cx + 0.5, cy + 0.5]
 
     async def _do_fetch(self, s):
         return await self._act({"op": "fetch", "item": s["item"], "count": int(s.get("count", 1))}, timeout=300)
@@ -403,11 +442,42 @@ class Runner:
             tgt = [src[0] + (p[0] - src[0]) * i / legs, src[1] + (p[1] - src[1]) * i / legs]
             r = await self._act({"op": "connect", "item": item, "from": cur, "to": tgt}, timeout=900)
             msgs.append(str(r.get("msg"))[:120])
+            if not r.get("ok") and "isn't wired" in str(r.get("msg")):
+                # the poles are down but a hop didn't wire (something stood where it would have gone): bridge the gap
+                r = await self._bridge_line(cur, tgt, item, r)
             if not r.get("ok") and "already connected" not in str(r.get("msg")):
                 return {"ok": False, "msg": f"long power line leg {i}/{legs} failed: {r.get('msg')}"}
             cur = tgt
         return {"ok": True, "msg": f"ran {item} {dist:.0f} tiles from the grid pole at {src[0]:g},{src[1]:g} in "
                                    f"{legs} leg(s)"}
+
+    async def _bridge_line(self, a, b, item: str, first: dict) -> dict:
+        """A pole line from a (on a grid) toward b is laid but broken somewhere: join the pole nearest the break on
+        the stranded side to the nearest pole on a's grid with another short pole run, until b's end is on it."""
+        mid = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+        rad = int(min(96, math.hypot(b[0] - a[0], b[1] - a[1]) / 2 + 12))
+        for _ in range(3):
+            sc = await self.g.scan(center=mid, radius=rad)
+            poles = [e for e in sc.get("ents") or [] if e.get("t") == "electric-pole" and not e.get("ghost")]
+            src = min(poles, key=lambda e: math.hypot(e["x"] - a[0], e["y"] - a[1]), default=None)
+            if not src or src.get("net") is None:
+                return first
+            on = [e for e in poles if e.get("net") == src["net"]]
+            off = [e for e in poles if e.get("net") != src["net"]
+                   and abs(e["x"] - mid[0]) <= rad and abs(e["y"] - mid[1]) <= rad]
+            end = min(poles, key=lambda e: math.hypot(e["x"] - b[0], e["y"] - b[1]))
+            if end.get("net") == src["net"]:
+                return {"ok": True, "msg": f"{first.get('msg')}; bridged the break"}
+            if not off:
+                return first
+            x, y = min(((p, q) for p in on for q in off), key=lambda pq: math.hypot(pq[0]["x"] - pq[1]["x"],
+                                                                                  pq[0]["y"] - pq[1]["y"]))
+            r = await self._act({"op": "connect", "item": item, "from": [x["x"], x["y"]], "to": [y["x"], y["y"]]},
+                                timeout=300)
+            if not r.get("ok") and "already connected" not in str(r.get("msg")):
+                return {"ok": False, "msg": f"{first.get('msg')}; couldn't bridge the break between "
+                                            f"{x['x']:g},{x['y']:g} and {y['x']:g},{y['y']:g}: {r.get('msg')}"}
+        return first
 
     async def _do_research(self, s):
         """Queue a tech. tech="cheapest" (or a trigger/finished tech that fails) picks the cheapest lab tech whose
