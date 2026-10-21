@@ -1465,7 +1465,7 @@ class Actor:
             await asyncio.sleep(10)
         left = await self._wide_faults(o.focus)
         if not left and fixed:
-            await self.say(f"fixed {len(fixed)} things: " + "; ".join(fixed[:6]) + ("..." if len(fixed) > 6 else ""))
+            await self.say(f"fixed {len(fixed)} things: " + fixed_words(fixed))
             return True
         return (f"I fixed {len(fixed)} things ({'; '.join(fixed[:8])}); failed: {'; '.join(failed[:5]) or 'none'}. "
                 f"Still broken: " + "; ".join(f["text"] for f, _ in left[:10]))
