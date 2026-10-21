@@ -348,10 +348,17 @@ class Actor:
                     fl = [f for f in w.faults() if f["kind"] in self.WATCH_KINDS and f.get("fixes")
                           and not (f["kind"] == "output_full" and f["fixes"][0].get("do") == "take")]
                     found = fl[0]["text"] if fl else None
-                    if not found and wt["what"]:
+                    if not found and wt["what"] and time.time() - wt.get("warned", 0) > 600:
+                        # a condition the planner asked to watch, judged by Jev: tell the players, don't act on it
+                        # (nothing code can see to fix there)
                         ps = await decide.trouble(self.jev, wt["what"], w.summary(coords=False, focus=wt["at"]))
-                        hit = [c for c, p in zip(wt["what"], ps) if p >= 0.75]
-                        found = hit[0] if hit else None
+                        hit = [c for c, p in zip(wt["what"], ps) if p >= 0.8]
+                        if hit:
+                            wt["warned"] = time.time()
+                            self.log({"kind": "watch_warn", "at": wt["at"], "what": hit[0]})
+                            await self.say(f"heads up: near [gps={wt['at'][0]:.0f},{wt['at'][1]:.0f}] it looks like "
+                                           f"{hit[0]}")
+                            break
                     if found:
                         self.log({"kind": "watch_hit", "at": wt["at"], "what": found})
                         o = Order(self.next_id, f"(noticed) {found}", self.name, "fix", [wt["at"]])
