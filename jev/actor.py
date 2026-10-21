@@ -19,7 +19,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import decide, quickbuild
+from . import decide, quickbelt, quickbuild
 from .game import Game
 from .lint import lint, plan_points
 from .steps import Runner, describe, parse_missing, plan_needs
@@ -326,6 +326,16 @@ class Actor:
                 return True
             return await self._planned(o, f"New order from {o.speaker}: \"{o.text}\"\n\nThe actor tried the belt "
                                           f"router itself: {r}")
+        if len(o.points) >= 2 and self.quick_build:
+            r = await self._quick_belt(o)
+            if r is True:
+                return True
+            if r is False:
+                return False
+            if isinstance(r, str):
+                return await self._planned(o, f"New order from {o.speaker}: \"{o.text}\"\n\nThe actor tried to "
+                                              f"belt it over itself and it didn't work out: {r}\nWhat it built is "
+                                              "still there.")
         if o.focus and self.quick_build:
             r = await self._quick(o)
             if r is True:
@@ -392,6 +402,10 @@ class Actor:
         plan = {"goal": f"{what} off the belt at {fmt_xy(step['belt'])}, "
                         f"{'into chests' if step['output'] == 'chest' else 'onto an output belt'}",
                 "steps": [step], "expect": expect}
+        return await self._run_quick(o, plan, what)
+
+    async def _run_quick(self, o: Order, plan: dict, what: str) -> bool | str:
+        """Run and check a plan the actor made itself; a string says what happened if it didn't work."""
         o.quick = True
         self.log({"kind": "quick_plan", "order": o.id, "plan": plan})
         await self.say(f"on it: {what}")
@@ -406,7 +420,42 @@ class Actor:
                 return True
             report = vreport
         o.history.append(report)
-        return f"it built {plan['goal']}. {report}"
+        return f"it tried: {plan['goal']}. {report}"
+
+    async def _quick_belt(self, o: Order) -> bool | str | None:
+        """Belt items from one named place to another (jev/quickbelt.py): Jev says it's that kind of order, code
+        finds the two ends. None: not that kind, or the ends aren't clear; the planner gets it untouched."""
+        try:
+            a, b = o.points[0], o.points[1]
+            if math.hypot(a[0] - b[0], a[1] - b[1]) < 8:
+                return None
+            p = await quickbelt.read_order(self.jev, o.text)
+            self.log({"kind": "quickbelt", "order": o.id, "p": round(p, 3)})
+            if p < 0.7:
+                return None
+            ep = quickbelt.endpoints(await self.world(a, 16), a, await self.world(b, 16), b)
+            self.log({"kind": "quickbelt_ends", "order": o.id, "ends": ep})
+            if not ep:
+                return None
+        except Exception as e:  # noqa: BLE001
+            self.log({"kind": "error", "where": "quickbelt", "error": repr(e)})
+            return None
+        steps = [{"do": "connect", "item": "transport-belt", "from": ep["from"], "to": ep["to"]}]
+        if ep["kind"] == "new_inserter":
+            ins = dict(ep["inserter"])
+            fuel = ep["item"] in ("coal", "wood", "solid-fuel")
+            if not ep.get("electric") and not fuel:
+                ins["name"] = "inserter"  # a burner inserter moving non-fuel would starve: power it instead
+            steps.append({"do": "place", **ins})
+            if ins["name"] == "burner-inserter":
+                steps.append({"do": "refuel", "x": ins["x"], "y": ins["y"], "count": 5})
+            elif not ep.get("electric"):
+                steps.append({"do": "power", "x": ins["x"], "y": ins["y"], "radius": 1})
+        word = ep["item"].replace("-", " ")
+        plan = {"goal": f"a belt carrying {word} from {ep['from'][0]:g},{ep['from'][1]:g} to {ep['what']}",
+                "steps": steps, "expect": [{"check": "belt_carries", "x": ep["to"][0], "y": ep["to"][1],
+                                            "item": ep["item"]}]}
+        return await self._run_quick(o, plan, f"belting {word} to {ep['what']}")
 
     async def _route(self, o: Order, pairs) -> bool | str:
         step = {"do": "route", "pairs": [{"name": n, "from": [float(a), float(b)], "to": [float(c), float(d)]}

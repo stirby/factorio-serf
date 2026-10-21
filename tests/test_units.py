@@ -13,7 +13,7 @@ from jev.router import Grid, solve  # noqa: E402
 from jev.rowgen import row_entities  # noqa: E402
 from jev.steps import expand, ghost_result, plan_needs, unplaced, upgrade_map  # noqa: E402
 from jev.world import World  # noqa: E402
-from jev import quickbuild  # noqa: E402
+from jev import quickbelt, quickbuild  # noqa: E402
 
 FAILS = []
 
@@ -155,6 +155,34 @@ def test_boiler_fault_positions():
     f = next((x for x in w.faults() if x["kind"] == "boiler_fuel"), None)
     check("world: low boilers carry their positions", f and f["boilers"] == [(40.5, 2.0), (40.5, 6.0)]
           and f["at"] == (40.5, 2.0), f)
+
+
+def test_quickbelt_ends():
+    src = _line(1, 0.5, 6, {"coal": 5})  # x 0.5..5.5, ends with nothing ahead
+    boiler = {"u": 50, "n": "boiler", "t": "boiler", "x": 30.5, "y": 1.0, "w": 3, "h": 2}
+    wa = World({"ents": src, "center": [3, 0], "radius": 16})
+    wb = World({"ents": [boiler], "center": [30, 1], "radius": 16})
+    ep = quickbelt.endpoints(wa, (2, 0), wb, (30, 1))
+    check("quickbelt: coal line to a boiler gets a burner inserter on the near side",
+          ep and ep["kind"] == "new_inserter" and ep["inserter"]["name"] == "burner-inserter"
+          and ep["inserter"]["x"] < 30 and ep["from"] == [5.5, 0.5] and ep["item"] == "coal", ep)
+    ep2 = quickbelt.endpoints(wb, (30, 1), wa, (2, 0))
+    check("quickbelt: works with the points the other way round", ep2 and ep2["from"] == [5.5, 0.5], ep2)
+    dst = _line(101, 5.5, 8, None)
+    dst = [dict(e, x=e["x"] + 30) for e in dst]
+    ins = {"u": 200, "n": "inserter", "t": "inserter", "x": 32.5, "y": 6.5, "d": "north", "pk": [32.5, 5.5],
+           "dp": [32.5, 7.5], "pku": 103}
+    wb2 = World({"ents": dst + [ins], "center": [33, 6], "radius": 16})
+    ep3 = quickbelt.endpoints(wa, (2, 0), wb2, (33, 6))
+    check("quickbelt: joins an input belt at its start", ep3 and ep3["kind"] == "join" and ep3["to"] == [30.5, 5.5],
+          ep3)
+    chest = {"u": 300, "n": "iron-chest", "t": "container", "x": 40.5, "y": 0.5}
+    gi = {"u": 301, "n": "inserter", "t": "inserter", "x": 39.5, "y": 0.5, "d": "west", "pk": [38.5, 0.5],
+          "dp": [40.5, 0.5], "dpu": 300}
+    wb3 = World({"ents": [chest, gi], "center": [40, 0], "radius": 16})
+    ep4 = quickbelt.endpoints(wa, (2, 0), wb3, (40, 0))
+    check("quickbelt: ends under an inserter that picks from the ground", ep4 and ep4["kind"] == "inserter"
+          and ep4["to"] == [38.5, 0.5], ep4)
 
 
 def test_router_cross():
