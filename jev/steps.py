@@ -172,6 +172,31 @@ class Runner:
         if not short:
             return {}
         t0 = time.time()
+        # what can't be had at all is reported now, not after a long walk collecting ingredients for it: storage,
+        # machine outputs and pockets, crafting (wood, stone and coal count as minable)
+        known_short = {}
+        if self.recipes:
+            try:
+                from . import craft
+                have = dict((await self.g.call("query", what="materials", outputs=True)).get("materials") or {})
+                for k, v in inv.items():
+                    have[k] = have.get(k, 0) + v
+                for raw in ("wood", "stone", "coal"):
+                    have[raw] = have.get(raw, 0) + 10000
+                for i, n in list(short.items()):
+                    can = craft.most(i, have, self.recipes, cap=n)
+                    if can < n and i in self.recipes:
+                        known_short[i] = (f"only {can} {i} can be had (storage, machine outputs, pockets and "
+                                          f"crafting; needs {n})")
+                        if can > inv.get(i, 0):
+                            short[i] = can
+                        else:
+                            short.pop(i)
+            except Exception as e:  # noqa: BLE001
+                log.warning("craftable check failed: %r", e)
+        if not short:
+            self.log_fn({"t": t0, "kind": "stock", "need": need, "fails": known_short, "secs": 0})
+            return known_short
         acts = [{"op": "fetch", "item": i, "count": n} for i, n in short.items()]
         try:
             ids = await self.g.act(acts)
@@ -186,6 +211,7 @@ class Runner:
             r = await self.ensure(i, short[i])
             if r.get("ok"):
                 fails.pop(i)
+        fails.update(known_short)
         self.log_fn({"t": t0, "kind": "stock", "need": short, "fails": fails, "secs": round(time.time() - t0, 1)})
         return fails
 
