@@ -225,6 +225,22 @@ def test_wrong_recipe():
           f and f["fixes"][0]["recipe"] == "iron-gear-wheel", f)
 
 
+def test_engine_slot():
+    ents = [{"u": 1, "n": "boiler", "t": "boiler", "x": 0.5, "y": 5.0, "d": "north", "w": 3, "h": 2},
+            {"u": 2, "n": "steam-engine", "t": "generator", "x": 0.5, "y": 1.5, "d": "north", "w": 3, "h": 5, "net": 7}]
+    w = World({"ents": ents, "center": [0, 0], "radius": 20,
+               "grids": [{"id": 7, "cap_w": 900000, "used_w": 899999}]})
+    f = next((x for x in w.faults() if x["kind"] == "power_maxed"), None)
+    fx = (f or {}).get("fixes") or [{}]
+    check("world: a maxed grid with a one-engine boiler gets the second engine end to end",
+          fx[0].get("name") == "steam-engine" and fx[0].get("x") == 0.5 and fx[0].get("y") == -3.5, f)
+    ents.append({"u": 3, "n": "steam-engine", "t": "generator", "x": 0.5, "y": -3.5, "d": "north", "w": 3, "h": 5,
+                 "net": 7})
+    w = World({"ents": ents, "center": [0, 0], "radius": 20, "grids": [{"id": 7, "cap_w": 1800000, "used_w": 1799999}]})
+    f = next((x for x in w.faults() if x["kind"] == "power_maxed"), None)
+    check("world: a boiler with both engines has no code fix (more boilers are the planner's)", f and not f["fixes"], f)
+
+
 def test_router_cross():
     # two lines that must cross: west->east and north->south on an open grid
     g = Grid(set(), (0, 0, 10, 10))
