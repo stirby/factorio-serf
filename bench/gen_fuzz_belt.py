@@ -66,6 +66,9 @@ def build(rnd: random.Random, kind: str, src_dir: str, dist: int, angle: float, 
     elif kind == "assembler":
         ents.append(("assembling-machine-1", tx + 0.5, ty + 0.5, {"sink": True, "recipe": "iron-gear-wheel"}))
         ents.append(("small-electric-pole", tx + 2.5, ty - 1.5, {}))
+        # something takes its gears away: an assembler with a full output stops after a few crafts
+        ents.append(("inserter", tx + 2.5, ty + 0.5, {"direction": "west"}))
+        ents.append(("iron-chest", tx + 3.5, ty + 0.5, {}))
         grid = (tx + 6, ty - 3)
     elif kind == "boiler":
         ents.append(("boiler", tx + 0.5, ty + 1, {"sink": True, "direction": "north"}))
