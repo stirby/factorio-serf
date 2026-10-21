@@ -899,6 +899,7 @@ class Actor(FastPaths):
                 await self.say("ok, changing it")
                 return False, (f"The player changed the job while it was running ({len(done)} steps done): "
                                f"\"{note}\". Steps done so far:\n" + "\n".join(done[-15:]))
+            await self._keep_lights_on(o)
             tries = 0
             # fuel the rest of the plan's refuel steps will hand out, so one coal run covers them all
             self.runner.fuel_ahead = sum(int(x.get("count", 20)) for x in steps[i:] if x.get("do") == "refuel")
@@ -1255,6 +1256,21 @@ class Actor(FastPaths):
             return True
         return (f"I fixed {len(fixed)} things ({'; '.join(fixed[:8])}); failed: {'; '.join(failed[:5]) or 'none'}. "
                 f"Still broken: " + "; ".join(f["text"] for f, _ in left[:10]))
+
+    async def _keep_lights_on(self, o: Order) -> None:
+        """Between the steps of a plan, once a minute: refuel the low boilers of the grid where the order is. A
+        hand-fed base otherwise goes dark in the middle of a long order, and every blackout costs a replan."""
+        if not o.focus or time.time() - getattr(self, "_lights_t", 0) < 60:
+            return
+        self._lights_t = time.time()
+        try:
+            w = await self.world(o.focus, 12)
+            for g in list(w.grids.values()):
+                if g.get("boilers_low_fuel"):
+                    self.log({"kind": "keep_power", "order": o.id, "grid": g["id"], "low": g["boilers_low_fuel"]})
+                    await self._refuel_grid(w, g["id"])
+        except Exception as e:  # noqa: BLE001
+            self.log({"kind": "error", "where": "keep_power", "error": repr(e)})
 
     async def _refuel_grid(self, w: World, grid_id) -> bool:
         """Fill the grid's boilers that are low (the scan says where, even outside the area looked at). A boiler at

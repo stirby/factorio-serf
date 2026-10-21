@@ -184,7 +184,8 @@ local function grid(pole)
             seen[b.unit_number] = true
             boilers = boilers + 1
             local fuel = b.get_fuel_inventory()
-            if not (fuel and fuel.get_item_count() >= 5) then
+            -- under 20 coal: a loaded boiler burns that in ~45 s, so "low" leaves time to get there
+            if not (fuel and fuel.get_item_count() >= 20) then
               low = low + 1
               if #low_at < 12 then low_at[#low_at + 1] = { b.position.x, b.position.y } end
             end
