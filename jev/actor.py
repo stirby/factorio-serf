@@ -508,8 +508,8 @@ class Actor:
                      and x.points), None)
         if not prev:
             return None
-        xs = [q[0] for q in prev.built_pts + prev.points]
-        ys = [q[1] for q in prev.built_pts + prev.points]
+        xs = [q[0] for q in prev.built_pts + [prev.focus]]  # (not every point it named: a supply chest or grid
+        ys = [q[1] for q in prev.built_pts + [prev.focus]]  # pole far off isn't part of the build)
         box = (min(xs) - 3, min(ys) - 3, max(xs) + 3, max(ys) + 3)
         ds = quickcopy.offsets(prev.points, o.points, spacing=min(box[2] - box[0], box[3] - box[1]) - 4)
         if not ds:

@@ -26,18 +26,23 @@ def offsets(orig: list, new: list, tol: float = 1.5, spacing: float = 0) -> list
 
 
 def _offsets(orig: list, new: list, tol: float) -> list[tuple[float, float]]:
-    o0 = orig[0]
-    found = []
-    for q in new:
-        d = (q[0] - o0[0], q[1] - o0[1])
-        if abs(d[0]) < 1 and abs(d[1]) < 1:
-            continue  # that's the original itself
-        if all(any(abs(p[0] + d[0] - n[0]) <= tol and abs(p[1] + d[1] - n[1]) <= tol for n in new) for p in orig):
-            if not any(abs(d[0] - e[0]) < 1 and abs(d[1] - e[1]) < 1 for e in found):
-                found.append(d)
-    covered = {i for i, n in enumerate(new) for d in found for p in orig
-               if abs(p[0] + d[0] - n[0]) <= tol and abs(p[1] + d[1] - n[1]) <= tol}
-    return found if len(covered) == len(new) else []
+    """Shifts that put 2+ of the original points on new points (the earlier order may also have named shared things,
+    a supply chest or a grid pole, that the new one doesn't repeat), chosen until every new point is covered."""
+    def near(a, b):
+        return abs(a[0] - b[0]) <= tol and abs(a[1] - b[1]) <= tol
+    cands: dict = {}
+    for p in orig:
+        for q in new:
+            d = (q[0] - p[0], q[1] - p[1])
+            if abs(d[0]) < 1 and abs(d[1]) < 1 or any(near(d, e) for e in cands):
+                continue
+            cands[d] = frozenset(i for i, n in enumerate(new) for pp in orig if near((pp[0] + d[0], pp[1] + d[1]), n))
+    chosen, covered = [], set()
+    for d, hits in sorted(cands.items(), key=lambda kv: -len(kv[1])):
+        if len(hits) >= 2 and hits - covered:
+            chosen.append(d)
+            covered |= hits
+    return chosen if chosen and len(covered) == len(new) else []
 
 
 def built_by(w: World, box: tuple, me: str) -> list[dict]:

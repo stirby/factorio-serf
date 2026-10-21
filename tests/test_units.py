@@ -251,6 +251,9 @@ def test_copy_offsets():
     check("copy: points too close for copies aren't copies", quickcopy.offsets(orig, [(60, 8), (63, 8)],
                                                                                  spacing=10) == [])
     check("copy: a different shape isn't a copy", quickcopy.offsets(orig, [(28, 8), (40, 40)]) == [])
+    d = quickcopy.offsets([(12, 8), (16, 30), (0, 8), (-7, 14)], [(28, 8), (44, 8), (32, 30), (48, 30)])
+    check("copy: shared points of the first order (supply chest, pole) don't stop a match",
+          sorted(d) == [(16, 0), (32, 0)], d)
 
 
 def test_router_cross():
