@@ -837,6 +837,14 @@ class Actor:
     # ------------------------------------------------------------------ running plans
     async def _run_plan(self, o: Order, plan: dict) -> tuple[bool, str]:
         steps = plan.get("steps") or []
+        # waits at the end of a plan with checks are there to let things start up: the checker polls through that
+        # time instead and stops as soon as everything is met (blind end waits were 22% of all run time)
+        tail = len(steps)
+        while tail > 0 and steps[tail - 1].get("do") == "wait":
+            tail -= 1
+        if tail < len(steps) and tail > 0 and any(isinstance(e, dict) for e in plan.get("expect") or []):
+            plan["_end_wait"] = sum(float(st.get("seconds") or 0) for st in steps[tail:])
+            steps = steps[:tail]
         done = []
         goal = plan.get("goal") or o.text
         need = plan_needs(steps)
@@ -935,8 +943,12 @@ class Actor:
         last = ""
         jev_checks = 0
         # a plan that already waited has given things time to start: don't wait as long again
+        end_wait = float(plan.get("_end_wait") or 0)  # trailing waits the checker polls through instead
         waited = sum(float(st.get("seconds") or 0) for st in plan.get("steps") or [] if st.get("do") == "wait")
+        waited -= end_wait
         rounds = 2 if waited >= 30 else 8
+        if end_wait:
+            rounds = max(rounds, min(40, int(end_wait / 6) + 2))
         # items need time to travel a long new belt (a yellow belt moves 1.875 tiles/s): wait that long too
         belt = sum(abs(float(st["to"][0]) - float(st["from"][0])) + abs(float(st["to"][1]) - float(st["from"][1]))
                    for st in plan.get("steps") or [] if st.get("do") == "connect" and "belt" in str(st.get("item"))

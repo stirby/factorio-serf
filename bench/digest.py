@@ -40,6 +40,8 @@ def main():
     low = []
     lint = collections.Counter()
     recov = collections.Counter()
+    spent = collections.Counter()  # seconds by what the run was doing
+    by_test = collections.defaultdict(collections.Counter)
     for d, r in rs:
         p = d / "actor.jsonl"
         if not p.exists():
@@ -54,6 +56,18 @@ def main():
                 split["first plan s"].append(fp - o["t"])
             split["plans"].append(e.get("plans", 0))
         for x in rows:
+            k = None
+            if x["kind"] == "thinker_turn" and x.get("req") in ("order", "report"):
+                k, sec = "Opus planning (actor waiting)", x.get("secs") or 0
+            elif x["kind"] == "act":
+                k, sec = f"act: {(x.get('action') or {}).get('op')}", x.get("secs") or 0
+            elif x["kind"] == "step" and (x.get("step") or {}).get("do") == "wait":
+                k, sec = "plan wait steps", float((x.get("step") or {}).get("seconds") or 0)
+            elif x["kind"] == "stock":
+                k, sec = "stocking (one trip, incl. crafting)", x.get("secs") or 0
+            if k:
+                spent[k] += sec
+                by_test[r["scenario"]][k] += sec
             if x["kind"] == "lint":
                 for pr in x["problems"]:
                     key = next((k for k in ("overlaps", "picks up from", "drops onto", "nothing feeds", "no pole",
@@ -83,6 +97,15 @@ def main():
     for k, v in split.items():
         if v:
             out.append(f"- {k}: median {st.median(v):.0f}, p90 {sorted(v)[int(len(v) * 0.9)]:.0f}, n={len(v)}")
+    tot = sum(r.get("elapsed_s") or 0 for _, r in rs) or 1
+    out += ["", "## Where the time went", "",
+            f"Share of all run time ({tot / 3600:.1f} h). The rest is idle between orders or verify waits; "
+            "acts overlap nothing (one character).", "", "| what | minutes | share |", "|---|---|---|"]
+    for k, v in spent.most_common(12):
+        out.append(f"| {k} | {v / 60:.0f} | {100 * v / tot:.0f}% |")
+    worst = sorted(by_test.items(), key=lambda kv: -kv[1]["Opus planning (actor waiting)"])[:5]
+    out += ["", "Most Opus wait by test: " + ", ".join(
+        f"{t} {c['Opus planning (actor waiting)'] / 60:.0f} min" for t, c in worst)]
     out += ["", "## Jev decisions (confidence; for nouls, distance from 0.5 doubled)", "",
             "| decision | calls | median conf | share < 0.5 |", "|---|---|---|---|"]
     for k, v in sorted(decisions.items(), key=lambda kv: -len(kv[1])):
