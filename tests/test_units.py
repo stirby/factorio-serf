@@ -210,6 +210,21 @@ def test_full_chest_listed_once():
           and "output_full" in kinds, kinds)
 
 
+def test_wrong_recipe():
+    rec = {"pipe": {"ingredients": {"iron-plate": 1}}, "iron-gear-wheel": {"ingredients": {"iron-plate": 2}},
+           "automation-science-pack": {"ingredients": {"copper-plate": 1, "iron-gear-wheel": 1}}}
+    ents = [{"u": 1, "n": "assembling-machine-1", "t": "assembling-machine", "x": 1.5, "y": 1.5, "w": 3, "h": 3,
+             "r": "pipe", "s": "working"},
+            {"u": 2, "n": "inserter", "t": "inserter", "x": 1.5, "y": 3.5, "d": "north", "pk": [1.5, 2.5],
+             "dp": [1.5, 4.5], "pku": 1, "dpu": 3},
+            {"u": 3, "n": "assembling-machine-1", "t": "assembling-machine", "x": 1.5, "y": 5.5, "w": 3, "h": 3,
+             "r": "automation-science-pack", "s": "item_ingredient_shortage"}]
+    w = World({"ents": ents, "center": [1, 3]}, rec)
+    f = next((x for x in w.faults() if x["kind"] == "wrong_recipe"), None)
+    check("world: a pipe assembler feeding red science should make gears",
+          f and f["fixes"][0]["recipe"] == "iron-gear-wheel", f)
+
+
 def test_router_cross():
     # two lines that must cross: west->east and north->south on an open grid
     g = Grid(set(), (0, 0, 10, 10))

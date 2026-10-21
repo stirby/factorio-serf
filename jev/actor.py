@@ -1222,11 +1222,11 @@ class Actor:
 
     async def _fix(self, o: Order):
         """Find faults near the point; Jev picks the one the player means; run its fix; wait for the stopped
-        machines to start; up to 4 rounds. Returns True, or a report for the thinker."""
+        machines to start; up to 6 rounds. Returns True, or a report for the thinker."""
         fixed = []
         w = await self.world(o.focus, 18)
         watch = self._stopped(w)
-        for rnd in range(4):
+        for rnd in range(6):
             if rnd:
                 w = await self.world(o.focus, 18)
             fl = [f for f in w.faults() if f.get("fixes")]

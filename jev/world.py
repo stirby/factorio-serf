@@ -221,6 +221,21 @@ class World:
         d = DIRS.get(e.get("d", ""), (0, 0))
         return e["x"] - d[0], e["y"] - d[1]
 
+    def _continues(self, ln) -> list:
+        """Lines that carry on in the same direction just past this one's end (across a gap or a turned tile)."""
+        d = DIRS.get(ln.direction)
+        if not d:
+            return []
+        out = []
+        for other in self.lines:
+            if other is ln or other.direction != ln.direction:
+                continue
+            for k in (1, 2, 3):
+                if abs(other.start[0] - (ln.end[0] + d[0] * k)) < 0.1 and abs(other.start[1] - (ln.end[1] + d[1] * k)) < 0.1:
+                    out.append(other)
+                    break
+        return out
+
     def _engine_slots(self, grid_id) -> list[dict]:
         """Fixes for a maxed grid that code can do: a boiler on it driving fewer than its 2 steam engines gets the
         next one, end to end along its steam output (a free 3x5 spot needed). More boilers are the planner's job."""
@@ -498,6 +513,37 @@ class World:
                     out.append({"kind": "starved", "u": e["u"], "at": pos,
                                 "text": f"{self.name(e['u'])} at {fmt_xy(pos)} is missing {', '.join(ms.get('missing', []))}: "
                                         + "; ".join(ms["why"]), "fixes": []})
+        # 2a. a machine making something nothing downstream uses, when what they're short of could be made from the
+        # same ingredients (an assembler someone set to pipes in a gear slot)
+        for m in self.ents.values():
+            r = m.get("r")
+            if m.get("t") != "assembling-machine" or not r or r not in self.recipes:
+                continue
+            mine = set((self.recipes[r].get("ingredients") or {}))
+            needed: set = set()
+            for e in self.ents.values():
+                if e.get("t") != "inserter" or e.get("pku") != m["u"] or not e.get("dpu"):
+                    continue
+                dst = self.ents.get(e["dpu"])
+                ln = self.line_of.get(e["dpu"])
+                lines = [ln] + self._continues(ln) if ln else []
+                consumers = ([self.ents.get(self.ents[i].get("dpu")) for x in lines for i in x.takers if i in self.ents]
+                             if ln else [dst])
+                for c in consumers:
+                    if c and c.get("r") in self.recipes:
+                        needed |= set(self.recipes[c["r"]].get("ingredients") or {})
+            if not needed or r in needed:
+                continue
+            cand = [x for x in sorted(needed) if x in self.recipes
+                    and set(self.recipes[x].get("ingredients") or {}) <= mine and x not in mine]
+            if cand:
+                pos = (m["x"], m["y"])
+                out.append({"kind": "wrong_recipe", "u": m["u"], "at": pos,
+                            "text": f"{self.name(m['u'])} at {fmt_xy(pos)} makes {r}, but what it feeds needs "
+                                    f"{', '.join(sorted(needed))}",
+                            "fixes": [{"do": "set_recipe", "x": m["x"], "y": m["y"], "recipe": cand[0],
+                                       "text": f"set {self.name(m['u'])} to make {cand[0]}",
+                                       "done": f"set the {m['n']} at {fmt_xy(pos)} to make {cand[0]}"}]})
         # 2b. labs with nothing to research
         labs = [e for e in self.ents.values() if e["t"] == "lab" and e.get("s") == "no_research_in_progress"]
         if labs:
