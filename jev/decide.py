@@ -133,7 +133,8 @@ async def which_item(jev: Jev, phrase: str, candidates: list[str]) -> tuple[str,
 
 
 KITS = {
-    "assembly": {"what": "assemblers fed by inserters and belts: automate a product, make science, a mall",
+    "assembly": {"what": "assemblers fed by inserters and belts: automate or make any product (gears, circuits, "
+                         "science, inserters...), a mall",
                  "items": {"assembling-machine-2": 4, "assembling-machine-1": 4, "inserter": 12, "transport-belt": 40,
                            "small-electric-pole": 10, "iron-chest": 3, "underground-belt": 4}},
     "smelting": {"what": "furnaces: smelt ore into plates or steel, a smelter column",
@@ -160,9 +161,10 @@ async def kit(jev: Jev, order: str) -> tuple[str, float]:
 
 QUESTIONS = {
     "status": "what the character is doing, how the job is going, whether it's done",
-    "where": "where the character is",
-    "carrying": "what the character has in its inventory",
-    "other": "anything else: about the base, production, plans, opinions, how to do something",
+    "where": {"what": "where the character itself is right now", "not_for": "where things in the world are "
+              "(ore, machines, other players)"},
+    "carrying": "what the character has in its own inventory",
+    "other": "anything else: where things are, the base, production, plans, opinions, how to do something",
 }
 
 
