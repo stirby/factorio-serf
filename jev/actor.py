@@ -337,7 +337,7 @@ class Actor:
                 return False
             report = r or "I found no fault I could fix on my own."
             return await self._planned(o, f"New order from {o.speaker}: \"{o.text}\"\n\nThe actor's quick look: {report}")
-        if o.playbook == "deliver" and o.focus:
+        if o.playbook == "deliver" and (o.focus or o.speaker != self.name):
             r = await self._deliver(o)
             if r is True:
                 return True
@@ -1576,6 +1576,19 @@ class Actor:
         items = self.parse_items(o.text)
         if not items:
             return "couldn't tell which items"
+        if not o.focus:  # "bring me 50 plates": to the player who asked
+            await self.say("on it: " + ", ".join(f"{n} {i}" for i, n in items))
+            for item, n in items:
+                got = await self.runner.ensure(item, n)
+                if not got.get("ok"):
+                    return f"couldn't get {n} {item}: {got.get('msg')}"
+                r = await self.runner._act({"op": "insert", "player": o.speaker, "item": item, "count": n}, timeout=180)
+                self.log({"kind": "deliver", "order": o.id, "item": item, "n": n, "ok": r.get("ok"), "msg": r.get("msg")})
+                if not r.get("ok"):
+                    return f"handing {n} {item} to {o.speaker} failed: {r.get('msg')}"
+            self.metrics["fast_path"] += 1
+            await self.say("there you go")
+            return True
         x, y = o.focus
         w = await self.world((x, y), 3)
         target = w.at(x, y) or next(iter(w.near((x, y), 1.5, types={"container", "logistic-container"})), None)

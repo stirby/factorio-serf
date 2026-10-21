@@ -624,6 +624,12 @@ H.insert = {
   start = function(a, job)
     local args = job.args
     if not args.item then return fail("insert needs item") end
+    if args.player then  -- hand it to a player: walk up to them (wherever they go) and put it in their inventory
+      local p = util.find_player(args.player)
+      if not (p and p.connected and p.character) then return fail("player " .. args.player .. " isn't here") end
+      job.target = p.character
+      return nil
+    end
     job.target = entity_at(a, args)
     if not job.target then return fail("no entity at " .. tostring(args.x) .. "," .. tostring(args.y)) end
     if not job.target.operable then return fail(locked(job.target)) end
