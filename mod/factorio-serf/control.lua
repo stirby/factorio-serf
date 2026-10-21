@@ -335,6 +335,13 @@ API.query = function(req)
       local inv = c.get_inventory(defines.inventory.chest)
       if inv then for _, it in pairs(inv.get_contents()) do t[it.name] = (t[it.name] or 0) + it.count end end
     end
+    if req.outputs then
+      -- what furnaces and assemblers have finished (fetch takes from there too)
+      for _, m in pairs(s.find_entities_filtered { type = { "furnace", "assembling-machine" }, force = "player" }) do
+        local inv = m.get_output_inventory()
+        if inv then for _, it in pairs(inv.get_contents()) do t[it.name] = (t[it.name] or 0) + it.count end end
+      end
+    end
     return { materials = t }
   elseif w == "live_pole" then
     local p = { x = tonumber(req.x) or 0, y = tonumber(req.y) or 0 }

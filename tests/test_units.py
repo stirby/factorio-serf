@@ -13,7 +13,7 @@ from jev.router import Grid, solve  # noqa: E402
 from jev.rowgen import row_entities  # noqa: E402
 from jev.steps import expand, ghost_result, plan_needs, unplaced, upgrade_map  # noqa: E402
 from jev.world import World  # noqa: E402
-from jev import quickbelt, quickbuild  # noqa: E402
+from jev import craft, quickbelt, quickbuild  # noqa: E402
 
 FAILS = []
 
@@ -183,6 +183,21 @@ def test_quickbelt_ends():
     ep4 = quickbelt.endpoints(wa, (2, 0), wb3, (40, 0))
     check("quickbelt: ends under an inserter that picks from the ground", ep4 and ep4["kind"] == "inserter"
           and ep4["to"] == [38.5, 0.5], ep4)
+
+
+def test_craftable():
+    rec = {"iron-gear-wheel": {"ingredients": {"iron-plate": 2}, "category": "crafting"},
+           "copper-cable": {"ingredients": {"copper-plate": 1}, "category": "electronics", "makes": 2},
+           "electronic-circuit": {"ingredients": {"iron-plate": 1, "copper-cable": 3}, "category": "electronics"},
+           "assembling-machine-1": {"ingredients": {"electronic-circuit": 3, "iron-gear-wheel": 5, "iron-plate": 9},
+                                    "category": "crafting"}}
+    # one assembler: 3 circuits (3 iron, 9 cable = 5 copper with a spare cable) + 5 gears (10 iron) + 9 iron = 22 iron
+    check("craft: 22 iron + 5 copper make one assembler", craft.most("assembling-machine-1",
+          {"iron-plate": 22, "copper-plate": 5}, rec) == 1)
+    check("craft: copper is the limit", craft.most("assembling-machine-1",
+          {"iron-plate": 1000, "copper-plate": 9}, rec) == 2)
+    check("craft: stocked intermediates count", craft.most("assembling-machine-1",
+          {"assembling-machine-1": 2, "electronic-circuit": 3, "iron-gear-wheel": 5, "iron-plate": 9}, rec) == 3)
 
 
 def test_router_cross():

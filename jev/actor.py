@@ -19,7 +19,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import decide, quickbelt, quickbuild
+from . import craft, decide, quickbelt, quickbuild
 from .game import Game
 from .lint import lint, plan_points
 from .steps import Runner, describe, parse_missing, plan_needs
@@ -853,6 +853,16 @@ class Actor:
             mats = await self.materials()
             if mats:
                 text += "\nIn storage chests (fetchable): " + ", ".join(f"{n} {k}" for k, n in mats[:40])
+            # what a plan can actually get: storage + machine outputs + pockets, crafting what's missing
+            stock = dict((await self.g.call("query", what="materials", outputs=True)).get("materials") or {})
+            for k, v in (me.get("inventory") or {}).items():
+                stock[k] = stock.get(k, 0) + v
+            cs = craft.summary(stock, self.recipes)
+            if cs:
+                text += ("\nBuildings the character can get right now (storage, machine outputs and pockets, "
+                         "hand-crafting what's missing; more only by mining ore and smelting): " +
+                         ", ".join(f"{'200+' if n >= 200 else n} {i}" for i, n in cs) +
+                         ". Size the plan to these.")
         except Exception as e:  # noqa: BLE001
             self.log({"kind": "error", "where": "materials", "error": repr(e)})
         # up to 4 plans that get nowhere; a plan that got several steps done before failing (a big order built in
