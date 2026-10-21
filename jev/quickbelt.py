@@ -38,6 +38,13 @@ def source(w: World, p) -> dict | None:
     return {"from": list(ln.end), "item": item, "line": ln.id, "carries": items_words(ln.items, 3)}
 
 
+def empty_source(w: World, p) -> bool:
+    """An open-ended belt near p that carries nothing yet (it may be starting up): worth a second look."""
+    return any(not ln.items and ln.end_reason == "ends (nothing ahead)" and
+               min(_d((w.ents[u]["x"], w.ents[u]["y"]), p) for u in ln.belts if u in w.ents) <= 8
+               for ln in w.lines if ln.belts)
+
+
 def _free(w: World, x: float, y: float) -> bool:
     return w.at(x, y) is None and not w.off_view(x, y)
 

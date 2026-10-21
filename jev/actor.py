@@ -360,6 +360,15 @@ class Actor:
                 return await self._planned(o, f"New order from {o.speaker}: \"{o.text}\"\n\nThe actor tried to copy "
                                               f"the earlier build itself and it didn't work out: {r}\nWhat it built is "
                                               "still there.")
+        if o.focus and self.quick_build:
+            r = await self._quick(o)
+            if r is True:
+                return True
+            if r is False:
+                return False
+            if isinstance(r, str):
+                return await self._planned(o, f"New order from {o.speaker}: \"{o.text}\"\n\nThe actor tried a quick "
+                                              f"build itself and it didn't work out: {r}\nWhat it built is still there.")
         if len(o.points) >= 2 and self.quick_build:
             r = await self._quick_belt(o)
             if r is True:
@@ -370,15 +379,6 @@ class Actor:
                 return await self._planned(o, f"New order from {o.speaker}: \"{o.text}\"\n\nThe actor tried to "
                                               f"belt it over itself and it didn't work out: {r}\nWhat it built is "
                                               "still there.")
-        if o.focus and self.quick_build:
-            r = await self._quick(o)
-            if r is True:
-                return True
-            if r is False:
-                return False
-            if isinstance(r, str):
-                return await self._planned(o, f"New order from {o.speaker}: \"{o.text}\"\n\nThe actor tried a quick "
-                                              f"build itself and it didn't work out: {r}\nWhat it built is still there.")
         await self.say("on it")
         return await self._planned(o, f"New order from {o.speaker}: \"{o.text}\"")
 
@@ -600,9 +600,10 @@ class Actor:
                 return None
             ep = None
             for k in range(2):
-                ep = quickbelt.endpoints(await self.world(a, 16), a, await self.world(b, 16), b)
+                wa, wb = await self.world(a, 16), await self.world(b, 16)
+                ep = quickbelt.endpoints(wa, a, wb, b)
                 self.log({"kind": "quickbelt_ends", "order": o.id, "ends": ep})
-                if ep:
+                if ep or k or not (quickbelt.empty_source(wa, a) or quickbelt.empty_source(wb, b)):
                     break
                 await asyncio.sleep(6)  # a source belt only just starting up may not carry anything yet
             if not ep:
