@@ -542,10 +542,11 @@ class Actor:
             return
         th.ask(Request("review", (
             f"For order {o.id} from {o.speaker} (\"{o.text}\") the actor built this by itself, without you, and its "
-            f"checks passed: {plan.get('goal')}.\nArea now: {json.dumps(sm, separators=(',', ':'))[:6000]}\n"
+            f"checks passed: {plan.get('goal')}.\nArea now: {json.dumps(sm, separators=(',', ':'))[:14000]}\n"
             "Look only for a real problem with how it answers the order (wrong product, wrong place, something that "
-            "will stop working soon). If there is one, submit a plan that fixes just that. If it's fine, end your turn "
-            "without a plan and without chatting."), o.id))
+            "will stop working soon). Before deciding something is missing, look with the area tool centred on that "
+            "spot (summaries of big areas can leave things out). If there is a real problem, submit a plan that fixes "
+            "just that. If it's fine, end your turn without a plan and without chatting."), o.id))
         self.log({"kind": "review_asked", "order": o.id})
 
     async def _quick_copy(self, o: Order) -> bool | str | None:
