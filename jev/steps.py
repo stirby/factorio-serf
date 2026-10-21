@@ -326,6 +326,8 @@ class Runner:
                 leg.pop("end_direction", None)
                 leg.pop("join", None)
             r = await self._act(leg, timeout=420)
+            if not r.get("ok") and "pole" in str(s["item"]) and "isn't wired" in str(r.get("msg")):
+                r = await self._bridge_line(start, end, s["item"], r)
             if not r.get("ok"):
                 return {"ok": False, "msg": f"long line, leg {k}/{n} from {start[0]:g},{start[1]:g} to {end[0]:g},"
                                             f"{end[1]:g} failed: {r.get('msg')}" + (f" (legs before it are laid; "

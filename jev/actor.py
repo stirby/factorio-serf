@@ -53,6 +53,7 @@ class Order:
     queued_plans: list = field(default_factory=list)  # next parts of a big order (plans submitted with more=true)
     running_more: bool = False  # the plan running now is a part with more to come
     quick: bool = False  # built by the actor's quick-build path (no planner)
+    belt_len: float = 0  # the longest new belt any of its plans laid (items need time to travel it)
 
     @property
     def focus(self):
@@ -1086,6 +1087,9 @@ class Actor:
         belt = sum(abs(float(st["to"][0]) - float(st["from"][0])) + abs(float(st["to"][1]) - float(st["from"][1]))
                    for st in plan.get("steps") or [] if st.get("do") == "connect" and "belt" in str(st.get("item"))
                    and st.get("from") and st.get("to"))
+        o.belt_len = max(o.belt_len, belt)
+        if any(e.get("check") in ("belt_carries", "has_item") for e in exp):
+            belt = max(belt, o.belt_len)  # a fix plan for an order with a long belt still waits for the items
         if belt > 60:
             rounds = max(rounds, min(40, 4 + int((belt / 1.875 - waited) / 6)))
         for k in range(rounds):
