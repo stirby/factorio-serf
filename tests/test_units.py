@@ -185,6 +185,10 @@ def test_quickbelt_ends():
     ep4 = quickbelt.endpoints(wa, (2, 0), wb3, (40, 0))
     check("quickbelt: ends under an inserter that picks from the ground", ep4 and ep4["kind"] == "inserter"
           and ep4["to"] == [38.5, 0.5], ep4)
+    chk = [c["check"] for c in quickbelt.delivered(ep, "coal")] + [c["check"] for c in quickbelt.delivered(ep4, "coal")]
+    check("quickbelt: a delivery is checked at the belt's end and in what its inserter feeds",
+          chk == ["belt_carries", "has_item", "belt_carries", "has_item"]
+          and quickbelt.delivered(ep, "coal")[1]["x"] == 30.5 and quickbelt.delivered(ep4, "coal")[1]["x"] == 40.5, chk)
 
 
 def test_craftable():
