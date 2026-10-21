@@ -440,6 +440,8 @@ class Runner:
                     return {"ok": False, "msg": f"no fuel: no coal anywhere and no wood ({r.get('msg')})",
                             "missing": {"coal": n}, "unobtainable": True}
         have = (await self.refresh_inventory()).get(fuel, 0)
+        if fuel == "wood" and not s.get("count"):
+            n = 50  # wood holds half what coal does: 20 keeps a stone furnace going only ~7 minutes
         return await self._act({"op": "insert", "x": p[0], "y": p[1], "item": fuel, "count": max(1, min(n, have))})
 
     async def _do_power(self, s):
