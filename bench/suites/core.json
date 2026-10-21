@@ -1,5 +1,32 @@
-{"note": "Every scenario with a serf baseline plus the lab/TBM tests. One cycle ~ 25 tests.",
- "tests": ["t-deliver", "t-starved", "t-backed-up", "t-brownout", "t-coal-boilers", "t-power-line", "t-smelter-column",
-           "t-red-block", "t-steel", "t-belt-ore", "t-cross-bus", "t-inserter-mall", "t-circuit", "t-gear-cell",
-           "x-green-science", "x-red-circuits", "x-multi-fault", "x-sweep", "x-outpost", "x-scale-ladder",
-           "tbm-1", "tbm-2", "tbm-3", "tbm-4", "tbm-5"]}
+{
+ "note": "Every scenario with a serf baseline, the lab and TBM tests, and the behaviour tests (corrections, maintenance). One cycle ~ 27 tests.",
+ "tests": [
+  "t-deliver",
+  "t-starved",
+  "t-backed-up",
+  "t-brownout",
+  "t-coal-boilers",
+  "t-power-line",
+  "t-smelter-column",
+  "t-red-block",
+  "t-steel",
+  "t-belt-ore",
+  "t-cross-bus",
+  "t-inserter-mall",
+  "t-circuit",
+  "t-gear-cell",
+  "x-green-science",
+  "x-red-circuits",
+  "x-multi-fault",
+  "x-sweep",
+  "x-outpost",
+  "x-scale-ladder",
+  "tbm-1",
+  "tbm-2",
+  "tbm-3",
+  "tbm-4",
+  "tbm-5",
+  "t-change",
+  "t-maintain"
+ ]
+}
