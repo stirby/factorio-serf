@@ -146,7 +146,7 @@ class FastPaths:
         steps = [{"do": "place", **ins}]
         if ins["name"] == "burner-inserter":
             steps.append({"do": "refuel", "x": ins["x"], "y": ins["y"], "count": 5})
-        elif not dst.get("electric"):
+        else:  # a pole in wire reach doesn't mean one whose supply area covers it (a no-op when it's powered)
             steps.append({"do": "power", "x": ins["x"], "y": ins["y"], "radius": 1})
         return steps
 

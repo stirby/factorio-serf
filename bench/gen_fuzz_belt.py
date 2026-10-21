@@ -55,6 +55,8 @@ def build(rnd: random.Random, kind: str, src_dir: str, dist: int, angle: float, 
     ents.append(("burner-inserter", -dx * src_len + 0.5, -dy * src_len + 0.5, {"direction": OPP[src_dir],
                                                                             "fuel": "coal"}))
     ents.append(("SOURCE", -dx * (src_len + 1) + 0.5, -dy * (src_len + 1) + 0.5, {"item": item}))
+    # what a belt job needs, beside the source (the lab stage has no storage)
+    ents.append(("SUPPLY", -dx * (src_len + 1) + dy * 2 + 0.5, -dy * (src_len + 1) - dx * 2 + 0.5, {}))
     tx, ty = round(math.cos(angle) * dist), round(math.sin(angle) * dist)
     grid = (tx + 4, ty + 4)
     if kind == "chest":
@@ -129,6 +131,11 @@ local X, Y = ox - ({x0}), oy - ({y0})
 local b = {{ row = {{}} }}
 storage.bench_belt = b"""]
     for name, x, y, extra in ents:
+        if name == "SUPPLY":
+            lines.append(f'do local c = put("steel-chest", X + {x}, Y + {y}) for n, k in pairs {{ ["transport-belt"] = 200, '
+                         '["underground-belt"] = 20, ["inserter"] = 10, ["burner-inserter"] = 10, '
+                         '["small-electric-pole"] = 30, ["coal"] = 50 } do c.insert { name = n, count = k } end end')
+            continue
         if name == "SOURCE":
             lines.append(f'source(X + {x}, Y + {y}, {{ "{extra["item"]}" }})')
             continue
