@@ -15,6 +15,7 @@ import json
 import logging
 import re
 import time
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -58,6 +59,7 @@ class Order:
     copy_of: "Order | None" = None  # for a copy order: the order whose build is the unit it copied
     built: list = field(default_factory=list)  # layout entries of what this order built (scans before and after)
     multi: bool = False  # several jobs in one message: the planner sorts them out, not the quick paths
+    reopened: int = 0  # times a player said it isn't done after it finished
 
     @property
     def focus(self):
@@ -196,6 +198,7 @@ class Actor(FastPaths):
             # "not done yet" / a correction after it finished: reopen that order with the note
             last.notes.append(f"{speaker}: {msg}")
             last.status = "new"
+            last.reopened += 1
             self.log({"kind": "reopen", "order": last.id})
             self.wake.set()
             return
@@ -313,6 +316,14 @@ class Actor(FastPaths):
         self.log({"kind": "order", "order": o.id, "text": o.text, "playbook": o.playbook, "points": o.points})
         if o.next_plan and o.speaker == "planner":  # the planner's follow-up: run its plan
             return await self._planned(o, f"Your follow-up: {o.text}")
+        if o.reopened and o.quick:
+            # it isn't done after a fast path built it: running that path again builds a second copy beside the first,
+            # so the planner changes or extends what's there
+            what = Counter(e["name"] for e in o.built if isinstance(e, dict) and e.get("name"))
+            built = ", ".join(f"{n} {k}" for k, n in what.most_common(8)) or "nothing it could find afterwards"
+            return await self._planned(o, f"Reopened order from {o.speaker}: \"{o.text}\"\n\nThe actor built it "
+                                          f"itself ({built}) and said it was done; the player says it isn't. Change or "
+                                          "extend what's there to do what they ask; don't build it all again.")
         if time.time() - getattr(self, "_recipes_t", 0) > 120:  # research unlocks recipes during a game
             try:
                 rec = await self.g.call("recipes", agent=self.name, detail=True)

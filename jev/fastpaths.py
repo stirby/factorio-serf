@@ -62,6 +62,10 @@ class FastPaths:
                 if send_to or r["output"] == "belt":
                     return None
                 k = quickbuild.feeders_needed(self.recipes, r["product"], opt["feeder"]["recipe"], n)
+                fit = quickbuild.feeders_that_fit(opt["lines"][0].length, k, n)
+                if fit < k:  # a short belt: fewer feeders (a slower row) rather than none
+                    self.log({"kind": "quickbuild_feeders", "order": o.id, "needed": k, "fit": fit})
+                    k = fit
                 feeders, fcenter = quickbuild.feeder_layout(w, opt, k)
                 if any((e := w.at(x["x"], x["y"])) is not None and e["u"] > 0 or w.off_view(x["x"], x["y"])
                        for x in feeders):

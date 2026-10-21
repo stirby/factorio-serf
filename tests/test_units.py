@@ -283,6 +283,17 @@ def test_feeder_option():
           quickbuild.feeders_needed(rec, "electronic-circuit", "copper-cable", 2) == 3,
           (quickbuild.feeders_needed(rec, "automation-science-pack", "iron-gear-wheel", 3),
            quickbuild.feeders_needed(rec, "electronic-circuit", "copper-cable", 2)))
+    check("feeder: 3 circuit assemblers want 4 cable feeders; a 30-tile belt has room for 3 beside a 3-machine row",
+          quickbuild.feeders_needed(rec, "electronic-circuit", "copper-cable", 3) == 4 and
+          quickbuild.feeders_that_fit(30, 4, 3) == 3 and quickbuild.feeders_that_fit(60, 4, 3) == 4 and
+          quickbuild.feeders_that_fit(10, 4, 3) == 1,
+          (quickbuild.feeders_needed(rec, "electronic-circuit", "copper-cable", 3),
+           quickbuild.feeders_that_fit(30, 4, 3)))
+    check("output belt: named only by words for one, not by the belt it comes off",
+          not quickbuild.OUTPUT_BELT.search("make steel off the belt at [gps=1,2]") and
+          not quickbuild.OUTPUT_BELT.search("gears made from this belt [gps=1,2], 3 assemblers, into chests") and
+          quickbuild.OUTPUT_BELT.search("put the cable on a belt") and
+          quickbuild.OUTPUT_BELT.search("plates off that belt, output on a belt"))
     ents, c = quickbuild.feeder_layout(w, red, 1)
     am = [e for e in ents if e["name"] == "assembling-machine-1"][0]
     ins = sorted(e["y"] for e in ents if e["name"] == "inserter")

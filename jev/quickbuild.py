@@ -7,6 +7,7 @@ the usual plan runner builds and verifies it. Anything else, or any doubt, goes 
 from __future__ import annotations
 
 import math
+import re
 
 from .rowgen import DIRS
 from .typesafe import Jev, choice, noul
@@ -139,15 +140,25 @@ INSERTER_RATE = 0.83  # items/s a basic inserter moves
 def feeders_needed(recipes: dict, product: str, made: str, n: int, speed: float = 0.5) -> int:
     """Feeder assemblers to keep n main machines supplied: recipe rates at assembler 1 speed, capped by what one
     basic inserter moves in and out (a gear feeder takes 2 plates per gear, so it makes ~0.4 gears/s, not 1), with
-    half again as margin."""
+    half again as margin. A main machine's one inserter brings all its ingredients, so a circuit assembler takes at
+    most 3/4 of what that inserter moves as cable."""
     r, rb = recipes.get(product) or {}, recipes.get(made) or {}
-    use = min((r.get("ingredients") or {}).get(made, 1) * speed / max(float(r.get("time") or 1), 0.1), INSERTER_RATE)
+    ing = r.get("ingredients") or {}
+    use = min(ing.get(made, 1) * speed / max(float(r.get("time") or 1), 0.1),
+              INSERTER_RATE * ing.get(made, 1) / (sum(ing.values()) or 1))
     per_craft_in = sum((rb.get("ingredients") or {}).values()) or 1
     makes = float(rb.get("makes") or 1)
     make = min(makes * speed / max(float(rb.get("time") or 1), 0.1),  # the recipe
                INSERTER_RATE / per_craft_in * makes,                  # what its input inserter brings
                INSERTER_RATE)                                         # what its output inserter moves
     return max(1, math.ceil(n * use * 1.5 / make - 1e-9))
+
+
+def feeders_that_fit(line_len: int, k: int, count: int, size: int = 3) -> int:
+    """At most k feeders (4 tiles each), so the feeders, a 2-tile gap and the main row (output chests: pitch size+2)
+    all fit along a belt of line_len tiles; at least one."""
+    row_len = (count - 1) * (size + 2) + size + 1
+    return max(1, min(k, (line_len - 2 - row_len - 1) // 4))
 
 
 def feeder_layout(w: World, opt: dict, k: int, skip: int = 2) -> tuple[list[dict], tuple]:
@@ -206,6 +217,9 @@ def row_step(w: World, opt: dict, product: str, count: int, skip: int = 2) -> di
     return step
 
 
+OUTPUT_BELT = re.compile(r"\b(?:onto|on to|into|on)\s+(?:a|an|another|its own|their own)\s+(?:new\s+|output\s+|own\s+)?belt"
+                         r"|\boutputs?\b.{0,30}\bbelt|\bbelt\b.{0,30}\boutputs?\b|\bbelt (?:it|them|the \w+)\b"
+                         r"|\bon(?:to)? (?:the|that|this) (?:other|second|empty|next) belt", re.I)
 PRODUCT_Q = "Which of these does `order` ask to have made?"
 COUNTS = {"not_said": "the order doesn't say how many machines", **{str(n): f"{n} machine(s)" for n in range(1, 13)}}
 
@@ -213,7 +227,7 @@ COUNTS = {"not_said": "the order doesn't say how many machines", **{str(n): f"{n
 def named_products(order: str, products: list[str]) -> int:
     """How many of the products the order names by their words ('gears and pipes' -> 2; 'pipes, 3 assemblers, into
     chests' -> 1: an iron chest needs 'iron' too). Plurals and the chat names in SAY count."""
-    import re
+
 
     def stem(w):
         return w[:-1] if w.endswith("s") and len(w) > 3 else w
@@ -228,7 +242,7 @@ def named_products(order: str, products: list[str]) -> int:
 
 def plain_counts(order: str) -> str:
     """'a couple of machines' -> '2 machines', 'a few' -> '3': Jev read 'a couple' as several products."""
-    import re
+
     order = re.sub(r"\ba couple(?: of)?\b", "2", order, flags=re.I)
     order = re.sub(r"\ba few\b", "3", order, flags=re.I)
     return order
@@ -281,18 +295,20 @@ async def read_order(jev: Jev, order: str, products: list[str], carried: list[st
     cnt = a["count"].choice
     cnt_p = float(a["count"].probs.get(cnt) or 0)
     # "3 assemblers", "2 furnaces": an exact number next to a machine word is read by code
-    import re
     m = re.search(r"\b(\d{1,2})\s+(?:more\s+)?(?:stone\s+|steel\s+)?(?:assemblers?|assembling machines?|machines?|furnaces?)\b",
                   plain_counts(order), re.I)
     if m and 1 <= int(m.group(1)) <= 12:
         cnt, cnt_p = m.group(1), 1.0
+    # an output belt needs words for one ("onto a belt", "output on a belt", "belt them"): "make steel off the belt"
+    # names only the belt it comes from, and Jev sometimes hears that as an output belt
+    onto = a["onto_belt"].p if OUTPUT_BELT.search(order) else min(a["onto_belt"].p, 0.3)
     # "several products" needs the order to name two of them: Jev alone hears plurals ("plates ... into chests") as
     # several
     several = a["several"].p if named_products(order, products) >= 2 else min(a["several"].p, 0.3)
     return {"build": a["build"].p, "chain": max(several, a["onward"].p), "elsewhere": a["elsewhere"].p,
-            "onto_belt": a["onto_belt"].p, "product": prod, "product_p": float(a["product"].probs.get(prod) or 0),
+            "onto_belt": onto, "product": prod, "product_p": float(a["product"].probs.get(prod) or 0),
             "count": cnt, "count_p": cnt_p,
-            "output": "belt" if a["onto_belt"].p >= 0.75 else "chest"}
+            "output": "belt" if onto >= 0.75 else "chest"}
 
 
 def accept(r: dict, far_point: bool = True) -> bool:
