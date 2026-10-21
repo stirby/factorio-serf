@@ -56,7 +56,10 @@ def sink(w: World, p, toward) -> dict | None:
         pk = e["pk"]
         tx, ty = math.floor(pk[0]) + 0.5, math.floor(pk[1]) + 0.5
         if _free(w, tx, ty):
-            return {"to": [tx, ty], "kind": "inserter", "what": f"the inserter at {e['x']:g},{e['y']:g}"}
+            fed = w.ents.get(e.get("dpu")) or {}
+            what = (f"the {fed['n'].replace('-', ' ')} at {fed['x']:g},{fed['y']:g}" if fed.get("n")
+                    else f"the inserter at {e['x']:g},{e['y']:g}")
+            return {"to": [tx, ty], "kind": "inserter", "what": what}
     # a machine, boiler or chest at p: an inserter on its side facing `toward`, the belt ending behind it
     tgt = min((e for e in w.ents.values() if e.get("t") in TAKES and e["u"] > 0 and _d((e["x"], e["y"]), p) <= 3),
               key=lambda e: _d((e["x"], e["y"]), p), default=None)
@@ -81,7 +84,7 @@ def sink(w: World, p, toward) -> dict | None:
                   (w.grids.get(e.get("net")) or {}).get("cap_w") for e in w.ents.values())
     name = "inserter" if powered else "burner-inserter"
     return {"to": [belt[0], belt[1]], "kind": "new_inserter", "inserter": {"name": name, "x": ins[0], "y": ins[1],
-            "pickup": [belt[0], belt[1]]}, "what": f"the {tgt['n']} at {tgt['x']:g},{tgt['y']:g}",
+            "pickup": [belt[0], belt[1]]}, "what": f"the {tgt['n'].replace('-', ' ')} at {tgt['x']:g},{tgt['y']:g}",
             "electric": powered}
 
 

@@ -528,7 +528,7 @@ class Actor:
             return None
         steps = [{"do": "connect", "item": "transport-belt", "from": ep["from"], "to": ep["to"]}]
         steps += self._delivery_steps(ep, ep["item"])
-        word = ep["item"].replace("-", " ")
+        word = quickbuild.SAY.get(ep["item"], ep["item"].replace("-", " "))
         plan = {"goal": f"a belt carrying {word} from {ep['from'][0]:g},{ep['from'][1]:g} to {ep['what']}",
                 "steps": steps, "expect": [{"check": "belt_carries", "x": ep["to"][0], "y": ep["to"][1],
                                             "item": ep["item"]}]}
