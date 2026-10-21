@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Offline unit tests (no game, no network): router, row layouts, compact layout notation, plan checker rules, world
 model belt lines and faults, failure facts.  Run: .venv/bin/python tests/test_units.py"""
+import math
 import sys
 from pathlib import Path
 
@@ -13,7 +14,7 @@ from jev.router import Grid, solve  # noqa: E402
 from jev.rowgen import row_entities  # noqa: E402
 from jev.steps import expand, ghost_result, plan_needs, unplaced, upgrade_map  # noqa: E402
 from jev.world import World  # noqa: E402
-from jev import craft, quickbelt, quickbuild, quickcopy  # noqa: E402
+from jev import craft, quickbelt, quickbuild, quickcopy, quickmine  # noqa: E402
 
 FAILS = []
 
@@ -288,6 +289,24 @@ def test_feeder_option():
     w2 = World({"ents": iron + copper_busy, "center": [10, 7], "radius": 32}, rec)
     check("feeder: not offered when the lane it would use is taken",
           "feeder" not in (quickbuild.options(w2, rec, [(0.5, 4.5)]).get("automation-science-pack") or {}))
+
+
+def test_mine_layout():
+    tiles = {(x, y) for x in range(100, 115) for y in range(0, 9)}  # a 15x9 patch
+    lay = quickmine.layout(tiles, 6, toward_x=0)
+    check("mine: 6 drills, belt running west toward the destination", lay and lay["drills"] == 6
+          and lay["direction"] == "west", lay and {k: v for k, v in lay.items() if k != "ents"})
+    if lay:
+        drills = [e for e in lay["ents"] if e["name"] == "electric-mining-drill"]
+        belts = [e for e in lay["ents"] if e["name"] == "transport-belt"]
+        belt_y = belts[0]["y"]
+        drops = {(d["x"], d["y"] + (2 if d["direction"] == "south" else -2)) for d in drills}
+        check("mine: every drill drops onto the belt", all(abs(dy - belt_y) < 0.01 for _, dy in drops), drops)
+        tiles_used = [(math.floor(e["x"] - 1.5 + 0.01) + i, math.floor(e["y"] - 1.5 + 0.01) + j)
+                      for e in drills for i in range(3) for j in range(3)]
+        check("mine: drills don't overlap", len(tiles_used) == len(set(tiles_used)))
+    check("mine: '60 ore a minute' is 3 drills; '4 drills' is 4", quickmine.wanted_drills(
+        "I want at least 60 ore a minute") == 3 and quickmine.wanted_drills("put 4 drills on it") == 4)
 
 
 def test_router_cross():

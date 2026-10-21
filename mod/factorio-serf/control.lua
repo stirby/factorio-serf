@@ -321,6 +321,7 @@ API.production = function(req) return observe.production(live(req), req) end
 --   materials    totals of every item in the force's storage chests (not endless ones), {item = n}
 --   live_pole    the nearest pole on a grid that has produced power, within radius (default 300) of x,y
 --   clutter      trees and rocks within radius (default 8, max 32) of x,y: {name, x, y}
+--   ore          the tiles of resource `name` within radius (default 16, max 32) of x,y
 --   items_near   totals of the given items in containers near x,y (radius), e.g. a belt puzzle's kit
 API.query = function(req)
   local s = game.surfaces[req.surface or "nauvis"] or game.surfaces.nauvis
@@ -355,6 +356,16 @@ API.query = function(req)
       end
     end
     return { pole = best and { best.position.x, best.position.y } or nil }
+  elseif w == "ore" then
+    -- the tiles of one resource within radius (default 16, max 32) of x,y: {x, y} tile corners
+    local p = { x = tonumber(req.x) or 0, y = tonumber(req.y) or 0 }
+    local r = math.min(tonumber(req.radius) or 16, 32)
+    local out = {}
+    for _, e in pairs(s.find_entities_filtered { area = { { p.x - r, p.y - r }, { p.x + r, p.y + r } }, type = "resource",
+      name = req.name, limit = 4500 }) do
+      out[#out + 1] = { math.floor(e.position.x), math.floor(e.position.y) }
+    end
+    return { tiles = out }
   elseif w == "clutter" then
     -- trees and rocks in a square around x,y (what has to go before building there)
     local p = { x = tonumber(req.x) or 0, y = tonumber(req.y) or 0 }

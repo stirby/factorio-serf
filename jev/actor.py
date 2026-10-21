@@ -19,7 +19,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import craft, decide, quickbelt, quickbuild, quickcopy
+from . import craft, decide, quickbelt, quickbuild, quickcopy, quickmine
 from .game import Game
 from .lint import lint, plan_points
 from .steps import Runner, describe, parse_missing, plan_needs
@@ -373,6 +373,14 @@ class Actor:
                                               f"the earlier build itself and it didn't work out: {r}\nWhat it built is "
                                               "still there.")
         if not o.multi and o.focus and self.quick_build:
+            r = await self._quick_mine(o)
+            if r is True or r is False:
+                return r
+            if isinstance(r, str):
+                return await self._planned(o, f"New order from {o.speaker}: \"{o.text}\"\n\nThe actor tried to set up "
+                                              f"the mine itself and it didn't work out: {r}\nWhat it built is still "
+                                              "there.")
+        if not o.multi and o.focus and self.quick_build:
             r = await self._quick(o)
             if r is True:
                 return True
@@ -626,6 +634,52 @@ class Actor:
                                "radius": r} for d in ds]
         o.copy_of = prev
         return await self._run_quick(o, plan, f"{n} more like the last one")
+
+    async def _quick_mine(self, o: Order) -> bool | str | None:
+        """'Set up an iron mine on the patch at [gps] and belt the ore to [gps]' (jev/quickmine.py)."""
+        try:
+            w = await self.world(o.focus, 24)
+            ores = sorted(k for k in (w.res or {}) if k in ("iron-ore", "copper-ore", "coal", "stone", "uranium-ore"))
+            if not ores:
+                return None
+            p, ore, op = await quickmine.read_order(self.jev, o.text, ores)
+            self.log({"kind": "quickmine", "order": o.id, "p": round(p, 3), "ore": ore, "ore_p": round(op, 3)})
+            if p < 0.7 or not ore or op < 0.6:
+                return None
+            q = await self.g.call("query", what="ore", name=ore, x=o.focus[0], y=o.focus[1], radius=24)
+            tiles = {tuple(t) for t in q.get("tiles") or []}
+            away = [x for x in o.points if math.hypot(x[0] - o.focus[0], x[1] - o.focus[1]) > 12]
+            dest = max(away, key=lambda x: math.hypot(x[0] - o.focus[0], x[1] - o.focus[1])) if away else None
+            lay = quickmine.layout(tiles, quickmine.wanted_drills(o.text), dest[0] if dest else o.focus[0] + 100)
+            if not lay:
+                return None
+            if any((e := w.at(x["x"], x["y"])) is not None and e["u"] > 0 for x in lay["ents"]):
+                self.log({"kind": "quickmine_skip", "order": o.id, "why": "our buildings on the patch"})
+                return None
+            dst = quickbelt.sink(await self.world(dest, 16), dest, lay["belt_end"]) if dest else None
+            if dest and not dst:
+                return None
+        except Exception as e:  # noqa: BLE001
+            self.log({"kind": "error", "where": "quickmine", "error": repr(e)})
+            return None
+        dx = [e["x"] for e in lay["ents"]]
+        dy = [e["y"] for e in lay["ents"]]
+        c = lay["center"]
+        steps = [{"do": "ghosts", "entities": lay["ents"]},
+                 {"do": "power", "x": c[0], "y": c[1], "radius": max(max(dx) - min(dx), max(dy) - min(dy)) / 2 + 1}]
+        expect = [{"check": "working", "count": max(1, lay["drills"] // 2), "near": c,
+                   "radius": max(max(dx) - min(dx), max(dy) - min(dy)) / 2 + 2}]
+        word = ore.replace("-", " ")
+        what = f"{lay['drills']} drills on the {word}"
+        if dst:
+            steps.append({"do": "connect", "item": "transport-belt", "from": lay["belt_end"], "to": dst["to"]})
+            steps += self._delivery_steps(dst, ore)
+            expect.append({"check": "belt_carries", "x": dst["to"][0], "y": dst["to"][1], "item": ore})
+            what += f", belted to {dst['what']}"
+        else:
+            expect.append({"check": "belt_carries", "x": lay["belt_end"][0], "y": lay["belt_end"][1], "item": ore})
+        plan = {"goal": what, "steps": steps, "expect": expect}
+        return await self._run_quick(o, plan, what)
 
     async def _quick_upgrade(self, o: Order) -> bool | str | None:
         """'Swap the belts on that line for red ones': Jev names the tier (and line or spot), code upgrades."""
