@@ -31,18 +31,19 @@ KINDS = {
 }
 
 PLAYBOOKS = {
-    "fix": {"what": "something that used to work has stopped, is slow, starving, out of fuel, without power, backed "
-                    "up or broken, and the player only says WHAT is wrong, leaving how to fix it to the character",
-            "not_for": "orders that say what to build or connect (belt X to Y, hook up power, build, automate), even "
-                       "when they mention a problem",
+    "fix": {"what": "machines or belts that exist have stopped, are slow, starving, out of fuel, without power, backed "
+                    "up or broken, and the player wants them working again, including when they say to hook them up "
+                    "to power, refuel them or unclog them",
+            "not_for": "building something new, or moving items from one place to another with a new belt (belt X to "
+                       "Y), even when they mention a problem",
             "examples": ["red science stopped at [gps]. can you get it going?", "the smelters ran out of coal",
-                         "power keeps dipping, sort it out"]},
+                         "power keeps dipping, sort it out", "these assemblers have no power, hook them up to the grid"]},
     "deliver": {"what": "bring a stated number of specific items to a chest or to the player",
                 "not_for": "automating production of those items",
                 "examples": ["I need 20 inserters in the chest at [gps]", "bring me 50 iron plates"]},
-    "plan": {"what": "anything else: build or automate something new, belt or power something from A to B, set up "
-                     "mining, expand, design a layout, follow someone, a puzzle",
-             "examples": ["belt coal to the boiler from the drills", "automate gears here", "hook these up to the grid",
+    "plan": {"what": "anything else: build or automate something new, belt something from A to B, set up mining, "
+                     "expand, design a layout, follow someone, research, a puzzle",
+             "examples": ["belt coal to the boiler from the drills", "automate gears here", "build 8 furnaces",
                           "follow me"]},
 }
 

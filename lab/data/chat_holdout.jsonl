@@ -1,6 +1,6 @@
 {"id": 0, "speaker": "otterplex", "message": "serf can u make me a chest of 100 gears", "doing": null, "gold": {"addressed": 1, "kind": "new_job", "playbook": "deliver"}}
 {"id": 1, "speaker": "otterplex", "message": "@serf the copper smelters at [gps=-80,12] are all idle, something's off", "doing": null, "gold": {"addressed": 1, "kind": "new_job", "playbook": "fix"}}
-{"id": 2, "speaker": "otterplex", "message": "@serf hook up the new labs at [gps=4,-60] to power", "doing": null, "gold": {"addressed": 1, "kind": "new_job", "playbook": "plan"}}
+{"id": 2, "speaker": "otterplex", "message": "@serf hook up the new labs at [gps=4,-60] to power", "doing": null, "gold": {"addressed": 1, "kind": "new_job", "playbook": "fix"}}
 {"id": 3, "speaker": "otterplex", "message": "@serf set up 10 electric miners on the iron patch north of base and belt it to the smelters", "doing": null, "gold": {"addressed": 1, "kind": "new_job", "playbook": "plan"}}
 {"id": 4, "speaker": "otterplex", "message": "serf where are u", "doing": null, "gold": {"addressed": 1, "kind": "question", "playbook": null}}
 {"id": 5, "speaker": "otterplex", "message": "serf how many plates do we have in storage", "doing": null, "gold": {"addressed": 1, "kind": "question", "playbook": null}}
