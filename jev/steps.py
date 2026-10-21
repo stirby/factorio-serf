@@ -319,6 +319,10 @@ class Runner:
                 a[k] = s[k]
         fr, to = [float(v) for v in s["from"]], [float(v) for v in s["to"]]
         dist = math.hypot(to[0] - fr[0], to[1] - fr[1])
+        if "pole" not in str(s["item"]):
+            # routes go round things: carry well over the straight-line count (a pipe run 5 tiles apart took 20)
+            need = min(400, int(2 * (abs(to[0] - fr[0]) + abs(to[1] - fr[1]))) + 12)
+            await self.ensure(s["item"], need)
         if dist <= 230:
             r = await self._act(a, timeout=420)
             if not r.get("ok") and "pole" in str(s["item"]) and "isn't wired" in str(r.get("msg")):
