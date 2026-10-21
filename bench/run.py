@@ -143,12 +143,15 @@ async def run(a) -> dict:
         subprocess.run(["kill", pid], check=False)
     if pids:
         await asyncio.sleep(2)
-    try:
-        await asyncio.to_thread(inst.start, 240)
-    except RuntimeError as e:  # e.g. a mod file caught mid-edit: once more
-        res["errors"].append(f"start retry: {str(e)[:200]}")
-        await asyncio.sleep(5)
-        await asyncio.to_thread(inst.start, 240)
+    for attempt in range(5):
+        try:
+            await asyncio.to_thread(inst.start, 240)
+            break
+        except RuntimeError as e:  # a mod file caught mid-edit, or the last server on this slot still letting go
+            if attempt == 4:      # of its port: wait and try again
+                raise
+            res["errors"].append(f"start retry: {str(e)[:200]}")
+            await asyncio.sleep(6)
     actor = None
     jev = Jev(log_path=d / "jev.jsonl")
     try:
