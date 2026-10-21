@@ -15,6 +15,11 @@ SMELT = {"iron-ore": "iron-plate", "copper-ore": "copper-plate", "stone": "stone
 FUELS = ("coal", "wood", "solid-fuel")
 GAP = {"assembling-machine-1": 6, "stone-furnace": 5}  # where a second input belt has to run (machine size + 3)
 DEFAULT_COUNT = {"assembling-machine-1": 2, "stone-furnace": 4}
+# how products are said in chat
+SAY = {"iron-gear-wheel": "gears", "steel-plate": "steel", "iron-plate": "iron plates", "copper-plate": "copper plates",
+       "copper-cable": "copper cable", "electronic-circuit": "green circuits", "firearm-magazine": "ammo",
+       "stone-brick": "bricks", "transport-belt": "belts", "inserter": "inserters", "pipe": "pipes",
+       "iron-chest": "iron chests", "iron-stick": "iron sticks"}
 
 
 def _tiles(w: World, ln) -> list[tuple[float, float]]:

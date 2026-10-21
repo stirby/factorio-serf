@@ -426,8 +426,9 @@ class Actor:
         machines = [x for x in ents if x["name"] == opt["machine"]]
         xs, ys = [m["x"] for m in machines], [m["y"] for m in machines]
         center = [(min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2]
-        word = r["product"].replace("-", " ")
-        what = f"{n} {opt['machine'].replace('-', ' ')}{'s' if n > 1 else ''} making {word}"
+        word = quickbuild.SAY.get(r["product"], r["product"].replace("-", " "))
+        mword = {"assembling-machine-1": "assembler", "stone-furnace": "furnace"}.get(opt["machine"], opt["machine"])
+        what = f"{'an' if n == 1 and mword[0] in 'aeiou' else ('a' if n == 1 else n)} {mword}{'s' if n > 1 else ''} making {word}"
         expect = [{"check": "working", "count": max(1, (n + 1) // 2), "near": center,
                    "radius": max(max(xs) - min(xs), max(ys) - min(ys)) / 2 + 2}]
         if opt["machine"] != "stone-furnace":
