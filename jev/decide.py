@@ -55,6 +55,7 @@ class ChatCall:
     kind_conf: float
     playbook: str
     playbook_conf: float
+    multi: float = 0.0  # asks for two or more separate jobs at once
 
 
 async def chat(jev: Jev, me: str, speaker: str, message: str, doing: str | None, last_said: str | None) -> ChatCall:
@@ -65,10 +66,13 @@ async def chat(jev: Jev, me: str, speaker: str, message: str, doing: str | None,
                           "is listening, rather than to another named player or bot?"),
         "kind": choice("What does `message` do?", KINDS),
         "playbook": choice("If `message` asks for a job, which kind of job is it?", PLAYBOOKS),
+        "multi": noul("Does `message` ask for two or more separate jobs at once?",
+                      "yes: 'make gears here and research solar', 'fix the boiler, then belt coal to it'",
+                      "no: one job, however many parts it has ('8 furnaces and a belt to the chest' is one build)"),
     }
     a = await jev.ask(state, qs, kind="chat", meta={"speaker": speaker})
     return ChatCall(a["addressed"].p, a["kind"].choice, a["kind"].confidence, a["playbook"].choice,
-                    a["playbook"].confidence)
+                    a["playbook"].confidence, a["multi"].p)
 
 
 async def fault(jev: Jev, complaint: str, faults: list[dict]) -> tuple[int | None, float, float, float]:

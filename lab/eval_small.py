@@ -33,6 +33,14 @@ FIX_ALL = [("@serf science is really slow at the little lab setup at [gps=57,9].
            ("@serf the boiler at [gps=1,2] keeps running out of coal", 0),
            ("@serf the gear assemblers at [gps=4,4] have no power. Hook them up to the grid", 0),
            ("@serf that belt at [gps=2,2] is facing the wrong way", 0)]
+MULTI = [("@serf make gears off this belt [gps=1,1] and research solar", 1),
+         ("@serf fix the boiler at [gps=1,1], then belt coal to it from the drills at [gps=30,1]", 1),
+         ("@serf research oil processing and swap the belts at [gps=4,4] for red ones", 1),
+         ("@serf build 8 stone furnaces off the ore belt at [gps=4,4], and send the plates on a belt to the chest at "
+          "[gps=40,4]", 0),
+         ("@serf automate red science off these belts [gps=1,1]", 0),
+         ("@serf two more just like it at [gps=28,8] and [gps=44,8]", 0),
+         ("@serf the drills at [gps=70,-45] are backing up. Belt their ore to the furnaces at [gps=110,-38]", 0)]
 KITS = [("automate gears off this iron belt", "assembly"), ("build 8 stone furnaces off the ore belt", "smelting"),
         ("we need more power, the grid is maxed", "power"), ("set up drills on the iron patch north of base", "mining"),
         ("belt the copper over to the bus", "belts"), ("what are you doing?", "none"),
@@ -67,6 +75,12 @@ async def main():
     for (m, g), r in zip(FIX_ALL, fa):
         if (r[3] >= 0.7) != bool(g):
             print(f"    p={r[3]:.2f} gold={g}: {m[:80]}")
+    mc = await asyncio.gather(*(decide.chat(jev, "serf", "ops", m, None, None) for m, _ in MULTI))
+    ok = sum(1 for (m, g), c in zip(MULTI, mc) if (c.multi >= 0.75) == bool(g))
+    print(f"multi: {ok}/{len(MULTI)}")
+    for (m, g), c in zip(MULTI, mc):
+        if (c.multi >= 0.75) != bool(g):
+            print(f"    p={c.multi:.2f} gold={g}: {m[:80]}")
     k = await asyncio.gather(*(decide.kit(jev, m) for m, _ in KITS))
     ok = sum(1 for (m, g), (c, _) in zip(KITS, k) if c == g)
     print(f"kit: {ok}/{len(KITS)}")

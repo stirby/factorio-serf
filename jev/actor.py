@@ -57,6 +57,7 @@ class Order:
     built_pts: list = field(default_factory=list)  # where its plans built (for "two more just like it")
     copy_of: "Order | None" = None  # for a copy order: the order whose build is the unit it copied
     built: list = field(default_factory=list)  # layout entries of what this order built (scans before and after)
+    multi: bool = False  # several jobs in one message: the planner sorts them out, not the quick paths
 
     @property
     def focus(self):
@@ -177,7 +178,7 @@ class Actor:
             call = decide.ChatCall(1.0 if explicit or stop else 0.0, "stop" if stop else "new_job", 0.0, "plan", 0.0)
         self.log({"kind": "chat", "speaker": speaker, "msg": msg, "addressed": round(call.addressed, 3),
                   "kind_": call.kind, "kind_conf": round(call.kind_conf, 3), "playbook": call.playbook,
-                  "playbook_conf": round(call.playbook_conf, 3)})
+                  "playbook_conf": round(call.playbook_conf, 3), "multi": round(call.multi, 3)})
         if not explicit and call.addressed < 0.5:
             return
         kind = call.kind
@@ -202,6 +203,7 @@ class Actor:
                                  and call.playbook_conf >= 0.8):
             pts = [(float(a), float(b)) for a, b in GPS.findall(msg)]
             o = Order(self.next_id, msg, speaker, call.playbook if call.playbook_conf >= 0.6 else "plan", pts)
+            o.multi = call.multi >= 0.75
             sp = c.get("position")
             if isinstance(sp, (list, tuple)) and len(sp) == 2:
                 o.speaker_at = (float(sp[0]), float(sp[1]))
@@ -350,18 +352,19 @@ class Actor:
                 return True
             return await self._planned(o, f"New order from {o.speaker}: \"{o.text}\"\n\nThe actor tried the belt "
                                           f"router itself: {r}")
-        if re.search(r"\b(upgrade|swap|replace|in place of|instead of)", o.text, re.I) and o.focus and self.quick_build:
+        if (not o.multi and re.search(r"\b(upgrade|swap|replace|in place of|instead of)", o.text, re.I) and o.focus
+                and self.quick_build):
             r = await self._quick_upgrade(o)
             if r is True or r is False:
                 return r
             if isinstance(r, str):
                 return await self._planned(o, f"New order from {o.speaker}: \"{o.text}\"\n\nThe actor tried the "
                                               f"swap itself and it didn't finish: {r}")
-        if re.search(r"\b(research|tech|unlock)", o.text, re.I) and not o.points:
+        if not o.multi and re.search(r"\b(research|tech|unlock)", o.text, re.I) and not o.points:
             r = await self._quick_research(o)
             if r:
                 return True
-        if o.points and self.quick_build:
+        if not o.multi and o.points and self.quick_build:
             r = await self._quick_copy(o)
             if r is True or r is False:
                 return r
@@ -369,7 +372,7 @@ class Actor:
                 return await self._planned(o, f"New order from {o.speaker}: \"{o.text}\"\n\nThe actor tried to copy "
                                               f"the earlier build itself and it didn't work out: {r}\nWhat it built is "
                                               "still there.")
-        if o.focus and self.quick_build:
+        if not o.multi and o.focus and self.quick_build:
             r = await self._quick(o)
             if r is True:
                 return True
@@ -378,7 +381,7 @@ class Actor:
             if isinstance(r, str):
                 return await self._planned(o, f"New order from {o.speaker}: \"{o.text}\"\n\nThe actor tried a quick "
                                               f"build itself and it didn't work out: {r}\nWhat it built is still there.")
-        if len(o.points) >= 2 and self.quick_build:
+        if not o.multi and len(o.points) >= 2 and self.quick_build:
             r = await self._quick_belt(o)
             if r is True:
                 return True
