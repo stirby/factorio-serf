@@ -45,22 +45,27 @@ def _offsets(orig: list, new: list, tol: float) -> list[tuple[float, float]]:
     return chosen if chosen and len(covered) == len(new) else []
 
 
+def entry(e: dict) -> dict:
+    """A scanned entity as a layout entry (name, position, direction, recipe, underground type)."""
+    d = {"name": e["n"], "x": e["x"], "y": e["y"]}
+    if e.get("d"):
+        d["direction"] = e["d"]
+    if e.get("r") and e.get("t") == "assembling-machine":
+        d["recipe"] = e["r"]
+    if e.get("ug"):
+        d["type"] = e["ug"]
+    return d
+
+
+def layout_entries(ents: dict) -> dict:
+    return {u: entry(e) for u, e in ents.items()}
+
+
 def built_by(w: World, box: tuple, me: str) -> list[dict]:
     """What `me` built inside box (x0, y0, x1, y1), as layout entries."""
     x0, y0, x1, y1 = box
-    out = []
-    for e in w.ents.values():
-        if e.get("by") != me or e["u"] <= 0 or not (x0 <= e["x"] <= x1 and y0 <= e["y"] <= y1):
-            continue
-        d = {"name": e["n"], "x": e["x"], "y": e["y"]}
-        if e.get("d"):
-            d["direction"] = e["d"]
-        if e.get("r") and e.get("t") == "assembling-machine":
-            d["recipe"] = e["r"]
-        if e.get("ug"):
-            d["type"] = e["ug"]
-        out.append(d)
-    return out
+    return [entry(e) for e in w.ents.values()
+            if e.get("by") == me and e["u"] > 0 and x0 <= e["x"] <= x1 and y0 <= e["y"] <= y1]
 
 
 def shifted(ents: list[dict], d: tuple) -> list[dict]:

@@ -56,6 +56,7 @@ class Order:
     belt_len: float = 0  # the longest new belt any of its plans laid (items need time to travel it)
     built_pts: list = field(default_factory=list)  # where its plans built (for "two more just like it")
     copy_of: "Order | None" = None  # for a copy order: the order whose build is the unit it copied
+    built: list = field(default_factory=list)  # layout entries of what this order built (scans before and after)
 
     @property
     def focus(self):
@@ -279,6 +280,7 @@ class Actor:
             o.status = "working"
             self._set_busy(True)
             t0 = time.time()
+            pre = await self._mine_near(o)  # what the character had already built there
             try:
                 ok = await self._do_order(o)
                 if o.status != "cancelled":
@@ -291,6 +293,9 @@ class Actor:
                 o.status = "failed"
             self.log({"kind": "order_end", "order": o.id, "status": o.status, "secs": round(time.time() - t0, 1),
                       "plans": o.plans})
+            if o.status == "done" and pre is not None:  # exactly what this order built, for "two more like it"
+                post = await self._mine_near(o, full=True)
+                o.built = [e for u, e in (post or {}).items() if u not in pre]
             if (o.status == "done" and o.focus and o.speaker != self.name
                     and (o.plans > 0 or o.quick or o.playbook == "fix")):
                 self._add_watch(o)
@@ -555,6 +560,18 @@ class Actor:
             "just that. If it's fine, end your turn without a plan and without chatting."), o.id))
         self.log({"kind": "review_asked", "order": o.id})
 
+    async def _mine_near(self, o: Order, full: bool = False):
+        """Unit numbers (or, with full, {unit: layout entry}) of what the character built within 48 tiles of the
+        order's point; None when the order has no point."""
+        if not o.focus:
+            return None
+        try:
+            w = await self.world(o.focus, 48)
+        except Exception:  # noqa: BLE001
+            return None
+        mine = {u: e for u, e in w.ents.items() if u > 0 and e.get("by") == self.name}
+        return quickcopy.layout_entries(mine) if full else set(mine)
+
     async def _quick_copy(self, o: Order) -> bool | str | None:
         """'Two more just like it at [gps] and [gps]': the last build, copied where the new points sit the same way
         the earlier order's points did (jev/quickcopy.py)."""
@@ -564,9 +581,10 @@ class Actor:
             prev = prev.copy_of
         if not prev:
             return None
-        xs = [q[0] for q in prev.built_pts + [prev.focus]]  # (not every point it named: a supply chest or grid
-        ys = [q[1] for q in prev.built_pts + [prev.focus]]  # pole far off isn't part of the build)
-        box = (min(xs) - 3, min(ys) - 3, max(xs) + 3, max(ys) + 3)
+        unit = prev.built  # exactly what that order built
+        pts = [(e["x"], e["y"]) for e in unit] or prev.built_pts + [prev.focus]
+        xs, ys = [q[0] for q in pts], [q[1] for q in pts]
+        box = (min(xs) - 1, min(ys) - 1, max(xs) + 1, max(ys) + 1)
         ds = quickcopy.offsets(prev.points, o.points, spacing=min(box[2] - box[0], box[3] - box[1]) - 4)
         if not ds:
             return None
@@ -576,8 +594,11 @@ class Actor:
             if p < 0.7:
                 return None
             c = ((box[0] + box[2]) / 2, (box[1] + box[3]) / 2)
-            w = await self.world(c, int(max(box[2] - box[0], box[3] - box[1]) / 2 + 4))
-            ents = quickcopy.built_by(w, box, self.name)
+            if unit:
+                ents = unit
+            else:
+                w = await self.world(c, int(max(box[2] - box[0], box[3] - box[1]) / 2 + 4))
+                ents = quickcopy.built_by(w, box, self.name)
             if not ents:
                 return None
         except Exception as e:  # noqa: BLE001
