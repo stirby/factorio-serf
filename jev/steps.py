@@ -579,6 +579,38 @@ class Runner:
             msg += "; the line runs on past what I looked at (upgrade from further along to do the rest)"
         return {"ok": done == len(todo), "msg": msg}
 
+    async def _do_clear(self, s):
+        """Pick up buildings in an area, nearest first, into the inventory (what's in them comes along): everything
+        of ours within `radius` (default 6, max 24) of x,y, or only the names in `only`."""
+        from .world import World
+        p = _xy(s)
+        rad = min(float(s.get("radius", 6)), 24)
+        only = s.get("only")
+        if isinstance(only, str):
+            only = [only]
+        sc = await self.g.scan(center=p, radius=int(rad + 3))
+        w = World(sc)
+        ents = [e for e in w.ents.values() if e["u"] > 0 and abs(e["x"] - p[0]) <= rad and abs(e["y"] - p[1]) <= rad
+                and (not only or e.get("n") in only)]
+        if not ents:
+            return {"ok": True, "msg": "nothing there to pick up"}
+        me = await self.g.me()
+        pos = tuple(me.get("position") or p)
+        done, failed = 0, []
+        while ents:
+            k = min(range(len(ents)), key=lambda i: (ents[i]["x"] - pos[0]) ** 2 + (ents[i]["y"] - pos[1]) ** 2)
+            e = ents.pop(k)
+            r = await self._act({"op": "mine", "x": e["x"], "y": e["y"]}, timeout=60)
+            if r.get("ok"):
+                done += 1
+            else:
+                failed.append(f"{e['n']} at {e['x']:g},{e['y']:g}: {str(r.get('msg'))[:90]}")
+            pos = (e["x"], e["y"])
+        msg = f"picked up {done} of {done + len(failed)}"
+        if failed:
+            msg += f"; {len(failed)} failed: " + "; ".join(failed[:3])
+        return {"ok": not failed, "msg": msg}
+
     async def _do_research(self, s):
         """Queue a tech. tech="cheapest" (or a trigger/finished tech that fails) picks the cheapest lab tech whose
         packs are all in `packs` (default red and green)."""
