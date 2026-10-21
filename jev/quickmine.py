@@ -23,7 +23,7 @@ def wanted_drills(order: str) -> int:
     return 6
 
 
-def layout(tiles: set, n: int, toward_x: float) -> dict | None:
+def layout(tiles: set, n: int, toward_x: float, pole: str = "small-electric-pole") -> dict | None:
     """Two rows of drills (3x3) facing a belt along the patch's richest 7-tile band: upper ones face south, lower ones
     north, both dropping onto the belt row; poles in a row above and below, joined at the belt's upstream end. Tiles
     are ore tile corners (x, y). Returns {"ents", "belt_end", "direction", "center"} or None."""
@@ -62,10 +62,10 @@ def layout(tiles: set, n: int, toward_x: float) -> dict | None:
     for x in range(bx0, bx1 + 1):
         ents.append({"name": "transport-belt", "x": x + 0.5, "y": yb + 0.5, "direction": direction})
     for x in range(bx0, bx1 + 1, 6):
-        ents.append({"name": "small-electric-pole", "x": x + 1.5, "y": yb - 3.5})
-        ents.append({"name": "small-electric-pole", "x": x + 1.5, "y": yb + 4.5})
+        ents.append({"name": pole, "x": x + 1.5, "y": yb - 3.5})
+        ents.append({"name": pole, "x": x + 1.5, "y": yb + 4.5})
     up_x = bx0 - 1 if direction == "east" else bx1 + 1  # the upstream end: the poles' join, out of the belt's way
-    ents.append({"name": "small-electric-pole", "x": up_x + 0.5, "y": yb + 0.5})
+    ents.append({"name": pole, "x": up_x + 0.5, "y": yb + 0.5})
     end_x = bx1 if direction == "east" else bx0
     return {"ents": ents, "belt_end": [end_x + 0.5, yb + 0.5], "direction": direction, "drills": len(drills),
             "center": [(bx0 + bx1) / 2 + 0.5, yb + 0.5]}

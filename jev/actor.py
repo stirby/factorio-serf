@@ -650,7 +650,13 @@ class Actor:
             tiles = {tuple(t) for t in q.get("tiles") or []}
             away = [x for x in o.points if math.hypot(x[0] - o.focus[0], x[1] - o.focus[1]) > 12]
             dest = max(away, key=lambda x: math.hypot(x[0] - o.focus[0], x[1] - o.focus[1])) if away else None
-            lay = quickmine.layout(tiles, quickmine.wanted_drills(o.text), dest[0] if dest else o.focus[0] + 100)
+            # small poles if they can be had (wood and copper), else medium ones from storage
+            stock = dict((await self.g.call("query", what="materials", outputs=True)).get("materials") or {})
+            for k, v in (await self.runner.refresh_inventory()).items():
+                stock[k] = stock.get(k, 0) + v
+            pole = ("small-electric-pole" if craft.most("small-electric-pole", stock, self.recipes, 12) >= 8
+                    else "medium-electric-pole")
+            lay = quickmine.layout(tiles, quickmine.wanted_drills(o.text), dest[0] if dest else o.focus[0] + 100, pole)
             if not lay:
                 return None
             if any((e := w.at(x["x"], x["y"])) is not None and e["u"] > 0 for x in lay["ents"]):
