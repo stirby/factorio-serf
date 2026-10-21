@@ -320,6 +320,7 @@ API.production = function(req) return observe.production(live(req), req) end
 --   items        names of every (not hidden) item prototype
 --   materials    totals of every item in the force's storage chests (not endless ones), {item = n}
 --   live_pole    the nearest pole on a grid that has produced power, within radius (default 300) of x,y
+--   clutter      trees and rocks within radius (default 8, max 32) of x,y: {name, x, y}
 --   items_near   totals of the given items in containers near x,y (radius), e.g. a belt puzzle's kit
 API.query = function(req)
   local s = game.surfaces[req.surface or "nauvis"] or game.surfaces.nauvis
@@ -347,6 +348,16 @@ API.query = function(req)
       end
     end
     return { pole = best and { best.position.x, best.position.y } or nil }
+  elseif w == "clutter" then
+    -- trees and rocks in a square around x,y (what has to go before building there)
+    local p = { x = tonumber(req.x) or 0, y = tonumber(req.y) or 0 }
+    local r = math.min(tonumber(req.radius) or 8, 32)
+    local out = {}
+    for _, e in pairs(s.find_entities_filtered { area = { { p.x - r, p.y - r }, { p.x + r, p.y + r } },
+      type = { "tree", "simple-entity" }, limit = 400 }) do
+      out[#out + 1] = { e.name, e.position.x, e.position.y }
+    end
+    return { clutter = out }
   end
   error("unknown query " .. tostring(w))
 end

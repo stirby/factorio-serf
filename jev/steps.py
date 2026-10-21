@@ -589,17 +589,22 @@ class Runner:
 
     async def _do_clear(self, s):
         """Pick up buildings in an area, nearest first, into the inventory (what's in them comes along): everything
-        of ours within `radius` (default 6, max 24) of x,y, or only the names in `only`."""
+        of ours within `radius` (default 6, max 24) of x,y, or only the names in `only`. trees=true clears the trees
+        and rocks there instead (walking to each, like a player)."""
         from .world import World
         p = _xy(s)
         rad = min(float(s.get("radius", 6)), 24)
         only = s.get("only")
         if isinstance(only, str):
             only = [only]
-        sc = await self.g.scan(center=p, radius=int(rad + 3))
-        w = World(sc)
-        ents = [e for e in w.ents.values() if e["u"] > 0 and abs(e["x"] - p[0]) <= rad and abs(e["y"] - p[1]) <= rad
-                and (not only or e.get("n") in only)]
+        if s.get("trees"):
+            q = await self.g.call("query", what="clutter", x=p[0], y=p[1], radius=rad)
+            ents = [{"n": n, "x": x, "y": y} for n, x, y in (q.get("clutter") or [])]
+        else:
+            sc = await self.g.scan(center=p, radius=int(rad + 3))
+            w = World(sc)
+            ents = [e for e in w.ents.values() if e["u"] > 0 and abs(e["x"] - p[0]) <= rad
+                    and abs(e["y"] - p[1]) <= rad and (not only or e.get("n") in only)]
         if not ents:
             return {"ok": True, "msg": "nothing there to pick up"}
         me = await self.g.me()
@@ -614,7 +619,8 @@ class Runner:
             else:
                 failed.append(f"{e['n']} at {e['x']:g},{e['y']:g}: {str(r.get('msg'))[:90]}")
             pos = (e["x"], e["y"])
-        msg = f"picked up {done} of {done + len(failed)}"
+        msg = (f"cleared {done} of {done + len(failed)} trees/rocks" if s.get("trees")
+               else f"picked up {done} of {done + len(failed)}")
         if failed:
             msg += f"; {len(failed)} failed: " + "; ".join(failed[:3])
         return {"ok": not failed, "msg": msg}
