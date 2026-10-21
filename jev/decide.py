@@ -187,3 +187,11 @@ async def changes_plan(jev: Jev, doing: str, message: str) -> float:
         "side, item, amount or method), rather than just commenting, encouraging or asking for status?")},
         kind="changes_plan")
     return a["change"].p
+
+
+async def not_done(jev: Jev, job: str, message: str) -> float:
+    """Probability the message says the finished job isn't actually done or something about it is still wrong."""
+    a = await jev.ask({"finished_job": job, "message": message}, {"not_done": noul(
+        "Does `message` say that `finished_job` is not actually done, not working, or still has a problem to fix "
+        "(rather than reporting progress, confirming it works, or chatting)?")}, kind="not_done")
+    return a["not_done"].p

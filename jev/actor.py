@@ -152,8 +152,16 @@ class Actor:
             return
         kind = call.kind
         last = self.orders[-1] if self.orders else None
+        reopen = False
         if kind in ("more_info",) and not doing and last and last.status in ("done", "failed") \
                 and time.time() - last.t < 1800:
+            try:
+                p_nd = await decide.not_done(self.jev, last.text, msg)
+            except JevError:
+                p_nd = 0.0
+            self.log({"kind": "not_done", "order": last.id, "p": round(p_nd, 3)})
+            reopen = p_nd >= 0.6
+        if reopen:
             # "not done yet" / a correction after it finished: reopen that order with the note
             last.notes.append(f"{speaker}: {msg}")
             last.status = "new"
@@ -169,6 +177,9 @@ class Actor:
             self.next_id += 1
             self.orders.append(o)
             self.metrics["orders"] += 1
+            if doing:
+                waiting = sum(1 for x in self.orders if x.status == "new")
+                await self.say(f"got it, I'll do that next" if waiting <= 1 else f"got it, that's #{waiting} in my queue")
             self.wake.set()
         elif kind in ("more_info", "approval") and self.current:
             self.current.notes.append(f"{speaker}: {msg}")
