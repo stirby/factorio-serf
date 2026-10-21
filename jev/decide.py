@@ -10,6 +10,7 @@ Each returns plain values plus the confidence, and the caller gates on confidenc
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from .typesafe import Jev, choice, noul
@@ -83,19 +84,35 @@ async def fault(jev: Jev, complaint: str, faults: list[dict]) -> tuple[int | Non
 
 
 RECOVERY = {
-    "retry": "try the same step again: the problem looks temporary (something moving, in the way for a moment, a "
-             "timing issue)",
-    "get_items": "the step failed because the character lacks an item: get the item first, then try again",
-    "skip": "skip this step: the failure doesn't matter for the goal, or it is already done",
-    "replan": "ask the planner for a new plan: the step itself is wrong (bad position, blocked spot, wrong item or "
-              "direction, impossible as written)",
+    "retry": {"when": "the problem is temporary: the character itself or something moving was in the way, it timed "
+                      "out, it got stuck on the way; trying again can work",
+              "not_when": "the message says something doesn't exist or can't be done"},
+    "get_items": {"when": "the character lacks an item that can still be fetched or crafted",
+                  "not_when": "the message says no chest has it and it can't be hand-crafted"},
+    "skip": {"when": "the step is already done or no longer needed: already researched, already built, the thing "
+                     "to remove is already gone"},
+    "replan": {"when": "the step can't work as written: wrong or blocked position, impossible item, no path, "
+                       "too far, a tech that unlocks another way, nothing exists to use"},
 }
+
+
+def failure_facts(msg: str) -> dict:
+    """Exact facts code reads off a failure message, so Jev doesn't have to parse them."""
+    m = (msg or "").lower()
+    blockers = re.findall(r"blocked by ([a-z0-9-]+)@", m)
+    return {"blocked_only_by_the_character": bool(blockers) and all(b in ("character", "entity-ghost")
+                                                                     for b in blockers) and "character" in blockers,
+            "timed_out": "timed out" in m or "stuck at" in m,
+            "already_done": "already" in m,
+            "thing_to_remove_is_gone": m.startswith("nothing minable at"),
+            "item_exists_nowhere": "no chest or machine output" in m and "can't hand-craft" in m}
 
 
 async def recovery(jev: Jev, goal: str, step_text: str, error: str, tries: int,
                    options: dict | None = None) -> tuple[str, float]:
     opts = options or RECOVERY
-    state = {"goal": goal, "step": step_text, "error_message": error, "times_tried": tries}
+    state = {"goal": goal, "step": step_text, "error_message": error, "times_tried": tries,
+             "facts_from_code": failure_facts(error)}
     a = await jev.ask(state, {"next": choice("The `step` failed with `error_message`. What should the character do "
                                              "next?", opts)}, kind="recovery")
     return a["next"].choice, a["next"].confidence
