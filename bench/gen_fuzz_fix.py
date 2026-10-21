@@ -16,7 +16,7 @@ COMMON = (ROOT / "bench" / "scenarios" / "lua" / "x-common.lua").read_text()
 # The line, all relative to (X, Y): ore belt y=0.5 running east (x 0..19), furnaces south of it, plate belt y=5.5
 # running east to an inserter into the plate chest, then the gear assembler and the gear chest.
 LINE = """
-local W, H = 36, 14
+local W, H = 36, 18
 local ox, oy
 if LAB then ox, oy = find_near(-60, -60, W, H, 120) else ox, oy = find_ring(W, H, 40, 200) end
 clear(ox, oy, W, H)
