@@ -1803,6 +1803,10 @@ local function ghost_blocker(c, ename, p, dir)
       if oname == ename and (dir == nil or o.direction == dir) then
         return { name = ename, x = p.x, y = p.y, why = "same" }
       end
+      -- the same thing facing another way: a player placing over it just turns it (not undergrounds: that flips them)
+      if o.name == ename and dir ~= nil and o.type ~= "underground-belt" and o.supports_direction then
+        return { name = ename, x = p.x, y = p.y, why = "turn", direction = util.DIR_NAMES[dir] }
+      end
       local n = o.name == "entity-ghost" and ("ghost of " .. o.ghost_name) or o.name
       local proto = prototypes.entity[ename]
       if o.name ~= "entity-ghost" and proto and same_family(proto, o) then

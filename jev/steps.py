@@ -58,13 +58,22 @@ def unplaced(asked: list[dict], r: dict) -> list[dict]:
         failed = list(failed.values())
     out = []
     for f in failed:
-        if not isinstance(f, dict) or f.get("why") == "same":
+        if not isinstance(f, dict) or f.get("why") in ("same", "turn"):
             continue
         fx, fy = float(f.get("x", 1e9)), float(f.get("y", 1e9))
         e = next((a for a in asked if abs(a["x"] - fx) < 0.01 and abs(a["y"] - fy) < 0.01), None)
         if e:
             out.append({**e, "_why": f.get("why")})
     return out
+
+
+def turns(r: dict) -> list[dict]:
+    """Pieces already standing where the layout wants them but facing another way: rotate steps."""
+    failed = r.get("failed") or []
+    if isinstance(failed, dict):
+        failed = list(failed.values())
+    return [{"do": "rotate", "x": f["x"], "y": f["y"], "direction": f["direction"]} for f in failed
+            if isinstance(f, dict) and f.get("why") == "turn" and f.get("direction")]
 
 
 def ghost_result(b: dict, s: dict) -> dict:
@@ -740,6 +749,10 @@ class Runner:
         placed = r.get("ghosts")
         await self.stock(r.get("needs") or {})
         b = await self._do_build_ghosts({"x": cx, "y": cy, "radius": rad})
+        for t in turns(r):  # same piece, other direction: turn it, as placing over it would
+            tr = await self._do_rotate(t)
+            if not tr.get("ok"):
+                s["_unplaced"].append({"name": "turn", "x": t["x"], "y": t["y"], "_why": tr.get("msg")})
         b["msg"] = f"planned {placed} of {len(ents)}; " + (b.get("msg") or "")
         return ghost_result(b, s)
 
