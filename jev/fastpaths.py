@@ -368,7 +368,10 @@ class FastPaths:
                 return None
             p = await quickbelt.read_order(self.jev, o.text)
             self.log({"kind": "quickbelt", "order": o.id, "p": round(p, 3)})
-            if p < 0.7:
+            # Jev's doubt counts less when what's there says it: a belt ending with items on it at one point and
+            # something that takes them at the other (Jev reads 'get that coal over to the boiler from the belt' at
+            # 0.6-0.75 from run to run)
+            if p < 0.5:
                 return None
             ep = None
             for k in range(2):
