@@ -13,7 +13,7 @@ from jev.router import Grid, solve  # noqa: E402
 from jev.rowgen import row_entities  # noqa: E402
 from jev.steps import expand, ghost_result, plan_needs, unplaced, upgrade_map  # noqa: E402
 from jev.world import World  # noqa: E402
-from jev import craft, quickbelt, quickbuild  # noqa: E402
+from jev import craft, quickbelt, quickbuild, quickcopy  # noqa: E402
 
 FAILS = []
 
@@ -239,6 +239,18 @@ def test_engine_slot():
     w = World({"ents": ents, "center": [0, 0], "radius": 20, "grids": [{"id": 7, "cap_w": 1800000, "used_w": 1799999}]})
     f = next((x for x in w.faults() if x["kind"] == "power_maxed"), None)
     check("world: a boiler with both engines has no code fix (more boilers are the planner's)", f and not f["fixes"], f)
+
+
+def test_copy_offsets():
+    orig = [(12, 8), (16, 30)]
+    d = quickcopy.offsets(orig, [(28, 8), (44, 8), (32, 30), (48, 30)])
+    check("copy: belt+chest pairs give two shifts", sorted(d) == [(16, 0), (32, 0)], d)
+    d = quickcopy.offsets(orig, [(60, 8), (76, 8), (92, 8), (108, 8)], spacing=10)
+    check("copy: one point per copy works when they're a build apart", sorted(d) == [(48, 0), (64, 0), (80, 0),
+                                                                                     (96, 0)], d)
+    check("copy: points too close for copies aren't copies", quickcopy.offsets(orig, [(60, 8), (63, 8)],
+                                                                                 spacing=10) == [])
+    check("copy: a different shape isn't a copy", quickcopy.offsets(orig, [(28, 8), (40, 40)]) == [])
 
 
 def test_router_cross():

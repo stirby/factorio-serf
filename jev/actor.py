@@ -19,7 +19,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import craft, decide, quickbelt, quickbuild
+from . import craft, decide, quickbelt, quickbuild, quickcopy
 from .game import Game
 from .lint import lint, plan_points
 from .steps import Runner, describe, parse_missing, plan_needs
@@ -54,10 +54,14 @@ class Order:
     running_more: bool = False  # the plan running now is a part with more to come
     quick: bool = False  # built by the actor's quick-build path (no planner)
     belt_len: float = 0  # the longest new belt any of its plans laid (items need time to travel it)
+    built_pts: list = field(default_factory=list)  # where its plans built (for "two more just like it")
 
     @property
     def focus(self):
         return self.points[0] if self.points else None
+
+
+BUILD_OPS = ("ghosts", "block", "design", "stamp", "place", "build_ghosts", "route", "row", "connect", "merge_lanes")
 
 
 def fixed_words(fixed: list[str]) -> str:
@@ -348,6 +352,14 @@ class Actor:
             r = await self._quick_research(o)
             if r:
                 return True
+        if o.points and self.quick_build:
+            r = await self._quick_copy(o)
+            if r is True or r is False:
+                return r
+            if isinstance(r, str):
+                return await self._planned(o, f"New order from {o.speaker}: \"{o.text}\"\n\nThe actor tried to copy "
+                                              f"the earlier build itself and it didn't work out: {r}\nWhat it built is "
+                                              "still there.")
         if len(o.points) >= 2 and self.quick_build:
             r = await self._quick_belt(o)
             if r is True:
@@ -488,6 +500,51 @@ class Actor:
             report = vreport
         o.history.append(report)
         return f"it tried: {plan['goal']}. {report}"
+
+    async def _quick_copy(self, o: Order) -> bool | str | None:
+        """'Two more just like it at [gps] and [gps]': the last build, copied where the new points sit the same way
+        the earlier order's points did (jev/quickcopy.py)."""
+        prev = next((x for x in reversed(self.orders) if x is not o and x.status == "done" and x.built_pts
+                     and x.points), None)
+        if not prev:
+            return None
+        xs = [q[0] for q in prev.built_pts + prev.points]
+        ys = [q[1] for q in prev.built_pts + prev.points]
+        box = (min(xs) - 3, min(ys) - 3, max(xs) + 3, max(ys) + 3)
+        ds = quickcopy.offsets(prev.points, o.points, spacing=min(box[2] - box[0], box[3] - box[1]) - 4)
+        if not ds:
+            return None
+        try:
+            p = await quickcopy.read_order(self.jev, o.text)
+            self.log({"kind": "quickcopy", "order": o.id, "p": round(p, 3), "from_order": prev.id, "offsets": ds})
+            if p < 0.7:
+                return None
+            c = ((box[0] + box[2]) / 2, (box[1] + box[3]) / 2)
+            w = await self.world(c, int(max(box[2] - box[0], box[3] - box[1]) / 2 + 4))
+            ents = quickcopy.built_by(w, box, self.name)
+            if not ents:
+                return None
+        except Exception as e:  # noqa: BLE001
+            self.log({"kind": "error", "where": "quickcopy", "error": repr(e)})
+            return None
+        steps = []
+        for d in ds:
+            steps.append({"do": "ghosts", "entities": quickcopy.shifted(ents, d)})
+            steps.append({"do": "power", "x": c[0] + d[0], "y": c[1] + d[1],
+                          "radius": max(box[2] - box[0], box[3] - box[1]) / 2})
+        n = len(ds)
+        plan = {"goal": f"{n} cop{'y' if n == 1 else 'ies'} of order {prev.id}'s build ({len(ents)} pieces each)",
+                "steps": steps}
+        machines = [e for e in ents if e["name"] in ("assembling-machine-1", "assembling-machine-2",
+                                                      "stone-furnace", "steel-furnace", "electric-furnace")]
+        if machines:
+            mx = [e["x"] for e in machines]
+            my = [e["y"] for e in machines]
+            mc = ((min(mx) + max(mx)) / 2, (min(my) + max(my)) / 2)
+            r = max(max(mx) - min(mx), max(my) - min(my)) / 2 + 2
+            plan["expect"] = [{"check": "working", "count": max(1, len(machines) // 2), "near": [mc[0] + d[0], mc[1] + d[1]],
+                               "radius": r} for d in ds]
+        return await self._run_quick(o, plan, f"{n} more like the last one")
 
     async def _quick_upgrade(self, o: Order) -> bool | str | None:
         """'Swap the belts on that line for red ones': Jev names the tier (and line or spot), code upgrades."""
@@ -1009,6 +1066,10 @@ class Actor:
     # ------------------------------------------------------------------ running plans
     async def _run_plan(self, o: Order, plan: dict) -> tuple[bool, str]:
         steps = plan.get("steps") or []
+        try:
+            o.built_pts += plan_points([st for st in steps if st.get("do") in BUILD_OPS])
+        except Exception:  # noqa: BLE001
+            pass
         # waits at the end of a plan with checks are there to let things start up: the checker polls through that
         # time instead and stops as soon as everything is met (blind end waits were 22% of all run time)
         tail = len(steps)
