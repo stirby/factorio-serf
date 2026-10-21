@@ -19,7 +19,8 @@ DEFAULT_COUNT = {"assembling-machine-1": 2, "stone-furnace": 4}
 SAY = {"iron-gear-wheel": "gears", "steel-plate": "steel", "iron-plate": "iron plates", "copper-plate": "copper plates",
        "copper-cable": "copper cable", "electronic-circuit": "green circuits", "firearm-magazine": "ammo",
        "stone-brick": "bricks", "transport-belt": "belts", "inserter": "inserters", "pipe": "pipes",
-       "iron-chest": "iron chests", "iron-stick": "iron sticks"}
+       "iron-chest": "iron chests", "iron-stick": "iron sticks", "automation-science-pack": "red science",
+       "logistic-science-pack": "green science"}
 
 
 def _tiles(w: World, ln) -> list[tuple[float, float]]:
