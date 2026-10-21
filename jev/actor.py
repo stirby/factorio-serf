@@ -173,7 +173,8 @@ class Actor:
             self.log({"kind": "reopen", "order": last.id})
             self.wake.set()
             return
-        if kind == "new_job" or (kind in ("more_info", "approval") and not doing and call.kind_conf < 0.7):
+        if kind == "new_job" or (kind == "more_info" and not doing and call.kind_conf < 0.5
+                                 and call.playbook_conf >= 0.8):
             pts = [(float(a), float(b)) for a, b in GPS.findall(msg)]
             o = Order(self.next_id, msg, speaker, call.playbook if call.playbook_conf >= 0.6 else "plan", pts)
             sp = c.get("position")
@@ -227,11 +228,16 @@ class Actor:
             await self.say("carrying " + items_words(me.get("inventory"), 8))
         else:
             o = self.current
+
+            def brief(t: str) -> str:
+                t = re.sub(r"@\S+", "", t).strip()
+                t = re.split(r"[?.!]", t)[0].strip()
+                return t[:90]
             if o and o.status in ("working", "thinking"):
-                step = "planning it" if o.status == "thinking" else "building"
-                await self.say(f"working on: {o.text.replace('@' + self.name, '').strip()[:120]} ({step})")
+                step = "planning it" if o.status == "thinking" else "building it"
+                await self.say(f"working on: {brief(o.text)} ({step})")
             elif o:
-                await self.say(f"last job {o.status}: {o.text.replace('@' + self.name, '').strip()[:100]}. Free now.")
+                await self.say(f"free now. Last job ({brief(o.text)}) is {o.status}")
             else:
                 await self.say("nothing right now, free for a job")
         return True
@@ -261,7 +267,7 @@ class Actor:
                 o.status = "failed"
             self.log({"kind": "order_end", "order": o.id, "status": o.status, "secs": round(time.time() - t0, 1),
                       "plans": o.plans})
-            if o.status == "done" and o.focus and o.speaker != self.name:
+            if o.status == "done" and o.focus and o.speaker != self.name and (o.plans > 0 or o.playbook == "fix"):
                 self._add_watch(o)
             if self.thinker and (o.plans >= 2 or (o.status == "failed" and o.plans >= 1)):
                 self.thinker.ask(Request("lesson", f"Order {o.id} (\"{o.text}\") took {o.plans} plans and ended "
@@ -355,7 +361,8 @@ class Actor:
                 for wt in list(self.watches):
                     w = await self.world(wt["at"], wt["radius"])
                     # a machine whose output nothing takes is full by design (no output inserter): not a fault here
-                    fl = [f for f in w.faults() if f["kind"] in self.WATCH_KINDS and f.get("fixes")
+                    fl = [f for f in w.faults() if f["kind"] in self.WATCH_KINDS and f.get("fixes") and f.get("u")
+                          and abs(f["at"][0] - wt["at"][0]) <= wt["radius"] and abs(f["at"][1] - wt["at"][1]) <= wt["radius"]
                           and not (f["kind"] == "output_full" and f["fixes"][0].get("do") == "take")]
                     found = fl[0]["text"] if fl else None
                     if not found and wt["what"] and time.time() - wt.get("warned", 0) > 600:

@@ -1,0 +1,108 @@
+{
+ "name": "t-session",
+ "stage": "stage-s3-steel-oil-ready",
+ "minutes": 45,
+ "agents": 1,
+ "note": "A play session: four jobs one after another in one world (deliver, fix starved red science, gears off a belt, power a block), with chatter and a status question in between. Measures the whole flow a player sees.",
+ "setup_lua": "local function setup_d()\n-- t-deliver setup (stage S3): an empty iron chest on open ground near the base. The player wants 20 inserters and\n-- 50 transport belts in it: from the base's stock chests, or crafted. Met = the chest holds both.\nlocal s, f = game.surfaces.nauvis, game.forces.player\nlocal function free(x, y, w, h)\n  local a = { { x, y }, { x + w, y + h } }\n  if s.count_tiles_filtered { area = a, collision_mask = \"water_tile\" } > 0 then return false end\n  return s.count_entities_filtered { area = a, type = { \"tree\", \"simple-entity\", \"resource\", \"corpse\", \"fish\" },\n    invert = true } == 0 and s.count_entities_filtered { area = a, type = \"resource\" } == 0\nend\nlocal function find(w, h, r0)\n  for r = r0, 240, 4 do\n    for _, d in pairs { { 1, 0 }, { 0, 1 }, { -1, 0 }, { 0, -1 }, { 1, 1 }, { -1, 1 }, { 1, -1 }, { -1, -1 } } do\n      local x, y = d[1] * r, d[2] * r\n      if free(x, y, w, h) then return x, y end\n    end\n  end\nend\nlocal function clear(x, y, w, h)\n  for _, e in pairs(s.find_entities_filtered { area = { { x, y }, { x + w, y + h } }, type = { \"tree\", \"simple-entity\" } }) do\n    e.destroy()\n  end\nend\nlocal function put(name, x, y, dir, extra)\n  local spec = { name = name, position = { x, y }, direction = dir, force = f }\n  for k, v in pairs(extra or {}) do spec[k] = v end\n  local e = s.create_entity(spec)\n  if not e then error(\"could not place \" .. name .. \" at \" .. x .. \",\" .. y) end\n  return e\nend\nlocal function source(x, y, item) -- an infinity chest that never runs out\n  local c = put(\"infinity-chest\", x, y)\n  c.set_infinity_container_filter(1, { name = item, count = 100, mode = \"exactly\", index = 1 })\n  return c\nend\nlocal N, E, S, W = defines.direction.north, defines.direction.east, defines.direction.south, defines.direction.west\nlocal ox, oy = find(4, 4, 20)\nif not ox then error(\"no free 4x4 area\") end\nclear(ox, oy, 4, 4)\nlocal chest = put(\"iron-chest\", ox + 1.5, oy + 1.5)\nstorage.bench_deliver = { chest = chest }\nreturn { gx = math.floor(ox + 1.5), gy = math.floor(oy + 1.5) }\n\nend\nlocal function setup_s()\n-- t-starved setup (stage S3): a 3-assembler red science line, belt-fed (copper belt on top, gear belt below,\n-- each loaded from an infinity chest), powered by an energy interface. One copper belt faces the wrong way, so all\n-- three starve. The fix has to make them run on their own: hand-feeding doesn't count (score skips chest-fed ones).\nlocal s, f = game.surfaces.nauvis, game.forces.player\nlocal function free(x, y, w, h)\n  local a = { { x, y }, { x + w, y + h } }\n  if s.count_tiles_filtered { area = a, collision_mask = \"water_tile\" } > 0 then return false end\n  return s.count_entities_filtered { area = a, type = { \"tree\", \"simple-entity\", \"resource\", \"corpse\", \"fish\" },\n    invert = true } == 0 and s.count_entities_filtered { area = a, type = \"resource\" } == 0\nend\nlocal function find(w, h, r0)\n  for r = r0, 240, 4 do\n    for _, d in pairs { { 1, 0 }, { 0, 1 }, { -1, 0 }, { 0, -1 }, { 1, 1 }, { -1, 1 }, { 1, -1 }, { -1, -1 } } do\n      local x, y = d[1] * r, d[2] * r\n      if free(x, y, w, h) then return x, y end\n    end\n  end\nend\nlocal function clear(x, y, w, h)\n  for _, e in pairs(s.find_entities_filtered { area = { { x, y }, { x + w, y + h } }, type = { \"tree\", \"simple-entity\" } }) do\n    e.destroy()\n  end\nend\nlocal function put(name, x, y, dir, extra)\n  local spec = { name = name, position = { x, y }, direction = dir, force = f }\n  for k, v in pairs(extra or {}) do spec[k] = v end\n  local e = s.create_entity(spec)\n  if not e then error(\"could not place \" .. name .. \" at \" .. x .. \",\" .. y) end\n  return e\nend\nlocal function source(x, y, item) -- an infinity chest that never runs out\n  local c = put(\"infinity-chest\", x, y)\n  c.set_infinity_container_filter(1, { name = item, count = 100, mode = \"exactly\", index = 1 })\n  return c\nend\nlocal N, E, S, W = defines.direction.north, defines.direction.east, defines.direction.south, defines.direction.west\nlocal ox, oy = find(22, 14, 40)\nif not ox then error(\"no free 22x14 area\") end\nclear(ox, oy, 22, 14)\nlocal X, Y = ox + 4, oy + 2\nlocal eei = put(\"electric-energy-interface\", X - 1, Y + 4)\neei.power_production, eei.electric_buffer_size = 2000000, 10000000\nsource(X + 0.5, Y - 1.5, \"copper-plate\")\nput(\"inserter\", X + 0.5, Y - 0.5, N) -- picks from the chest to the north, drops on the copper belt\nsource(X + 0.5, Y + 8.5, \"iron-gear-wheel\")\nput(\"inserter\", X + 0.5, Y + 7.5, S)\nfor i = 0, 13 do\n  put(\"transport-belt\", X + i + 0.5, Y + 0.5, E)\n  put(\"transport-belt\", X + i + 0.5, Y + 6.5, E)\nend\nfor k = 0, 2 do\n  local ax = X + 3.5 + 4 * k\n  local a = put(\"assembling-machine-1\", ax, Y + 3.5)\n  a.set_recipe(\"automation-science-pack\")\n  put(\"inserter\", ax, Y + 1.5, N)\n  put(\"inserter\", ax, Y + 5.5, S)\nend\nfor _, px in pairs { 1.5, 5.5, 9.5 } do\n  put(\"small-electric-pole\", X + px, Y + 1.5)\n  put(\"small-electric-pole\", X + px, Y + 5.5)\nend\n-- the fault: one copper belt turned back against the flow\ns.find_entity(\"transport-belt\", { X + 2.5, Y + 0.5 }).direction = W\nstorage.bench_starved = { area = { { X - 3, Y - 3 }, { X + 16, Y + 10 } }, bad = { X + 2.5, Y + 0.5 } }\nreturn { gx = math.floor(X + 7), gy = math.floor(Y + 3) }\n\nend\nlocal function setup_g()\nlocal s, f = game.surfaces.nauvis, game.forces.player\nlocal W, H, M = 44, 26, 12\nlocal function free(x, y, w, h)\n  local a = { { x, y }, { x + w, y + h } }\n  if s.count_tiles_filtered { area = a, collision_mask = \"water_tile\" } > 0 then return false end\n  return s.count_entities_filtered { area = a, type = { \"tree\", \"simple-entity\", \"resource\", \"corpse\", \"fish\" },\n    invert = true } == 0 and s.count_entities_filtered { area = a, type = \"resource\" } == 0\nend\nlocal function find(w, h, r0)\n  for r = r0, 400, 4 do\n    for _, d in pairs { { 1, 0 }, { 0, 1 }, { -1, 0 }, { 0, -1 }, { 1, 1 }, { -1, 1 }, { 1, -1 }, { -1, -1 } } do\n      local x, y = d[1] * r, d[2] * r\n      if free(x, y, w, h) then return x, y end\n    end\n  end\nend\nlocal fx, fy = find(W + 2 * M, H + 2 * M, 60)\nif not fx then error(\"no free area for the fixture\") end\nlocal X, Y = math.floor(fx) + M, math.floor(fy) + M\nfor _, e in pairs(s.find_entities_filtered { area = { { X - 2, Y - 2 }, { X + W + 2, Y + H + 2 } },\n  type = { \"tree\", \"simple-entity\", \"corpse\", \"fish\", \"item-entity\" } }) do e.destroy() end\nlocal function put(name, x, y, dir)\n  local e = s.create_entity { name = name, position = { X + x, Y + y }, direction = dir, force = f }\n  if not e then error(\"could not place \" .. name .. \" at \" .. x .. \",\" .. y) end\n  return e\nend\nlocal N, S = defines.direction.north, defines.direction.south\nlocal function belt(row) for i = 1, W - 2 do put(\"transport-belt\", i + 0.5, row + 0.5, defines.direction.east) end end\n-- side -1: chest north of the belt (items land on its south lane); side 1: chest south (north lane)\nlocal function source(item, row, side)\n  local c = put(\"infinity-chest\", 1.5, row + 0.5 + 2 * side)\n  c.set_infinity_container_filter(1, { name = item, count = 100, mode = \"exactly\" })\n  put(\"fast-inserter\", 1.5, row + 0.5 + side, side < 0 and N or S)\nend\nlocal e = put(\"electric-energy-interface\", 2, H - 3)\ne.power_production, e.electric_buffer_size = 200000, 20000000\nput(\"small-electric-pole\", 3.5, H - 4.5)\n-- poles up the west edge power the source inserters (same grid as the pole the serf is pointed at)\nfor _, py in pairs { H - 9.5, 10.5, 4.5 } do put(\"small-electric-pole\", 0.5, py) end\nlocal function done(key)\n  storage[key] = { area = { { X - M, Y - M }, { X + W + M, Y + H + M } }, o = { X, Y } }\n  return { bx = X + 1, by = Y + 4, b2y = Y + 10, px = X + 3, py = Y + H - 5, cx = X + 22, cy = Y + 17 }\nend\nbelt(4) source('iron-plate', 4, -1)\nreturn done('bench_gear')\n\nend\nlocal function setup_p()\n-- Shared helpers for the t-* logistics micro scenarios (pasted at the top of each setup_lua by t-logistics-gen.py).\n-- find(w, h): an open w x h area away from the base (no water, ore or buildings; trees and rocks are cleared).\n-- put(name, x, y, dir, extra): create a player-force entity at X+x, Y+y or fail loudly.\nlocal s, f = game.surfaces.nauvis, game.forces.player\nlocal D = defines.direction\nlocal function open(x, y, w, h)\n  local a = { { x, y }, { x + w, y + h } }\n  for _, c in pairs { { x, y }, { x + w, y }, { x, y + h }, { x + w, y + h } } do\n    if not s.is_chunk_generated { math.floor(c[1] / 32), math.floor(c[2] / 32) } then return false end\n  end\n  if s.count_tiles_filtered { area = a, collision_mask = \"water_tile\" } > 0 then return false end\n  if s.count_entities_filtered { area = a, type = \"resource\" } > 0 then return false end\n  return s.count_entities_filtered { area = a, invert = true,\n    type = { \"tree\", \"simple-entity\", \"corpse\", \"fish\", \"item-entity\", \"character\" } } == 0\nend\nlocal function find(w, h, r0)\n  for r = r0 or 50, 260, 6 do\n    for _, d in pairs { { 1, 0 }, { 0, 1 }, { -1, 0 }, { 0, -1 }, { 1, 1 }, { -1, 1 }, { 1, -1 }, { -1, -1 } } do\n      local x, y = d[1] * r, d[2] * r\n      if open(x, y, w, h) then return x, y end\n    end\n  end\n  error(\"no open \" .. w .. \"x\" .. h .. \" area\")\nend\nlocal X, Y\nlocal function clear(x1, y1, x2, y2)\n  for _, e in pairs(s.find_entities_filtered { area = { { x1, y1 }, { x2, y2 } },\n    type = { \"tree\", \"simple-entity\", \"item-entity\", \"corpse\" } }) do e.destroy() end\nend\nlocal function put(name, x, y, dir, extra)\n  local spec = { name = name, position = { X + x, Y + y }, direction = dir, force = f }\n  for k, v in pairs(extra or {}) do spec[k] = v end\n  local e = s.create_entity(spec)\n  if not e then error(\"could not place \" .. name .. \" at \" .. (X + x) .. \",\" .. (Y + y)) end\n  return e\nend\nlocal function grid(x, y) -- an always-on power source with its own pole, like a corner of the main grid\n  local e = put(\"electric-energy-interface\", x, y)\n  e.power_production, e.electric_buffer_size = 100000, 10000000 -- 6 MW\n  return e\nend\nlocal function gps(x, y) return math.floor(X + x) .. \",\" .. math.floor(Y + y) end\n\n-- t-power-line: a block of 4 gear assemblers, wired up inside (its own poles) but not connected to anything, 48\n-- tiles east of a pole on the grid. A 4-wide stream runs north-south between them.\n-- Each assembler: infinity chest of iron plates -> fast inserter -> assembler -> inserter -> a chest that empties itself\n-- (a stand-in for \"the rest of the factory\"), so it keeps working once it has power.\nlocal ox, oy = find(72, 38)\nX, Y = ox + 5, oy + 17\nclear(ox, oy, ox + 72, oy + 38)\nlocal water = {}\nfor x = 20, 23 do for y = -16, 20 do water[#water + 1] = { name = \"water\", position = { X + x, Y + y } } end end\ns.set_tiles(water)\ngrid(0, 0)\nlocal gp = put(\"small-electric-pole\", 1.5, -1.5)\nlocal BX = 46\nfor k = 0, 3 do\n  local x0 = BX + 5 * k\n  local src = put(\"infinity-chest\", x0 + 1.5, -2.5)\n  src.set_infinity_container_filter(1, { name = \"iron-plate\", count = 100, mode = \"at-least\" })\n  put(\"fast-inserter\", x0 + 1.5, -1.5, D.north)\n  local a = put(\"assembling-machine-1\", x0 + 1.5, 0.5)\n  a.set_recipe(\"iron-gear-wheel\")\n  put(\"fast-inserter\", x0 + 1.5, 2.5, D.north)\n  local sink = put(\"infinity-chest\", x0 + 1.5, 3.5)\n  sink.remove_unfiltered_items = true\n  put(\"small-electric-pole\", x0 + 3.5, -1.5)\n  put(\"small-electric-pole\", x0 + 3.5, 2.5)\nend\nstorage.bench_power = { block = { { X + BX - 1, Y - 4 }, { X + BX + 21, Y + 5 } }, pole = gp, X = X, Y = Y }\nreturn { block = gps(BX + 9, 0), pole = gps(1.5, -1.5) }\n\nend\nlocal out = {}\nfor k, v in pairs(setup_d() or {}) do out['d_' .. k] = v end\nfor k, v in pairs(setup_s() or {}) do out['s_' .. k] = v end\nfor k, v in pairs(setup_g() or {}) do out['g_' .. k] = v end\nfor k, v in pairs(setup_p() or {}) do out['p_' .. k] = v end\nreturn out\n",
+ "objectives": [
+  {
+   "name": "d-chest-filled",
+   "minutes": 8,
+   "hold_samples": 1,
+   "goal": "@{agent} I need 20 inserters and 50 transport belts in the chest at [gps={d_gx},{d_gy}].",
+   "answer": "Take them from stock or craft them, your call.",
+   "score": [
+    {
+     "name": "inserters",
+     "target": 20,
+     "lua": "local c=storage.bench_deliver.chest return c.valid and c.get_item_count('inserter') or 0"
+    },
+    {
+     "name": "belts",
+     "target": 50,
+     "lua": "local c=storage.bench_deliver.chest return c.valid and c.get_item_count('transport-belt') or 0"
+    }
+   ],
+   "selftest_lua": "local c=storage.bench_deliver.chest c.insert{name='inserter', count=20} c.insert{name='transport-belt', count=50} return 1",
+   "selftest_wait": 2,
+   "events": [
+    {
+     "after_s": 3,
+     "say": "hey serf how u doin"
+    }
+   ]
+  },
+  {
+   "name": "s-red-running",
+   "minutes": 10,
+   "hold_samples": 2,
+   "goal": "@{agent} red science stopped at [gps={s_gx},{s_gy}]. Can you get it going again?",
+   "answer": "Your call. Just make it run on its own again, no hand-feeding.",
+   "score": [
+    {
+     "name": "red_assemblers_running",
+     "target": 3,
+     "lua": "local function chestfed(a) for _,i in pairs(s.find_entities_filtered{type='inserter', force=f, area={{a.position.x-3,a.position.y-3},{a.position.x+3,a.position.y+3}}}) do if i.drop_target==a then local p=i.pickup_target if p and (p.type=='container' or (p.type=='logistic-container' and p.prototype.logistic_mode~='requester' and p.prototype.logistic_mode~='buffer')) then return true end end end return false end local n=0 for _,e in pairs(s.find_entities_filtered{area=storage.bench_starved.area, name='assembling-machine-1'}) do local r=e.get_recipe() if r and r.name=='automation-science-pack' and (e.status==defines.entity_status.working or e.status==defines.entity_status.full_output) and not chestfed(e) then n=n+1 end end return n"
+    }
+   ],
+   "selftest_lua": "local b=storage.bench_starved.bad s.find_entity('transport-belt', b).direction=defines.direction.east return 1",
+   "selftest_wait": 30,
+   "events": [
+    {
+     "after_s": 20,
+     "say": "@{agent} what are you up to?"
+    }
+   ]
+  },
+  {
+   "name": "g-gear-cell",
+   "minutes": 10,
+   "hold_samples": 1,
+   "goal": "@{agent} There's an iron plate belt starting at [gps={g_bx},{g_by}] and running east, and a power pole at [gps={g_px},{g_py}]. Make gears from it automatically, into a chest, around [gps={g_cx},{g_cy}].",
+   "answer": "Your call on the layout; one assembler is plenty. Power it from that pole.",
+   "score": [
+    {
+     "name": "gears_made",
+     "lua": "local A=storage.bench_gear.area local function fedok(m) local n=0 for _,i in pairs(s.find_entities_filtered{type='inserter',force=f,area={{m.position.x-3,m.position.y-3},{m.position.x+3,m.position.y+3}}}) do if i.drop_target==m then local p=i.pickup_target if p then if p.type=='container' or p.type=='logistic-container' or p.type=='infinity-container' or p.type=='character' then return false end n=n+1 end end end return n>0 end local function made(rn, ty) local t,k=0,0 for _,m in pairs(s.find_entities_filtered{area=A,force=f,type=ty or 'assembling-machine'}) do local r=m.get_recipe() if (ty=='furnace' or (r and r.name==rn)) and fedok(m) then t=t+m.products_finished if m.products_finished>0 then k=k+1 end end end return t,k end local function inchest(item) local t=0 for _,c in pairs(s.find_entities_filtered{area=A,force=f,type={'container','logistic-container'}}) do t=t+c.get_item_count(item) end return t end local t=made('iron-gear-wheel') return t",
+     "target": 40
+    },
+    {
+     "name": "gears_in_chest",
+     "lua": "local A=storage.bench_gear.area local function fedok(m) local n=0 for _,i in pairs(s.find_entities_filtered{type='inserter',force=f,area={{m.position.x-3,m.position.y-3},{m.position.x+3,m.position.y+3}}}) do if i.drop_target==m then local p=i.pickup_target if p then if p.type=='container' or p.type=='logistic-container' or p.type=='infinity-container' or p.type=='character' then return false end n=n+1 end end end return n>0 end local function made(rn, ty) local t,k=0,0 for _,m in pairs(s.find_entities_filtered{area=A,force=f,type=ty or 'assembling-machine'}) do local r=m.get_recipe() if (ty=='furnace' or (r and r.name==rn)) and fedok(m) then t=t+m.products_finished if m.products_finished>0 then k=k+1 end end end return t,k end local function inchest(item) local t=0 for _,c in pairs(s.find_entities_filtered{area=A,force=f,type={'container','logistic-container'}}) do t=t+c.get_item_count(item) end return t end return inchest('iron-gear-wheel')",
+     "target": 30
+    }
+   ],
+   "selftest_lua": "local o=storage.bench_gear.o local X,Y=o[1],o[2] local N,S,E,W=defines.direction.north,defines.direction.south,defines.direction.east,defines.direction.west local function P(n,x,y,d,r) local e=s.create_entity{name=n,position={X+x,Y+y},force=f,direction=d,recipe=r} if not e then error('selftest: could not place '..n..' at '..x..','..y) end return e end P('small-electric-pole',3.5,15.5) P('small-electric-pole',3.5,9.5) P('assembling-machine-2',10.5,7.5,nil,'iron-gear-wheel') P('fast-inserter',10.5,5.5,N) P('fast-inserter',10.5,9.5,N) P('wooden-chest',10.5,10.5) P('small-electric-pole',8.5,9.5) P('small-electric-pole',8.5,5.5) return 'gear cell built'",
+   "selftest_wait": 90,
+   "events": [
+    {
+     "after_s": 40,
+     "say": "nice, thanks for the help earlier"
+    }
+   ]
+  },
+  {
+   "name": "p-power-the-block",
+   "minutes": 8,
+   "hold_samples": 2,
+   "goal": "@{agent} the gear assemblers at [gps={p_block}] have no power. Hook them up to the grid, the nearest pole is at [gps={p_pole}].",
+   "answer": "Small poles are fine. Use the grid pole I pointed at.",
+   "score": [
+    {
+     "name": "assemblers_producing",
+     "lua": "local b=storage.bench_power b.seen=b.seen or {} local n=0 for _,e in pairs(s.find_entities_filtered{area=b.block, name='assembling-machine-1'}) do local p=e.products_finished if p>(b.seen[e.unit_number] or 0) then n=n+1 end b.seen[e.unit_number]=p end return n",
+     "target": 4
+    },
+    {
+     "name": "on_grid",
+     "lua": "local b=storage.bench_power local id=b.pole.valid and b.pole.electric_network_id local n=0 for _,e in pairs(s.find_entities_filtered{area=b.block, name='assembling-machine-1'}) do if id and e.electric_network_id==id then n=n+1 end end return n",
+     "target": 4
+    }
+   ],
+   "selftest_lua": "local b=storage.bench_power local X,Y=b.X,b.Y local D=defines.direction local function put(n,x,y,d,t) for _,e in pairs(s.find_entities_filtered{position={X+x,Y+y},radius=0.9,type={'tree','simple-entity'}}) do e.destroy() end local e=s.create_entity{name=n,position={X+x,Y+y},direction=d,force='player',type=t} if not e then error('selftest: no '..n..' at '..x..','..y) end return e end\nfor _,x in pairs{8.5,15.5,18.5,25.5,32.5,39.5,46.5} do put('small-electric-pole',x,-1.5) end return b.pole.electric_network_id",
+   "selftest_wait": 5
+  }
+ ],
+ "score": []
+}
