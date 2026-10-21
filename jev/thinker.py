@@ -254,7 +254,9 @@ class Thinker:
         steps = args.get("steps") or []
         if not isinstance(steps, list) or not all(isinstance(s, dict) and s.get("do") for s in steps):
             return "rejected: steps must be a list of objects with a 'do' op"
-        if self.lint_fn and not args.get("force") and self.lint_rounds < 2:
+        # force skips the checker only after it has reported something this turn: a first submission is always
+        # checked (Opus had taken to forcing big parts unchecked, and one ran a belt through a crash-site wreck)
+        if self.lint_fn and self.lint_rounds < 2 and (not args.get("force") or self.lint_rounds == 0):
             try:
                 problems = await self.lint_fn(args)
             except Exception as e:  # noqa: BLE001
