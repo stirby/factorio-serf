@@ -469,6 +469,14 @@ class Actor:
                     fl = [f for f in w.faults() if f["kind"] in self.WATCH_KINDS and f.get("fixes") and f.get("u")
                           and abs(f["at"][0] - wt["at"][0]) <= wt["radius"] and abs(f["at"][1] - wt["at"][1]) <= wt["radius"]
                           and not (f["kind"] == "output_full" and f["fixes"][0].get("do") == "take")]
+                    # the grid powering what it built running out of boiler fuel: keep the lights on (wherever the
+                    # boilers are)
+                    dark = [f for f in w.faults() if f["kind"] == "boiler_fuel" and f.get("boilers")]
+                    if dark and not fl:
+                        self.log({"kind": "watch_power", "at": wt["at"], "what": dark[0]["text"]})
+                        await self.say(f"noticed: {dark[0]['text']}. refuelling them")
+                        await self._refuel_grid(w, dark[0]["grid"])
+                        continue
                     found = fl[0]["text"] if fl else None
                     if not found and wt["what"] and time.time() - wt.get("warned", 0) > 600:
                         # a condition the planner asked to watch, judged by Jev: tell the players, don't act on it
@@ -1166,10 +1174,15 @@ class Actor:
                 f"Still broken: " + "; ".join(f["text"] for f, _ in left[:10]))
 
     async def _refuel_grid(self, w: World, grid_id) -> bool:
-        boilers = [e for e in w.of_type("boiler") if sum((e.get("fuel") or {}).values()) < 5]
+        """Fill the grid's boilers that are low (the scan says where, even outside the area looked at). A boiler at
+        full load burns ~0.45 coal/s, so they get a full stack (50), not the usual 20."""
+        g = w.grids.get(grid_id) or {}
+        at = [tuple(b) for b in g.get("boilers_low_at") or []]
+        if not at:
+            at = [(e["x"], e["y"]) for e in w.of_type("boiler") if sum((e.get("fuel") or {}).values()) < 5]
         ok = True
-        for b in boilers:
-            r = await self.runner.run({"do": "refuel", "x": b["x"], "y": b["y"]})
+        for x, y in at:
+            r = await self.runner.run({"do": "refuel", "x": x, "y": y, "count": 50, "stock": 50 * len(at)})
             ok = ok and bool(r.get("ok"))
         return ok
 

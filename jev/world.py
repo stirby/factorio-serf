@@ -476,7 +476,9 @@ class World:
         for g in self.grids.values():
             cap, used = g.get("cap_w") or 0, g.get("used_w") or 0
             if g.get("boilers_low_fuel"):
-                out.append({"kind": "boiler_fuel", "grid": g["id"], "at": self.center,
+                at = g.get("boilers_low_at") or []
+                out.append({"kind": "boiler_fuel", "grid": g["id"], "at": tuple(at[0]) if at else self.center,
+                            "boilers": [tuple(b) for b in at],
                             "text": f"grid {g['id']}: {g['boilers_low_fuel']} of {g['boilers']} boilers low on fuel",
                             "fixes": [{"do": "refuel_boilers", "grid": g["id"], "text": "refuel the boilers",
                                        "done": "refuelled the boilers"}]})

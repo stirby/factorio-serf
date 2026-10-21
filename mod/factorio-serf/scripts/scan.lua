@@ -154,7 +154,7 @@ local function grid(pole)
     made = made + st.get_flow_count { name = name, category = "output",
       precision_index = defines.flow_precision_index.five_seconds, count = false } * 60
   end
-  local cap, gens, boilers, low = 0, {}, 0, 0
+  local cap, gens, boilers, low, low_at = 0, {}, 0, 0, {}
   local seen = {}
   for _, g in pairs(pole.surface.find_entities_filtered { force = pole.force, type = GENERATORS }) do
     if g.electric_network_id == id then
@@ -172,14 +172,17 @@ local function grid(pole)
             seen[b.unit_number] = true
             boilers = boilers + 1
             local fuel = b.get_fuel_inventory()
-            if not (fuel and fuel.get_item_count() >= 5) then low = low + 1 end
+            if not (fuel and fuel.get_item_count() >= 5) then
+              low = low + 1
+              if #low_at < 12 then low_at[#low_at + 1] = { b.position.x, b.position.y } end
+            end
           end
         end
       end
     end
   end
   return { id = id, used_w = math.floor(used), made_w = math.floor(made), cap_w = math.floor(cap), gens = gens,
-    boilers = boilers, boilers_low_fuel = low }
+    boilers = boilers, boilers_low_fuel = low, boilers_low_at = #low_at > 0 and low_at or nil }
 end
 
 -- req: center {x,y} (default the agent), radius (default 24, max 96), agent (for the default center)

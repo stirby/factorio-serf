@@ -148,6 +148,15 @@ def test_upgrade_map():
     check("upgrade: nothing goes down a tier", upgrade_map("transport-belt") == {})
 
 
+def test_boiler_fault_positions():
+    w = World({"ents": [], "center": [0, 0], "radius": 20,
+               "grids": [{"id": 3, "cap_w": 0, "used_w": 0, "boilers": 2, "boilers_low_fuel": 2,
+                          "boilers_low_at": [[40.5, 2.0], [40.5, 6.0]]}]})
+    f = next((x for x in w.faults() if x["kind"] == "boiler_fuel"), None)
+    check("world: low boilers carry their positions", f and f["boilers"] == [(40.5, 2.0), (40.5, 6.0)]
+          and f["at"] == (40.5, 2.0), f)
+
+
 def test_router_cross():
     # two lines that must cross: west->east and north->south on an open grid
     g = Grid(set(), (0, 0, 10, 10))
