@@ -205,3 +205,24 @@ async def trouble(jev: Jev, conditions: list[str], area: dict) -> list[float]:
     qs = {f"w{i}": noul(f"Does `area` show this problem: {c}?") for i, c in enumerate(conditions[:20])}
     a = await jev.ask({"area": area}, qs, kind="watch")
     return [a[f"w{i}"].p for i in range(len(qs))]
+
+
+async def research(jev: Jev, order: str, techs: list) -> tuple[str | None, float]:
+    """Which of the techs that can be researched now (names, or the techs call's dicts with what they unlock) does
+    `order` ask for (None: none of them, or not a research order)? Returns the tech and its probability."""
+    opts = {}
+    for t in techs[:240]:
+        name = t if isinstance(t, str) else t["name"]
+        un = [] if isinstance(t, str) else (t.get("unlocks") or [])
+        opts[name] = name.replace("-", " ") + (f" (unlocks {', '.join(u.replace('-', ' ') for u in un[:4])})"
+                                               if un else "")
+    opts["none_of_these"] = "the order doesn't ask to research one of these (another tech, several, or 'whatever helps')"
+    a = await jev.ask({"order": order}, {
+        "tech": choice("Which research does `order` ask to start?", opts),
+        "is_research": noul("Does `order` ask to start or queue a research (a technology)?"),
+        "several": noul("Does `order` ask for two or more different researches?"),
+    }, kind="research")
+    t = a["tech"].choice
+    if t == "none_of_these" or a["is_research"].p < 0.7 or a["several"].p >= 0.5:
+        return None, 0.0
+    return t, float(a["tech"].probs.get(t) or 0)

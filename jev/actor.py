@@ -326,6 +326,10 @@ class Actor:
                 return True
             return await self._planned(o, f"New order from {o.speaker}: \"{o.text}\"\n\nThe actor tried the belt "
                                           f"router itself: {r}")
+        if re.search(r"\b(research|tech|unlock)", o.text, re.I) and not o.points:
+            r = await self._quick_research(o)
+            if r:
+                return True
         if len(o.points) >= 2 and self.quick_build:
             r = await self._quick_belt(o)
             if r is True:
@@ -421,6 +425,27 @@ class Actor:
             report = vreport
         o.history.append(report)
         return f"it tried: {plan['goal']}. {report}"
+
+    async def _quick_research(self, o: Order) -> bool:
+        """"Research X": code lists what can be researched now, Jev picks the one the order names, code queues it."""
+        try:
+            t = await self.g.call("techs", agent=self.name)
+            techs = [x for x in t.get("available") or [] if x.get("name")]
+            if not techs:
+                return False
+            tech, p = await decide.research(self.jev, o.text, techs)
+            self.log({"kind": "quick_research", "order": o.id, "tech": tech, "p": round(p, 3)})
+            if not tech or p < 0.7:
+                return False
+            r = await self.runner.run({"do": "research", "tech": tech, "fallback": False})
+            if not r.get("ok"):
+                return False
+            self.metrics["fast_path"] += 1
+            await self.say(f"queued research: {tech.replace('-', ' ')}")
+            return True
+        except Exception as e:  # noqa: BLE001
+            self.log({"kind": "error", "where": "quick_research", "error": repr(e)})
+            return False
 
     async def _quick_belt(self, o: Order) -> bool | str | None:
         """Belt items from one named place to another (jev/quickbelt.py): Jev says it's that kind of order, code
