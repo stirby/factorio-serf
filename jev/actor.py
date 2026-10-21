@@ -352,8 +352,11 @@ class Actor(FastPaths):
             r = await self._deliver(o)
             if r is True:
                 return True
-            return await self._planned(o, f"New order from {o.speaker}: \"{o.text}\"\n\nThe actor tried to deliver it "
-                                          f"itself and couldn't: {r}")
+            # no items it could read ("steel from [gps] pls, 3 furnaces, into a chest" is a build): the other fast
+            # paths get a look before the planner
+            if r != "couldn't tell which items":
+                return await self._planned(o, f"New order from {o.speaker}: \"{o.text}\"\n\nThe actor tried to "
+                                              f"deliver it itself and couldn't: {r}")
         pairs = PAIR.findall(o.text)
         if len(pairs) >= 2:
             # an order that lists belt start/end pairs: the router lays them all, no planning needed

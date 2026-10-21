@@ -219,8 +219,10 @@ class FastPaths:
         pts = [(e["x"], e["y"]) for e in unit] or prev.built_pts + [prev.focus]
         xs, ys = [q[0] for q in pts], [q[1] for q in pts]
         box = (min(xs) - 1, min(ys) - 1, max(xs) + 1, max(ys) + 1)
-        ds = quickcopy.offsets(prev.points, o.points, spacing=min(box[2] - box[0], box[3] - box[1]) - 4)
+        # (at least 2: a one-row build's box is about 4 across, and 0 switched the one-point copy off)
+        ds = quickcopy.offsets(prev.points, o.points, spacing=max(2, min(box[2] - box[0], box[3] - box[1]) - 4))
         if not ds:
+            self.log({"kind": "quickcopy_skip", "order": o.id, "from_order": prev.id, "why": "points don't match"})
             return None
         try:
             p = await quickcopy.read_order(self.jev, o.text)
