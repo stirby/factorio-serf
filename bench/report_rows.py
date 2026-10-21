@@ -37,7 +37,7 @@ def serf():
         if r.get("success"):
             b["min"].append(round((r.get("elapsed_s") or 0) / 60, 1))
         b["cost"].append(r.get("cost_usd") or 0)
-    for f in SERFBASE.glob("*.log"):
+    for f in list(SERFBASE.glob("*.log")) + list(SERFBASE.with_name("serfbase2").glob("*.log")):
         m = [l for l in f.read_text().splitlines() if l.startswith('{"run_id"')]
         if not m:
             continue
