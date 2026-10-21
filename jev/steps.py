@@ -168,6 +168,13 @@ class Runner:
             if s.get(k) is not None:
                 a[k] = s[k]
         r = await self._act(a)
+        msg = str(r.get("msg") or "")
+        if not r.get("ok") and f"entity-ghost@{p[0]:g},{p[1]:g}" in msg.replace(".0,", ",").replace(".0;", ";"):
+            # a plan of ours (or a player's) already marks this spot: build that ghost instead
+            r = await self._act({"op": "build_ghosts", "x": p[0], "y": p[1], "radius": 1.5})
+        elif not r.get("ok") and "character@" in msg:
+            await self._act({"op": "move", "x": p[0] + 4, "y": p[1] + 4, "radius": 1})
+            r = await self._act(a)
         if r.get("ok") and s.get("recipe"):
             r2 = await self._act({"op": "set_recipe", "x": p[0], "y": p[1], "recipe": s["recipe"]})
             if not r2.get("ok"):
@@ -225,7 +232,9 @@ class Runner:
         return await self._act(a)
 
     async def _do_empty_chest(self, s):
-        return await self._do_take({"x": s["x"], "y": s["y"]})
+        """Make room in a full chest: take part of it (enough to unblock what feeds it, without filling the pocket
+        with junk like stone)."""
+        return await self._do_take({"x": s["x"], "y": s["y"], "count": int(s.get("count", 100))})
 
     async def _do_refuel(self, s):
         p = _xy(s)
@@ -330,7 +339,27 @@ class Runner:
                                    f"{legs} leg(s)"}
 
     async def _do_research(self, s):
-        return await self._act({"op": "research", "tech": s["tech"], **({"first": True} if s.get("first") else {})})
+        """Queue a tech. tech="cheapest" (or a trigger/finished tech that fails) picks the cheapest lab tech whose
+        packs are all in `packs` (default red and green)."""
+        tech = s.get("tech") or "cheapest"
+        if tech != "cheapest":
+            r = await self._act({"op": "research", "tech": tech, **({"first": True} if s.get("first") else {})})
+            if r.get("ok") or not s.get("fallback", True):
+                return r
+            first_msg = r.get("msg")
+        else:
+            first_msg = None
+        t = await self.g.call("techs", agent=self.g.name)
+        packs = set(s.get("packs") or ["automation-science-pack", "logistic-science-pack"])
+        cands = [x for x in (t.get("available") or []) if x.get("units") and set(x.get("packs") or []) <= packs]
+        cands.sort(key=lambda x: (x["units"] * len(x.get("packs") or []), x["name"]))
+        for c in cands[:3]:
+            r = await self._act({"op": "research", "tech": c["name"]})
+            if r.get("ok"):
+                r["msg"] = (f"{tech}: {first_msg}; queued {c['name']} instead" if first_msg else
+                            f"queued {c['name']} ({c['units']} units)")
+                return r
+        return {"ok": False, "msg": first_msg or "no lab tech available with those packs"}
 
     async def _do_wait(self, s):
         await asyncio.sleep(min(float(s.get("seconds", 5)), 120))

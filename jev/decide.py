@@ -161,3 +161,12 @@ async def scope(jev: Jev, order: str) -> float:
         "Does `order` talk about several separate setups or places spread over a wide area (e.g. 'all my furnace "
         "setups around here', 'they're spread out'), rather than one spot?")}, kind="scope")
     return a["wide"].p
+
+
+async def changes_plan(jev: Jev, doing: str, message: str) -> float:
+    """Probability the message asks to change how/where the current job is done (so the plan must change)."""
+    a = await jev.ask({"current_job": doing, "message": message}, {"change": noul(
+        "Does `message` ask to change how, where or what is being built for `current_job` (a different place, "
+        "side, item, amount or method), rather than just commenting, encouraging or asking for status?")},
+        kind="changes_plan")
+    return a["change"].p

@@ -47,6 +47,7 @@ class Order:
     plans: int = 0
     history: list[str] = field(default_factory=list)
     speaker_at: tuple | None = None
+    interrupt: str | None = None  # a player correction that should stop the running plan
 
     @property
     def focus(self):
@@ -173,6 +174,15 @@ class Actor:
             self.current.notes.append(f"{speaker}: {msg}")
             if self.thinker and self.current.status == "thinking":
                 self.thinker.ask(Request("report", f"The player added: \"{msg}\"", self.current.id))
+            elif self.current.status == "working" and kind == "more_info":
+                try:
+                    p = await decide.changes_plan(self.jev, self.current.text, msg)
+                except JevError:
+                    p = 0.0
+                self.log({"kind": "changes_plan", "order": self.current.id, "p": round(p, 3)})
+                if p >= 0.6:
+                    self.current.interrupt = f"{speaker}: {msg}"
+                    await self.g.cancel("player changed the job")
         elif kind == "stop":
             if self.current:
                 self.current.status = "cancelled"
@@ -342,7 +352,23 @@ class Actor:
         async def say(a):
             await self.say(str(a.get("text", "")))
             return "said"
-        return {"area": area, "find": find, "recipe": recipe, "free_space": free_space, "me": me, "say": say}
+
+        async def techs(a):
+            t = await self.g.call("techs", agent=self.name)
+            try:
+                w = await self.g.call("world", agent=self.name)
+                t = {"researching": w.get("research"), "queue": w.get("research_queue"), **t}
+            except Exception:  # noqa: BLE001
+                pass
+            return json.dumps(t, separators=(",", ":"))[:8000]
+        async def production(a):
+            return json.dumps(await self.g.call("production", agent=self.name), separators=(",", ":"))[:6000]
+
+        async def diagnose(a):
+            return json.dumps(await self.g.call("diagnose", item=a.get("item", "iron-plate"), surface="nauvis"),
+                              separators=(",", ":"))[:8000]
+        return {"area": area, "find": find, "recipe": recipe, "free_space": free_space, "me": me, "say": say,
+                "techs": techs, "production": production, "diagnose": diagnose}
 
     async def _lint(self, plan: dict) -> list[str]:
         pts = plan_points(plan.get("steps") or [])
@@ -441,16 +467,25 @@ class Actor:
         """Thinker plans, actor runs, code/Jev verify; failures and misses go back to the thinker (up to 4 plans)."""
         text = intro + "\n" + self._order_context(o)
         if o.focus:
-            try:
-                w = await self.world(o.focus, 20)
-                s = w.summary(coords=True)
-                fl = w.faults()
-                if fl:
-                    s["faults"] = [f["text"] for f in fl[:12]]
-                text += "\n\nArea around the first point (radius 20), so you can usually plan right away:\n" + \
-                    json.dumps(s, separators=(",", ":"))[:12000]
-            except Exception as e:  # noqa: BLE001
-                text += f"\n(area read failed: {e!r})"
+            # the area around each point the order names (far-apart ones get their own summary), so the thinker can
+            # usually plan without a look of its own
+            pts = []
+            for p in o.points:
+                if all(abs(p[0] - q[0]) > 24 or abs(p[1] - q[1]) > 24 for q in pts):
+                    pts.append(p)
+            pts = pts[:3]
+            budget = 12000 if len(pts) == 1 else 7000
+            for p in pts:
+                try:
+                    w = await self.world(p, 20 if len(pts) == 1 else 15)
+                    sm = w.summary(coords=True)
+                    fl = w.faults()
+                    if fl:
+                        sm["faults"] = [f["text"] for f in fl[:12]]
+                    text += (f"\n\nArea around {fmt_xy(p)} (radius {20 if len(pts) == 1 else 15}):\n" +
+                             json.dumps(sm, separators=(",", ":"))[:budget])
+                except Exception as e:  # noqa: BLE001
+                    text += f"\n(area read at {fmt_xy(p)} failed: {e!r})"
         me = await self.g.me()
         text += f"\n\nThe character is at {fmt_xy(me.get('position') or (0, 0))}, carrying {items_words(me.get('inventory'), 12)}."
         try:
@@ -505,6 +540,11 @@ class Actor:
         for i, st in enumerate(steps):
             if o.status == "cancelled":
                 return False, "cancelled"
+            if o.interrupt:
+                note, o.interrupt = o.interrupt, None
+                await self.say("ok, changing it")
+                return False, (f"The player changed the job while it was running ({len(done)} steps done): "
+                               f"\"{note}\". Steps done so far:\n" + "\n".join(done[-15:]))
             tries = 0
             while True:
                 tries += 1

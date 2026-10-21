@@ -37,7 +37,7 @@ Step ops (each step is an object {{"do": op, ...}}):
   refuel x y [fuel]                         put fuel into a burner (fetches coal)
   power x y [from=[x,y]] [item]             run poles from the nearest powered pole (or from) to x,y
   fetch item count | craft recipe count | mine name count | mine_at x y (pick up one entity)
-  research tech | move x y | follow player [seconds] | wait seconds | say text
+  research tech (or tech="cheapest") | move x y | follow player [seconds] | wait seconds | say text
   configure x y requests={{..}}|filter=item | limit x y slots
 
 Geometry: tile (x,y) spans x..x+1. 1x1 and 3x3 entities sit at .5 centers (e.g. 10.5,4.5); 2x2 entities at integer corners (e.g. 10,4). An assembling machine is 3x3, stone/steel furnace 2x2, electric mining drill 3x3 (drops one tile in front, the direction it faces), burner drill 2x2, boiler 3x2, steam engine 3x5, small pole reaches wires 7.5 tiles and powers a 5x5 area, medium pole 9 tiles / 7x7. Inserters move items from the tile on one side to the tile on the opposite side; belts carry two lanes; a yellow belt carries 15 items/s. An inserter taking from a belt and dropping into a machine needs the machine's edge right next to it. Underground belts: max 4 tiles between entrance and exit for yellow.
@@ -69,6 +69,13 @@ TOOLS = [
      {"type": "object", "properties": {"w": {"type": "integer"}, "h": {"type": "integer"}, "x": {"type": "number"},
                                        "y": {"type": "number"}}, "required": ["w", "h", "x", "y"]}),
     ("me", "The character: position, inventory, current job.", {"type": "object", "properties": {}}),
+    ("production", "Items per minute made and used by the whole base (last minute), biggest first.",
+     {"type": "object", "properties": {}}),
+    ("diagnose", "Why an item or fluid is short across the base: made vs used per minute, and every machine that makes "
+                 "or uses it grouped by state (working, starved of X, output full, no power...) with positions.",
+     {"type": "object", "properties": {"item": {"type": "string"}}, "required": ["item"]}),
+    ("techs", "Research: what's being researched, the queue, and what can be researched next with its packs "
+              "(trigger techs say what unlocks them instead).", {"type": "object", "properties": {}}),
     ("save_design", "Save a layout to reuse with a {\"do\": \"design\", \"name\", \"x\", \"y\"} step: entities "
                     "relative to an anchor at 0,0 (an integer tile corner; keep .5 centers as .5). Use it when an "
                     "order asks for the same thing more than once, or for something worth repeating.",

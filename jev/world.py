@@ -450,6 +450,13 @@ class World:
                     out.append({"kind": "starved", "u": e["u"], "at": pos,
                                 "text": f"{self.name(e['u'])} at {fmt_xy(pos)} is missing {', '.join(ms.get('missing', []))}: "
                                         + "; ".join(ms["why"]), "fixes": []})
+        # 2b. labs with nothing to research
+        labs = [e for e in self.ents.values() if e["t"] == "lab" and e.get("s") == "no_research_in_progress"]
+        if labs:
+            out.append({"kind": "no_research", "u": labs[0]["u"], "at": (labs[0]["x"], labs[0]["y"]),
+                        "text": f"{len(labs)} lab(s) idle: no research in progress",
+                        "fixes": [{"do": "research", "tech": "cheapest", "text": "queue the cheapest research the "
+                                                                              "labs can do"}]})
         # 3. power grids that can't keep up
         for g in self.grids.values():
             cap, used = g.get("cap_w") or 0, g.get("used_w") or 0
