@@ -365,7 +365,15 @@ class Actor:
             self.log({"kind": "quickbuild", "order": o.id, "options": sorted(opts)[:40],
                       **{k: (round(v, 3) if isinstance(v, float) else v) for k, v in r.items()}})
             far = any(math.hypot(q[0] - o.focus[0], q[1] - o.focus[1]) > 40 for q in o.points)
-            if not quickbuild.accept(r, far):
+            # "...and send the plates on a belt to the chest at [gps]": the row puts its output on a belt, and the
+            # belt fast path takes that belt on to the named place
+            away = [q for q in o.points if math.hypot(q[0] - o.focus[0], q[1] - o.focus[1]) > 12]
+            send_to = None
+            if (r["elsewhere"] >= 0.6 and away and r["chain"] < 0.4 and r["product_p"] >= 0.55
+                    and r["product"] not in (None, "none_of_these")):
+                send_to = max(away, key=lambda q: math.hypot(q[0] - o.focus[0], q[1] - o.focus[1]))
+                r["output"] = "belt"
+            elif not quickbuild.accept(r, far):
                 return None
             opt = opts[r["product"]]
             if r["output"] == "belt" and len(opt["lines"]) == 2:
@@ -382,15 +390,22 @@ class Actor:
                 bad = [x for x in ents if (e := w.at(x["x"], x["y"])) is not None and e["u"] > 0]
                 if not bad and not any(w.off_view(x["x"], x["y"]) for x in ents):
                     step["side"] = side
-                    layout = (step, ents)
+                    layout = (step, ents, info)
                     break
             if not layout:
                 self.log({"kind": "quickbuild_skip", "order": o.id, "why": "no free spot along the belt"})
                 return None
+            dst = None
+            if send_to:
+                end = layout[2].get("output_belt_end")
+                dst = end and quickbelt.sink(await self.world(send_to, 16), send_to, end)
+                self.log({"kind": "quickbuild_send", "order": o.id, "from": end, "to": dst})
+                if not dst:
+                    return None
         except Exception as e:  # noqa: BLE001
             self.log({"kind": "error", "where": "quickbuild", "error": repr(e)})
             return None
-        step, ents = layout
+        step, ents, info = layout
         machines = [x for x in ents if x["name"] == opt["machine"]]
         xs, ys = [m["x"] for m in machines], [m["y"] for m in machines]
         center = [(min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2]
@@ -406,7 +421,30 @@ class Actor:
         plan = {"goal": f"{what} off the belt at {fmt_xy(step['belt'])}, "
                         f"{'into chests' if step['output'] == 'chest' else 'onto an output belt'}",
                 "steps": [step], "expect": expect}
+        if dst:
+            end = info["output_belt_end"]
+            plan["steps"] += [{"do": "connect", "item": "transport-belt", "from": end, "to": dst["to"]}]
+            plan["steps"] += self._delivery_steps(dst, r["product"])
+            plan["expect"].append({"check": "belt_carries", "x": dst["to"][0], "y": dst["to"][1],
+                                   "item": r["product"]})
+            plan["goal"] += f", belted on to {dst['what']}"
+            what += f", belted to {dst['what']}"
         return await self._run_quick(o, plan, what)
+
+    def _delivery_steps(self, dst: dict, item: str) -> list[dict]:
+        """What goes at a belt's far end (quickbelt.sink): an inserter into the machine or chest when there isn't one
+        (burner for fuel without power nearby, else electric and powered)."""
+        if dst["kind"] != "new_inserter":
+            return []
+        ins = dict(dst["inserter"])
+        if not dst.get("electric") and item not in ("coal", "wood", "solid-fuel"):
+            ins["name"] = "inserter"  # a burner inserter moving non-fuel would starve: power it instead
+        steps = [{"do": "place", **ins}]
+        if ins["name"] == "burner-inserter":
+            steps.append({"do": "refuel", "x": ins["x"], "y": ins["y"], "count": 5})
+        elif not dst.get("electric"):
+            steps.append({"do": "power", "x": ins["x"], "y": ins["y"], "radius": 1})
+        return steps
 
     async def _run_quick(self, o: Order, plan: dict, what: str) -> bool | str:
         """Run and check a plan the actor made itself; a string says what happened if it didn't work."""
@@ -466,16 +504,7 @@ class Actor:
             self.log({"kind": "error", "where": "quickbelt", "error": repr(e)})
             return None
         steps = [{"do": "connect", "item": "transport-belt", "from": ep["from"], "to": ep["to"]}]
-        if ep["kind"] == "new_inserter":
-            ins = dict(ep["inserter"])
-            fuel = ep["item"] in ("coal", "wood", "solid-fuel")
-            if not ep.get("electric") and not fuel:
-                ins["name"] = "inserter"  # a burner inserter moving non-fuel would starve: power it instead
-            steps.append({"do": "place", **ins})
-            if ins["name"] == "burner-inserter":
-                steps.append({"do": "refuel", "x": ins["x"], "y": ins["y"], "count": 5})
-            elif not ep.get("electric"):
-                steps.append({"do": "power", "x": ins["x"], "y": ins["y"], "radius": 1})
+        steps += self._delivery_steps(ep, ep["item"])
         word = ep["item"].replace("-", " ")
         plan = {"goal": f"a belt carrying {word} from {ep['from'][0]:g},{ep['from'][1]:g} to {ep['what']}",
                 "steps": steps, "expect": [{"check": "belt_carries", "x": ep["to"][0], "y": ep["to"][1],
