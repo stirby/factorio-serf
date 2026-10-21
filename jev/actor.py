@@ -49,6 +49,7 @@ class Order:
     speaker_at: tuple | None = None
     interrupt: str | None = None  # a player correction that should stop the running plan
     watch_what: list | None = None  # trouble the planner wants watched for after it's done
+    next_plan: dict | None = None  # a revised plan that arrived while the old one was running
 
     @property
     def focus(self):
@@ -486,6 +487,13 @@ class Actor:
         fut = self._plan_waiters.pop(oid, None) if oid is not None else None
         if fut and not fut.done():
             fut.set_result(plan)
+        elif (oid is not None and self.current and self.current.id == oid and self.current.status == "working"
+              and not plan.get("no_plan") and plan.get("steps")):
+            # the planner revised the plan (e.g. after a correction) while the old one runs: switch at the next step
+            self.current.next_plan = plan
+            self.current.interrupt = "the planner revised the plan"
+            self.log({"kind": "plan_swap", "order": oid})
+            await self.g.cancel("plan revised")
 
     async def _prefetch(self, o: Order) -> None:
         """While the thinker plans a new order: Jev guesses the kind of build, code fetches that kit from storage
@@ -589,7 +597,10 @@ class Actor:
         for attempt in range(4):
             if o.status == "cancelled":
                 return False
-            plan = await self._ask_plan(o, text)
+            if o.next_plan:
+                plan, o.next_plan = o.next_plan, None
+            else:
+                plan = await self._ask_plan(o, text)
             o.plans += 1
             self.metrics["plans"] += 1
             if not plan:

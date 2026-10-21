@@ -431,9 +431,8 @@ class World:
                         c = self.ents[du]
                         fx.append({"do": "empty_chest", "x": c["x"], "y": c["y"],
                                    "text": f"empty the full chest {self.name(du)} at {fmt_xy((c['x'], c['y']))}"})
-                if not fx:
-                    fx.append({"do": "take", "x": e["x"], "y": e["y"],
-                               "text": f"take the finished items out of {self.name(e['u'])}"})
+                # no full chest behind it: a machine whose output nothing takes away is usually full on purpose
+                # (a mall, a buffer). Don't offer to take a player's products; the planner can decide.
                 out.append({"kind": "output_full", "u": e["u"], "at": pos,
                             "text": f"{self.name(e['u'])} at {fmt_xy(pos)} stopped: its output is full", "fixes": fx})
             elif st in ("no_power", "not_plugged_in_electric_network") or (e.get("pw") or "").startswith("no power"):

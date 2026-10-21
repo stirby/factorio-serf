@@ -186,10 +186,13 @@ async def run(a) -> dict:
                 continue
             sc = Scorer(sg, ob["score"])
             sc.set_baseline(await sc.sample())
-            goal = fill(ob["goal"], setup)
+            goal = fill(ob.get("goal") or "", setup)
             answer["text"], answer["n"] = fill("@{agent} " + (ob.get("answer") or "Your call."), setup), 0
             ts = time.time()
-            await g.call("chat", player="ops", message=goal)
+            if goal:  # an objective without a goal line: nobody says anything (e.g. the agent should notice)
+                await g.call("chat", player="ops", message=goal)
+            # timed events during the objective: {"after_s": 30, "say": "..."} or {"after_s": 30, "lua": "..."}
+            pending = sorted((dict(e) for e in ob.get("events") or []), key=lambda e: e.get("after_s", 0))
             jsonl(d / "timeline.jsonl", {"t": ts, "event": "objective", "name": ob["name"], "text": goal})
             print(f"bench: objective {ob['name']}: {goal}", flush=True)
             limit = min(ts + ob.get("minutes", 30) * 60, deadline)
@@ -198,6 +201,14 @@ async def run(a) -> dict:
             idle_since = None
             while time.time() < limit and not stop.is_set():
                 now = time.time()
+                while pending and now - ts >= pending[0].get("after_s", 0):
+                    ev = pending.pop(0)
+                    if ev.get("say"):
+                        await g.call("chat", player="ops", message=fill(ev["say"], setup))
+                    if ev.get("lua"):
+                        await g.call("eval", code=chunk(fill(ev["lua"], setup)), timeout=60)
+                    jsonl(d / "timeline.jsonl", {"t": now, "event": "event", "objective": ob["name"], **ev})
+                    print(f"bench: event at {now - ts:.0f}s: {ev.get('say') or ev.get('lua', '')[:80]}", flush=True)
                 busy = any(o.status in ("new", "working", "thinking") for o in actor.orders)
                 idle_since = None if busy else (idle_since or now)
                 if now >= next_sample:
@@ -213,7 +224,7 @@ async def run(a) -> dict:
                     if held >= need:
                         ok = True
                         break
-                    if idle_since and now - idle_since > 45 and now - nudged > 180:
+                    if goal and idle_since and now - idle_since > 45 and now - nudged > 180:
                         nudged = now
                         short = sc.short(smp)
                         await g.call("chat", player="ops", message=f"@serf not done yet: {short}. Keep going on it."

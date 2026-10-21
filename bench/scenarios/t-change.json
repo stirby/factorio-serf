@@ -1,0 +1,35 @@
+{
+ "name": "t-change",
+ "stage": "stage-s3-steel-oil-ready",
+ "minutes": 12,
+ "agents": 1,
+ "kind": "directive",
+ "group": "production",
+ "note": "Behaviour (mid-job correction): t-gear-cell, but 25 s after the order the player changes it: the chest goes north of the iron belt instead of south. Met = 10+ gears in a chest north of the belt (made by a belt-fed assembler).",
+ "setup_lua": "local s, f = game.surfaces.nauvis, game.forces.player\nlocal W, H, M = 44, 26, 12\nlocal function free(x, y, w, h)\n  local a = { { x, y }, { x + w, y + h } }\n  if s.count_tiles_filtered { area = a, collision_mask = \"water_tile\" } > 0 then return false end\n  return s.count_entities_filtered { area = a, type = { \"tree\", \"simple-entity\", \"resource\", \"corpse\", \"fish\" },\n    invert = true } == 0 and s.count_entities_filtered { area = a, type = \"resource\" } == 0\nend\nlocal function find(w, h, r0)\n  for r = r0, 400, 4 do\n    for _, d in pairs { { 1, 0 }, { 0, 1 }, { -1, 0 }, { 0, -1 }, { 1, 1 }, { -1, 1 }, { 1, -1 }, { -1, -1 } } do\n      local x, y = d[1] * r, d[2] * r\n      if free(x, y, w, h) then return x, y end\n    end\n  end\nend\nlocal fx, fy = find(W + 2 * M, H + 2 * M, 60)\nif not fx then error(\"no free area for the fixture\") end\nlocal X, Y = math.floor(fx) + M, math.floor(fy) + M\nfor _, e in pairs(s.find_entities_filtered { area = { { X - 2, Y - 2 }, { X + W + 2, Y + H + 2 } },\n  type = { \"tree\", \"simple-entity\", \"corpse\", \"fish\", \"item-entity\" } }) do e.destroy() end\nlocal function put(name, x, y, dir)\n  local e = s.create_entity { name = name, position = { X + x, Y + y }, direction = dir, force = f }\n  if not e then error(\"could not place \" .. name .. \" at \" .. x .. \",\" .. y) end\n  return e\nend\nlocal N, S = defines.direction.north, defines.direction.south\nlocal function belt(row) for i = 1, W - 2 do put(\"transport-belt\", i + 0.5, row + 0.5, defines.direction.east) end end\n-- side -1: chest north of the belt (items land on its south lane); side 1: chest south (north lane)\nlocal function source(item, row, side)\n  local c = put(\"infinity-chest\", 1.5, row + 0.5 + 2 * side)\n  c.set_infinity_container_filter(1, { name = item, count = 100, mode = \"exactly\" })\n  put(\"fast-inserter\", 1.5, row + 0.5 + side, side < 0 and N or S)\nend\nlocal e = put(\"electric-energy-interface\", 2, H - 3)\ne.power_production, e.electric_buffer_size = 200000, 20000000\nput(\"small-electric-pole\", 3.5, H - 4.5)\n-- poles up the west edge power the source inserters (same grid as the pole the serf is pointed at)\nfor _, py in pairs { H - 9.5, 10.5, 4.5 } do put(\"small-electric-pole\", 0.5, py) end\nlocal function done(key)\n  storage[key] = { area = { { X - M, Y - M }, { X + W + M, Y + H + M } }, o = { X, Y } }\n  return { bx = X + 1, by = Y + 4, b2y = Y + 10, px = X + 3, py = Y + H - 5, cx = X + 22, cy = Y + 17 }\nend\nbelt(4) source('iron-plate', 4, -1)\nreturn done('bench_gear')\n",
+ "objectives": [
+  {
+   "name": "gears-north",
+   "minutes": 10,
+   "hold_samples": 1,
+   "goal": "@{agent} There's an iron plate belt starting at [gps={bx},{by}] and running east, and a power pole at [gps={px},{py}]. Make gears from it automatically, into a chest, around [gps={cx},{cy}].",
+   "answer": "North of the belt, your call on the exact spot.",
+   "score": [
+    {
+     "name": "gears_north",
+     "target": 10,
+     "lua": "local o=storage.bench_gear.o local A=storage.bench_gear.area local t=0 for _,c in pairs(s.find_entities_filtered{area=A,force=f,type={'container','logistic-container'}}) do if c.position.y < o[2]+4 then t=t+c.get_item_count('iron-gear-wheel') end end return t"
+    }
+   ],
+   "selftest_lua": "local o=storage.bench_gear.o local X,Y=o[1],o[2] local N,S,E,W=defines.direction.north,defines.direction.south,defines.direction.east,defines.direction.west local function P(n,x,y,d,r) local e=s.create_entity{name=n,position={X+x,Y+y},force=f,direction=d,recipe=r} if not e then error('selftest: could not place '..n..' at '..x..','..y) end return e end P('small-electric-pole',3.5,15.5) P('small-electric-pole',3.5,9.5) P('assembling-machine-2',10.5,7.5,nil,'iron-gear-wheel') P('fast-inserter',10.5,5.5,N) P('fast-inserter',10.5,9.5,N) P('wooden-chest',10.5,10.5) P('small-electric-pole',8.5,9.5) P('small-electric-pole',8.5,5.5) return 'gear cell built'",
+   "selftest_wait": 90,
+   "events": [
+    {
+     "after_s": 25,
+     "say": "@{agent} actually, change of plan: put the gear chest on the NORTH side of the iron belt, not the south. The south side is reserved."
+    }
+   ]
+  }
+ ],
+ "score": []
+}
