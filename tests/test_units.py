@@ -231,6 +231,11 @@ def test_wrong_recipe():
     f = w.wanted_faults(wanted)
     check("world: the order names gears and an assembler there makes pipes from the same plates",
           wanted == ["iron-gear-wheel"] and f and f[0]["fixes"][0]["recipe"] == "iron-gear-wheel", (wanted, f))
+    belts = ents[:2] + [{"u": 9, "n": "pipe", "t": "pipe", "x": 5.5, "y": 5.5}]
+    check("world: 'fix the pipes' with pipes standing there names them, not a product",
+          not World({"ents": belts, "center": [1, 3]}, {**rec, "iron-gear-wheel": rec["iron-gear-wheel"]})
+          .wanted_faults(["pipe"]) and not World({"ents": belts, "center": [1, 3]}, rec).wanted_faults(
+              quickbuild.products_named("fix the pipes", list(rec))))
     check("world: no such fault when the order names nothing made here",
           not w.wanted_faults(quickbuild.products_named("the smelter at [gps=1,1] isn't making much", list(rec))))
 

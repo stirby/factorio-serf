@@ -1167,7 +1167,9 @@ class Actor(FastPaths):
             if idx is None or idx >= len(opts) or (conf < 0.4 and p_any < 0.5):
                 return "unsure which fault is meant: " + "; ".join(x["text"] for x in opts[:6])
             # "get it all running": every fault code can fix there in this round, the one Jev picked first
-            extra = [g for i, g in enumerate(opts) if i != idx] if p_all >= 0.7 else []
+            # (a recipe change only when it's the one picked: it rests on reading the order, not on what's broken)
+            extra = [g for i, g in enumerate(opts) if i != idx and g["members"][0]["kind"] != "wanted_recipe"] \
+                if p_all >= 0.7 else []
             r, f, fx = {"ok": True}, None, None
             for f in opts[idx]["members"] + [m for g in extra for m in g["members"]]:
                 main = f in opts[idx]["members"]

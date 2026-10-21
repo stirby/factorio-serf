@@ -432,6 +432,9 @@ class World:
         for want in wanted:
             if want not in self.recipes or any(m.get("r") == want for m in asm):
                 continue
+            # "fix the belts here", "the pipes are broken": the word names things standing there, not a product
+            if any(e.get("n") == want for e in self.ents.values()):
+                continue
             need = set(self.recipes[want].get("ingredients") or {})
             for m in asm:
                 r = m["r"]
