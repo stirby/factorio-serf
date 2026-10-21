@@ -537,7 +537,13 @@ class Actor:
                 and o.focus):
             return
         try:
-            sm = (await self.world(o.focus, 16)).summary(coords=True)
+            # the whole build, not a fixed radius round the order's point (that cut a furnace's output inserter off
+            # and Opus "fixed" it by placing one that was already there)
+            pts = o.built_pts or [o.focus]
+            xs, ys = [q[0] for q in pts], [q[1] for q in pts]
+            c = ((min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2)
+            r = int(max(max(xs) - min(xs), max(ys) - min(ys)) / 2 + 6)
+            sm = (await self.world(c, min(r, 40))).summary(coords=True)
         except Exception:  # noqa: BLE001
             return
         th.ask(Request("review", (
