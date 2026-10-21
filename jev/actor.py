@@ -1265,6 +1265,8 @@ class Actor:
                     r = await self.runner.run(step)
                     if r.get("ok") and fx.get("then_power"):  # a new generator has to touch the grid too
                         r = await self.runner.run({"do": "power", "x": fx["x"], "y": fx["y"], "radius": 3})
+                    if r.get("ok") and fx.get("then_purge"):  # the old product left on its belt
+                        r = await self.runner.run({"do": "purge", **fx["then_purge"]})
                 self.log({"kind": "fix", "order": o.id, "fault": f["text"], "fix": fx, "ok": r.get("ok"),
                           "msg": r.get("msg")})
                 if not r.get("ok"):
@@ -1320,6 +1322,8 @@ class Actor:
                     r = await self.runner.run(step)
                     if r.get("ok") and fx.get("then_power"):  # a new generator has to touch the grid too
                         r = await self.runner.run({"do": "power", "x": fx["x"], "y": fx["y"], "radius": 3})
+                    if r.get("ok") and fx.get("then_purge"):  # the old product left on its belt
+                        r = await self.runner.run({"do": "purge", **fx["then_purge"]})
                 self.log({"kind": "fix", "order": o.id, "fault": f["text"], "fix": fx, "ok": r.get("ok"),
                           "msg": r.get("msg")})
                 (fixed if r.get("ok") else failed).append(fx.get("done") or fx.get("text"))

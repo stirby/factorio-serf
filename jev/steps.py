@@ -640,6 +640,17 @@ class Runner:
         if s.get("trees"):
             q = await self.g.call("query", what="clutter", x=p[0], y=p[1], radius=rad)
             ents = [{"n": n, "x": x, "y": y} for n, x, y in (q.get("clutter") or [])]
+        elif s.get("line"):
+            # exactly one belt line (with its underground partners), nothing else around it
+            lx, ly = float(s["line"][0]), float(s["line"][1])
+            w = World(await self.g.scan(center=(lx, ly), radius=48))
+            e0 = w.at(lx, ly)
+            ln = w.line_of.get(e0["u"]) if e0 else None
+            if not ln:
+                return {"ok": False, "msg": f"no belt line at {lx:g},{ly:g}"}
+            ents = [w.ents[u] for u in ln.belts if u in w.ents]
+            pairs = {e.get("pair") for e in ents if e.get("pair")}
+            ents += [e for e in w.ents.values() if e["u"] in pairs and e not in ents]
         else:
             sc = await self.g.scan(center=p, radius=int(rad + 3))
             w = World(sc)
@@ -664,6 +675,15 @@ class Runner:
         if failed:
             msg += f"; {len(failed)} failed: " + "; ".join(failed[:3])
         return {"ok": not failed, "msg": msg}
+
+    async def _do_purge(self, s):
+        """Take every `item` off the belts around x,y (junk a wrong recipe put on a belt); the belts stay."""
+        p = _xy(s)
+        r = await self._act({"op": "grab", "item": s["item"], "count": int(s.get("count", 2000)), "x": p[0],
+                             "y": p[1]}, timeout=300)
+        if not r.get("ok") and "no belt" in str(r.get("msg")):
+            return {"ok": True, "msg": f"no {s['item']} on the belts there"}
+        return r
 
     async def _do_research(self, s):
         """Queue a tech. tech="cheapest" (or a trigger/finished tech that fails) picks the cheapest lab tech whose

@@ -521,9 +521,12 @@ class World:
                 continue
             mine = set((self.recipes[r].get("ingredients") or {}))
             needed: set = set()
+            out_at = None
             for e in self.ents.values():
                 if e.get("t") != "inserter" or e.get("pku") != m["u"] or not e.get("dpu"):
                     continue
+                if self.line_of.get(e["dpu"]) and e.get("dp"):
+                    out_at = e["dp"]
                 dst = self.ents.get(e["dpu"])
                 ln = self.line_of.get(e["dpu"])
                 lines = [ln] + self._continues(ln) if ln else []
@@ -543,7 +546,10 @@ class World:
                                     f"{', '.join(sorted(needed))}",
                             "fixes": [{"do": "set_recipe", "x": m["x"], "y": m["y"], "recipe": cand[0],
                                        "text": f"set {self.name(m['u'])} to make {cand[0]}",
-                                       "done": f"set the {m['n']} at {fmt_xy(pos)} to make {cand[0]}"}]})
+                                       "done": f"set the {m['n']} at {fmt_xy(pos)} to make {cand[0]}"
+                                               + (f" and cleared the {r} off its belt" if out_at else ""),
+                                       # what it already put on the belt would block the lane: take it off
+                                       "then_purge": {"item": r, "x": out_at[0], "y": out_at[1]} if out_at else None}]})
         # 2b. labs with nothing to research
         labs = [e for e in self.ents.values() if e["t"] == "lab" and e.get("s") == "no_research_in_progress"]
         if labs:
