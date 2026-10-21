@@ -24,6 +24,40 @@ FUELS = ("coal", "wood", "solid-fuel")
 PLACE_ITEM = {"straight-rail": "rail", "curved-rail-a": "rail", "curved-rail-b": "rail"}
 
 
+def expand(entities: list) -> list[dict]:
+    """Compact layout notation -> plain entities:
+      {"repeat": N, "dx": 2, "dy": 0, "entities": [...]}   the group N times, shifted by (dx, dy) each time
+      {"line": "transport-belt", "from": [x, y], "to": [x, y], "direction": "east"}   a straight run, one per tile
+    Plain {name, x, y, ...} entries pass through. Nesting works."""
+    out: list[dict] = []
+    for e in entities or []:
+        if not isinstance(e, dict):
+            continue
+        if "repeat" in e:
+            n = int(e.get("repeat") or 0)
+            dx, dy = float(e.get("dx", 0)), float(e.get("dy", 0))
+            inner = expand(e.get("entities") or [])
+            for k in range(min(n, 200)):
+                for x in inner:
+                    out.append({**x, "x": float(x["x"]) + dx * k, "y": float(x["y"]) + dy * k})
+        elif "line" in e:
+            f, t = e.get("from"), e.get("to")
+            try:
+                fx, fy, tx, ty = float(f[0]), float(f[1]), float(t[0]), float(t[1])
+            except (TypeError, ValueError, IndexError):
+                continue
+            n = int(max(abs(tx - fx), abs(ty - fy)))
+            sx = (tx > fx) - (tx < fx)
+            sy = (ty > fy) - (ty < fy)
+            d = e.get("direction") or ("east" if sx > 0 else "west" if sx < 0 else "south" if sy > 0 else "north")
+            for k in range(min(n, 400) + 1):
+                q = {"name": e["line"], "x": fx + sx * k, "y": fy + sy * k, "direction": d}
+                out.append(q)
+        elif "name" in e and "x" in e and "y" in e:
+            out.append(e)
+    return out
+
+
 def _xy(s: dict, key: str = "") -> tuple[float, float] | None:
     if key and isinstance(s.get(key), (list, tuple)) and len(s[key]) == 2:
         return float(s[key][0]), float(s[key][1])
@@ -393,7 +427,7 @@ class Runner:
     # ------------------------------------------------------------------ building plans
     async def _do_ghosts(self, s):
         ents = []
-        for e in s.get("entities") or []:
+        for e in expand(s.get("entities") or []):
             q = {"name": e["name"], "x": float(e["x"]), "y": float(e["y"])}
             if e.get("direction"):
                 q["direction"] = e["direction"]
@@ -577,7 +611,7 @@ def plan_needs(steps: list[dict]) -> dict:
         if d == "place":
             add(s.get("name"), 1)
         elif d == "ghosts":
-            for e in s.get("entities") or []:
+            for e in expand(s.get("entities") or []):
                 add(e.get("name"), 1)
         elif d == "design":
             from .library import place_design

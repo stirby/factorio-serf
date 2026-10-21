@@ -60,8 +60,9 @@ def save_design(name: str, entities: list[dict], note: str = "") -> str:
     slug = re.sub(r"[^a-z0-9-]+", "-", name.lower()).strip("-")[:40]
     if not slug or not entities:
         return "needs a name and entities"
+    from .steps import expand
     clean = []
-    for e in entities:
+    for e in expand(entities):
         try:
             q = {"name": e["name"], "x": float(e["x"]), "y": float(e["y"])}
         except (KeyError, TypeError, ValueError):

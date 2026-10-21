@@ -83,7 +83,8 @@ def plan_points(steps: list[dict]) -> list[tuple[float, float]]:
                 pts.append((float(s["x"]), float(s["y"])))
             except (TypeError, ValueError):
                 pass
-        for e in s.get("entities") or []:
+        from .steps import expand
+        for e in expand(s.get("entities") or []):
             try:
                 pts.append((float(e["x"]), float(e["y"])))
             except (KeyError, TypeError, ValueError):
@@ -133,7 +134,8 @@ def lint(steps: list[dict], w: World, available: set[str] | None = None, recipes
                 add(s["name"], float(s["x"]), float(s["y"]), s.get("direction"), s.get("pickup"), s.get("drop"),
                     s.get("recipe"))
             elif d == "ghosts":
-                for e in s.get("entities") or []:
+                from .steps import expand
+                for e in expand(s.get("entities") or []):
                     add(e["name"], float(e["x"]), float(e["y"]), e.get("direction"), None, None, e.get("recipe"),
                         src="ghosts")
             elif d == "design":
