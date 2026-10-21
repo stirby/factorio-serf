@@ -100,6 +100,9 @@ TOOLS = [
          "expect": {"type": "array", "items": {"type": "object"}},
          "say": {"type": "string"},
          "done_text": {"type": "string"},
+         "watch": {"type": "array", "items": {"type": "string"},
+                   "description": "optional: problems to keep an eye out for at this build afterwards, in words "
+                                  "(e.g. 'the output chest is full', 'the boiler is out of coal')"},
          "force": {"type": "boolean", "description": "run it even though the checker reported problems"}},
       "required": ["goal", "steps"]}),
 ]

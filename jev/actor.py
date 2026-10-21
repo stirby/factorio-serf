@@ -48,6 +48,7 @@ class Order:
     history: list[str] = field(default_factory=list)
     speaker_at: tuple | None = None
     interrupt: str | None = None  # a player correction that should stop the running plan
+    watch_what: list | None = None  # trouble the planner wants watched for after it's done
 
     @property
     def focus(self):
@@ -76,6 +77,8 @@ class Actor:
         self.metrics = {"orders": 0, "fast_path": 0, "plans": 0, "steps_ok": 0, "steps_failed": 0,
                         "recoveries": {}, "verified": 0, "unverified": 0, "chat_lines": 0}
         self._tasks: list[asyncio.Task] = []
+        self.watches: list[dict] = []  # areas this character built: kept running while it's idle
+        self.watch_every = 45.0
         self.busy_since: float | None = None
         self.idle_secs = 0.0
         self._idle_mark = time.time()
@@ -100,7 +103,8 @@ class Actor:
         self.items = (await self.g.call("query", what="items")).get("items") or []
         if self.thinker:
             await self.thinker.start()
-        self._tasks = [asyncio.create_task(self._chat_loop()), asyncio.create_task(self._work_loop())]
+        self._tasks = [asyncio.create_task(self._chat_loop()), asyncio.create_task(self._work_loop()),
+                       asyncio.create_task(self._watch_loop())]
         self.log({"kind": "start", "recipes": len(self.recipes), "items": len(self.items)})
 
     async def stop(self) -> None:
@@ -256,6 +260,8 @@ class Actor:
                 o.status = "failed"
             self.log({"kind": "order_end", "order": o.id, "status": o.status, "secs": round(time.time() - t0, 1),
                       "plans": o.plans})
+            if o.status == "done" and o.focus and o.speaker != self.name:
+                self._add_watch(o)
             if self.thinker and (o.plans >= 2 or (o.status == "failed" and o.plans >= 1)):
                 self.thinker.ask(Request("lesson", f"Order {o.id} (\"{o.text}\") took {o.plans} plans and ended "
                                          f"{o.status}. What went wrong: " + " | ".join(h[:300] for h in o.history[-3:]) +
@@ -268,12 +274,17 @@ class Actor:
         self.log({"kind": "order", "order": o.id, "text": o.text, "playbook": o.playbook, "points": o.points})
         await self.g.status(text=o.text[:100])
         if o.playbook == "fix" and o.focus:
-            await self.say("on it, taking a look")
+            if o.speaker != self.name:
+                await self.say("on it, taking a look")
             wide = await decide.scope(self.jev, o.text)
             self.log({"kind": "scope", "order": o.id, "wide": round(wide, 3)})
             r = await (self._fix_wide(o) if wide >= 0.6 else self._fix(o))
             if r is True:
                 return True
+            if o.speaker == self.name:  # a watch found it: don't spend a plan on it, stop watching that spot
+                self.watches = [w for w in self.watches if w["at"] != o.focus]
+                self.log({"kind": "watch_drop", "at": o.focus, "why": str(r)[:300]})
+                return False
             report = r or "I found no fault I could fix on my own."
             return await self._planned(o, f"New order from {o.speaker}: \"{o.text}\"\n\nThe actor's quick look: {report}")
         if o.playbook == "deliver" and o.focus:
@@ -311,6 +322,44 @@ class Actor:
         self.metrics["fast_path"] += 1
         await self.say("belts are down, items should start flowing")
         return True
+
+    # ------------------------------------------------------------------ watching what it built
+    WATCH_KINDS = {"no_fuel", "output_full", "chest_full", "no_power", "boiler_fuel", "belt_reversed", "belt_gap"}
+
+    def _add_watch(self, o: Order) -> None:
+        conds = [c for c in (getattr(o, "watch_what", None) or []) if isinstance(c, str)][:5]
+        for p in (o.points[:3] or [o.focus]):
+            if any(abs(w["at"][0] - p[0]) < 8 and abs(w["at"][1] - p[1]) < 8 for w in self.watches):
+                continue
+            self.watches.append({"at": p, "radius": 16, "what": conds, "order": o.id, "t": time.time()})
+        self.watches = self.watches[-12:]
+
+    async def _watch_loop(self) -> None:
+        """While idle: look at the areas it built; fix what code can see (fuel, full chests, power, belts) and what
+        the planner asked to watch for (Jev judges those)."""
+        while True:
+            await asyncio.sleep(self.watch_every)
+            if not self.watches or any(x.status in ("new", "working", "thinking") for x in self.orders):
+                continue
+            try:
+                for wt in list(self.watches):
+                    w = await self.world(wt["at"], wt["radius"])
+                    fl = [f for f in w.faults() if f["kind"] in self.WATCH_KINDS and f.get("fixes")]
+                    found = fl[0]["text"] if fl else None
+                    if not found and wt["what"]:
+                        ps = await decide.trouble(self.jev, wt["what"], w.summary(coords=False, focus=wt["at"]))
+                        hit = [c for c, p in zip(wt["what"], ps) if p >= 0.75]
+                        found = hit[0] if hit else None
+                    if found:
+                        self.log({"kind": "watch_hit", "at": wt["at"], "what": found})
+                        o = Order(self.next_id, f"(noticed) {found}", self.name, "fix", [wt["at"]])
+                        self.next_id += 1
+                        self.orders.append(o)
+                        await self.say(f"noticed: {found}. fixing it")
+                        self.wake.set()
+                        break
+            except Exception as e:  # noqa: BLE001
+                self.log({"kind": "error", "where": "watch", "error": repr(e)})
 
     # ------------------------------------------------------------------ thinker
     def _thinker_tools(self) -> dict:
@@ -519,6 +568,8 @@ class Actor:
                 return True
             if plan.get("say"):
                 await self.say(plan["say"])
+            if plan.get("watch"):
+                o.watch_what = [str(x) for x in plan["watch"]][:5]
             ok, report = await self._run_plan(o, plan)
             if o.status == "cancelled":
                 return False

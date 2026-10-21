@@ -195,3 +195,10 @@ async def not_done(jev: Jev, job: str, message: str) -> float:
         "Does `message` say that `finished_job` is not actually done, not working, or still has a problem to fix "
         "(rather than reporting progress, confirming it works, or chatting)?")}, kind="not_done")
     return a["not_done"].p
+
+
+async def trouble(jev: Jev, conditions: list[str], area: dict) -> list[float]:
+    """For each watched condition (words from the planner), the probability `area` shows it now."""
+    qs = {f"w{i}": noul(f"Does `area` show this problem: {c}?") for i, c in enumerate(conditions[:20])}
+    a = await jev.ask({"area": area}, qs, kind="watch")
+    return [a[f"w{i}"].p for i in range(len(qs))]
