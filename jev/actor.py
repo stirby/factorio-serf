@@ -1122,6 +1122,15 @@ class Actor:
                 # faults code can fix by itself (fuel, power) get fixed before the planner hears about it
                 plan["_healed"] = True
                 done = []
+                # machines without power next to each other: one power step over all of them
+                unpowered = [f for f in heal if f["kind"] == "no_power"]
+                if len(unpowered) > 1:
+                    xs, ys = [f["at"][0] for f in unpowered], [f["at"][1] for f in unpowered]
+                    heal = [f for f in heal if f["kind"] != "no_power"] + [{
+                        "kind": "no_power", "text": f"{len(unpowered)} machines without power",
+                        "fixes": [{"do": "power", "x": (min(xs) + max(xs)) / 2, "y": (min(ys) + max(ys)) / 2,
+                                   "radius": max(max(xs) - min(xs), max(ys) - min(ys)) / 2 + 3,
+                                   "done": f"connected {len(unpowered)} machines to the grid"}]}]
                 for f in heal[:6]:
                     fx = f["fixes"][0]
                     if fx.get("do") == "refuel_boilers":
