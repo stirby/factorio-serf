@@ -231,3 +231,24 @@ async def research(jev: Jev, order: str, techs: list) -> tuple[str | None, float
     if t == "none_of_these" or a["is_research"].p < 0.7 or a["several"].p >= 0.5:
         return None, 0.0
     return t, float(a["tech"].probs.get(t) or 0)
+
+
+UPGRADES = {"fast-transport-belt": "red belts (fast transport belt), with their undergrounds and splitters",
+            "express-transport-belt": "blue belts (express transport belt)",
+            "assembling-machine-2": "assembler 2s (assembling machine 2)",
+            "assembling-machine-3": "assembler 3s (assembling machine 3)",
+            "steel-furnace": "steel furnaces", "fast-inserter": "fast inserters",
+            "medium-electric-pole": "medium electric poles", "steel-chest": "steel chests",
+            "none_of_these": "not an upgrade order, or something else"}
+
+
+async def upgrade(jev: Jev, order: str) -> tuple[str | None, float, float]:
+    """An order to swap buildings for a better tier: (into, probability, p_whole_belt_line)."""
+    a = await jev.ask({"order": order}, {
+        "into": choice("What does `order` ask to replace things with (swap or upgrade to)?", UPGRADES),
+        "line": noul("Does `order` mean a whole belt line (rather than the buildings in one spot)?"),
+    }, kind="upgrade")
+    t = a["into"].choice
+    if t == "none_of_these":  # (the actor only asks when the order says upgrade, swap, replace or "in place of")
+        return None, 0.0, 0.0
+    return t, float(a["into"].probs.get(t) or 0), a["line"].p

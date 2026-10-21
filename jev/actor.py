@@ -337,6 +337,13 @@ class Actor:
                 return True
             return await self._planned(o, f"New order from {o.speaker}: \"{o.text}\"\n\nThe actor tried the belt "
                                           f"router itself: {r}")
+        if re.search(r"\b(upgrade|swap|replace|in place of|instead of)", o.text, re.I) and o.focus and self.quick_build:
+            r = await self._quick_upgrade(o)
+            if r is True or r is False:
+                return r
+            if isinstance(r, str):
+                return await self._planned(o, f"New order from {o.speaker}: \"{o.text}\"\n\nThe actor tried the "
+                                              f"swap itself and it didn't finish: {r}")
         if re.search(r"\b(research|tech|unlock)", o.text, re.I) and not o.points:
             r = await self._quick_research(o)
             if r:
@@ -481,6 +488,26 @@ class Actor:
             report = vreport
         o.history.append(report)
         return f"it tried: {plan['goal']}. {report}"
+
+    async def _quick_upgrade(self, o: Order) -> bool | str | None:
+        """'Swap the belts on that line for red ones': Jev names the tier (and line or spot), code upgrades."""
+        try:
+            into, p, p_line = await decide.upgrade(self.jev, o.text)
+            self.log({"kind": "quick_upgrade", "order": o.id, "into": into, "p": round(p, 3),
+                      "line": round(p_line, 3)})
+            if not into or p < 0.7:
+                return None
+            step = {"do": "upgrade", "into": into}
+            if p_line >= 0.6 and "belt" in into:
+                step["line"] = list(o.focus)
+            else:
+                step.update({"x": o.focus[0], "y": o.focus[1], "radius": 8})
+        except Exception as e:  # noqa: BLE001
+            self.log({"kind": "error", "where": "quick_upgrade", "error": repr(e)})
+            return None
+        what = decide.UPGRADES[into].split(" (")[0].split(",")[0]
+        return await self._run_quick(o, {"goal": f"swapped for {what} at {fmt_xy(o.focus)}", "steps": [step]},
+                                     f"swapping to {what}")
 
     async def _quick_research(self, o: Order) -> bool:
         """"Research X": code lists what can be researched now, Jev picks the one the order names, code queues it."""
@@ -1074,8 +1101,10 @@ class Actor:
         for things to start running."""
         exp = [e for e in (plan.get("expect") or []) if isinstance(e, dict)]
         goal = plan.get("goal") or o.text
-        if not exp and all(st.get("do") in ("say", "wait", "research", "follow") for st in plan.get("steps") or []):
-            return True, "nothing in the world to check"  # an acknowledgement or a research queue
+        if not exp and all(st.get("do") in ("say", "wait", "research", "follow", "upgrade", "clear", "purge")
+                           for st in plan.get("steps") or []):
+            # an acknowledgement or a research queue, or a step that reports exactly what it did
+            return True, "nothing more to check"
         builds = [st for st in plan.get("steps") or [] if st.get("do") in ("ghosts", "block", "design", "stamp",
                                                                             "place", "build_ghosts", "route")]
         if builds and not any(e.get("check") == "built" for e in exp):
