@@ -16,7 +16,7 @@ IRON = ["firearm-magazine", "iron-chest", "iron-gear-wheel", "iron-stick", "ligh
 IRON_COAL = IRON + ["steel-plate"]
 ORE = ["iron-plate"]
 COPPER = ["copper-cable"]
-IRON_COPPER = IRON + COPPER
+IRON_COPPER = IRON + COPPER + ["automation-science-pack", "electronic-circuit"]  # (two-stage: feeders)
 MALL = IRON + ["inserter"]
 CARRY.update({id(IRON): ["iron-plate"], id(IRON_COAL): ["coal", "iron-plate"], id(ORE): ["coal", "iron-ore"],
               id(COPPER): ["copper-plate"], id(IRON_COPPER): ["copper-plate", "iron-plate"],
@@ -48,10 +48,10 @@ CASES = [
     # not quick builds
     ("@serf Two belts start here: iron plates at [gps=10,4] and copper plates at [gps=10,10], both running east, and "
      "there's a power pole at [gps=12,20]. Automate red science off them: at least 3 assemblers, packs onto a belt or "
-     "into a chest.", IRON_COPPER, False, None, None, None),
+     "into a chest.", IRON_COPPER, True, "automation-science-pack", "3", "chest"),
     ("@serf Iron plates come along the belt at [gps=10,4] and copper plates along [gps=10,10], both running east; "
      "power pole at [gps=12,20]. Automate green circuits off them. 3 cable assemblers to 2 circuit assemblers is the "
-     "usual ratio.", IRON_COPPER, False, None, None, None),
+     "usual ratio.", IRON_COPPER, True, "electronic-circuit", "2", "chest"),
     ("@serf build 8 stone furnaces off the ore belt at [gps=4,4] (it carries iron ore and coal), and send the plates "
      "on a belt to the chest at [gps=40,4].", ORE, False, None, None, None),
     ("@serf belt the gears from [gps=1,1] to the chest at [gps=30,1]", IRON, False, None, None, None),
@@ -63,8 +63,10 @@ CASES = [
     ("@serf I need copper plates in the chest at [gps=-11,82]. They come out on the belt at [gps=-45,82]; get them "
      "across, and don't break the main bus in between.", COPPER, False, None, None, None),
     ("@serf belt the iron plates from [gps=1,1] over to the mall at [gps=40,1]", IRON, False, None, None, None),
-    ("@serf automate red science off these belts [gps=1,1] [gps=1,7]", IRON_COPPER, False, None, None, None),
-    ("@serf green circuits from the plate belts at [gps=4,4], 2 assemblers", IRON_COPPER, False, None, None, None),
+    ("@serf automate red science off these belts [gps=1,1] [gps=1,7]", IRON_COPPER, True, "automation-science-pack",
+     "not_said", "chest"),
+    ("@serf green circuits from the plate belts at [gps=4,4], 2 assemblers", IRON_COPPER, True, "electronic-circuit",
+     "2", "chest"),
     ("@serf set up gear production feeding a row of red science assemblers off [gps=0,0]", IRON, False, None, None,
      None),
     ("@serf the boiler at [gps=1,2] needs more power, add steam engines", IRON, False, None, None, None),
@@ -82,7 +84,8 @@ HOLDOUT = [
     ("@serf make cables off the copper belt at [gps=4,4] and run them to the circuit build at [gps=40,4]", COPPER,
      False, None, None, None),
     ("@serf build gears at [gps=1,1] and belt them over to the science at [gps=30,30]", IRON, False, None, None, None),
-    ("@serf red science please, plates are on the belts at [gps=1,1]", IRON_COPPER, False, None, None, None),
+    ("@serf red science please, plates are on the belts at [gps=1,1]", IRON_COPPER, True, "automation-science-pack",
+     "not_said", "chest"),
     ("@serf what can you make from this belt [gps=1,1]?", IRON, False, None, None, None),
     ("@serf the gear machine at [gps=1,1] stopped, look at it", IRON, False, None, None, None),
     ("@serf make iron chests and pipes off the belt at [gps=2,2]", IRON, False, None, None, None),

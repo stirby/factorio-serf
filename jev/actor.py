@@ -405,7 +405,7 @@ class Actor:
             # belt fast path takes that belt on to the named place
             away = [q for q in o.points if math.hypot(q[0] - o.focus[0], q[1] - o.focus[1]) > 12]
             send_to = None
-            if (r["elsewhere"] >= 0.6 and away and r["chain"] < 0.4 and r["product_p"] >= 0.55 and r["build"] >= 0.5
+            if (r["elsewhere"] >= 0.6 and away and r["chain"] < 0.7 and r["product_p"] >= 0.55 and r["build"] >= 0.5
                     and r["product"] not in (None, "none_of_these")):
                 send_to = max(away, key=lambda q: math.hypot(q[0] - o.focus[0], q[1] - o.focus[1]))
                 r["output"] = "belt"
@@ -417,10 +417,26 @@ class Actor:
             n = (int(r["count"]) if r["count"] not in (None, "not_said") and r["count_p"] >= 0.5
                  else quickbuild.DEFAULT_COUNT[opt["machine"]])
             layout = None
+            feeders, fcenter, base = [], None, 0
+            if opt.get("feeder"):
+                if send_to or r["output"] == "belt":
+                    return None
+                k = quickbuild.feeders_needed(self.recipes, r["product"], opt["feeder"]["recipe"], n)
+                feeders, fcenter = quickbuild.feeder_layout(w, opt, k)
+                if any((e := w.at(x["x"], x["y"])) is not None and e["u"] > 0 or w.off_view(x["x"], x["y"])
+                       for x in feeders):
+                    self.log({"kind": "quickbuild_skip", "order": o.id, "why": "no room for the feeders"})
+                    return None
+                base = 4 * k + 1  # the main row starts past the feeders
             for skip in (2, 4, 7, 11):
-                step = quickbuild.row_step(w, opt, r["product"], n, skip)
+                step = quickbuild.row_step(w, opt, r["product"], n, base + skip)
                 if r["output"] == "belt":
                     step["output"] = "belt"
+                if opt.get("feeder"):  # the row goes on the side away from the feeder belt
+                    d = opt["lines"][0].direction
+                    toward = quickbuild.LEFT_OF[d] if opt["feeder"]["left"] else \
+                        {v: k_ for k_, v in quickbuild.LEFT_OF.items()}[d]
+                    step["side"] = {"north": "south", "south": "north", "east": "west", "west": "east"}[toward]
                 ents, info, side, _ = await self.runner.row_layout(step)
                 # our own buildings in the way (trees and rocks get cleared by the builder)
                 bad = [x for x in ents if (e := w.at(x["x"], x["y"])) is not None and e["u"] > 0]
@@ -458,6 +474,13 @@ class Actor:
         plan = {"goal": f"{what} off the belt at {fmt_xy(step['belt'])}, "
                         f"{'into chests' if step['output'] == 'chest' else 'onto an output belt'}",
                 "steps": [step], "expect": expect}
+        if feeders:
+            fw = quickbuild.SAY.get(opt["feeder"]["recipe"], opt["feeder"]["recipe"].replace("-", " "))
+            plan["steps"] = [{"do": "ghosts", "entities": feeders},
+                             {"do": "power", "x": fcenter[0], "y": fcenter[1], "radius": 2 * len(feeders) // 4 + 4},
+                             step]
+            plan["goal"] += f", with {len(feeders) // 4} assembler(s) making {fw} onto that belt"
+            what += f" (and {len(feeders) // 4} making {fw} for them)"
         if dst:
             end = info["output_belt_end"]
             plan["steps"] += [{"do": "connect", "item": "transport-belt", "from": end, "to": dst["to"]}]

@@ -134,6 +134,7 @@ def test_quickbuild_options():
     o = quickbuild.options(w, RECIPES, [(0.5, 4.5)])
     check("quick: steel furnaces off an iron+coal belt", o.get("steel-plate", {}).get("machine") == "stone-furnace", o)
     r = {"build": 0.9, "chain": 0.1, "elsewhere": 0.1, "product": "x", "product_p": 0.8}
+    check("quick: a product that feeds further machines is refused", not quickbuild.accept({**r, "chain": 0.85}))
     check("quick: accept gate", quickbuild.accept(r) and not quickbuild.accept({**r, "elsewhere": 0.7})
           and not quickbuild.accept({**r, "product": "none_of_these"}))
 
@@ -254,6 +255,37 @@ def test_copy_offsets():
     d = quickcopy.offsets([(12, 8), (16, 30), (0, 8), (-7, 14)], [(28, 8), (44, 8), (32, 30), (48, 30)])
     check("copy: shared points of the first order (supply chest, pole) don't stop a match",
           sorted(d) == [(16, 0), (32, 0)], d)
+
+
+def test_feeder_option():
+    rec = {"iron-gear-wheel": {"ingredients": {"iron-plate": 2}, "category": "crafting", "time": 0.5},
+           "automation-science-pack": {"ingredients": {"copper-plate": 1, "iron-gear-wheel": 1},
+                                       "category": "crafting", "time": 5},
+           "copper-cable": {"ingredients": {"copper-plate": 1}, "category": "electronics", "time": 0.5, "makes": 2},
+           "electronic-circuit": {"ingredients": {"iron-plate": 1, "copper-cable": 3}, "category": "electronics",
+                                  "time": 0.5}}
+    iron = [dict(b, lanes=[{}, {"iron-plate": 2}]) for b in _line(1, 4.5, 20, None)]
+    copper = [dict(b, lanes=[{"copper-plate": 2}, {}]) for b in _line(101, 10.5, 20, None)]
+    w = World({"ents": iron + copper, "center": [10, 7], "radius": 32}, rec)
+    o = quickbuild.options(w, rec, [(0.5, 4.5), (0.5, 10.5)])
+    red = o.get("automation-science-pack") or {}
+    check("feeder: red science from the copper belt plus gears made off the iron belt",
+          red.get("feeder", {}).get("recipe") == "iron-gear-wheel" and red.get("feeder", {}).get("left") is True, red)
+    circ = o.get("electronic-circuit") or {}
+    check("feeder: circuits from the iron belt plus cable made off the copper belt",
+          circ.get("feeder", {}).get("recipe") == "copper-cable" and circ.get("feeder", {}).get("left") is False, circ)
+    check("feeder: 1 gear assembler feeds 3 science; 3 cable for 2 circuit",
+          quickbuild.feeders_needed(rec, "automation-science-pack", "iron-gear-wheel", 3) == 1 and
+          quickbuild.feeders_needed(rec, "electronic-circuit", "copper-cable", 2) == 3)
+    ents, c = quickbuild.feeder_layout(w, red, 1)
+    am = [e for e in ents if e["name"] == "assembling-machine-1"][0]
+    ins = sorted(e["y"] for e in ents if e["name"] == "inserter")
+    check("feeder: gear assembler sits between the belts, inserters at both", am["y"] == 7.5 and ins == [5.5, 9.5]
+          and am["recipe"] == "iron-gear-wheel", ents)
+    copper_busy = [dict(b, lanes=[{"copper-plate": 2}, {"stone": 1}]) for b in _line(101, 10.5, 20, None)]
+    w2 = World({"ents": iron + copper_busy, "center": [10, 7], "radius": 32}, rec)
+    check("feeder: not offered when the lane it would use is taken",
+          "feeder" not in (quickbuild.options(w2, rec, [(0.5, 4.5)]).get("automation-science-pack") or {}))
 
 
 def test_router_cross():

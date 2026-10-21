@@ -86,7 +86,88 @@ def options(w: World, recipes: dict, points: list) -> dict:
             if other:
                 out[name] = {"machine": "assembling-machine-1", "lines": [ln, other], "ingredients": sorted(ings)}
                 break
+    # two-stage: one ingredient on a belt, the other made by feeder assemblers from a parallel belt 6 tiles away,
+    # dropped onto the first belt's free lane (red science: copper on its belt, gears made from the iron belt)
+    on_belts = set().union(*[set(ln.items) for ln in near]) if near else set()
+    for name, r in sorted(recipes.items()):
+        ings = set(r.get("ingredients") or {})
+        if (r.get("category") or "crafting") not in ASSEMBLER_CATS or len(ings) != 2 or name in out:
+            continue
+        for l1 in near:
+            have = ings & set(l1.items)
+            if len(have) != 1:
+                continue
+            made = (ings - have).pop()
+            rb = recipes.get(made)
+            if made in on_belts or not rb or (rb.get("category") or "crafting") not in ASSEMBLER_CATS:
+                continue
+            for l2 in near:
+                if l2 is l1 or not _pair(w, l1, l2, GAP["assembling-machine-1"]):
+                    continue
+                if not set(rb.get("ingredients") or {}) <= set(l2.items):
+                    continue
+                d = l1.direction
+                left = _across(d, _tiles(w, l2)[0]) - _across(d, _tiles(w, l1)[0]) > 0
+                if lane_items(w, l1)[1 if left else 0]:
+                    continue  # the lane the feeders would drop onto is taken
+                out[name] = {"machine": "assembling-machine-1", "lines": [l1], "ingredients": sorted(ings),
+                             "feeder": {"recipe": made, "line": l2, "left": left}}
+                break
+            if name in out:
+                break
     return out
+
+
+def lane_items(w: World, ln) -> list[set]:
+    """Items on the line's left lane (index 0, relative to the way it runs) and right lane (1)."""
+    lanes = [set(), set()]
+    for u in ln.belts:
+        for i, lane in enumerate((w.ents.get(u) or {}).get("lanes") or []):
+            lanes[i] |= set(lane or {})
+    return lanes
+
+
+LEFT_OF = {"east": "north", "north": "west", "west": "south", "south": "east"}
+
+
+def feeders_needed(recipes: dict, product: str, made: str, n: int) -> int:
+    """Feeder assemblers to keep n main machines supplied (same machine speed, so recipe times compare)."""
+    r, rb = recipes.get(product) or {}, recipes.get(made) or {}
+    use = (r.get("ingredients") or {}).get(made, 1) / max(float(r.get("time") or 1), 0.1)
+    make = float(rb.get("makes") or 1) / max(float(rb.get("time") or 1), 0.1)
+    return max(1, -(-int(round(n * use * 1000)) // int(round(make * 1000))))
+
+
+def feeder_layout(w: World, opt: dict, k: int, skip: int = 2) -> tuple[list[dict], tuple]:
+    """k feeder assemblers between the main belt and the feeder belt, starting `skip` tiles into the main belt: input
+    inserter from the feeder belt, output inserter onto the main belt's far lane, a pole between neighbours.
+    Returns the entities and the centre of the feeders."""
+    l1, fd = opt["lines"][0], opt["feeder"]
+    d = l1.direction
+    dx, dy = DIRS[d]
+    side = LEFT_OF[d] if fd["left"] else {v: k_ for k_, v in LEFT_OF.items()}[d]
+    nx, ny = DIRS[side]
+    t = _tiles(w, l1)
+    start = min(_along(d, q) for q in t)
+    ents = []
+    pts = []
+    for i in range(k):
+        a = start + skip + 4 * i
+        tile = min(t, key=lambda q: abs(_along(d, q) - a))
+
+        def at(along, across):
+            return tile[0] + dx * along + nx * across, tile[1] + dy * along + ny * across
+        mx, my = at(1, 3)
+        ents.append({"name": "assembling-machine-1", "x": mx, "y": my, "recipe": fd["recipe"]})
+        ix, iy = at(1, 5)
+        ents.append({"name": "inserter", "x": ix, "y": iy, "direction": side})  # picks from the feeder belt side
+        ox, oy = at(1, 1)
+        ents.append({"name": "inserter", "x": ox, "y": oy, "direction": side})  # picks from the machine side
+        px, py = at(3, 1)
+        ents.append({"name": "small-electric-pole", "x": px, "y": py})
+        pts.append((mx, my))
+    c = (sum(q[0] for q in pts) / len(pts), sum(q[1] for q in pts) / len(pts))
+    return ents, c
 
 
 def row_step(w: World, opt: dict, product: str, count: int, skip: int = 2) -> dict:
@@ -143,12 +224,15 @@ async def read_order(jev: Jev, order: str, products: list[str], carried: list[st
                       "belt'",
                       "no: moving or belting items that already exist from one place to another, fixing or "
                       "refuelling, power, putting drills on ore, research, a question"),
-        "chain": noul("Does `order` ask for the product to feed further new machines that make something else from "
-                      "it, or for two different products?",
-                      "yes: 'gear production feeding a row of red science assemblers', 'a science line with gears "
-                      "from the iron belt', 'make gears and pipes'",
-                      "no: the product just goes into chests or onto a belt; fuel taken from the belt; steel from "
-                      "iron plates and coal; inserters from belts of plates, gears and circuits"),
+        "several": noul("Does `order` ask for two or more different products?",
+                        "yes: 'make gears and pipes', 'iron chests and pipes off the belt'",
+                        "no: one product, even if something has to be made for it first (red science, green "
+                        "circuits)"),
+        "onward": noul("Does `order` ask for the product to feed further new machines that make something else from "
+                       "it?",
+                       "yes: 'gear production feeding a row of red science assemblers', 'a science line with gears "
+                       "from the iron belt into the science assemblers'",
+                       "no: the product goes into chests or onto a belt; 'automate red science off these belts'"),
         "elsewhere": noul("Does `order` ask for the product to be transported somewhere after it's made: run, "
                           "belted, sent, carried or brought to some place?",
                           "yes: 'run them to the circuit build at [gps]', 'send the plates on a belt to the chest at "
@@ -160,12 +244,13 @@ async def read_order(jev: Jev, order: str, products: list[str], carried: list[st
                           "yes: 'put the cable on a belt', 'gears onto a belt', 'output onto a belt'",
                           "no: building the machines on, off or along a belt; 'into a chest'; nothing said"),
         "product": choice(PRODUCT_Q, opts),
-        "count": choice("How many machines does `order` ask for? Pick the number written in it ('at least 3' -> 3, "
-                        "'one assembler' -> 1, 'a couple' -> 2), or not_said.", COUNTS),
+        "count": choice("How many machines making the product itself does `order` ask for (not counting machines "
+                        "that make its ingredients)? Pick the number written in it ('at least 3' -> 3, 'one assembler' "
+                        "-> 1, '3 cable assemblers to 2 circuit assemblers' -> 2), or not_said.", COUNTS),
     }, kind="quickbuild")
     prod = a["product"].choice
     cnt = a["count"].choice
-    return {"build": a["build"].p, "chain": a["chain"].p, "elsewhere": a["elsewhere"].p,
+    return {"build": a["build"].p, "chain": max(a["several"].p, a["onward"].p), "elsewhere": a["elsewhere"].p,
             "onto_belt": a["onto_belt"].p, "product": prod, "product_p": float(a["product"].probs.get(prod) or 0),
             "count": cnt, "count_p": float(a["count"].probs.get(cnt) or 0),
             "output": "belt" if a["onto_belt"].p >= 0.75 else "chest"}
@@ -176,5 +261,6 @@ def accept(r: dict, far_point: bool = True) -> bool:
     distances). Without one, "elsewhere" can only be nearby ("into a chest around [gps]"), so Jev's doubt counts less.
     "build" is logged but not gated on: the chat playbook already sent only build jobs here, and in the lab it caught
     nothing the other questions didn't while turning down plain orders ("iron sticks off this belt")."""
-    return (r["chain"] < 0.4 and r["elsewhere"] < (0.4 if far_point else 0.65)
+    # (chain = the larger of "several products?" and "feeds further machines?": both separate cleanly at 0.7)
+    return (r["chain"] < 0.7 and r["elsewhere"] < (0.4 if far_point else 0.65)
             and r["product"] not in (None, "none_of_these") and r["product_p"] >= 0.55)
