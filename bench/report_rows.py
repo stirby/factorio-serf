@@ -85,13 +85,17 @@ def secs_txt(xs):
     return f"{m:.0f} s" if m < 120 else f"{m / 60:.1f} min"
 
 
-GROUPS = [("Behaviour (new today)", ("t-change", "t-maintain", "t-session")),
+GROUPS = [("Behaviour and new tests", ("t-change", "t-maintain", "t-session", "t-quick-mix", "t-upgrade")),
           ("Simple tests (t-*)", "t-"), ("Lab tests (x-*)", "x-"), ("Transport Belt Madness", "tbm-"),
           ("Long scenarios", ("s1", "s2", "s3", "s4", "s5", "d2", "f1"))]
 
 
 def main():
-    sb, jr = serf(), jev(sys.argv[1:])
+    # --alone=tag1,tag2: no-Opus runs (--no-think); a test any of them met gets a "no Opus needed" chip
+    alone_tags = [a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--alone=")]
+    alone_tags = [t for a in alone_tags for t in a.split(",") if t]
+    alone = jev(alone_tags) if alone_tags else {}
+    sb, jr = serf(), jev([a for a in sys.argv[1:] if not a.startswith("--")])
     rows = []
     shown = set()
     for title, pre in GROUPS:
@@ -107,8 +111,8 @@ def main():
                           f'<td class="n">{st.mean(s["cost"]):.2f}</td>') if s and s["n"] else \
                 '<td class="n">–</td><td class="n">–</td><td class="n">–</td>'
             notes = []
-            if all(x["think"] == 0 for x in j):
-                notes.append('<span class="chip win">no Opus</span>')
+            if all(x["think"] == 0 for x in j) or any(x["ok"] for x in alone.get(n, [])):
+                notes.append('<span class="chip win">no Opus needed</span>')
             if s and s["n"] and s["ok"] < s["n"] and ok == len(j):
                 notes.append('<span class="chip win">serf missed</span>')
             if ok < len(j):

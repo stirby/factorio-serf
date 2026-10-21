@@ -200,6 +200,16 @@ def test_craftable():
           {"assembling-machine-1": 2, "electronic-circuit": 3, "iron-gear-wheel": 5, "iron-plate": 9}, rec) == 3)
 
 
+def test_full_chest_listed_once():
+    ents = [{"u": 1, "n": "stone-furnace", "t": "furnace", "x": 1, "y": 1, "w": 2, "h": 2, "s": "full_output"},
+            {"u": 2, "n": "inserter", "t": "inserter", "x": 1.5, "y": 2.5, "d": "north", "pk": [1.5, 1.5],
+             "dp": [1.5, 3.5], "pku": 1, "dpu": 3},
+            {"u": 3, "n": "wooden-chest", "t": "container", "x": 1.5, "y": 3.5, "free": 0, "inv": {"iron-plate": 1600}}]
+    kinds = [f["kind"] for f in World({"ents": ents, "center": [1, 2]}).faults()]
+    check("world: a full chest behind a full furnace is one fault, not two", kinds.count("chest_full") == 0
+          and "output_full" in kinds, kinds)
+
+
 def test_router_cross():
     # two lines that must cross: west->east and north->south on an open grid
     g = Grid(set(), (0, 0, 10, 10))

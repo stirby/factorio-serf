@@ -376,6 +376,7 @@ class World:
     def faults(self) -> list[dict]:
         """Things that look broken, with code-generated candidate fixes (actions for the step runner)."""
         out: list[dict] = []
+        covered: set = set()  # full chests already given as the cause of a full machine
         belts = [e for e in self.ents.values() if e["t"] == "transport-belt"]
         # 1. a belt facing against the line it sits in: neighbours on its axis both disagree with it
         for e in belts:
@@ -443,6 +444,7 @@ class World:
                     du = ins.get("dpu") if ins else None
                     if du and du in self.ents and self.ents[du]["t"] in CHESTS and not self.ents[du].get("free"):
                         c = self.ents[du]
+                        covered.add(du)  # the full chest is this fault's cause: not listed again on its own
                         fx.append({"do": "empty_chest", "x": c["x"], "y": c["y"],
                                    "text": f"empty the full chest {self.name(du)} at {fmt_xy((c['x'], c['y']))}",
                                    "done": f"made room in the full chest at {fmt_xy((c['x'], c['y']))}"})
@@ -488,7 +490,8 @@ class World:
                             "fixes": []})
         # 4. chests that are full and block an inserter
         for e in self.ents.values():
-            if e["t"] in ("container", "logistic-container") and e.get("free") == 0 and self.feeders.get(e["u"]):
+            if (e["t"] in ("container", "logistic-container") and e.get("free") == 0 and self.feeders.get(e["u"])
+                    and e["u"] not in covered):
                 out.append({"kind": "chest_full", "u": e["u"], "at": (e["x"], e["y"]),
                             "text": f"{self.name(e['u'])} at {fmt_xy((e['x'], e['y']))} is full ({items_words(e.get('inv'), 3)})",
                             "fixes": [{"do": "empty_chest", "x": e["x"], "y": e["y"],
