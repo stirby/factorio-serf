@@ -31,6 +31,7 @@ Step ops (each step is an object {{"do": op, ...}}):
   ghosts entities=[{{name,x,y,direction,recipe}}]   lay out a whole design as planned ghosts, then build all of them (items fetched automatically). Best for any build of more than ~3 entities. In ghosts, an inserter's direction is the side it PICKS UP FROM (direction north = takes from the tile north of it, drops on the tile south of it).
   stamp string x y [direction]              lay a blueprint string as ghosts and build it
   design name x y                           build a saved design (save_design) with its 0,0 anchor at x,y
+  route pairs=[{{name, from:[x,y], to:[x,y]}}]   lay several separate belt lines at once without mixing (crossings go under with undergrounds); code solves the layout exactly. Use it for any set of 2+ belt lines that must not touch, e.g. belt puzzles or buses
   build_ghosts [x y radius]                 build planned ghosts (also the players' own)
   insert x y item [count] | take x y [item] [count] | empty_chest x y
   refuel x y [fuel]                         put fuel into a burner (fetches coal)
@@ -49,6 +50,7 @@ submit_plan fields: goal (what done looks like, one line), steps, expect (machin
 Chat lines are short and plain, like a player in game chat.
 After submit_plan, end your turn immediately: no summary, no commentary (nobody reads it; the actor is already working).
 Only use items that exist: the order message lists what's in storage chests and what the character carries; anything else must be hand-craftable from those (wooden chests need wood; use iron chests when there's no wood).
+Routing puzzles (many belts between pairs of points, crossings): don't work out paths by hand; use one route step with all the pairs (from = where items are put on, to = where they're picked up). It returns quickly.
 Belts: to take items off an existing belt, put the inserter (and the machine) right next to that belt; don't extend a belt backwards from its end. A branch needs a splitter or a side-load. connect's `from` continues a line only from its last belt, in the direction it already runs."""
 
 TOOLS = [

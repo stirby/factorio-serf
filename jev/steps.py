@@ -248,7 +248,8 @@ class Runner:
         rad = float(s.get("radius", 6))
         item = s.get("item", "small-electric-pole")
         msgs = []
-        for rnd in range(4):
+        prev_off, stuck = None, 0
+        for rnd in range(10):
             sc = await self.g.scan(center=p, radius=int(max(rad + 40, 48)))
             ents = [e for e in (sc.get("ents") or []) if not e.get("ghost")]
             live = {g["id"] for g in (sc.get("grids") or []) if isinstance(g, dict) and (g.get("cap_w") or 0) > 0}
@@ -258,10 +259,17 @@ class Runner:
             off += [e for e in near if e.get("t") != "electric-pole" and str(e.get("pw", "")).startswith("no power")
                     and e not in off]
             if not off:
-                return {"ok": True, "msg": ("everything there is powered" if not msgs else "; ".join(msgs))}
+                return {"ok": True, "msg": ("everything there is powered" if not msgs else "; ".join(msgs[-3:]))}
+            if prev_off is not None and len(off) >= prev_off:
+                stuck += 1
+                if stuck >= 2:
+                    break
+            else:
+                stuck = 0
+            prev_off = len(off)
             live_poles = [e for e in ents if e.get("t") == "electric-pole" and e.get("net") in live]
             if not live_poles:
-                return {"ok": False, "msg": "no powered pole within 50 tiles to run power from"}
+                return await self._long_power(p, s)
             dead_poles = [e for e in ents if e.get("t") == "electric-pole" and e.get("net") not in live
                           and any(abs(e["x"] - m["x"]) <= 4 and abs(e["y"] - m["y"]) <= 4 for m in off)]
             targets = dead_poles or off
@@ -279,7 +287,41 @@ class Runner:
             r = await self._act({"op": "connect", "item": item, "from": [src["x"], src["y"]],
                                  "to": [tgt["x"], tgt["y"]]}, timeout=420)
             msgs.append(str(r.get("msg"))[:160])
-        return {"ok": False, "msg": "still unpowered after 4 tries: " + " | ".join(msgs[-2:])}
+        return {"ok": False, "msg": f"{prev_off} things near {p[0]:g},{p[1]:g} still unpowered: " + " | ".join(msgs[-2:])}
+
+    async def _long_power(self, p, s) -> dict:
+        """No live pole nearby: find the nearest pole on a generating grid within 300 tiles and run a line from it in
+        legs of at most ~180 tiles (medium poles when there are any, else small)."""
+        lua = (f"local p={{x={p[0]},y={p[1]}}} local best,bd "
+               "for _,e in pairs(game.surfaces.nauvis.find_entities_filtered{type='electric-pole',position=p,"
+               "radius=300,force='player'}) do local st=e.electric_network_statistics "
+               "if st and next(st.output_counts) then local d=(e.position.x-p.x)^2+(e.position.y-p.y)^2 "
+               "if not bd or d<bd then best,bd=e,d end end end "
+               "return best and {best.position.x,best.position.y} or nil")
+        src = await self.g.eval(lua)
+        if not src:
+            return {"ok": False, "msg": "no powered pole within 300 tiles to run power from"}
+        inv = await self.refresh_inventory()
+        mats = await self.g.eval("local t={} for _,c in pairs(game.surfaces.nauvis.find_entities_filtered{type={"
+                                 "'container','logistic-container'},force='player'}) do local i=c.get_inventory("
+                                 "defines.inventory.chest) if i then t.m=(t.m or 0)+i.get_item_count("
+                                 "'medium-electric-pole') end end return t") or {}
+        item = s.get("item") or ("medium-electric-pole" if (inv.get("medium-electric-pole", 0) +
+                                                            (mats.get("m") or 0)) >= 10 else "small-electric-pole")
+        import math as _m
+        dist = _m.hypot(p[0] - src[0], p[1] - src[1])
+        legs = max(1, int(_m.ceil(dist / 180)))
+        cur = [float(src[0]), float(src[1])]
+        msgs = []
+        for i in range(1, legs + 1):
+            tgt = [src[0] + (p[0] - src[0]) * i / legs, src[1] + (p[1] - src[1]) * i / legs]
+            r = await self._act({"op": "connect", "item": item, "from": cur, "to": tgt}, timeout=900)
+            msgs.append(str(r.get("msg"))[:120])
+            if not r.get("ok") and "already connected" not in str(r.get("msg")):
+                return {"ok": False, "msg": f"long power line leg {i}/{legs} failed: {r.get('msg')}"}
+            cur = tgt
+        return {"ok": True, "msg": f"ran {item} {dist:.0f} tiles from the grid pole at {src[0]:g},{src[1]:g} in "
+                                   f"{legs} leg(s)"}
 
     async def _do_research(self, s):
         return await self._act({"op": "research", "tech": s["tech"], **({"first": True} if s.get("first") else {})})
@@ -322,6 +364,8 @@ class Runner:
                 q["direction"] = e["direction"]
             if e.get("recipe"):
                 q["recipe"] = e["recipe"]
+            if e.get("type") in ("input", "output"):
+                q["type"] = e["type"]
             ents.append(q)
         if not ents:
             return {"ok": False, "msg": "ghosts needs entities"}
@@ -329,7 +373,7 @@ class Runner:
         if s.get("_laid"):  # a retry: the ghosts are already there, just build them
             ys = [e["y"] for e in ents]
             cx, cy = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
-            rad = max(max(xs) - min(xs), max(ys) - min(ys)) / 2 + 4
+            rad = ((max(xs) - min(xs)) ** 2 + (max(ys) - min(ys)) ** 2) ** 0.5 / 2 + 3
             return await self._do_build_ghosts({"x": cx, "y": cy, "radius": rad})
         r = await self._act({"op": "blueprint", "entities": ents})
         if not r.get("ok"):
@@ -337,7 +381,7 @@ class Runner:
         s["_laid"] = True
         ys = [e["y"] for e in ents]
         cx, cy = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
-        rad = max(max(xs) - min(xs), max(ys) - min(ys)) / 2 + 4
+        rad = ((max(xs) - min(xs)) ** 2 + (max(ys) - min(ys)) ** 2) ** 0.5 / 2 + 3
         placed = r.get("ghosts")
         await self.stock(r.get("needs") or {})
         b = await self._do_build_ghosts({"x": cx, "y": cy, "radius": rad})
@@ -353,6 +397,57 @@ class Runner:
         if ents is None:
             return {"ok": False, "msg": f"no saved design {s.get('name')!r}"}
         return await self._do_ghosts({"entities": ents})
+
+    async def _do_route(self, s):
+        """Several separate belt lines at once (pairs of from/to tiles), laid by the router so they never mix:
+        crossings go under with undergrounds. Then built as ghosts."""
+        import math as _m
+        from .router import Grid, solve
+        from .world import World
+        pairs = s.get("pairs") or []
+        nets = []
+        for i, pr in enumerate(pairs):
+            try:
+                f, t = pr["from"], pr["to"]
+                nets.append((pr.get("name") or f"line{i + 1}", (_m.floor(float(f[0])), _m.floor(float(f[1]))),
+                             (_m.floor(float(t[0])), _m.floor(float(t[1])))))
+            except (KeyError, TypeError, ValueError, IndexError):
+                return {"ok": False, "msg": f"route pair {i + 1} needs from=[x,y] and to=[x,y]"}
+        if not nets:
+            return {"ok": False, "msg": "route needs pairs=[{from, to}]"}
+        xs = [p[0] for _, a, b in nets for p in (a, b)]
+        ys = [p[1] for _, a, b in nets for p in (a, b)]
+        cx, cy = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
+        margin = int(s.get("margin", 10))
+        rad = int(max(max(xs) - min(xs), max(ys) - min(ys)) / 2 + margin + 2)
+        sc = await self.g.scan(center=(cx, cy), radius=min(rad, 96), tiles=True)
+        w = World(sc)
+        blocked = {tuple(map(int, b)) for b in (sc.get("blocked") or [])} | set(w.tile)
+        # existing belts on the endpoints are fine to replace? no: endpoints must be free tiles
+        for _, a, b in nets:
+            blocked.discard(a)
+            blocked.discard(b)
+        g = Grid(blocked, (min(xs) - margin, min(ys) - margin, max(xs) + margin, max(ys) + margin))
+        inv = await self.refresh_inventory()
+        stock = await self.g.eval("local t={} for _,c in pairs(game.surfaces.nauvis.find_entities_filtered{type={"
+                                  "'container','logistic-container'},force='player'}) do local i=c.get_inventory("
+                                  "defines.inventory.chest) if i then for _,n in pairs({'transport-belt','underground-belt',"
+                                  "'fast-underground-belt','express-underground-belt'}) do t[n]=(t[n] or 0)+"
+                                  "i.get_item_count(n) end end end return t") or {}
+        names = ("transport-belt", "underground-belt", "fast-underground-belt", "express-underground-belt")
+        kit = {n: inv.get(n, 0) + int((stock or {}).get(n, 0)) for n in names}
+        kit = {n: v for n, v in kit.items() if v > 0} or None
+        if isinstance(s.get("kit"), dict) and s["kit"]:
+            kit = {n: int(v) for n, v in s["kit"].items()}
+        t0 = time.time()
+        ents, info = await asyncio.to_thread(solve, g, nets, kit, float(s.get("seconds", 25)))
+        self.log_fn({"t": t0, "kind": "route", "nets": len(nets), "ok": bool(ents), "info": info, "kit": kit,
+                     "secs": round(time.time() - t0, 2)})
+        if not ents:
+            return {"ok": False, "msg": f"router: {info}"}
+        r = await self._do_ghosts({"entities": ents})
+        r["msg"] = f"routed {len(nets)} lines ({len(ents)} pieces); " + str(r.get("msg"))
+        return r
 
     async def _do_stamp(self, s):
         a = {"op": "blueprint", "string": s["string"], "x": float(s["x"]), "y": float(s["y"])}
@@ -378,7 +473,30 @@ class Runner:
             left = int(r.get("left") or 0)
             missing = r.get("missing") or {}
             if left == 0:
-                return {"ok": True, "msg": f"built {built_total} ghosts; none left", "built": built_total}
+                # the mod skips a ghost whose placement failed once (e.g. the character stood on it); look again
+                remaining = 0
+                if p:
+                    sc = await self.g.scan(center=p, radius=int(float(s.get("radius", 32))) + 1)
+                    remaining = sum(1 for e in (sc.get("ents") or []) if e.get("ghost"))
+                if remaining and rnd < 2:
+                    last_left = None
+                    continue
+                if remaining:
+                    # still there: place each one directly (it walks its own way; dense underground layouts can
+                    # wall a spot off from the ghost builder's approach)
+                    for e in [e for e in (sc.get("ents") or []) if e.get("ghost")]:
+                        a = {"op": "place", "name": e["n"], "x": e["x"], "y": e["y"]}
+                        if e.get("d"):
+                            a["direction"] = e["d"]
+                        if e.get("ug"):
+                            a["type"] = e["ug"]
+                        pr = await self._act(a, timeout=90)
+                        if pr.get("ok"):
+                            built_total += 1
+                    sc = await self.g.scan(center=p, radius=int(float(s.get("radius", 32))) + 1)
+                    remaining = sum(1 for e in (sc.get("ents") or []) if e.get("ghost"))
+                return {"ok": True, "msg": f"built {built_total} ghosts; none left"
+                        + (f" ({remaining} ghosts there I couldn't build)" if remaining else ""), "built": built_total}
             if last_left is not None and left >= last_left and not r.get("built"):
                 return {"ok": False, "msg": f"built {built_total}; {left} ghosts left that I can't build "
                         f"(missing {missing})", "missing": missing, "built": built_total, "left": left}
@@ -422,8 +540,6 @@ def plan_needs(steps: list[dict]) -> dict:
             from .library import place_design
             for e in place_design(s.get("name", ""), s.get("x", 0), s.get("y", 0)) or []:
                 add(e.get("name"), 1)
-        elif d == "insert" and s.get("item") not in FUELS:
-            add(s.get("item"), s.get("count") or 1)
         elif d == "connect" and isinstance(s.get("from"), (list, tuple)) and isinstance(s.get("to"), (list, tuple)):
             dist = abs(s["from"][0] - s["to"][0]) + abs(s["from"][1] - s["to"][1])
             item = s.get("item")
@@ -433,6 +549,13 @@ def plan_needs(steps: list[dict]) -> dict:
                 add(item, dist * 1.2 + 4)
         elif d == "power":
             add(s.get("item", "small-electric-pole"), 6)
+        elif d == "route":
+            for pr in s.get("pairs") or []:
+                try:
+                    dist = abs(pr["from"][0] - pr["to"][0]) + abs(pr["from"][1] - pr["to"][1])
+                    add("transport-belt", dist * 0.8 + 4)
+                except (KeyError, TypeError, IndexError):
+                    pass
     # spares: a trip back to storage costs far more than a few extra items in the pocket
     electric = {"assembling-machine-1", "assembling-machine-2", "assembling-machine-3", "inserter", "fast-inserter",
                 "electric-mining-drill", "lab", "electric-furnace", "long-handed-inserter"}

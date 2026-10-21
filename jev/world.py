@@ -115,10 +115,12 @@ class World:
             ents = list(ents.values())
         self.ents: dict[int, dict] = {}
         self.ghosts: list[dict] = []
-        for e in ents:
+        for i, e in enumerate(ents):
             if e.get("ghost"):
                 self.ghosts.append(e)
-            elif e.get("u") is not None:
+            else:
+                if e.get("u") is None:  # neutral props and other things without a unit number: obstacles only
+                    e["u"] = -(i + 1)
                 self.ents[e["u"]] = e
         self.center = tuple(scan.get("center") or (0, 0))
         self.tile: dict[tuple[int, int], int] = {}

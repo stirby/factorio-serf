@@ -14,6 +14,16 @@ local GENERATORS = { "generator", "solar-panel", "electric-energy-interface", "b
 
 local function r2(v) return math.floor(v * 2 + 0.5) / 2 end
 
+-- Footprint in tiles: the entity's own tile size (rotation included), else its collision box rounded up.
+local function footprint(e)
+  local okW, w = pcall(function() return e.tile_width end)
+  local okH, h = pcall(function() return e.tile_height end)
+  if okW and okH and w and h and w > 0 and h > 0 then return w, h end
+  local bb = e.bounding_box
+  return math.max(1, math.ceil(bb.right_bottom.x - bb.left_top.x - 0.05)),
+    math.max(1, math.ceil(bb.right_bottom.y - bb.left_top.y - 0.05))
+end
+
 local function contents(inv)
   local out = util.contents(inv)
   return next(out) and out or nil
@@ -28,13 +38,12 @@ local function entry(e)
     d.n, d.ghost = e.ghost_name, true
     d.t = e.ghost_type
     if e.supports_direction then d.d = util.DIR_NAMES[e.direction] end
+    if e.ghost_type == "underground-belt" then pcall(function() d.ug = e.belt_to_ground_type end) end
     pcall(function() local r = e.get_recipe() if r then d.r = r.name end end)
     return d
   end
   if e.supports_direction then d.d = util.DIR_NAMES[e.direction] end
-  local bb = e.bounding_box
-  local w = math.floor(bb.right_bottom.x - bb.left_top.x + 0.6)
-  local h = math.floor(bb.right_bottom.y - bb.left_top.y + 0.6)
+  local w, h = footprint(e)
   if w > 1 or h > 1 then d.w, d.h = w, h end
   local okS, st = pcall(function() return e.status end)
   if okS and st then d.s = util.STATUS_NAMES[st] end
@@ -201,6 +210,10 @@ function scan.area(a, req)
       local who = storage.by_unit and storage.by_unit[e.unit_number]
       chars[#chars + 1] = { name = who or (e.player and e.player.name) or "character", agent = who and true or nil,
         x = r2(e.position.x), y = r2(e.position.y) }
+    elseif not SKIP[t] and e.force.name == "neutral" then
+      -- neutral buildings (scenario props, wrecks): only an obstacle, with its footprint
+      local w, h = footprint(e)
+      ents[#ents + 1] = { n = e.name, t = t, x = r2(e.position.x), y = r2(e.position.y), neutral = true, w = w, h = h }
     elseif not SKIP[t] and e.force.name ~= "enemy" and e.force.name ~= "neutral" then
       local okE, d = pcall(entry, e)
       if okE and d then ents[#ents + 1] = d end
@@ -226,8 +239,18 @@ function scan.area(a, req)
       water = { tiles = #w, x = best.x + 0.5, y = best.y + 0.5 }
     end
   end)
+  local blocked
+  if req.tiles then
+    blocked = {}
+    for _, tl in pairs(s.find_tiles_filtered { area = area, collision_mask = "water_tile" }) do
+      blocked[#blocked + 1] = { tl.position.x, tl.position.y }
+    end
+    for _, tl in pairs(s.find_tiles_filtered { area = area, name = { "out-of-map", "empty-space" } }) do
+      blocked[#blocked + 1] = { tl.position.x, tl.position.y }
+    end
+  end
   return { tick = game.tick, center = { r2(c.x), r2(c.y) }, radius = r, ents = ents, res = res, trees = trees,
-    rocks = rocks, chars = chars, grids = grids, water = water }
+    rocks = rocks, chars = chars, grids = grids, water = water, blocked = blocked }
 end
 
 return scan

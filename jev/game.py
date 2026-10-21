@@ -128,8 +128,10 @@ class Game:
     async def me(self) -> dict:
         return await self.call("self", agent=self.name)
 
-    async def scan(self, center=None, radius: int = 24) -> dict:
+    async def scan(self, center=None, radius: int = 24, tiles: bool = False) -> dict:
         kw = {"radius": radius, "agent": self.name}
+        if tiles:
+            kw["tiles"] = True
         if center is not None:
             kw["center"] = list(center)
         return await self.call("scan", timeout=30, **kw)

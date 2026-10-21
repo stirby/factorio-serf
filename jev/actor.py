@@ -30,6 +30,7 @@ from .world import World, fmt_xy, items_words
 log = logging.getLogger("jev.actor")
 
 GPS = re.compile(r"\[gps=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)(?:,[^\]]*)?\]")
+PAIR = re.compile(r"([\w-]+): \[gps=(-?[\d.]+),(-?[\d.]+)\] to \[gps=(-?[\d.]+),(-?[\d.]+)\]")
 RAW = {"iron-ore", "copper-ore", "coal", "stone", "wood", "uranium-ore"}
 
 
@@ -261,8 +262,35 @@ class Actor:
                 return True
             return await self._planned(o, f"New order from {o.speaker}: \"{o.text}\"\n\nThe actor tried to deliver it "
                                           f"itself and couldn't: {r}")
+        pairs = PAIR.findall(o.text)
+        if len(pairs) >= 2:
+            # an order that lists belt start/end pairs: the router lays them all, no planning needed
+            await self.say(f"on it: routing {len(pairs)} belts")
+            r = await self._route(o, pairs)
+            if r is True:
+                return True
+            return await self._planned(o, f"New order from {o.speaker}: \"{o.text}\"\n\nThe actor tried the belt "
+                                          f"router itself: {r}")
         await self.say("on it")
         return await self._planned(o, f"New order from {o.speaker}: \"{o.text}\"")
+
+    async def _route(self, o: Order, pairs) -> bool | str:
+        step = {"do": "route", "pairs": [{"name": n, "from": [float(a), float(b)], "to": [float(c), float(d)]}
+                                         for n, a, b, c, d in pairs]}
+        # "You have 240 transport-belt, 220 underground-belt; ..." -> the kit (it may not be in the pocket yet)
+        m = re.search(r"[Yy]ou have ([^;.]*\d[^;.]*)", o.text)
+        if m:
+            kit = {it: int(n) for n, it in re.findall(r"(\d+) ([a-z][a-z-]+)", m.group(1)) if "belt" in it}
+            if kit:
+                step["kit"] = kit
+        r = await self.runner.run(step)
+        self.log({"kind": "step", "order": o.id, "i": 0, "step": {"do": "route", "pairs": len(pairs)},
+                  "ok": r.get("ok"), "msg": r.get("msg")})
+        if not r.get("ok"):
+            return str(r.get("msg"))
+        self.metrics["fast_path"] += 1
+        await self.say("belts are down, items should start flowing")
+        return True
 
     # ------------------------------------------------------------------ thinker
     def _thinker_tools(self) -> dict:
@@ -382,11 +410,19 @@ class Actor:
         self.thinker.ask(Request("order" if o.plans == 0 else "report", text, o.id))
         if o.plans == 0 and self.prefetch:
             asyncio.create_task(self._prefetch(o))
-        try:
-            plan = await asyncio.wait_for(fut, timeout)
-        except asyncio.TimeoutError:
-            self._plan_waiters.pop(o.id, None)
-            plan = None
+        t0 = time.time()
+        plan = None
+        while True:
+            try:
+                plan = await asyncio.wait_for(asyncio.shield(fut), 30)
+                break
+            except asyncio.TimeoutError:
+                # keep waiting while the thinker is still on this order (puzzles take long), up to 20 minutes
+                still = self.thinker.busy and self.thinker.current and self.thinker.current.order_id == o.id
+                queued = any(r.order_id == o.id for r in list(self.thinker.queue._queue))
+                if time.time() - t0 > (1200 if (still or queued) else timeout) or o.status == "cancelled":
+                    self._plan_waiters.pop(o.id, None)
+                    break
         if o.status == "thinking":
             o.status = "working"
         return plan

@@ -129,6 +129,8 @@ async def run(a) -> dict:
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, stop.set)
+    if inst.running():  # a leftover from a run that died: our instance numbers are ours
+        await asyncio.to_thread(inst.stop)
     await asyncio.to_thread(inst.start, 240)
     actor = None
     jev = Jev(log_path=d / "jev.jsonl")
