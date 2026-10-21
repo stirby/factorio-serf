@@ -38,8 +38,8 @@ def _offsets(orig: list, new: list, tol: float) -> list[tuple[float, float]]:
                 continue
             cands[d] = frozenset(i for i, n in enumerate(new) for pp in orig if near((pp[0] + d[0], pp[1] + d[1]), n))
     chosen, covered = [], set()
-    for d, hits in sorted(cands.items(), key=lambda kv: -len(kv[1])):
-        if len(hits) >= 2 and hits - covered:
+    for d, hits in sorted(cands.items(), key=lambda kv: (-len(kv[1]), abs(kv[0][0]) + abs(kv[0][1]))):
+        if len(hits) >= 2 and not hits & covered:  # copies are disjoint: one that shares a point would overlap
             chosen.append(d)
             covered |= hits
     return chosen if chosen and len(covered) == len(new) else []

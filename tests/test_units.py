@@ -256,6 +256,9 @@ def test_copy_offsets():
     d = quickcopy.offsets([(12, 8), (16, 30), (0, 8), (-7, 14)], [(28, 8), (44, 8), (32, 30), (48, 30)])
     check("copy: shared points of the first order (supply chest, pole) don't stop a match",
           sorted(d) == [(16, 0), (32, 0)], d)
+    d = quickcopy.offsets([(28, 8), (44, 8), (32, 30), (48, 30)], [(60, 8), (76, 8), (92, 8), (108, 8)])
+    check("copy: a two-column unit copied twice for four, not three overlapping times", sorted(d) == [(32, 0), (64, 0)],
+          d)
 
 
 def test_feeder_option():
