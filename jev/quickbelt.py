@@ -89,10 +89,14 @@ def sink(w: World, p, toward) -> dict | None:
     ins, belt = min(cands, key=lambda c: _d(c[1], toward))
     powered = any(e.get("t") == "electric-pole" and _d((e["x"], e["y"]), ins) <= 7 and
                   (w.grids.get(e.get("net")) or {}).get("cap_w") for e in w.ents.values())
-    name = "inserter" if powered else "burner-inserter"
+    # fuel into a burner (a boiler, a stone furnace): a burner inserter, which fuels itself from the coal it moves.
+    # An electric one on a boiler's own grid stops when the boiler runs dry and never starts it again.
+    burner_target = tgt.get("t") in ("boiler", "burner-generator") or tgt.get("n") in ("stone-furnace", "steel-furnace",
+                                                                                       "burner-mining-drill")
+    name = "burner-inserter" if burner_target or not powered else "inserter"
     return {"to": [belt[0], belt[1]], "kind": "new_inserter", "inserter": {"name": name, "x": ins[0], "y": ins[1],
             "pickup": [belt[0], belt[1]]}, "what": f"the {tgt['n'].replace('-', ' ')} at {tgt['x']:g},{tgt['y']:g}",
-            "electric": powered}
+            "electric": powered and not burner_target}
 
 
 def endpoints(wa: World, a, wb: World, b) -> dict | None:
