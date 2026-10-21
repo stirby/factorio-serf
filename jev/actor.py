@@ -943,7 +943,7 @@ class Actor:
             allf = w.faults()
             if not allf and not (self._stopped(w) & watch):
                 if fixed:
-                    await self.say("fixed: " + "; ".join(fixed))
+                    await self.say("; ".join(dict.fromkeys(fixed)))
                     return True
                 return "no faults found near the point and nothing there is stopped (the cause may be elsewhere)"
             if not fl:
@@ -977,12 +977,12 @@ class Actor:
                           "msg": r.get("msg")})
                 if not r.get("ok"):
                     return f"tried to fix '{f['text']}' by '{fx.get('text')}' and it failed: {r.get('msg')}"
-            fixed.append(fx.get("text"))
+            fixed.append(fx.get("done") or fx.get("text"))
             self.metrics["fast_path"] += 1
             # let it run: success when the machines that were stopped got going
             ok, w2 = await self._settled(o, watch or self._stopped(w))
             if ok and not [f for f in w2.faults() if f.get("fixes")]:
-                await self.say("fixed: " + "; ".join(fixed))
+                await self.say("; ".join(dict.fromkeys(fixed)))
                 return True
         w = await self.world(o.focus, 18)
         return (f"I did: {'; '.join(fixed)}, but problems remain: " + "; ".join(f["text"] for f in w.faults()[:8]))
@@ -1028,7 +1028,7 @@ class Actor:
                     r = await self.runner.run(step)
                 self.log({"kind": "fix", "order": o.id, "fault": f["text"], "fix": fx, "ok": r.get("ok"),
                           "msg": r.get("msg")})
-                (fixed if r.get("ok") else failed).append(fx.get("text"))
+                (fixed if r.get("ok") else failed).append(fx.get("done") or fx.get("text"))
                 pos = tuple(f.get("at") or pos)
                 self.metrics["fast_path"] += 1
             await asyncio.sleep(10)

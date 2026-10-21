@@ -382,7 +382,8 @@ class World:
                             "text": f"a belt at {fmt_xy((e['x'], e['y']))} faces {d}, against the belts around it "
                                     f"(they run {OPP[d]}), so items can't pass",
                             "fixes": [{"do": "rotate", "x": e["x"], "y": e["y"], "direction": OPP[d],
-                                       "text": f"turn the belt at {fmt_xy((e['x'], e['y']))} to face {OPP[d]}"}]})
+                                       "text": f"turn the belt at {fmt_xy((e['x'], e['y']))} to face {OPP[d]}",
+                                       "done": f"a belt at {fmt_xy((e['x'], e['y']))} was facing the wrong way, turned it back"}]})
         # 1b. a gap: a line ends with nothing ahead, and a few tiles further on, in line with it, another line starts
         # going the same way (a belt was cut or never finished)
         starts = {}
@@ -409,7 +410,8 @@ class World:
                                     "fixes": [{"do": "connect", "item": "transport-belt",
                                                "from": [last["x"], last["y"]], "to": [p[0], p[1]],
                                                "text": f"fill the {k - 1}-tile gap in the belt at "
-                                                       f"{fmt_xy(gap[0])}"}]})
+                                                       f"{fmt_xy(gap[0])}",
+                                               "done": f"filled a gap in the belt at {fmt_xy(gap[0])}"}]})
                     break
         # 2. machines stopped
         for e in self.ents.values():
@@ -421,7 +423,8 @@ class World:
                 out.append({"kind": "no_fuel", "u": e["u"], "at": pos,
                             "text": f"{self.name(e['u'])} at {fmt_xy(pos)} is out of fuel",
                             "fixes": [{"do": "refuel", "x": e["x"], "y": e["y"],
-                                       "text": f"put coal into {self.name(e['u'])}"}]})
+                                       "text": f"put coal into {self.name(e['u'])}",
+                                       "done": f"refuelled the {e['n']} at {fmt_xy(pos)}"}]})
             elif st == "full_output":
                 fx = []
                 for i in self.takers.get(e["u"], []):
@@ -430,7 +433,8 @@ class World:
                     if du and du in self.ents and self.ents[du]["t"] in CHESTS and not self.ents[du].get("free"):
                         c = self.ents[du]
                         fx.append({"do": "empty_chest", "x": c["x"], "y": c["y"],
-                                   "text": f"empty the full chest {self.name(du)} at {fmt_xy((c['x'], c['y']))}"})
+                                   "text": f"empty the full chest {self.name(du)} at {fmt_xy((c['x'], c['y']))}",
+                                   "done": f"made room in the full chest at {fmt_xy((c['x'], c['y']))}"})
                 # no full chest behind it: a machine whose output nothing takes away is usually full on purpose
                 # (a mall, a buffer). Don't offer to take a player's products; the planner can decide.
                 out.append({"kind": "output_full", "u": e["u"], "at": pos,
@@ -439,7 +443,8 @@ class World:
                 out.append({"kind": "no_power", "u": e["u"], "at": pos,
                             "text": f"{self.name(e['u'])} at {fmt_xy(pos)} has no power ({e.get('pw') or st})",
                             "fixes": [{"do": "power", "x": e["x"], "y": e["y"],
-                                       "text": f"run poles from the grid to {self.name(e['u'])}"}]})
+                                       "text": f"run poles from the grid to {self.name(e['u'])}",
+                                       "done": f"connected the {e['n']} at {fmt_xy(pos)} to the grid"}]})
             elif st == "no_recipe" and e["t"] == "assembling-machine":
                 out.append({"kind": "no_recipe", "u": e["u"], "at": pos,
                             "text": f"{self.name(e['u'])} at {fmt_xy(pos)} has no recipe", "fixes": []})
@@ -462,7 +467,8 @@ class World:
             if g.get("boilers_low_fuel"):
                 out.append({"kind": "boiler_fuel", "grid": g["id"], "at": self.center,
                             "text": f"grid {g['id']}: {g['boilers_low_fuel']} of {g['boilers']} boilers low on fuel",
-                            "fixes": [{"do": "refuel_boilers", "grid": g["id"], "text": "refuel the boilers"}]})
+                            "fixes": [{"do": "refuel_boilers", "grid": g["id"], "text": "refuel the boilers",
+                                       "done": "refuelled the boilers"}]})
             if cap and used >= 0.97 * cap:
                 out.append({"kind": "power_maxed", "grid": g["id"], "at": self.center,
                             "text": f"grid {g['id']} is maxed out: using {used / 1e6:.1f} MW of {cap / 1e6:.1f} MW",
@@ -473,7 +479,8 @@ class World:
                 out.append({"kind": "chest_full", "u": e["u"], "at": (e["x"], e["y"]),
                             "text": f"{self.name(e['u'])} at {fmt_xy((e['x'], e['y']))} is full ({items_words(e.get('inv'), 3)})",
                             "fixes": [{"do": "empty_chest", "x": e["x"], "y": e["y"],
-                                       "text": f"empty {self.name(e['u'])}"}]})
+                                       "text": f"empty {self.name(e['u'])}",
+                                       "done": f"made room in the full chest at {fmt_xy((e['x'], e['y']))}"}]})
         # 5. inserters dropping on the ground or picking from nothing
         for e in self.ents.values():
             if e["t"] == "inserter" and e.get("s") == "waiting_for_source_items" and not e.get("pku"):
