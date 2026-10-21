@@ -1,0 +1,4 @@
+{"note": "The long and lab scenarios plus the behaviour tests: where the remaining failures are.",
+ "tests": ["t-session", "t-change", "t-maintain", "x-green-science", "x-red-circuits", "x-scale-ladder", "x-outpost",
+           "x-multi-fault", "s2-green-science", "s2-iron-double", "s3-mall", "s3-steel", "s3-science-scale",
+           "s5-blue-science", "d2-science-steps", "s1-red-science"]}
