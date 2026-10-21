@@ -1,0 +1,51 @@
+{
+ "name": "t-quick-dirs",
+ "stage": "stage-s3-steel-oil-ready",
+ "minutes": 20,
+ "agents": 1,
+ "kind": "directive",
+ "group": "production",
+ "note": "Plain build orders off belts that don't run east: gears off an iron belt running north with rocks beside it, then steel off an iron+coal belt running west. Checks what belt-fed machines made and what reached a chest. Exercises the quick-build path's direction and side handling.",
+ "setup_lua": "local s, f = game.surfaces.nauvis, game.forces.player\nlocal used = {}\nlocal function free(x, y, w, h)\n  for _, u in pairs(used) do\n    if x < u[3] and x + w > u[1] and y < u[4] and y + h > u[2] then return false end\n  end\n  local a = { { x, y }, { x + w, y + h } }\n  if s.count_tiles_filtered { area = a, collision_mask = \"water_tile\" } > 0 then return false end\n  return s.count_entities_filtered { area = a, type = { \"tree\", \"simple-entity\", \"resource\", \"corpse\", \"fish\" },\n    invert = true } == 0 and s.count_entities_filtered { area = a, type = \"resource\" } == 0\nend\nlocal function find(w, h, r0)\n  for r = r0, 400, 4 do\n    for _, d in pairs { { 1, 0 }, { 0, 1 }, { -1, 0 }, { 0, -1 }, { 1, 1 }, { -1, 1 }, { 1, -1 }, { -1, -1 } } do\n      local x, y = d[1] * r, d[2] * r\n      if free(x, y, w, h) then return x, y end\n    end\n  end\nend\nlocal D = defines.direction\n-- a fixture of size w x h around a belt; put(name, x, y, dir) relative to its corner\nlocal function fixture(key, w, h)\n  local fx, fy = find(w + 24, h + 24, 60)\n  if not fx then error(\"no free area for \" .. key) end\n  local X, Y = math.floor(fx) + 12, math.floor(fy) + 12\n  used[#used + 1] = { X - 16, Y - 16, X + w + 16, Y + h + 16 }\n  for _, e in pairs(s.find_entities_filtered { area = { { X - 2, Y - 2 }, { X + w + 2, Y + h + 2 } },\n    type = { \"tree\", \"simple-entity\", \"corpse\", \"fish\", \"item-entity\" } }) do e.destroy() end\n  local function put(name, x, y, dir, extra)\n    local spec = { name = name, position = { X + x, Y + y }, direction = dir, force = f }\n    for k, v in pairs(extra or {}) do spec[k] = v end\n    local e = s.create_entity(spec)\n    if not e then error(\"could not place \" .. name .. \" at \" .. x .. \",\" .. y) end\n    return e\n  end\n  storage[key] = { area = { { X - 12, Y - 12 }, { X + w + 12, Y + h + 12 } } }\n  return X, Y, put\nend\nlocal out = {}\n-- A: an iron-plate belt running NORTH (x=10.5, from y=40 up to y=1), fed at its south end; rocks east of it\ndo\n  local X, Y, put = fixture(\"bench_qn\", 24, 44)\n  for y = 1, 40 do put(\"transport-belt\", 10.5, y + 0.5, D.north) end\n  local c = put(\"infinity-chest\", 10.5, 42.5)\n  c.set_infinity_container_filter(1, { name = \"iron-plate\", count = 100, mode = \"exactly\" })\n  put(\"fast-inserter\", 10.5, 41.5, D.south) -- picks from the chest south of it, drops on the belt's south end\n  local e = put(\"electric-energy-interface\", 4, 44)\n  e.power_production, e.electric_buffer_size = 200000, 20000000\n  put(\"small-electric-pole\", 6.5, 42.5)\n  put(\"small-electric-pole\", 9.5, 43.5)\n  for _, p in pairs { { 14.5, 30.5 }, { 15.5, 33.5 }, { 13.5, 36.5 } } do put(\"big-rock\", p[1], p[2]) end\n  out.a_bx, out.a_by = X + 10, Y + 40\nend\n-- B: an iron-plate + coal belt running WEST (y=6.5, from x=40 down to x=1), fed at its east end\ndo\n  local X, Y, put = fixture(\"bench_qw\", 44, 24)\n  for x = 1, 40 do put(\"transport-belt\", x + 0.5, 6.5, D.west) end\n  local c1 = put(\"infinity-chest\", 40.5, 4.5)\n  c1.set_infinity_container_filter(1, { name = \"iron-plate\", count = 100, mode = \"exactly\" })\n  put(\"fast-inserter\", 40.5, 5.5, D.north) -- picks from the chest north of it, drops on the belt's east end\n  local c2 = put(\"infinity-chest\", 40.5, 8.5)\n  c2.set_infinity_container_filter(1, { name = \"coal\", count = 100, mode = \"exactly\" })\n  put(\"fast-inserter\", 40.5, 7.5, D.south)\n  local e = put(\"electric-energy-interface\", 44, 2)\n  e.power_production, e.electric_buffer_size = 200000, 20000000\n  put(\"small-electric-pole\", 42.5, 2.5)\n  put(\"small-electric-pole\", 39.5, 4.5)\n  put(\"small-electric-pole\", 39.5, 8.5)\n  out.b_bx, out.b_by = X + 40, Y + 6\nend\nreturn out\n",
+ "objectives": [
+  {
+   "name": "gears-north",
+   "minutes": 8,
+   "hold_samples": 1,
+   "goal": "@{agent} make gears off the iron belt at [gps={a_bx},{a_by}], into a chest",
+   "answer": "Your call.",
+   "score": [
+    {
+     "name": "gears_made",
+     "lua": "local A=storage.bench_qn.area local function fedok(m) local n=0 for _,i in pairs(s.find_entities_filtered{type='inserter',force=f,area={{m.position.x-3,m.position.y-3},{m.position.x+3,m.position.y+3}}}) do if i.drop_target==m then local p=i.pickup_target if p then if p.type=='infinity-container' or p.type=='character' or p.type=='container' or p.type=='logistic-container' then return false end n=n+1 end end end return n>0 end local function made(rn, ty) local t=0 for _,m in pairs(s.find_entities_filtered{area=A,force=f,type=ty or 'assembling-machine'}) do local r=m.get_recipe() if (ty=='furnace' or (r and r.name==rn)) and fedok(m) then t=t+m.products_finished end end return t end local function inchest(item) local t=0 for _,c in pairs(s.find_entities_filtered{area=A,force=f,type={'container','logistic-container'}}) do t=t+c.get_item_count(item) end return t end return made('iron-gear-wheel')",
+     "target": 20
+    },
+    {
+     "name": "gears_in_chest",
+     "lua": "local A=storage.bench_qn.area local function fedok(m) local n=0 for _,i in pairs(s.find_entities_filtered{type='inserter',force=f,area={{m.position.x-3,m.position.y-3},{m.position.x+3,m.position.y+3}}}) do if i.drop_target==m then local p=i.pickup_target if p then if p.type=='infinity-container' or p.type=='character' or p.type=='container' or p.type=='logistic-container' then return false end n=n+1 end end end return n>0 end local function made(rn, ty) local t=0 for _,m in pairs(s.find_entities_filtered{area=A,force=f,type=ty or 'assembling-machine'}) do local r=m.get_recipe() if (ty=='furnace' or (r and r.name==rn)) and fedok(m) then t=t+m.products_finished end end return t end local function inchest(item) local t=0 for _,c in pairs(s.find_entities_filtered{area=A,force=f,type={'container','logistic-container'}}) do t=t+c.get_item_count(item) end return t end return inchest('iron-gear-wheel')",
+     "target": 10
+    }
+   ]
+  },
+  {
+   "name": "steel-west",
+   "minutes": 8,
+   "hold_samples": 1,
+   "goal": "@{agent} 3 furnaces making steel off the belt at [gps={b_bx},{b_by}] please, it has plates and coal",
+   "answer": "Your call. Steel into chests.",
+   "score": [
+    {
+     "name": "steel_made",
+     "lua": "local A=storage.bench_qw.area local function fedok(m) local n=0 for _,i in pairs(s.find_entities_filtered{type='inserter',force=f,area={{m.position.x-3,m.position.y-3},{m.position.x+3,m.position.y+3}}}) do if i.drop_target==m then local p=i.pickup_target if p then if p.type=='infinity-container' or p.type=='character' or p.type=='container' or p.type=='logistic-container' then return false end n=n+1 end end end return n>0 end local function made(rn, ty) local t=0 for _,m in pairs(s.find_entities_filtered{area=A,force=f,type=ty or 'assembling-machine'}) do local r=m.get_recipe() if (ty=='furnace' or (r and r.name==rn)) and fedok(m) then t=t+m.products_finished end end return t end local function inchest(item) local t=0 for _,c in pairs(s.find_entities_filtered{area=A,force=f,type={'container','logistic-container'}}) do t=t+c.get_item_count(item) end return t end return made(nil, 'furnace')",
+     "target": 4
+    },
+    {
+     "name": "steel_in_chest",
+     "lua": "local A=storage.bench_qw.area local function fedok(m) local n=0 for _,i in pairs(s.find_entities_filtered{type='inserter',force=f,area={{m.position.x-3,m.position.y-3},{m.position.x+3,m.position.y+3}}}) do if i.drop_target==m then local p=i.pickup_target if p then if p.type=='infinity-container' or p.type=='character' or p.type=='container' or p.type=='logistic-container' then return false end n=n+1 end end end return n>0 end local function made(rn, ty) local t=0 for _,m in pairs(s.find_entities_filtered{area=A,force=f,type=ty or 'assembling-machine'}) do local r=m.get_recipe() if (ty=='furnace' or (r and r.name==rn)) and fedok(m) then t=t+m.products_finished end end return t end local function inchest(item) local t=0 for _,c in pairs(s.find_entities_filtered{area=A,force=f,type={'container','logistic-container'}}) do t=t+c.get_item_count(item) end return t end return inchest('steel-plate')",
+     "target": 3
+    }
+   ]
+  }
+ ],
+ "score": []
+}
