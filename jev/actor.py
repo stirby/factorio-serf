@@ -487,6 +487,16 @@ class Actor:
                 await self.runner.stock(want)
         except Exception as e:  # noqa: BLE001
             self.log({"kind": "error", "where": "prefetch", "error": repr(e)})
+        # head for the site while the planner is still thinking (the plan's first steps start there anyway)
+        try:
+            if o.focus and o.status == "thinking":
+                me = await self.g.me()
+                pos = me.get("position") or (0, 0)
+                if abs(pos[0] - o.focus[0]) + abs(pos[1] - o.focus[1]) > 20:
+                    await self.g.act([{"op": "move", "x": o.focus[0], "y": o.focus[1], "radius": 6}])
+                    self.log({"kind": "walk_ahead", "order": o.id, "to": o.focus})
+        except Exception as e:  # noqa: BLE001
+            self.log({"kind": "error", "where": "walk_ahead", "error": repr(e)})
 
     async def _ask_plan(self, o: Order, text: str, timeout: float = 600) -> dict | None:
         if not self.thinker:
@@ -499,11 +509,15 @@ class Actor:
             asyncio.create_task(self._prefetch(o))
         t0 = time.time()
         plan = None
+        told = False
         while True:
             try:
-                plan = await asyncio.wait_for(asyncio.shield(fut), 30)
+                plan = await asyncio.wait_for(asyncio.shield(fut), 45 if not told else 30)
                 break
             except asyncio.TimeoutError:
+                if not told and o.plans == 0:
+                    told = True
+                    await self.say("still working out the layout, one moment")
                 # keep waiting while the thinker is still on this order (puzzles take long), up to 20 minutes
                 still = self.thinker.busy and self.thinker.current and self.thinker.current.order_id == o.id
                 queued = any(r.order_id == o.id for r in list(self.thinker.queue._queue))
