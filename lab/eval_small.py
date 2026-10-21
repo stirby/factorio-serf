@@ -26,6 +26,13 @@ NOT_DONE = [("not done yet: chests full is 3, needs 8. Keep going on it.", 1),
             ("not done yet: it has to hold for a few minutes. Keep at it.", 1),
             ("it stopped again, the chest is full", 1), ("nice job", 0), ("thanks, that one's done.", 0),
             ("hmm the gears aren't coming out", 1)]
+FIX_ALL = [("@serf science is really slow at the little lab setup at [gps=57,9]. Can you look at it and get it running "
+            "properly?", 1),
+           ("@serf my furnace setups around here stopped, get them all running again", 1),
+           ("@serf something's off with the mall at [gps=3,3], sort it out", 1),
+           ("@serf the boiler at [gps=1,2] keeps running out of coal", 0),
+           ("@serf the gear assemblers at [gps=4,4] have no power. Hook them up to the grid", 0),
+           ("@serf that belt at [gps=2,2] is facing the wrong way", 0)]
 KITS = [("automate gears off this iron belt", "assembly"), ("build 8 stone furnaces off the ore belt", "smelting"),
         ("we need more power, the grid is maxed", "power"), ("set up drills on the iron patch north of base", "mining"),
         ("belt the copper over to the bus", "belts"), ("what are you doing?", "none"),
@@ -52,6 +59,14 @@ async def main():
     for (m, g), p in zip(NOT_DONE, nd):
         if (p >= 0.6) != bool(g):
             print(f"    p={p:.2f} gold={g}: {m}")
+    probs = ["a belt at 52.5,3.5 faces west, against the belts around it", "assembling-machine-1 A4 has no power",
+             "wooden-chest C1 is full (800 stone)"]
+    fa = await asyncio.gather(*(decide.fault(jev, m, [{"text": t} for t in probs]) for m, _ in FIX_ALL))
+    ok = sum(1 for (m, g), r in zip(FIX_ALL, fa) if (r[3] >= 0.7) == bool(g))
+    print(f"fix_all: {ok}/{len(FIX_ALL)}")
+    for (m, g), r in zip(FIX_ALL, fa):
+        if (r[3] >= 0.7) != bool(g):
+            print(f"    p={r[3]:.2f} gold={g}: {m[:80]}")
     k = await asyncio.gather(*(decide.kit(jev, m) for m, _ in KITS))
     ok = sum(1 for (m, g), (c, _) in zip(KITS, k) if c == g)
     print(f"kit: {ok}/{len(KITS)}")

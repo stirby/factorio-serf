@@ -60,6 +60,16 @@ class Order:
         return self.points[0] if self.points else None
 
 
+def fixed_words(fixed: list[str]) -> str:
+    """'refuelled the furnace at 1,2; refuelled the furnace at 3,4; ...' -> 'refuelled the furnace at 1,2 (and 3
+    more like it)': the same fix on several machines is one line in chat."""
+    out: dict = {}
+    for t in dict.fromkeys(fixed):
+        key = re.sub(r"-?\d+(\.\d+)?,-?\d+(\.\d+)?", "#", t)
+        out.setdefault(key, []).append(t)
+    return "; ".join(v[0] + (f" (and {len(v) - 1} more like it)" if len(v) > 1 else "") for v in out.values())
+
+
 class Actor:
     def __init__(self, game: Game, jev: Jev, workdir: Path, name: str = "serf", think: bool = True,
                  thinker_effort: str | None = None):
@@ -1233,7 +1243,7 @@ class Actor:
             allf = w.faults()
             if not allf and not (self._stopped(w) & watch):
                 if fixed:
-                    await self.say("; ".join(dict.fromkeys(fixed)))
+                    await self.say(fixed_words(fixed))
                     return True
                 return "no faults found near the point and nothing there is stopped (the cause may be elsewhere)"
             if not fl:
@@ -1248,13 +1258,16 @@ class Actor:
             for kind, mem in groups.items():
                 text = mem[0]["text"] if len(mem) == 1 else f"{len(mem)} of these: {mem[0]['text']}"
                 opts.append({"text": text, "members": mem})
-            idx, conf, p_any = await decide.fault(self.jev, o.text, opts)
+            idx, conf, p_any, p_all = await decide.fault(self.jev, o.text, opts)
             self.log({"kind": "fault_pick", "order": o.id, "faults": [x["text"] for x in opts], "pick": idx,
-                      "conf": round(conf, 3), "p_any": round(p_any, 3)})
+                      "conf": round(conf, 3), "p_any": round(p_any, 3), "p_all": round(p_all, 3)})
             if idx is None or idx >= len(opts) or (conf < 0.4 and p_any < 0.5):
                 return "unsure which fault is meant: " + "; ".join(x["text"] for x in opts[:6])
+            # "get it all running": every fault code can fix there in this round, the one Jev picked first
+            extra = [g for i, g in enumerate(opts) if i != idx] if p_all >= 0.7 else []
             r, f, fx = {"ok": True}, None, None
-            for f in opts[idx]["members"]:
+            for f in opts[idx]["members"] + [m for g in extra for m in g["members"]]:
+                main = f in opts[idx]["members"]
                 fx = f["fixes"][0]
                 step = {k: v for k, v in fx.items() if k != "text"}
                 if fx.get("do") == "refuel_boilers":
@@ -1269,14 +1282,15 @@ class Actor:
                         r = await self.runner.run({"do": "purge", **fx["then_purge"]})
                 self.log({"kind": "fix", "order": o.id, "fault": f["text"], "fix": fx, "ok": r.get("ok"),
                           "msg": r.get("msg")})
-                if not r.get("ok"):
+                if not r.get("ok") and main:
                     return f"tried to fix '{f['text']}' by '{fx.get('text')}' and it failed: {r.get('msg')}"
-            fixed.append(fx.get("done") or fx.get("text"))
+                if r.get("ok"):
+                    fixed.append(fx.get("done") or fx.get("text"))
             self.metrics["fast_path"] += 1
             # let it run: success when the machines that were stopped got going
             ok, w2 = await self._settled(o, watch or self._stopped(w))
             if ok and not [f for f in w2.faults() if f.get("fixes")]:
-                await self.say("; ".join(dict.fromkeys(fixed)))
+                await self.say(fixed_words(fixed))
                 return True
         w = await self.world(o.focus, 18)
         return (f"I did: {'; '.join(fixed)}, but problems remain: " + "; ".join(f["text"] for f in w.faults()[:8]))

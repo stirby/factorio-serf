@@ -71,17 +71,22 @@ async def chat(jev: Jev, me: str, speaker: str, message: str, doing: str | None,
                     a["playbook"].confidence)
 
 
-async def fault(jev: Jev, complaint: str, faults: list[dict]) -> tuple[int | None, float, float]:
-    """Pick the fault the complaint is about. Returns (index or None, confidence, p_any_fits)."""
+async def fault(jev: Jev, complaint: str, faults: list[dict]) -> tuple[int | None, float, float, float]:
+    """Pick the fault the complaint is about. Returns (index or None, confidence, p_any_fits, p_wants_everything_fixed)."""
     opts = {f"f{i}": f["text"] for i, f in enumerate(faults[:60])}
     state = {"player_said": complaint, "problems_found_near_there": list(opts.values())}
     qs = {
         "which": choice("Which problem in `problems_found_near_there` most likely causes what `player_said`?", opts),
         "any": noul("Does any problem in `problems_found_near_there` explain what `player_said`?"),
+        "all": noul("Does `player_said` ask to get the whole setup there working properly, rather than one "
+                    "specific thing?",
+                    "yes: 'science is really slow there, look at it and get it running properly', 'my sites stopped, "
+                    "get them all running', 'sort it all out'",
+                    "no: 'the boiler keeps running out of coal', 'that belt is backwards', 'power the assemblers'"),
     }
     a = await jev.ask(state, qs, kind="fault")
     w = a["which"].choice
-    return (int(w[1:]) if w else None), a["which"].confidence, a["any"].p
+    return (int(w[1:]) if w else None), a["which"].confidence, a["any"].p, a["all"].p
 
 
 RECOVERY = {
