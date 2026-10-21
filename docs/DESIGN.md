@@ -1,62 +1,69 @@
 # Jev + Opus: design
 
-One character in Factorio, three parts:
+One character in Factorio, three parts.
 
 | Part | Who | Job |
 |---|---|---|
-| Hands | the mod (forked from factorio-serf at `serf-v1-final`) | legit player actions: walk, reach, real inventory, crafting, routing belts/poles (`connect`), ghosts, `fetch` (storage then hand-craft). New: `scan`, one compact snapshot of an area (every building, belt neighbours, inserter targets, grids as numbers) in ~90 ms. |
-| Code | `jev/world.py`, `jev/steps.py`, `jev/lint.py` | Everything exact: belt lines and why they end, which inserter feeds what, why a machine is stopped, faults with candidate fixes, what a plan needs, plan checking before anything is built. |
-| Actor | Jev (`jev/decide.py`, `jev/actor.py`) | The judgment calls, each a narrow typed question over a small state code prepares: is this chat line for me and what is it; which fast playbook fits; which fault is the player talking about; a step failed, so retry, get the item, skip or replan; does the area now look like the goal. ~150 ms, ~$0.00003 each. |
-| Thinker | Opus (`jev/thinker.py`) | Never in the action loop. Woken for orders the actor can't do alone and for plans that failed or missed. It reads the area through a few tools and submits one plan. |
+| Hands | the mod (forked from factorio-serf at `serf-v1-final`) | Legal player actions: walking, reach, real inventory, crafting, routing belts and poles (`connect`), ghosts, `fetch`. New in this fork: `scan` (an area in ~90 ms, exact footprints, neutral obstacles); `grab` (items off belts); `query` (read-only lookups allowed over UDP); fetching ingredients from storage before crafting; explicit wiring along a pole line. |
+| Code | `world`, `steps`, `lint`, `router`, `rowgen`, `blueprints` | Everything exact. **World model:** belt lines and why they end, which inserter feeds what, why a machine is stopped, and faults with candidate fixes. **Steps:** fetch everything a plan needs in one trip; fall back to belts, crafting, then mining; keep a power step trying until nothing is unpowered; place pole lines in legs; build ghosts until none are left. **Plan checker:** simulates the plan before any of it is built. **Router:** many belts that never mix. **`row`:** machines along a belt. **Blocks:** game-tested designs. |
+| Actor | Jev (`decide.py`, `actor.py`) | The judgment calls. Each is a narrow typed question over a small state that code prepares. |
+| Thinker | Opus (`thinker.py`) | Never in the action loop. It is woken for orders the actor can't do alone and for plans that failed or missed. It reads the area through tools and submits one plan. |
 
 ## The layer between them: the plan
 
-```json
-{"goal": "one line", "say": "chat now", "done_text": "chat when verified",
- "steps": [{"do": "place", "name": "assembling-machine-1", "x": -34.5, "y": 96.5, "recipe": "iron-gear-wheel"},
-           {"do": "connect", "item": "transport-belt", "from": [..], "to": [..]},
-           {"do": "ghosts", "entities": [...]}, {"do": "power", "x": .., "y": ..}],
- "expect": [{"check": "working", "recipe": "iron-gear-wheel", "count": 1, "near": [x, y], "radius": 4},
-            {"check": "has_item", "x": .., "y": .., "item": "iron-gear-wheel", "count": 1}]}
-```
+A plan has a goal, steps, checks (`expect`), chat lines, and optionally things to `watch`.
 
-- Opus decides *what* and *where*. Code decides *how*: it fetches everything the plan needs in one trip, then
-  runs the steps. Jev decides *what now* when something goes wrong.
-- `expect` is checked by code. When a plan has none, Jev judges the goal words against the area.
-- A failed step goes through Jev first (retry, get the item, skip). Only "replan" or low confidence wakes Opus,
-  with a report: steps done, the failure, and the faults code sees there now.
-- Before a plan runs, `lint.py` simulates its buildings on the scanned area. Problems go straight back to Opus
-  in the same turn, so they cost seconds instead of a minute of building. Examples: overlaps, inserters picking
-  from or dropping onto nothing, machines nothing feeds, no power, items that don't exist, a belt continued
-  backwards from its end.
+The step operations are:
+- `place`, `rotate`, `set_recipe`, `connect`, `ghosts` (with compact `repeat` and `line` notation), `row`, `block`, `design`, `route`
+- `power`, `refuel`, `insert`, `take`, `empty_chest`, `fetch`, `craft`, `mine`, `mine_at`
+- `research` (`tech="cheapest"`), `move`, `follow`, `wait`, `say`
+
+Division of labour:
+- Opus decides *what* and *where*.
+- Code decides *how*, and checks the plan before it runs: problems go back to Opus in the same turn.
+- Jev decides *what now* when something goes wrong.
+
+`expect` checks are run by code: working, has_item, powered, belt_carries, built. A build plan without a `built` check gets one automatically. When a plan has no checks, Jev judges the goal against the area, at most three times.
+
+## Jev's decisions
+
+| Decision | State it sees | Notes |
+|---|---|---|
+| chat | message, speaker, what I'm doing, my last line | three questions in one call: for me? / kind / playbook |
+| question type | the question | status, where and inventory are answered by code |
+| fault | the player's words + faults code found, grouped by kind | picks a group; code fixes every member |
+| scope | the order | one spot or many sites (wide-area fix) |
+| recovery | step, error, tries, **facts code read off the error** | retry / get items / skip / replan |
+| changes_plan | current job + new message | stops a running plan for a correction |
+| not_done | finished job + new message | only real "not done" reopens an order |
+| goal_met | goal + area summary (relative words) | only for plans without code checks |
+| kit | the order | what to fetch while Opus plans |
+| watch | area summary + the planner's conditions | while idle, over areas it built |
+
+What we learned about encoding, both from the lab and from TypeSafe's notes on Jev 1.13's rough edges:
+- Jev never compares numbers; code turns them into words.
+- Each option carries what it's for, what it's not for, and examples. That took chat sorting from 45/51 to 49/51.
+- Facts code can read off a message go into the state as booleans. That took recovery from 52/65 to 63/65.
+- Equivalent options are merged, so confidence isn't split between them.
 
 ## Fast paths (no Opus)
 
-- **fix**: "X stopped at [gps]". Code scans and finds faults: a reversed belt, no fuel, output full, a full
-  chest, no power, low boiler fuel. Jev picks the fault that matches the complaint. Code runs its fix and waits
-  for the stopped machines to start. If nothing fits, it escalates with what it saw.
-- **deliver**: "N items in the chest at [gps]". Code parses the items, fetches them and inserts them.
+- **fix:** a point is named, so code finds the faults, Jev picks one, and the fix runs. If the order names many sites, code scans a grid of areas and fixes everything nearest-first.
+- **deliver:** items and a chest are named.
+- **route:** the order lists belt start/end pairs, so the router lays them all. This solves all five Transport Belt Madness levels in 1.5–18 s.
+- **quick answers:** status, location and inventory questions.
 
-## State encoding for Jev
+## The agent layer
 
-Following TypeSafe's guidance and Jev 1.13's known rough edges:
-- **No numbers to compare.** Code does the arithmetic and hands Jev words, like "out of fuel", "12 tiles
-  north-east", "the belt behind it faces west, away from this line".
-- **Small states.** Each question gets only what it needs. A fault choice sees the player's words and the
-  faults code found, not the whole area.
-- **Options are written in code**, with what each one is for and isn't for. Several independent questions go in
-  one request: addressed, kind and playbook for chat.
-- Every call is logged (`bench/runs/<id>/jev.jsonl`) with its state, questions and answers. That log is the
-  encoding lab's dataset.
+`jev/library.py` holds what Opus writes for itself:
+- **Lessons:** a general rule after an order that needed more than one plan.
+- **Designs:** layouts saved with `save_design` and reused with a `design` step.
+
+The test loop gives each run its own library under `bench/libraries/<tag>`. Lessons go stale when the code changes, so they need the daily review.
 
 ## Measuring
 
-`bench/run.py` uses the serf's scenarios, scoring and scripted player, so the serf's nights 1–2 are the baseline.
-Each run records:
-- success, and minutes to each objective;
-- Opus turns, cost and thinking seconds;
-- Jev calls, cost and latency;
-- character idle share;
-- plans per order, step failures and recovery choices.
-
-`bench/batch.py` runs many in parallel.
+- `bench/run.py`, `batch.py` and `loop.py` use the serf's scenarios, scoring and scripted player.
+- `bench/report_rows.py` compares runs with the serf.
+- `bench/digest.py` is the daily review: pass rate, time per order, Jev's decisions with their confidence (low-confidence ones listed for labelling), recovery choices, what the checker caught, and new lessons.
+- `lab/eval_*.py` replays Jev on labelled cases, without starting the game.
