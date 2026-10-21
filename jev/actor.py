@@ -199,7 +199,7 @@ class Actor:
                     self.current.interrupt = f"{speaker}: {msg}"
                     await self.g.cancel("player changed the job")
         elif kind == "stop":
-            if self.current:
+            if self.current and self.current.status in ("working", "thinking"):
                 self.current.status = "cancelled"
             await self.g.cancel("player said stop")
             await self.say("ok, stopped")
@@ -272,6 +272,15 @@ class Actor:
 
     async def _do_order(self, o: Order) -> bool:
         self.log({"kind": "order", "order": o.id, "text": o.text, "playbook": o.playbook, "points": o.points})
+        if time.time() - getattr(self, "_recipes_t", 0) > 120:  # research unlocks recipes during a game
+            try:
+                rec = await self.g.call("recipes", agent=self.name, detail=True)
+                if isinstance(rec, dict) and rec.get("recipes"):
+                    self.recipes = rec["recipes"]
+                    self.runner.recipes = self.recipes
+                self._recipes_t = time.time()
+            except Exception:  # noqa: BLE001
+                pass
         await self.g.status(text=o.text[:100])
         if o.playbook == "fix" and o.focus:
             if o.speaker != self.name:
@@ -659,10 +668,12 @@ class Actor:
                     continue
                 if choice_ == "get_items" and missing and tries < 3:
                     for item, n in missing.items():
-                        if item in RAW:
-                            await self.runner.run({"do": "mine", "name": item, "count": max(10, int(n))})
-                        else:
-                            await self.runner.run({"do": "fetch", "item": item, "count": max(1, int(n))})
+                        # storage, then belts, then crafting (ingredients fetched or mined), then mining raw items
+                        have = (await self.runner.refresh_inventory()).get(item, 0)
+                        r2 = await self.runner.ensure(item, have + max(1, int(n)))
+                        if not r2.get("ok") and item in RAW:
+                            await self.runner.run({"do": "mine", "name": "tree" if item == "wood" else item,
+                                                   "count": max(10, int(n))})
                     continue
                 if choice_ == "skip":
                     done.append(f"{i + 1}. {describe(st)}: FAILED ({msg[:160]}) - skipped")
