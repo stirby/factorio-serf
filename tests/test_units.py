@@ -309,6 +309,15 @@ def test_mine_layout():
         "I want at least 60 ore a minute") == 3 and quickmine.wanted_drills("put 4 drills on it") == 4)
 
 
+def test_named_products():
+    opts = ["iron-gear-wheel", "pipe", "iron-chest", "iron-plate"]
+    check("named: gears and pipes is two", quickbuild.named_products("make gears and pipes off this belt", opts) == 2)
+    check("named: 'pipes, 3 assemblers, into chests' is one",
+          quickbuild.named_products("I need pipes made from this belt, 3 assemblers, into chests", opts) == 1)
+    check("named: 'plates ... into chests' is none", quickbuild.named_products("plates from this belt, into chests",
+                                                                                  ["iron-plate"]) == 0)
+
+
 def test_router_cross():
     # two lines that must cross: west->east and north->south on an open grid
     g = Grid(set(), (0, 0, 10, 10))

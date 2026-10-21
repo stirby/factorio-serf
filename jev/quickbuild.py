@@ -210,6 +210,22 @@ PRODUCT_Q = "Which of these does `order` ask to have made?"
 COUNTS = {"not_said": "the order doesn't say how many machines", **{str(n): f"{n} machine(s)" for n in range(1, 13)}}
 
 
+def named_products(order: str, products: list[str]) -> int:
+    """How many of the products the order names by their words ('gears and pipes' -> 2; 'pipes, 3 assemblers, into
+    chests' -> 1: an iron chest needs 'iron' too). Plurals and the chat names in SAY count."""
+    import re
+
+    def stem(w):
+        return w[:-1] if w.endswith("s") and len(w) > 3 else w
+    words = {stem(w) for w in re.findall(r"[a-z]+", order.lower())}
+    n = 0
+    for p in products:
+        names = [p.replace("-", " ")] + ([SAY[p]] if p in SAY else [])
+        if any(all(stem(w) in words for w in nm.split()) for nm in names):
+            n += 1
+    return n
+
+
 def plain_counts(order: str) -> str:
     """'a couple of machines' -> '2 machines', 'a few' -> '3': Jev read 'a couple' as several products."""
     import re
@@ -263,9 +279,19 @@ async def read_order(jev: Jev, order: str, products: list[str], carried: list[st
     }, kind="quickbuild")
     prod = a["product"].choice
     cnt = a["count"].choice
-    return {"build": a["build"].p, "chain": max(a["several"].p, a["onward"].p), "elsewhere": a["elsewhere"].p,
+    cnt_p = float(a["count"].probs.get(cnt) or 0)
+    # "3 assemblers", "2 furnaces": an exact number next to a machine word is read by code
+    import re
+    m = re.search(r"\b(\d{1,2})\s+(?:more\s+)?(?:stone\s+|steel\s+)?(?:assemblers?|assembling machines?|machines?|furnaces?)\b",
+                  plain_counts(order), re.I)
+    if m and 1 <= int(m.group(1)) <= 12:
+        cnt, cnt_p = m.group(1), 1.0
+    # "several products" needs the order to name two of them: Jev alone hears plurals ("plates ... into chests") as
+    # several
+    several = a["several"].p if named_products(order, products) >= 2 else min(a["several"].p, 0.3)
+    return {"build": a["build"].p, "chain": max(several, a["onward"].p), "elsewhere": a["elsewhere"].p,
             "onto_belt": a["onto_belt"].p, "product": prod, "product_p": float(a["product"].probs.get(prod) or 0),
-            "count": cnt, "count_p": float(a["count"].probs.get(cnt) or 0),
+            "count": cnt, "count_p": cnt_p,
             "output": "belt" if a["onto_belt"].p >= 0.75 else "chest"}
 
 

@@ -47,6 +47,8 @@ CASES = [
     ("@serf pipes off the iron belt at [gps=9,9] please, one machine is plenty", IRON, True, "pipe", "1", "chest"),
     ("@serf I need pipes made from this belt [gps=97,-32], 3 assemblers, into chests", IRON, True, "pipe", "3",
      "chest"),
+    ("@serf I need plates made from this belt [gps=5,5], a couple of furnaces, into chests", ORE, True, "iron-plate", "2",
+     "chest"),
     ("@serf pipes off the iron belt at [gps=-55,84] please, a couple of machines", IRON, True, "pipe", "2", "chest"),
     ("@serf could you smelt the ore on that belt [gps=85,-56]? 4 furnaces, plates into chests", ORE, True,
      "iron-plate", "4", "chest"),
