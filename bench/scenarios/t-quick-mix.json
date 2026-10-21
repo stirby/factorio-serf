@@ -1,0 +1,70 @@
+{
+ "name": "t-quick-mix",
+ "stage": "stage-s3-steel-oil-ready",
+ "minutes": 30,
+ "agents": 1,
+ "kind": "directive",
+ "group": "production",
+ "note": "Three plain build orders in a row, phrased the way people chat: pipes off an iron belt (a couple of machines), smelting an ore+coal belt with 4 furnaces, one gear assembler. Each on its own belt fixture. Checks what belt-fed machines in each fixture made and what reached a chest. The orders fit the actor's quick-build path; with the planner it passes too, just slower.",
+ "setup_lua": "local s, f = game.surfaces.nauvis, game.forces.player\nlocal W, H, M = 44, 26, 12\nlocal used = {}\nlocal function free(x, y, w, h)\n  for _, u in pairs(used) do\n    if x < u[3] and x + w > u[1] and y < u[4] and y + h > u[2] then return false end\n  end\n  local a = { { x, y }, { x + w, y + h } }\n  if s.count_tiles_filtered { area = a, collision_mask = \"water_tile\" } > 0 then return false end\n  return s.count_entities_filtered { area = a, type = { \"tree\", \"simple-entity\", \"resource\", \"corpse\", \"fish\" },\n    invert = true } == 0 and s.count_entities_filtered { area = a, type = \"resource\" } == 0\nend\nlocal function find(w, h, r0)\n  for r = r0, 400, 4 do\n    for _, d in pairs { { 1, 0 }, { 0, 1 }, { -1, 0 }, { 0, -1 }, { 1, 1 }, { -1, 1 }, { 1, -1 }, { -1, -1 } } do\n      local x, y = d[1] * r, d[2] * r\n      if free(x, y, w, h) then return x, y end\n    end\n  end\nend\nlocal N, S = defines.direction.north, defines.direction.south\n-- one fixture: a belt running east fed from infinity chests at its west end (side -1: chest north, items on the\n-- south lane; side 1: chest south, north lane), an always-on power source with a pole\nlocal function fixture(key, feeds)\n  local fx, fy = find(W + 2 * M, H + 2 * M, 60)\n  if not fx then error(\"no free area for fixture \" .. key) end\n  local X, Y = math.floor(fx) + M, math.floor(fy) + M\n  used[#used + 1] = { X - M - 4, Y - M - 4, X + W + M + 4, Y + H + M + 4 }\n  for _, e in pairs(s.find_entities_filtered { area = { { X - 2, Y - 2 }, { X + W + 2, Y + H + 2 } },\n    type = { \"tree\", \"simple-entity\", \"corpse\", \"fish\", \"item-entity\" } }) do e.destroy() end\n  local function put(name, x, y, dir)\n    local e = s.create_entity { name = name, position = { X + x, Y + y }, direction = dir, force = f }\n    if not e then error(\"could not place \" .. name .. \" at \" .. x .. \",\" .. y) end\n    return e\n  end\n  for i = 1, W - 2 do put(\"transport-belt\", i + 0.5, 4.5, defines.direction.east) end\n  for _, fd in pairs(feeds) do\n    local c = put(\"infinity-chest\", 1.5, 4.5 + 2 * fd[2])\n    c.set_infinity_container_filter(1, { name = fd[1], count = 100, mode = \"exactly\" })\n    put(\"fast-inserter\", 1.5, 4.5 + fd[2], fd[2] < 0 and N or S)\n  end\n  local e = put(\"electric-energy-interface\", 2, H - 3)\n  e.power_production, e.electric_buffer_size = 200000, 20000000\n  put(\"small-electric-pole\", 3.5, H - 4.5)\n  for _, py in pairs { H - 9.5, 10.5, 4.5 + (feeds[2] and 4 or 0) } do put(\"small-electric-pole\", 0.5, py) end\n  storage[key] = { area = { { X - M, Y - M }, { X + W + M, Y + H + M } }, o = { X, Y } }\n  return { bx = X + 1, by = Y + 4, px = X + 3, py = Y + H - 5 }\nend\nlocal out = {}\nfor k, v in pairs(fixture(\"bench_qa\", { { \"iron-plate\", -1 } })) do out[\"a_\" .. k] = v end\nfor k, v in pairs(fixture(\"bench_qb\", { { \"iron-ore\", -1 }, { \"coal\", 1 } })) do out[\"b_\" .. k] = v end\nfor k, v in pairs(fixture(\"bench_qc\", { { \"iron-plate\", -1 } })) do out[\"c_\" .. k] = v end\nreturn out\n",
+ "objectives": [
+  {
+   "name": "pipes",
+   "minutes": 8,
+   "hold_samples": 1,
+   "goal": "@{agent} pipes off the iron belt at [gps={a_bx},{a_by}] please, a couple of machines",
+   "answer": "Your call, into chests is fine.",
+   "score": [
+    {
+     "name": "pipes_made",
+     "lua": "local A=storage.bench_qa.area local function fedok(m) local n=0 for _,i in pairs(s.find_entities_filtered{type='inserter',force=f,area={{m.position.x-3,m.position.y-3},{m.position.x+3,m.position.y+3}}}) do if i.drop_target==m then local p=i.pickup_target if p then if p.type=='infinity-container' or p.type=='character' or p.type=='container' or p.type=='logistic-container' then return false end n=n+1 end end end return n>0 end local function made(rn, ty) local t=0 for _,m in pairs(s.find_entities_filtered{area=A,force=f,type=ty or 'assembling-machine'}) do local r=m.get_recipe() if (ty=='furnace' or (r and r.name==rn)) and fedok(m) then t=t+m.products_finished end end return t end local function inchest(item) local t=0 for _,c in pairs(s.find_entities_filtered{area=A,force=f,type={'container','logistic-container'}}) do t=t+c.get_item_count(item) end return t end return made('pipe')",
+     "target": 30
+    },
+    {
+     "name": "pipes_in_chest",
+     "lua": "local A=storage.bench_qa.area local function fedok(m) local n=0 for _,i in pairs(s.find_entities_filtered{type='inserter',force=f,area={{m.position.x-3,m.position.y-3},{m.position.x+3,m.position.y+3}}}) do if i.drop_target==m then local p=i.pickup_target if p then if p.type=='infinity-container' or p.type=='character' or p.type=='container' or p.type=='logistic-container' then return false end n=n+1 end end end return n>0 end local function made(rn, ty) local t=0 for _,m in pairs(s.find_entities_filtered{area=A,force=f,type=ty or 'assembling-machine'}) do local r=m.get_recipe() if (ty=='furnace' or (r and r.name==rn)) and fedok(m) then t=t+m.products_finished end end return t end local function inchest(item) local t=0 for _,c in pairs(s.find_entities_filtered{area=A,force=f,type={'container','logistic-container'}}) do t=t+c.get_item_count(item) end return t end return inchest('pipe')",
+     "target": 15
+    }
+   ]
+  },
+  {
+   "name": "smelt",
+   "minutes": 8,
+   "hold_samples": 1,
+   "goal": "@{agent} could you smelt the ore on that belt [gps={b_bx},{b_by}]? 4 furnaces, plates into chests",
+   "answer": "Your call. The coal on the belt is for fuel.",
+   "score": [
+    {
+     "name": "plates_made",
+     "lua": "local A=storage.bench_qb.area local function fedok(m) local n=0 for _,i in pairs(s.find_entities_filtered{type='inserter',force=f,area={{m.position.x-3,m.position.y-3},{m.position.x+3,m.position.y+3}}}) do if i.drop_target==m then local p=i.pickup_target if p then if p.type=='infinity-container' or p.type=='character' or p.type=='container' or p.type=='logistic-container' then return false end n=n+1 end end end return n>0 end local function made(rn, ty) local t=0 for _,m in pairs(s.find_entities_filtered{area=A,force=f,type=ty or 'assembling-machine'}) do local r=m.get_recipe() if (ty=='furnace' or (r and r.name==rn)) and fedok(m) then t=t+m.products_finished end end return t end local function inchest(item) local t=0 for _,c in pairs(s.find_entities_filtered{area=A,force=f,type={'container','logistic-container'}}) do t=t+c.get_item_count(item) end return t end return made(nil, 'furnace')",
+     "target": 20
+    },
+    {
+     "name": "plates_in_chest",
+     "lua": "local A=storage.bench_qb.area local function fedok(m) local n=0 for _,i in pairs(s.find_entities_filtered{type='inserter',force=f,area={{m.position.x-3,m.position.y-3},{m.position.x+3,m.position.y+3}}}) do if i.drop_target==m then local p=i.pickup_target if p then if p.type=='infinity-container' or p.type=='character' or p.type=='container' or p.type=='logistic-container' then return false end n=n+1 end end end return n>0 end local function made(rn, ty) local t=0 for _,m in pairs(s.find_entities_filtered{area=A,force=f,type=ty or 'assembling-machine'}) do local r=m.get_recipe() if (ty=='furnace' or (r and r.name==rn)) and fedok(m) then t=t+m.products_finished end end return t end local function inchest(item) local t=0 for _,c in pairs(s.find_entities_filtered{area=A,force=f,type={'container','logistic-container'}}) do t=t+c.get_item_count(item) end return t end return inchest('iron-plate')",
+     "target": 10
+    }
+   ]
+  },
+  {
+   "name": "gears",
+   "minutes": 8,
+   "hold_samples": 1,
+   "goal": "@{agent} throw down a gear assembler on the iron line at [gps={c_bx},{c_by}], gears into a chest",
+   "answer": "Your call.",
+   "score": [
+    {
+     "name": "gears_made",
+     "lua": "local A=storage.bench_qc.area local function fedok(m) local n=0 for _,i in pairs(s.find_entities_filtered{type='inserter',force=f,area={{m.position.x-3,m.position.y-3},{m.position.x+3,m.position.y+3}}}) do if i.drop_target==m then local p=i.pickup_target if p then if p.type=='infinity-container' or p.type=='character' or p.type=='container' or p.type=='logistic-container' then return false end n=n+1 end end end return n>0 end local function made(rn, ty) local t=0 for _,m in pairs(s.find_entities_filtered{area=A,force=f,type=ty or 'assembling-machine'}) do local r=m.get_recipe() if (ty=='furnace' or (r and r.name==rn)) and fedok(m) then t=t+m.products_finished end end return t end local function inchest(item) local t=0 for _,c in pairs(s.find_entities_filtered{area=A,force=f,type={'container','logistic-container'}}) do t=t+c.get_item_count(item) end return t end return made('iron-gear-wheel')",
+     "target": 20
+    },
+    {
+     "name": "gears_in_chest",
+     "lua": "local A=storage.bench_qc.area local function fedok(m) local n=0 for _,i in pairs(s.find_entities_filtered{type='inserter',force=f,area={{m.position.x-3,m.position.y-3},{m.position.x+3,m.position.y+3}}}) do if i.drop_target==m then local p=i.pickup_target if p then if p.type=='infinity-container' or p.type=='character' or p.type=='container' or p.type=='logistic-container' then return false end n=n+1 end end end return n>0 end local function made(rn, ty) local t=0 for _,m in pairs(s.find_entities_filtered{area=A,force=f,type=ty or 'assembling-machine'}) do local r=m.get_recipe() if (ty=='furnace' or (r and r.name==rn)) and fedok(m) then t=t+m.products_finished end end return t end local function inchest(item) local t=0 for _,c in pairs(s.find_entities_filtered{area=A,force=f,type={'container','logistic-container'}}) do t=t+c.get_item_count(item) end return t end return inchest('iron-gear-wheel')",
+     "target": 10
+    }
+   ]
+  }
+ ],
+ "score": []
+}

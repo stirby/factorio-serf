@@ -11,7 +11,7 @@ from jev.decide import failure_facts  # noqa: E402
 from jev.lint import lint  # noqa: E402
 from jev.router import Grid, solve  # noqa: E402
 from jev.rowgen import row_entities  # noqa: E402
-from jev.steps import expand, ghost_result, plan_needs, unplaced  # noqa: E402
+from jev.steps import expand, ghost_result, plan_needs, unplaced, upgrade_map  # noqa: E402
 from jev.world import World  # noqa: E402
 from jev import quickbuild  # noqa: E402
 
@@ -136,6 +136,16 @@ def test_quickbuild_options():
     r = {"build": 0.9, "chain": 0.1, "elsewhere": 0.1, "product": "x", "product_p": 0.8}
     check("quick: accept gate", quickbuild.accept(r) and not quickbuild.accept({**r, "elsewhere": 0.7})
           and not quickbuild.accept({**r, "product": "none_of_these"}))
+
+
+def test_upgrade_map():
+    m = upgrade_map("fast-transport-belt")
+    check("upgrade: red belts take the undergrounds and splitters along",
+          m == {"transport-belt": "fast-transport-belt", "underground-belt": "fast-underground-belt",
+                "splitter": "fast-splitter"}, m)
+    check("upgrade: assemblers 1 and 2 into 3", upgrade_map("assembling-machine-3") == {
+        "assembling-machine-1": "assembling-machine-3", "assembling-machine-2": "assembling-machine-3"})
+    check("upgrade: nothing goes down a tier", upgrade_map("transport-belt") == {})
 
 
 def test_router_cross():

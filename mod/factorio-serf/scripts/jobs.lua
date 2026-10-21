@@ -317,6 +317,7 @@ H.craft = {
 }
 
 ------------------------------------------------------------------------- place
+local BELT_KIND = { ["transport-belt"] = true, ["underground-belt"] = true, splitter = true }
 local function place_target(args)
   local item = prototypes.item[args.name or ""]
   if not item then return nil, "unknown item " .. tostring(args.name) end
@@ -420,6 +421,13 @@ H.place = {
             { entity = e.name, position = util.xy(e.position), unit_number = e.unit_number, already = true })
         elseif proto.fast_replaceable_group and proto.fast_replaceable_group == e.prototype.fast_replaceable_group then
           job.fast_replace = e.name
+        elseif args.replace_belt and BELT_KIND[proto.type] and BELT_KIND[e.type] then
+          -- belt -> underground/splitter and back (different replace groups): pick the old one up, as a player
+          -- would, and put the new one down; whatever was on it goes to the inventory too
+          local was = e.name
+          if pcall(function() return c.mine_entity(e, true) end) and not e.valid then
+            job.replaced = was
+          end
         end
       end
     end
@@ -434,7 +442,10 @@ H.place = {
         end
       end
     end
-    if not surface.can_place_entity(spec) then
+    -- (can_place_entity can't be told an underground is an exit, so it judges an exit's swap as an entrance: skip it
+    -- for an underground replacing its own kind; create_entity's fast_replace does the real check)
+    local ug_swap = job.fast_replace and proto.type == "underground-belt"
+    if not ug_swap and not surface.can_place_entity(spec) then
       -- We may be standing on the spot; step aside once and retry.
       local proto = prototypes.entity[job.entity]
       local box = proto.collision_box
@@ -528,6 +539,7 @@ H.place = {
     local msg = "placed " .. created.name .. " at " .. xystr(created.position)
     if job.cleared then msg = msg .. " (cleared " .. job.cleared .. " trees/rocks first)" end
     if job.fast_replace then msg = msg .. " (replaced the " .. job.fast_replace .. " there)" end
+    if job.replaced then msg = msg .. " (picked up the " .. job.replaced .. " there first)" end
     if created.type == "mining-drill" then
       data.drops_at = util.xy(created.drop_position)
       msg = msg .. " (output drops at " .. xystr(created.drop_position) .. ")"
@@ -1536,8 +1548,11 @@ H.connect = {
     end
     local sub = job.sub
     if not sub then
+      -- the first piece may go where the line we continue ends (an underground or splitter replacing that belt)
+      local cont = job.i == 1 and job.continues and job.continues.valid
+        and util.dist(job.continues.position, pl.pos) < 0.1
       sub = { id = job.id, op = "place", args = { name = pl.item or job.item, x = pl.pos.x, y = pl.pos.y,
-        direction = pl.dir, type = pl.ug } }
+        direction = pl.dir, type = pl.ug, replace_belt = cont or nil } }
       job.sub = sub
       local r = H.place.start(a, sub)
       if r then

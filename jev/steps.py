@@ -26,6 +26,30 @@ MINEABLE = {"wood": "tree", "iron-ore": "iron-ore", "copper-ore": "copper-ore", 
 PLACE_ITEM = {"straight-rail": "rail", "curved-rail-a": "rail", "curved-rail-b": "rail"}
 
 
+# Upgrade families, lowest tier first. Upgrading into a belt tier upgrades the matching undergrounds and splitters too.
+TIERS = [["transport-belt", "fast-transport-belt", "express-transport-belt", "turbo-transport-belt"],
+         ["underground-belt", "fast-underground-belt", "express-underground-belt", "turbo-underground-belt"],
+         ["splitter", "fast-splitter", "express-splitter", "turbo-splitter"],
+         ["assembling-machine-1", "assembling-machine-2", "assembling-machine-3"],
+         ["stone-furnace", "steel-furnace"],
+         ["burner-inserter", "inserter", "fast-inserter"],
+         ["small-electric-pole", "medium-electric-pole"],
+         ["pipe-to-ground"], ["wooden-chest", "iron-chest", "steel-chest"]]
+
+
+def upgrade_map(into: str) -> dict:
+    """{old name: new name} for an upgrade into `into` (only lower tiers go up)."""
+    fam = next((f for f in TIERS if into in f), None)
+    if not fam:
+        return {}
+    t = fam.index(into)
+    out = {old: into for old in fam[:t]}
+    if fam is TIERS[0]:  # belts: their undergrounds and splitters move up a tier with them
+        for sib in (TIERS[1], TIERS[2]):
+            out.update({old: sib[t] for old in sib[:t]})
+    return out
+
+
 def unplaced(asked: list[dict], r: dict) -> list[dict]:
     """The requested ghosts the game refused for a real reason (not "an identical one already stands there"), each
     with that reason under "_why"."""
@@ -261,7 +285,10 @@ class Runner:
         fr, to = [float(v) for v in s["from"]], [float(v) for v in s["to"]]
         dist = math.hypot(to[0] - fr[0], to[1] - fr[1])
         if dist <= 230:
-            return await self._act(a, timeout=420)
+            r = await self._act(a, timeout=420)
+            if not r.get("ok") and "pole" in str(s["item"]) and "isn't wired" in str(r.get("msg")):
+                r = await self._bridge_line(fr, to, s["item"], r)
+            return r
         # one route goes ~250 tiles at most: lay it in legs, each continuing from the end of the last
         n = math.ceil(dist / 180)
         start, msgs = fr, []
@@ -478,6 +505,79 @@ class Runner:
                 return {"ok": False, "msg": f"{first.get('msg')}; couldn't bridge the break between "
                                             f"{x['x']:g},{x['y']:g} and {y['x']:g},{y['y']:g}: {r.get('msg')}"}
         return first
+
+    async def _do_upgrade(self, s):
+        """Swap buildings for a better tier in place, the way a player clicks the new one over the old (it keeps its
+        direction, recipe and the items on a belt): everything upgradable within `radius` of x,y, or one belt line
+        (line=[x,y], a tile of it). `into` names the new tier; `only` limits it to one old name."""
+        mp = upgrade_map(str(s.get("into") or ""))
+        if s.get("only"):
+            mp = {k: v for k, v in mp.items() if k == s["only"]}
+        if not mp:
+            return {"ok": False, "msg": f"nothing upgrades into {s.get('into')!r} (try e.g. fast-transport-belt, "
+                                        "assembling-machine-2, steel-furnace, fast-inserter)"}
+        from .world import World
+        if s.get("line"):
+            lx, ly = float(s["line"][0]), float(s["line"][1])
+            sc = await self.g.scan(center=(lx, ly), radius=64)
+            w = World(sc)
+            e0 = w.at(lx, ly)
+            ln = w.line_of.get(e0["u"]) if e0 else None
+            if not ln:
+                return {"ok": False, "msg": f"no belt line at {lx:g},{ly:g}"}
+            ents = [w.ents[u] for u in ln.belts if u in w.ents]
+            # an underground's partner and splitters on the line belong to it too
+            pairs = {e.get("pair") for e in ents if e.get("pair")}
+            ents += [e for e in w.ents.values() if e["u"] in pairs and e not in ents]
+            first, last = w.ents.get(ln.belts[0]), w.ents.get(ln.belts[-1])
+            edge = bool(first and last) and (w.off_view(*w._behind(first)) or w.off_view(*w._ahead(last)))
+        else:
+            p = _xy(s)
+            rad = min(float(s.get("radius", 8)), 48)
+            sc = await self.g.scan(center=p, radius=int(rad + 3))
+            w = World(sc)
+            ents = [e for e in w.ents.values() if abs(e["x"] - p[0]) <= rad and abs(e["y"] - p[1]) <= rad]
+            edge = False
+        todo = [(e, mp[e["n"]]) for e in ents if e.get("n") in mp and e["u"] > 0]
+        if not todo:
+            return {"ok": True, "msg": "nothing there to upgrade (already at that tier or none found)"}
+        need: dict = {}
+        for _, new in todo:
+            need[new] = need.get(new, 0) + 1
+        fails = await self.stock(need)
+        inv = await self.refresh_inventory()
+        me = await self.g.me()
+        pos = tuple(me.get("position") or (0, 0))
+        order, left = [], list(todo)
+        while left:  # nearest first, so the walk goes along the line
+            k = min(range(len(left)), key=lambda i: (left[i][0]["x"] - pos[0]) ** 2 + (left[i][0]["y"] - pos[1]) ** 2)
+            e, new = left.pop(k)
+            order.append((e, new))
+            pos = (e["x"], e["y"])
+        done, failed, skipped = 0, [], 0
+        for e, new in order:
+            if inv.get(new, 0) <= 0:
+                skipped += 1
+                continue
+            a = {"op": "place", "name": new, "x": e["x"], "y": e["y"]}
+            if e.get("d"):
+                a["direction"] = e["d"]
+            if e.get("ug"):
+                a["type"] = e["ug"]
+            r = await self._act(a)
+            if r.get("ok"):
+                done += 1
+                inv[new] = inv.get(new, 0) - 1
+            else:
+                failed.append(f"{e['n']} at {e['x']:g},{e['y']:g}: {str(r.get('msg'))[:100]}")
+        msg = f"upgraded {done} of {len(todo)}"
+        if skipped:
+            msg += f"; {skipped} not done, no items: " + "; ".join(f"{k}: {v}" for k, v in fails.items())[:300]
+        if failed:
+            msg += f"; {len(failed)} failed: " + "; ".join(failed[:3])
+        if edge:
+            msg += "; the line runs on past what I looked at (upgrade from further along to do the rest)"
+        return {"ok": done == len(todo), "msg": msg}
 
     async def _do_research(self, s):
         """Queue a tech. tech="cheapest" (or a trigger/finished tech that fails) picks the cheapest lab tech whose

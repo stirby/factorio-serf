@@ -39,18 +39,22 @@ Division of labour:
 | goal_met | goal + area summary (relative words) | only for plans without code checks |
 | kit | the order | what to fetch while Opus plans |
 | watch | area summary + the planner's conditions | while idle, over areas it built |
+| quick build | the order, the products the nearby belts can make, what those belts carry | product, count, onto a belt?, chain?, sent elsewhere? |
 
 What we learned about encoding, both from the lab and from TypeSafe's notes on Jev 1.13's rough edges:
 - Jev never compares numbers; code turns them into words.
 - Each option carries what it's for, what it's not for, and examples. That took chat sorting from 45/51 to 49/51.
 - Facts code can read off a message go into the state as booleans. That took recovery from 52/65 to 63/65.
 - Equivalent options are merged, so confidence isn't split between them.
+- Narrow yes/no questions beat one broad one. A single "is this a simple row job" noul accepted 3 of 9 plain orders; four narrow checks (chain? sent elsewhere? onto a belt? which product?) got 31/32 with no wrong accepts.
+- Distances are code's job: whether a named point is far (>40 tiles) decides how much Jev's "elsewhere" doubt counts.
 
 ## Fast paths (no Opus)
 
 - **fix:** a point is named, so code finds the faults, Jev picks one, and the fix runs. If the order names many sites, code scans a grid of areas and fixes everything nearest-first.
 - **deliver:** items and a chest are named.
 - **route:** the order lists belt start/end pairs, so the router lays them all. This solves all five Transport Belt Madness levels in 1.5–18 s.
+- **quick build:** the order points at belts and asks for one product off them ("make gears off this belt", "4 furnaces making steel", "an assembler making inserters from these belts"). Code lists what a row off the nearby belts could make (one belt, or two at row spacing; furnaces only if the belt carries fuel), Jev reads the order, code finds a free spot along the belt and lays the tested row step. The usual runner builds and checks it; if that fails, Opus gets the order plus what was tried. t-steel and t-inserter-mall pass this way with no Opus call.
 - **quick answers:** status, location and inventory questions.
 
 ## The agent layer

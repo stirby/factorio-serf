@@ -730,7 +730,17 @@ class Actor:
                 text += "\nIn storage chests (fetchable): " + ", ".join(f"{n} {k}" for k, n in mats[:40])
         except Exception as e:  # noqa: BLE001
             self.log({"kind": "error", "where": "materials", "error": repr(e)})
-        for attempt in range(4):
+        # up to 4 plans that get nowhere; a plan that got several steps done before failing (a big order built in
+        # parts) doesn't use one up, within 10 plans in all
+        wasted, total, ok_before = 0, 0, self.metrics["steps_ok"]
+        while wasted < 4 and total < 10:
+            total += 1
+            if total > 1:
+                if self.metrics["steps_ok"] - ok_before < 3:
+                    wasted += 1
+                    if wasted >= 4:
+                        break
+                ok_before = self.metrics["steps_ok"]
             if o.status == "cancelled":
                 return False
             if o.next_plan:
@@ -764,8 +774,13 @@ class Actor:
                 if o.status == "cancelled":
                     return False
                 o.history.append(report)
+                # later parts were designed assuming this one worked: drop them, the corrected plan says what's left
+                dropped = [str(q.get("goal") or "")[:100] for q in o.queued_plans]
+                o.queued_plans.clear()
                 text = (f"Part of your plan for order {o.id} (\"{o.text}\") failed.\n{report}\nSubmit a corrected "
-                        "plan for what's still needed (what was built is still there).")
+                        "plan for what's still needed (what was built is still there)." +
+                        (f" The {len(dropped)} later part(s) you had queued were dropped, not run: "
+                         + "; ".join(dropped) + ". Include whatever of them is still needed." if dropped else ""))
                 continue
             if parts_expect:
                 plan = {**plan, "expect": list(plan.get("expect") or []) + parts_expect}
@@ -904,6 +919,8 @@ class Actor:
         for things to start running."""
         exp = [e for e in (plan.get("expect") or []) if isinstance(e, dict)]
         goal = plan.get("goal") or o.text
+        if not exp and all(st.get("do") in ("say", "wait", "research", "follow") for st in plan.get("steps") or []):
+            return True, "nothing in the world to check"  # an acknowledgement or a research queue
         builds = [st for st in plan.get("steps") or [] if st.get("do") in ("ghosts", "block", "design", "stamp",
                                                                             "place", "build_ghosts", "route")]
         if builds and not any(e.get("check") == "built" for e in exp):
