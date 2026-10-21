@@ -60,6 +60,9 @@ CASES = [
      None, None, None),
     ("@serf make steel at [gps=3,3] and send it to the mall chest at [gps=50,50]", IRON_COAL, False, None, None, None),
     ("@serf put drills on the iron patch at [gps=6,6] onto this belt", IRON, False, None, None, None),
+    ("@serf I need copper plates in the chest at [gps=-11,82]. They come out on the belt at [gps=-45,82]; get them "
+     "across, and don't break the main bus in between.", COPPER, False, None, None, None),
+    ("@serf belt the iron plates from [gps=1,1] over to the mall at [gps=40,1]", IRON, False, None, None, None),
     ("@serf automate red science off these belts [gps=1,1] [gps=1,7]", IRON_COPPER, False, None, None, None),
     ("@serf green circuits from the plate belts at [gps=4,4], 2 assemblers", IRON_COPPER, False, None, None, None),
     ("@serf set up gear production feeding a row of red science assemblers off [gps=0,0]", IRON, False, None, None,

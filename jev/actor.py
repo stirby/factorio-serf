@@ -405,7 +405,7 @@ class Actor:
             # belt fast path takes that belt on to the named place
             away = [q for q in o.points if math.hypot(q[0] - o.focus[0], q[1] - o.focus[1]) > 12]
             send_to = None
-            if (r["elsewhere"] >= 0.6 and away and r["chain"] < 0.4 and r["product_p"] >= 0.55
+            if (r["elsewhere"] >= 0.6 and away and r["chain"] < 0.4 and r["product_p"] >= 0.55 and r["build"] >= 0.5
                     and r["product"] not in (None, "none_of_these")):
                 send_to = max(away, key=lambda q: math.hypot(q[0] - o.focus[0], q[1] - o.focus[1]))
                 r["output"] = "belt"
