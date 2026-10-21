@@ -344,7 +344,9 @@ class Actor:
             try:
                 for wt in list(self.watches):
                     w = await self.world(wt["at"], wt["radius"])
-                    fl = [f for f in w.faults() if f["kind"] in self.WATCH_KINDS and f.get("fixes")]
+                    # a machine whose output nothing takes is full by design (no output inserter): not a fault here
+                    fl = [f for f in w.faults() if f["kind"] in self.WATCH_KINDS and f.get("fixes")
+                          and not (f["kind"] == "output_full" and f["fixes"][0].get("do") == "take")]
                     found = fl[0]["text"] if fl else None
                     if not found and wt["what"]:
                         ps = await decide.trouble(self.jev, wt["what"], w.summary(coords=False, focus=wt["at"]))
