@@ -26,7 +26,7 @@ from .lint import lint, plan_points
 from .steps import Runner, describe, parse_missing, plan_needs
 from .thinker import Request, Thinker
 from .typesafe import Jev, JevError
-from .world import World, fmt_xy, items_words
+from .world import CHESTS, World, fmt_xy, items_words
 
 log = logging.getLogger("jev.actor")
 
@@ -1144,6 +1144,7 @@ class Actor(FastPaths):
             if rnd:
                 w = await self.world(o.focus, 18)
             allf = w.wanted_faults(wanted) + w.faults()
+            await self._look_past_edge(w, allf)
             fl = [f for f in allf if f.get("fixes")]
             if not allf and not (self._stopped(w) & watch):
                 if fixed:
@@ -1200,6 +1201,29 @@ class Actor(FastPaths):
                 return True
         w = await self.world(o.focus, 18)
         return (f"I did: {'; '.join(fixed)}, but problems remain: " + "; ".join(f["text"] for f in w.faults()[:8]))
+
+    async def _look_past_edge(self, w: World, faults: list[dict]) -> None:
+        """A machine stopped with its output full, whose output inserter drops into something outside the area
+        looked at: look there, and if it's a full chest, emptying it is the fix."""
+        for f in faults:
+            if f["kind"] != "output_full" or f.get("fixes"):
+                continue
+            for i in w.takers.get(f.get("u"), []):
+                ins = w.ents.get(i) or {}
+                dp = ins.get("dp")
+                if not dp or (ins.get("dpu") in w.ents):
+                    continue
+                try:
+                    near = await self.world((dp[0], dp[1]), 3)
+                except Exception:  # noqa: BLE001
+                    continue
+                c = near.at(dp[0], dp[1])
+                if c and c.get("t") in CHESTS and not c.get("free"):
+                    f["fixes"] = [{"do": "empty_chest", "x": c["x"], "y": c["y"],
+                                   "text": f"empty the full chest at {fmt_xy((c['x'], c['y']))}",
+                                   "done": f"made room in the full chest at {fmt_xy((c['x'], c['y']))}"}]
+                    f["text"] += f" (the chest it fills, at {fmt_xy((c['x'], c['y']))}, is full)"
+                    break
 
     async def _wide_faults(self, center, reach: int = 160) -> list[tuple[dict, World]]:
         """Faults over a wide area: a grid of scans around center (each radius 64), de-duplicated."""
