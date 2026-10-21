@@ -107,6 +107,10 @@ local function entry(e)
   end
   if t == "electric-pole" then
     d.net = e.electric_network_id
+  elseif t == "generator" or t == "solar-panel" or t == "accumulator" or t == "burner-generator" then
+    local okN, nid = pcall(function() return e.electric_network_id end)
+    if okN then d.net = nid end
+    if d.s == "not_plugged_in_electric_network" then d.pw = "no power" end
   elseif util.needs_power(e) then
     local okN, nid = pcall(function() return e.electric_network_id end)
     if okN then d.net = nid end

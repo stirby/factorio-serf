@@ -1,0 +1,305 @@
+{
+ "name": "smelter-column-8",
+ "note": "Anchor = tile corner of the ore belt column top (belt at 0.5,0.5 runs south, not included). Plates chest expected at 4.5,22.5 (not included).",
+ "entities": [
+  {
+   "name": "stone-furnace",
+   "x": 3.0,
+   "y": 1.0
+  },
+  {
+   "name": "stone-furnace",
+   "x": 3.0,
+   "y": 3.0
+  },
+  {
+   "name": "stone-furnace",
+   "x": 3.0,
+   "y": 5.0
+  },
+  {
+   "name": "stone-furnace",
+   "x": 3.0,
+   "y": 7.0
+  },
+  {
+   "name": "stone-furnace",
+   "x": 3.0,
+   "y": 9.0
+  },
+  {
+   "name": "stone-furnace",
+   "x": 3.0,
+   "y": 11.0
+  },
+  {
+   "name": "stone-furnace",
+   "x": 3.0,
+   "y": 13.0
+  },
+  {
+   "name": "stone-furnace",
+   "x": 3.0,
+   "y": 15.0
+  },
+  {
+   "name": "inserter",
+   "x": 1.5,
+   "y": 0.5,
+   "direction": "west"
+  },
+  {
+   "name": "inserter",
+   "x": 1.5,
+   "y": 2.5,
+   "direction": "west"
+  },
+  {
+   "name": "inserter",
+   "x": 1.5,
+   "y": 4.5,
+   "direction": "west"
+  },
+  {
+   "name": "inserter",
+   "x": 1.5,
+   "y": 6.5,
+   "direction": "west"
+  },
+  {
+   "name": "inserter",
+   "x": 1.5,
+   "y": 8.5,
+   "direction": "west"
+  },
+  {
+   "name": "inserter",
+   "x": 1.5,
+   "y": 10.5,
+   "direction": "west"
+  },
+  {
+   "name": "inserter",
+   "x": 1.5,
+   "y": 12.5,
+   "direction": "west"
+  },
+  {
+   "name": "inserter",
+   "x": 1.5,
+   "y": 14.5,
+   "direction": "west"
+  },
+  {
+   "name": "inserter",
+   "x": 4.5,
+   "y": 0.5,
+   "direction": "west"
+  },
+  {
+   "name": "inserter",
+   "x": 4.5,
+   "y": 2.5,
+   "direction": "west"
+  },
+  {
+   "name": "inserter",
+   "x": 4.5,
+   "y": 4.5,
+   "direction": "west"
+  },
+  {
+   "name": "inserter",
+   "x": 4.5,
+   "y": 6.5,
+   "direction": "west"
+  },
+  {
+   "name": "inserter",
+   "x": 4.5,
+   "y": 8.5,
+   "direction": "west"
+  },
+  {
+   "name": "inserter",
+   "x": 4.5,
+   "y": 10.5,
+   "direction": "west"
+  },
+  {
+   "name": "inserter",
+   "x": 4.5,
+   "y": 12.5,
+   "direction": "west"
+  },
+  {
+   "name": "inserter",
+   "x": 4.5,
+   "y": 14.5,
+   "direction": "west"
+  },
+  {
+   "name": "medium-electric-pole",
+   "x": 1.5,
+   "y": 1.5
+  },
+  {
+   "name": "medium-electric-pole",
+   "x": 1.5,
+   "y": 5.5
+  },
+  {
+   "name": "medium-electric-pole",
+   "x": 1.5,
+   "y": 9.5
+  },
+  {
+   "name": "medium-electric-pole",
+   "x": 1.5,
+   "y": 13.5
+  },
+  {
+   "name": "medium-electric-pole",
+   "x": 3.5,
+   "y": 20.5
+  },
+  {
+   "name": "transport-belt",
+   "x": 5.5,
+   "y": 0.5,
+   "direction": "south"
+  },
+  {
+   "name": "transport-belt",
+   "x": 5.5,
+   "y": 1.5,
+   "direction": "south"
+  },
+  {
+   "name": "transport-belt",
+   "x": 5.5,
+   "y": 2.5,
+   "direction": "south"
+  },
+  {
+   "name": "transport-belt",
+   "x": 5.5,
+   "y": 3.5,
+   "direction": "south"
+  },
+  {
+   "name": "transport-belt",
+   "x": 5.5,
+   "y": 4.5,
+   "direction": "south"
+  },
+  {
+   "name": "transport-belt",
+   "x": 5.5,
+   "y": 5.5,
+   "direction": "south"
+  },
+  {
+   "name": "transport-belt",
+   "x": 5.5,
+   "y": 6.5,
+   "direction": "south"
+  },
+  {
+   "name": "transport-belt",
+   "x": 5.5,
+   "y": 7.5,
+   "direction": "south"
+  },
+  {
+   "name": "transport-belt",
+   "x": 5.5,
+   "y": 8.5,
+   "direction": "south"
+  },
+  {
+   "name": "transport-belt",
+   "x": 5.5,
+   "y": 9.5,
+   "direction": "south"
+  },
+  {
+   "name": "transport-belt",
+   "x": 5.5,
+   "y": 10.5,
+   "direction": "south"
+  },
+  {
+   "name": "transport-belt",
+   "x": 5.5,
+   "y": 11.5,
+   "direction": "south"
+  },
+  {
+   "name": "transport-belt",
+   "x": 5.5,
+   "y": 12.5,
+   "direction": "south"
+  },
+  {
+   "name": "transport-belt",
+   "x": 5.5,
+   "y": 13.5,
+   "direction": "south"
+  },
+  {
+   "name": "transport-belt",
+   "x": 5.5,
+   "y": 14.5,
+   "direction": "south"
+  },
+  {
+   "name": "transport-belt",
+   "x": 5.5,
+   "y": 15.5,
+   "direction": "south"
+  },
+  {
+   "name": "transport-belt",
+   "x": 5.5,
+   "y": 16.5,
+   "direction": "south"
+  },
+  {
+   "name": "transport-belt",
+   "x": 5.5,
+   "y": 17.5,
+   "direction": "south"
+  },
+  {
+   "name": "transport-belt",
+   "x": 5.5,
+   "y": 18.5,
+   "direction": "south"
+  },
+  {
+   "name": "transport-belt",
+   "x": 5.5,
+   "y": 19.5,
+   "direction": "south"
+  },
+  {
+   "name": "transport-belt",
+   "x": 5.5,
+   "y": 20.5,
+   "direction": "west"
+  },
+  {
+   "name": "transport-belt",
+   "x": 4.5,
+   "y": 20.5,
+   "direction": "west"
+  },
+  {
+   "name": "inserter",
+   "x": 4.5,
+   "y": 21.5,
+   "direction": "north"
+  }
+ ]
+}

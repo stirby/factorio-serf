@@ -58,6 +58,7 @@ class Runner:
         self.g = game
         self.log_fn = log_fn or (lambda rec: None)
         self.inventory: dict = {}
+        self.recipes: dict = {}
 
     async def refresh_inventory(self) -> dict:
         try:
@@ -92,15 +93,42 @@ class Runner:
             r = await self.g.wait_job(jid, 400)
             if not r.get("ok"):
                 fails[i] = r.get("msg")
+        for i in list(fails):  # storage couldn't: try belts and crafting from belt items
+            r = await self.ensure(i, short[i])
+            if r.get("ok"):
+                fails.pop(i)
         self.log_fn({"t": t0, "kind": "stock", "need": short, "fails": fails, "secs": round(time.time() - t0, 1)})
         return fails
 
     async def ensure(self, item: str, count: int) -> dict:
-        """Have at least count of item: storage first, then hand-crafting (the mod's fetch does both)."""
+        """Have at least count of item: storage first, then hand-crafting (the mod's fetch does both, fetching
+        ingredients from storage too). If that fails: grab it, or its ingredients, off belts, then craft."""
         inv = await self.refresh_inventory()
         if inv.get(item, 0) >= count:
             return {"ok": True, "msg": f"have {inv[item]} {item}"}
         r = await self._act({"op": "fetch", "item": item, "count": count}, timeout=300)
+        if r.get("ok"):
+            return r
+        inv = await self.refresh_inventory()
+        short = count - inv.get(item, 0)
+        g = await self._act({"op": "grab", "item": item, "count": short}, timeout=120)
+        if g.get("ok") and (await self.refresh_inventory()).get(item, 0) >= count:
+            return g
+        rec = (self.recipes or {}).get(item)
+        if rec and (rec.get("category") or "crafting") in ("crafting", "advanced-crafting", "electronics",
+                                                             "pressing"):
+            per = 2 if item == "copper-cable" else 1
+            runs = -(-short // per)
+            inv = await self.refresh_inventory()
+            for ing, n in (rec.get("ingredients") or {}).items():
+                need = int(n) * runs
+                if inv.get(ing, 0) < need:
+                    gi = await self._act({"op": "grab", "item": ing, "count": need - inv.get(ing, 0)}, timeout=120)
+                    if not gi.get("ok"):
+                        await self._act({"op": "fetch", "item": ing, "count": need}, timeout=300)
+            r2 = await self._act({"op": "fetch", "item": item, "count": count}, timeout=300)
+            if r2.get("ok"):
+                return r2
         return r
 
     async def run(self, step: dict) -> dict:
@@ -226,6 +254,7 @@ class Runner:
             live = {g["id"] for g in (sc.get("grids") or []) if isinstance(g, dict) and (g.get("cap_w") or 0) > 0}
             near = [e for e in ents if abs(e["x"] - p[0]) <= rad + 1.5 and abs(e["y"] - p[1]) <= rad + 1.5]
             off = [e for e in near if e.get("t") != "electric-pole" and "net" in e and e.get("net") not in live]
+            off += [e for e in near if e.get("s") == "not_plugged_in_electric_network" and e not in off]
             off += [e for e in near if e.get("t") != "electric-pole" and str(e.get("pw", "")).startswith("no power")
                     and e not in off]
             if not off:
@@ -296,10 +325,16 @@ class Runner:
             ents.append(q)
         if not ents:
             return {"ok": False, "msg": "ghosts needs entities"}
+        xs = [e["x"] for e in ents]
+        if s.get("_laid"):  # a retry: the ghosts are already there, just build them
+            ys = [e["y"] for e in ents]
+            cx, cy = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
+            rad = max(max(xs) - min(xs), max(ys) - min(ys)) / 2 + 4
+            return await self._do_build_ghosts({"x": cx, "y": cy, "radius": rad})
         r = await self._act({"op": "blueprint", "entities": ents})
         if not r.get("ok"):
             return r
-        xs = [e["x"] for e in ents]
+        s["_laid"] = True
         ys = [e["y"] for e in ents]
         cx, cy = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
         rad = max(max(xs) - min(xs), max(ys) - min(ys)) / 2 + 4
@@ -350,12 +385,12 @@ class Runner:
             last_left = left
             fails = []
             for item, n in missing.items():
-                fr = await self._act({"op": "fetch", "item": item, "count": int(n)}, timeout=400)
+                fr = await self.ensure(item, int(n))
                 if not fr.get("ok"):
                     fails.append(f"{item}: {fr.get('msg')}")
             if fails and len(fails) == len(missing):
                 return {"ok": False, "msg": f"built {built_total}; {left} left; can't get items: " + "; ".join(fails),
-                        "missing": missing, "built": built_total, "left": left}
+                        "missing": missing, "built": built_total, "left": left, "unobtainable": True}
         return {"ok": False, "msg": f"built {built_total}; still ghosts left after 8 rounds", "built": built_total}
 
 
@@ -396,4 +431,13 @@ def plan_needs(steps: list[dict]) -> dict:
                 add(item, dist / 5 + 2)
             elif item:
                 add(item, dist * 1.2 + 4)
+        elif d == "power":
+            add(s.get("item", "small-electric-pole"), 6)
+    # spares: a trip back to storage costs far more than a few extra items in the pocket
+    electric = {"assembling-machine-1", "assembling-machine-2", "assembling-machine-3", "inserter", "fast-inserter",
+                "electric-mining-drill", "lab", "electric-furnace", "long-handed-inserter"}
+    if any(k in electric for k in need):
+        need["small-electric-pole"] = need.get("small-electric-pole", 0) + 4
+    if "transport-belt" in need:
+        need["transport-belt"] += 6
     return need

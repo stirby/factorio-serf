@@ -381,6 +381,34 @@ class World:
                                     f"(they run {OPP[d]}), so items can't pass",
                             "fixes": [{"do": "rotate", "x": e["x"], "y": e["y"], "direction": OPP[d],
                                        "text": f"turn the belt at {fmt_xy((e['x'], e['y']))} to face {OPP[d]}"}]})
+        # 1b. a gap: a line ends with nothing ahead, and a few tiles further on, in line with it, another line starts
+        # going the same way (a belt was cut or never finished)
+        starts = {}
+        for ln in self.lines:
+            b0 = self.ents[ln.belts[0]]
+            if ln.start_reason == "starts here" and b0.get("d") in DIRS:
+                starts[(b0["x"], b0["y"])] = ln
+        for ln in self.lines:
+            last = self.ents[ln.belts[-1]]
+            d = last.get("d")
+            if ln.end_reason != "ends (nothing ahead)" or d not in DIRS or not ln.items:
+                continue
+            dx, dy = DIRS[d]
+            for k in range(2, 6):
+                p = (last["x"] + dx * k, last["y"] + dy * k)
+                other = starts.get(p)
+                if other is not None and self.ents[other.belts[0]].get("d") == d:
+                    gap = [(last["x"] + dx * j, last["y"] + dy * j) for j in range(1, k)]
+                    if all(self.at(*g) is None for g in gap):
+                        out.append({"kind": "belt_gap", "u": last["u"], "at": (last["x"], last["y"]),
+                                    "text": f"belt line {ln.id} ({items_words(ln.items, 2)}) stops at "
+                                            f"{fmt_xy((last['x'], last['y']))}, {k - 1} tile(s) short of line "
+                                            f"{other.id} that continues {d}",
+                                    "fixes": [{"do": "connect", "item": "transport-belt",
+                                               "from": [last["x"], last["y"]], "to": [p[0], p[1]],
+                                               "text": f"fill the {k - 1}-tile gap in the belt at "
+                                                       f"{fmt_xy(gap[0])}"}]})
+                    break
         # 2. machines stopped
         for e in self.ents.values():
             if e["t"] not in CRAFTERS:

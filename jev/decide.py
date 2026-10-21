@@ -113,3 +113,51 @@ async def which_item(jev: Jev, phrase: str, candidates: list[str]) -> tuple[str,
     a = await jev.ask({"player_wrote": phrase}, {"item": choice("Which item does `player_wrote` mean?", opts)},
                       kind="item")
     return a["item"].choice, a["item"].confidence
+
+
+KITS = {
+    "assembly": {"what": "assemblers fed by inserters and belts: automate a product, make science, a mall",
+                 "items": {"assembling-machine-2": 4, "assembling-machine-1": 4, "inserter": 12, "transport-belt": 40,
+                           "small-electric-pole": 10, "iron-chest": 3, "underground-belt": 4}},
+    "smelting": {"what": "furnaces: smelt ore into plates or steel, a smelter column",
+                 "items": {"stone-furnace": 8, "inserter": 16, "transport-belt": 40, "small-electric-pole": 8,
+                           "iron-chest": 2}},
+    "power": {"what": "more electricity: boilers, steam engines, offshore pump, poles",
+              "items": {"boiler": 2, "steam-engine": 4, "offshore-pump": 1, "pipe": 10, "small-electric-pole": 8,
+                        "inserter": 2}},
+    "mining": {"what": "mine an ore patch with drills and belt the ore somewhere",
+               "items": {"electric-mining-drill": 8, "transport-belt": 60, "small-electric-pole": 10,
+                         "underground-belt": 4}},
+    "belts": {"what": "route a belt or connect belts from one place to another",
+              "items": {"transport-belt": 60, "underground-belt": 6, "splitter": 2, "inserter": 2}},
+    "none": {"what": "no building: a question, research, moving, delivering items, fixing a setting", "items": {}},
+}
+
+
+async def kit(jev: Jev, order: str) -> tuple[str, float]:
+    opts = {k: v["what"] for k, v in KITS.items()}
+    a = await jev.ask({"order": order}, {"kit": choice("Which building materials will doing `order` most likely "
+                                                       "need?", opts)}, kind="kit")
+    return a["kit"].choice, a["kit"].confidence
+
+
+QUESTIONS = {
+    "status": "what the character is doing, how the job is going, whether it's done",
+    "where": "where the character is",
+    "carrying": "what the character has in its inventory",
+    "other": "anything else: about the base, production, plans, opinions, how to do something",
+}
+
+
+async def question_type(jev: Jev, message: str) -> tuple[str, float]:
+    a = await jev.ask({"question": message}, {"type": choice("What does `question` ask about?", QUESTIONS)},
+                      kind="question")
+    return a["type"].choice, a["type"].confidence
+
+
+async def scope(jev: Jev, order: str) -> float:
+    """Probability the order is about many places spread over a wide area (not one spot)."""
+    a = await jev.ask({"order": order}, {"wide": noul(
+        "Does `order` talk about several separate setups or places spread over a wide area (e.g. 'all my furnace "
+        "setups around here', 'they're spread out'), rather than one spot?")}, kind="scope")
+    return a["wide"].p

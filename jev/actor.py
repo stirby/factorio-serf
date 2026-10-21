@@ -68,6 +68,7 @@ class Actor:
         self.items: list[str] = []
         self._plan_waiters: dict[int, asyncio.Future] = {}
         self.think_enabled = think
+        self.prefetch = True
         self.thinker = Thinker(name, self._thinker_tools(), self._on_plan, workdir / "thinker", self.log,
                                effort=thinker_effort, lint_fn=self._lint) if think else None
         self.metrics = {"orders": 0, "fast_path": 0, "plans": 0, "steps_ok": 0, "steps_failed": 0,
@@ -93,6 +94,7 @@ class Actor:
     async def start(self) -> None:
         rec = await self.g.call("recipes", agent=self.name, detail=True)
         self.recipes = rec.get("recipes") if isinstance(rec, dict) else {}
+        self.runner.recipes = self.recipes
         self.items = await self.g.eval(
             "local t={} for n,p in pairs(prototypes.item) do if not p.hidden then t[#t+1]=n end end return t") or []
         if self.thinker:
@@ -176,10 +178,37 @@ class Actor:
                 self.current.status = "cancelled"
             await self.g.cancel("player said stop")
             await self.say("ok, stopped")
+        elif kind == "question" and await self._quick_answer(msg):
+            pass
         elif kind == "question" and self.thinker:
             self.thinker.ask(Request("question", f"{speaker} asked in chat: \"{msg}\"\nAnswer briefly with the say "
                                      "tool (look first only if you need to). Don't submit a plan unless they asked "
                                      "for work.", self.current.id if self.current else None))
+
+    async def _quick_answer(self, msg: str) -> bool:
+        """Status/where/inventory questions answered by code; anything else goes to the thinker."""
+        try:
+            qt, conf = await decide.question_type(self.jev, msg)
+        except JevError:
+            return False
+        self.log({"kind": "question", "type": qt, "conf": round(conf, 3)})
+        if conf < 0.7 or qt == "other":
+            return False
+        me = await self.g.me()
+        if qt == "where":
+            await self.say(f"I'm at [gps={me['position'][0]:.0f},{me['position'][1]:.0f}]")
+        elif qt == "carrying":
+            await self.say("carrying " + items_words(me.get("inventory"), 8))
+        else:
+            o = self.current
+            if o and o.status in ("working", "thinking"):
+                step = "planning it" if o.status == "thinking" else "building"
+                await self.say(f"working on: {o.text.replace('@' + self.name, '').strip()[:120]} ({step})")
+            elif o:
+                await self.say(f"last job {o.status}: {o.text.replace('@' + self.name, '').strip()[:100]}. Free now.")
+            else:
+                await self.say("nothing right now, free for a job")
+        return True
 
     # ------------------------------------------------------------------ work
     async def _work_loop(self) -> None:
@@ -219,7 +248,9 @@ class Actor:
         await self.g.status(text=o.text[:100])
         if o.playbook == "fix" and o.focus:
             await self.say("on it, taking a look")
-            r = await self._fix(o)
+            wide = await decide.scope(self.jev, o.text)
+            self.log({"kind": "scope", "order": o.id, "wide": round(wide, 3)})
+            r = await (self._fix_wide(o) if wide >= 0.6 else self._fix(o))
             if r is True:
                 return True
             report = r or "I found no fault I could fix on my own."
@@ -294,11 +325,12 @@ class Actor:
         cx, cy = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
         r = int(min(96, max(max(xs) - min(xs), max(ys) - min(ys)) / 2 + 8))
         w = await self.world((cx, cy), r)
-        return lint(plan.get("steps") or [], w, await self.available(), self.recipes)
+        on_belts = {i for ln in w.lines for i in (ln.items or {})}
+        return lint(plan.get("steps") or [], w, await self.available(on_belts), self.recipes)
 
-    async def available(self) -> set[str]:
-        """Items the character can get: in storage or inventory, or hand-craftable from those (a few levels)."""
-        stock = {k for k, n in await self.materials() if n > 0}
+    async def available(self, extra: set[str] | None = None) -> set[str]:
+        """Items the character can get: in storage, inventory or on nearby belts, or hand-craftable from those."""
+        stock = {k for k, n in await self.materials() if n > 0} | set(extra or ())
         me = await self.g.me()
         stock |= {k for k, n in (me.get("inventory") or {}).items() if n > 0}
         hand = {"crafting", "advanced-crafting", "electronics", "pressing", "crafting-with-fluid-or-metallurgy"}
@@ -324,6 +356,23 @@ class Actor:
         if fut and not fut.done():
             fut.set_result(plan)
 
+    async def _prefetch(self, o: Order) -> None:
+        """While the thinker plans a new order: Jev guesses the kind of build, code fetches that kit from storage
+        (only what storage has; nothing is crafted on speculation). The plan's own stock-up then finds most of it."""
+        try:
+            k, conf = await decide.kit(self.jev, o.text)
+            self.log({"kind": "prefetch", "order": o.id, "kit": k, "conf": round(conf, 3)})
+            if k == "none" or conf < 0.5:
+                return
+            stock = dict(await self.materials())
+            want = {i: n for i, n in decide.KITS[k]["items"].items() if stock.get(i, 0) >= n}
+            if "assembling-machine-2" in want:
+                want.pop("assembling-machine-1", None)
+            if want:
+                await self.runner.stock(want)
+        except Exception as e:  # noqa: BLE001
+            self.log({"kind": "error", "where": "prefetch", "error": repr(e)})
+
     async def _ask_plan(self, o: Order, text: str, timeout: float = 600) -> dict | None:
         if not self.thinker:
             return None
@@ -331,6 +380,8 @@ class Actor:
         self._plan_waiters[o.id] = fut
         o.status = "thinking"
         self.thinker.ask(Request("order" if o.plans == 0 else "report", text, o.id))
+        if o.plans == 0 and self.prefetch:
+            asyncio.create_task(self._prefetch(o))
         try:
             plan = await asyncio.wait_for(fut, timeout)
         except asyncio.TimeoutError:
@@ -610,6 +661,58 @@ class Actor:
                 return True
         w = await self.world(o.focus, 18)
         return (f"I did: {'; '.join(fixed)}, but problems remain: " + "; ".join(f["text"] for f in w.faults()[:8]))
+
+    async def _wide_faults(self, center, reach: int = 160) -> list[tuple[dict, World]]:
+        """Faults over a wide area: a grid of scans around center (each radius 64), de-duplicated."""
+        out, seen = [], set()
+        step = 120
+        offs = [k * step for k in range(-(reach // step), reach // step + 1)]
+        for dx in offs:
+            for dy in offs:
+                w = await self.world((center[0] + dx, center[1] + dy), 64)
+                for f in w.faults():
+                    key = (f["kind"], f.get("u"), tuple(f.get("at") or ()))
+                    if key in seen or not f.get("fixes"):
+                        continue
+                    seen.add(key)
+                    out.append((f, w))
+        return out
+
+    async def _fix_wide(self, o: Order):
+        """Many sites: find every fixable fault in a wide area and fix them nearest-first, twice over."""
+        fixed, failed = [], []
+        for rnd in range(3):
+            found = await self._wide_faults(o.focus)
+            self.log({"kind": "wide_faults", "order": o.id, "round": rnd, "n": len(found),
+                      "faults": [f["text"] for f, _ in found][:40]})
+            if not found:
+                break
+            me = await self.g.me()
+            pos = tuple(me.get("position") or o.focus)
+            todo = list(found)
+            while todo:
+                todo.sort(key=lambda fw: (fw[0]["at"][0] - pos[0]) ** 2 + (fw[0]["at"][1] - pos[1]) ** 2)
+                f, w = todo.pop(0)
+                fx = f["fixes"][0]
+                step = {k: v for k, v in fx.items() if k != "text"}
+                if fx.get("do") == "refuel_boilers":
+                    ok = await self._refuel_grid(w, f.get("grid"))
+                    r = {"ok": ok, "msg": ""}
+                else:
+                    await self.g.status(text=fx.get("text", "")[:80])
+                    r = await self.runner.run(step)
+                self.log({"kind": "fix", "order": o.id, "fault": f["text"], "fix": fx, "ok": r.get("ok"),
+                          "msg": r.get("msg")})
+                (fixed if r.get("ok") else failed).append(fx.get("text"))
+                pos = tuple(f.get("at") or pos)
+                self.metrics["fast_path"] += 1
+            await asyncio.sleep(10)
+        left = await self._wide_faults(o.focus)
+        if not left and fixed:
+            await self.say(f"fixed {len(fixed)} things: " + "; ".join(fixed[:6]) + ("..." if len(fixed) > 6 else ""))
+            return True
+        return (f"I fixed {len(fixed)} things ({'; '.join(fixed[:8])}); failed: {'; '.join(failed[:5]) or 'none'}. "
+                f"Still broken: " + "; ".join(f["text"] for f, _ in left[:10]))
 
     async def _refuel_grid(self, w: World, grid_id) -> bool:
         boilers = [e for e in w.of_type("boiler") if sum((e.get("fuel") or {}).values()) < 5]

@@ -686,6 +686,68 @@ H.take = {
 }
 
 ------------------------------------------------------------------------- set_recipe / rotate / research / wait
+-- Pick items up off belts, like a player hovering a belt and grabbing: walk to the nearest belt carrying the item
+-- (near x,y, or near the character), take from every belt in reach, wait for more to flow by, until count or ~30 s.
+local GRAB_BELTS = { "transport-belt", "underground-belt", "splitter" }
+H.grab = {
+  start = function(a, job)
+    local name = job.args.item
+    if not (name and prototypes.item[name]) then return fail("grab needs an item") end
+    job.want = tonumber(job.args.count) or 50
+    job.got = 0
+    job.t0 = game.tick
+  end,
+  tick = function(a, job)
+    local c, name = a.char, job.args.item
+    if not job.belt or not job.belt.valid then
+      local center = (job.args.x and { x = job.args.x, y = job.args.y }) or c.position
+      local best, bd
+      for _, b in pairs(c.surface.find_entities_filtered { type = GRAB_BELTS, position = center, radius = 64,
+        force = c.force }) do
+        local n = 0
+        for li = 1, 2 do
+          local okL, line = pcall(b.get_transport_line, li)
+          if okL and line then n = n + line.get_item_count(name) end
+        end
+        if n > 0 then
+          local d = util.dist(b.position, c.position)
+          if not bd or d < bd then best, bd = b, d end
+        end
+      end
+      if not best then
+        if job.got > 0 then return ok("grabbed " .. job.got .. " " .. name .. " off belts", { got = job.got }) end
+        return fail("no belt within 64 tiles carries " .. name)
+      end
+      job.belt = best
+    end
+    local near = approach(a, job, job.belt.position, c.reach_distance - 1)
+    if near == nil then return nil end
+    if type(near) == "table" then return near end
+    for _, b in pairs(c.surface.find_entities_filtered { type = GRAB_BELTS, position = c.position,
+      radius = c.reach_distance - 0.5, force = c.force }) do
+      for li = 1, 2 do
+        local okL, line = pcall(b.get_transport_line, li)
+        if okL and line then
+          local n = math.min(line.get_item_count(name), job.want - job.got)
+          if n > 0 then
+            local got = c.insert { name = name, count = n }
+            if got > 0 then
+              line.remove_item { name = name, count = got }
+              job.got = job.got + got
+            end
+          end
+        end
+      end
+    end
+    if job.got >= job.want then return ok("grabbed " .. job.got .. " " .. name .. " off belts", { got = job.got }) end
+    if game.tick - job.t0 > 1800 then
+      return job.got > 0 and ok("grabbed " .. job.got .. " " .. name .. " off belts (wanted " .. job.want .. ")",
+        { got = job.got }) or fail("nothing to grab within reach")
+    end
+    return nil
+  end,
+}
+
 H.set_recipe = {
   start = function(a, job)
     job.target = entity_at(a, job.args)
@@ -1222,6 +1284,36 @@ local function pole_hops(c, ent, from, to, free_tile)
   return nil, "too many poles (over 200); split the line"
 end
 
+-- Wire a finished pole line explicitly, end to end (start pole, new poles, goal pole): auto-connection on placement
+-- sometimes skips a neighbour, which leaves the far end off the grid.
+local function wire_line(surface, job)
+  local it = prototypes.item[job.item]
+  if not (it and it.place_result and it.place_result.type == "electric-pole") then return end
+  local function pole_at(p, r)
+    p = util.pos(p)
+    return p and surface.find_entities_filtered { type = "electric-pole", position = p, radius = r }[1]
+  end
+  local chain = {}
+  local s0 = job.args.from and pole_at(job.args.from, 1.5)
+  if s0 then chain[#chain + 1] = s0 end
+  for _, pl in ipairs(job.places) do
+    local q = pole_at(pl.pos, 0.5)
+    if q and q ~= chain[#chain] then chain[#chain + 1] = q end
+  end
+  local g = job.args.to and pole_at(job.args.to, 1.5)
+  if g and g ~= chain[#chain] then chain[#chain + 1] = g end
+  for i = 2, #chain do
+    local x, y = chain[i - 1], chain[i]
+    if x.valid and y.valid and x.electric_network_id ~= y.electric_network_id then
+      pcall(function()
+        local cx = x.get_wire_connector(defines.wire_connector_id.pole_copper, true)
+        local cy = y.get_wire_connector(defines.wire_connector_id.pole_copper, true)
+        cx.connect_to(cy, true)
+      end)
+    end
+  end
+end
+
 -- A finished pole line: the first new pole that isn't on the same network as the existing pole at either end
 -- (from, else to), or nil when it's all one grid (or no existing pole to compare with).
 local function pole_gap(surface, job)
@@ -1428,6 +1520,7 @@ H.connect = {
     if not pl then
       local span = "from " .. job.span[1][1] .. "," .. job.span[1][2] .. " to " .. job.span[2][1] .. "," .. job.span[2][2]
       local data = { placed = job.placed, planned = #job.places, failed = job.failed }
+      if #job.failed == 0 and job.places[1] then pcall(wire_line, a.char.surface, job) end
       local gap = #job.failed == 0 and job.places[1] and pole_gap(a.char.surface, job)
       if gap then
         return fail("placed all " .. job.placed .. " " .. job.item .. " " .. span .. ", but the line doesn't reach the "
