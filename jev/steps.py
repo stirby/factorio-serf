@@ -466,6 +466,49 @@ class Runner:
             b["msg"] += f" ({len(ents) - placed} couldn't be planned: blocked or invalid spots)"
         return b
 
+    async def row_layout(self, s: dict):
+        """The entities of a row step (needs the belt's direction from the game; picks a free side if none given)."""
+        from .rowgen import DIRS, SIZE, row_entities
+        from .world import World
+        b = s.get("belt")
+        sc = await self.g.scan(center=(float(b[0]), float(b[1])), radius=int(10 + 6 * int(s.get("count", 1))))
+        w = World(sc)
+        e = w.at(float(b[0]), float(b[1]))
+        if not e or e.get("t") not in ("transport-belt", "underground-belt", "splitter") or e.get("d") not in DIRS:
+            raise ValueError(f"no belt at {b[0]},{b[1]} to build the row off")
+        d = e["d"]
+        sides = [x for x in DIRS if DIRS[x][0] * DIRS[d][0] + DIRS[x][1] * DIRS[d][1] == 0]
+        side = s.get("side")
+        cands = [side] if side else sides
+        best = None
+        for sd in cands:
+            ents, info = row_entities((e["x"], e["y"]), d, sd, s.get("machine", "assembling-machine-1"),
+                                      s.get("recipe"), int(s.get("count", 1)), bool(s.get("second_belt")),
+                                      s.get("output", "chest"), s.get("inserter", "inserter"), int(s.get("offset", 0)))
+            S = SIZE.get(s.get("machine", "assembling-machine-1"), 3)
+            blocked = sum(1 for x in ents if w.at(x["x"], x["y"]) is not None)
+            if best is None or blocked < best[0]:
+                best = (blocked, ents, info, sd)
+        return best[1], best[2], best[3], best[0]
+
+    async def _do_row(self, s):
+        """Machines in a row along an existing belt (see jev/rowgen.py), then powered from the grid."""
+        try:
+            ents, info, side, blocked = await self.row_layout(s)
+        except ValueError as e:
+            return {"ok": False, "msg": str(e)}
+        r = await self._do_ghosts({"entities": ents})
+        if not r.get("ok"):
+            return r
+        xs, ys = [e["x"] for e in ents], [e["y"] for e in ents]
+        pr = await self._do_power({"x": (min(xs) + max(xs)) / 2, "y": (min(ys) + max(ys)) / 2,
+                                   "radius": max(max(xs) - min(xs), max(ys) - min(ys)) / 2 + 2})
+        msg = (f"row of {info['machines']} {s.get('machine', 'assembling-machine-1')} on the {side} side: "
+               f"{r.get('msg')}; power: {pr.get('msg')}")
+        if info.get("output_belt_end"):
+            msg += f"; output belt ends at {info['output_belt_end'][0]:g},{info['output_belt_end'][1]:g}"
+        return {"ok": bool(pr.get("ok")), "msg": msg, "info": info}
+
     async def _do_block(self, s):
         """A built-in, game-tested design (jev/blueprints) placed with its rotated top-left corner at x,y (or with
         anchor=<entity name> at x,y), laid as ghosts and built."""
@@ -624,6 +667,16 @@ def plan_needs(steps: list[dict]) -> dict:
             from .library import place_design
             for e in place_design(s.get("name", ""), s.get("x", 0), s.get("y", 0)) or []:
                 add(e.get("name"), 1)
+        elif d == "row":
+            n = int(s.get("count", 1))
+            add(s.get("machine", "assembling-machine-1"), n)
+            per = 1 + (1 if s.get("second_belt") else 0) + (1 if s.get("output", "chest") in ("chest", "belt") else 0)
+            add(s.get("inserter", "inserter"), n * per)
+            if s.get("output", "chest") == "chest":
+                add("iron-chest", n)
+            else:
+                add("transport-belt", n * 3 + 2)
+            add("small-electric-pole", n * 2 + 4)
         elif d == "block":
             from . import blueprints as bp
             try:

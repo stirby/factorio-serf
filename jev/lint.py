@@ -74,6 +74,11 @@ def plan_points(steps: list[dict]) -> list[tuple[float, float]]:
             from .library import place_design
             for e in place_design(s.get("name", ""), s.get("x", 0), s.get("y", 0)) or []:
                 pts.append((float(e["x"]), float(e["y"])))
+        if s.get("do") == "row" and isinstance(s.get("belt"), (list, tuple)):
+            n = int(s.get("count", 1))
+            pts.append((float(s["belt"][0]) - 8, float(s["belt"][1]) - 8))
+            pts.append((float(s["belt"][0]) + 6 * n + 8, float(s["belt"][1]) + 6 * n + 8))
+            pts.append((float(s["belt"][0]) - 6 * n - 8, float(s["belt"][1]) - 6 * n - 8))
         for k in ("from", "to", "pickup", "drop"):
             v = s.get(k)
             if isinstance(v, (list, tuple)) and len(v) == 2:
@@ -146,6 +151,32 @@ def lint(steps: list[dict], w: World, available: set[str] | None = None, recipes
                 for e in ents or []:
                     add(e["name"], float(e["x"]), float(e["y"]), e.get("direction"), None, None, e.get("recipe"),
                         src="design")
+            elif d == "row":
+                from .rowgen import DIRS as RD, row_entities
+                b = s.get("belt") or [0, 0]
+                be = w.at(float(b[0]), float(b[1]))
+                if not be or be.get("d") not in RD:
+                    out.append(f"step {i + 1} row: no belt at {b[0]},{b[1]}")
+                else:
+                    sides = [x for x in RD if RD[x][0] * RD[be["d"]][0] + RD[x][1] * RD[be["d"]][1] == 0]
+                    sd = s.get("side") or min(sides, key=lambda x: sum(
+                        1 for e in row_entities((be["x"], be["y"]), be["d"], x, s.get("machine", "assembling-machine-1"),
+                                                s.get("recipe"), int(s.get("count", 1)), bool(s.get("second_belt")),
+                                                s.get("output", "chest"))[0] if w.at(e["x"], e["y"])))
+                    try:
+                        ents, _ = row_entities((be["x"], be["y"]), be["d"], sd, s.get("machine", "assembling-machine-1"),
+                                               s.get("recipe"), int(s.get("count", 1)), bool(s.get("second_belt")),
+                                               s.get("output", "chest"), s.get("inserter", "inserter"),
+                                               int(s.get("offset", 0)))
+                    except ValueError as ex:
+                        out.append(f"step {i + 1} row: {ex}")
+                        ents = []
+                    for e in ents:
+                        add(e["name"], float(e["x"]), float(e["y"]), e.get("direction"), None, None, e.get("recipe"),
+                            src="row")
+                    if ents:
+                        xs, ys = [e["x"] for e in ents], [e["y"] for e in ents]
+                        power_targets.append(((min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2))
             elif d == "block":
                 from . import blueprints as bp
                 try:
