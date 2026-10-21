@@ -579,6 +579,23 @@ class Runner:
             ents += [e for e in w.ents.values() if e["u"] in pairs and e not in ents]
             first, last = w.ents.get(ln.belts[0]), w.ents.get(ln.belts[-1])
             edge = bool(first and last) and (w.off_view(*w._behind(first)) or w.off_view(*w._ahead(last)))
+        elif s.get("cluster"):
+            # "the gear assemblers at [gps]": the upgradable thing nearest x,y and every one of the same kind next
+            # to it, and next to those (within 6 tiles), whatever the radius
+            p = _xy(s)
+            w = World(await self.g.scan(center=p, radius=40))
+            cand = [e for e in w.ents.values() if e.get("n") in mp and e["u"] > 0]
+            seed = min(cand, key=lambda e: (e["x"] - p[0]) ** 2 + (e["y"] - p[1]) ** 2, default=None)
+            ents = []
+            if seed and abs(seed["x"] - p[0]) <= 8 and abs(seed["y"] - p[1]) <= 8:
+                ents, todo = [seed], [seed]
+                while todo:
+                    a = todo.pop()
+                    for e in cand:
+                        if e not in ents and e["n"] == seed["n"] and abs(e["x"] - a["x"]) <= 6 and abs(e["y"] - a["y"]) <= 6:
+                            ents.append(e)
+                            todo.append(e)
+            edge = False
         else:
             p = _xy(s)
             rad = min(float(s.get("radius", 8)), 48)

@@ -558,7 +558,7 @@ class Actor:
             if p_line >= 0.6 and "belt" in into:
                 step["line"] = list(o.focus)
             else:
-                step.update({"x": o.focus[0], "y": o.focus[1], "radius": 8})
+                step.update({"x": o.focus[0], "y": o.focus[1], "cluster": True})
         except Exception as e:  # noqa: BLE001
             self.log({"kind": "error", "where": "quick_upgrade", "error": repr(e)})
             return None
