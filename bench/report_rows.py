@@ -85,15 +85,18 @@ def secs_txt(xs):
     return f"{m:.0f} s" if m < 120 else f"{m / 60:.1f} min"
 
 
-GROUPS = [("Simple tests (t-*)", "t-"), ("Lab tests (x-*)", "x-"), ("Transport Belt Madness", "tbm-"),
+GROUPS = [("Behaviour (new today)", ("t-change", "t-maintain", "t-session")),
+          ("Simple tests (t-*)", "t-"), ("Lab tests (x-*)", "x-"), ("Transport Belt Madness", "tbm-"),
           ("Long scenarios", ("s1", "s2", "s3", "s4", "s5", "d2", "f1"))]
 
 
 def main():
     sb, jr = serf(), jev(sys.argv[1:])
     rows = []
+    shown = set()
     for title, pre in GROUPS:
-        names = sorted(n for n in jr if n.startswith(pre))
+        names = sorted(n for n in jr if n.startswith(pre) and n not in shown)
+        shown |= set(names)
         if not names:
             continue
         rows.append(f'<tr class="group"><td colspan="9">{title}</td></tr>')

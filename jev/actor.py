@@ -50,6 +50,8 @@ class Order:
     interrupt: str | None = None  # a player correction that should stop the running plan
     watch_what: list | None = None  # trouble the planner wants watched for after it's done
     next_plan: dict | None = None  # a revised plan that arrived while the old one was running
+    queued_plans: list = field(default_factory=list)  # next parts of a big order (plans submitted with more=true)
+    running_more: bool = False  # the plan running now is a part with more to come
 
     @property
     def focus(self):
@@ -494,6 +496,11 @@ class Actor:
         fut = self._plan_waiters.pop(oid, None) if oid is not None else None
         if fut and not fut.done():
             fut.set_result(plan)
+        elif (oid is not None and self.current and self.current.id == oid and self.current.running_more
+              and not plan.get("no_plan")):
+            # the next part of a big order, designed while the previous part was being built
+            self.current.queued_plans.append(plan)
+            self.log({"kind": "plan_queued", "order": oid, "parts_waiting": len(self.current.queued_plans)})
         elif (oid is not None and self.current and self.current.id == oid and self.current.status == "working"
               and not plan.get("no_plan") and plan.get("steps")):
             # the planner revised the plan (e.g. after a correction) while the old one runs: switch at the next step
@@ -528,6 +535,21 @@ class Actor:
                     self.log({"kind": "walk_ahead", "order": o.id, "to": o.focus})
         except Exception as e:  # noqa: BLE001
             self.log({"kind": "error", "where": "walk_ahead", "error": repr(e)})
+
+    async def _wait_next_part(self, o: Order, timeout: float = 900) -> dict | None:
+        """Wait for the next part of a big order without sending a new request (the thinker is still on it)."""
+        fut = asyncio.get_running_loop().create_future()
+        self._plan_waiters[o.id] = fut
+        t0 = time.time()
+        while True:
+            try:
+                return await asyncio.wait_for(asyncio.shield(fut), 20)
+            except asyncio.TimeoutError:
+                still = self.thinker and self.thinker.busy and self.thinker.current and \
+                    self.thinker.current.order_id == o.id
+                if not still or time.time() - t0 > timeout or o.status == "cancelled":
+                    self._plan_waiters.pop(o.id, None)
+                    return None
 
     async def _ask_plan(self, o: Order, text: str, timeout: float = 600) -> dict | None:
         if not self.thinker:
@@ -609,6 +631,46 @@ class Actor:
             else:
                 plan = await self._ask_plan(o, text)
             o.plans += 1
+            parts_expect: list = []
+            part_failed = False
+            while plan and plan.get("more") and not plan.get("no_plan"):
+                # a part of a big order: build it now; the thinker is designing the next part meanwhile
+                o.running_more = True
+                if plan.get("say"):
+                    await self.say(plan["say"])
+                ok_part, rep_part = await self._run_plan(o, plan)
+                parts_expect += [e for e in (plan.get("expect") or []) if isinstance(e, dict)]
+                if not ok_part or o.status == "cancelled":
+                    o.running_more = False
+                    part_failed, report = True, rep_part
+                    break
+                if o.queued_plans:
+                    plan = o.queued_plans.pop(0)
+                else:
+                    plan = await self._wait_next_part(o)
+                o.running_more = bool(plan and plan.get("more"))
+                if plan is None:
+                    # the thinker ended without a last part: verify what the parts promised
+                    plan = {"goal": o.text, "steps": [], "expect": parts_expect, "_parts_only": True}
+            o.running_more = False
+            if part_failed:
+                if o.status == "cancelled":
+                    return False
+                o.history.append(report)
+                text = (f"Part of your plan for order {o.id} (\"{o.text}\") failed.\n{report}\nSubmit a corrected "
+                        "plan for what's still needed (what was built is still there).")
+                continue
+            if parts_expect:
+                plan = {**plan, "expect": list(plan.get("expect") or []) + parts_expect}
+            if plan and plan.get("_parts_only"):
+                verified, vreport = await self._verify(o, plan)
+                if verified:
+                    await self.say("done")
+                    return True
+                o.history.append(vreport)
+                text = (f"Your plan for order {o.id} (\"{o.text}\") didn't get there.\n{vreport}\n"
+                        "Submit a corrected plan (only the steps still needed).")
+                continue
             self.metrics["plans"] += 1
             if not plan:
                 await self.say("sorry, I'm stuck on this one (no plan)")

@@ -46,7 +46,7 @@ Geometry: tile (x,y) spans x..x+1. 1x1 and 3x3 entities sit at .5 centers (e.g. 
 
 Numbers worth knowing: 1 offshore pump feeds 20 boilers; 1 boiler (1.8 MW) feeds exactly 2 steam engines (0.9 MW each) and burns ~0.45 coal/s; steam engines must be chained end to end from the boiler's steam output and each needs a pole touching the grid. Yellow belt 15 items/s (7.5 per lane); inserter ~0.83 items/s, fast inserter ~2.3/s. Assembler 1 speed 0.5, assembler 2 speed 0.75; stone furnace speed 1 (iron/copper plate 3.2 s). Recipes (time, at speed 1): gear 2 iron 0.5 s; copper cable 1 copper -> 2 cables 0.5 s; green circuit 1 iron + 3 cables 0.5 s (3 cable assemblers : 2 circuit assemblers); red science 1 copper + 1 gear 5 s; green science 1 inserter + 1 belt 6 s; electric mining drill 0.5 ore/s.
 
-Plans must be complete: every step needed to reach the goal, in order. Prefer reusing what exists (belts, poles, chests). Keep builds compact and away from existing stuff (check the area first). Never hand-feed machines when the order says to automate: build inserters and belts.
+Plans must be complete: every step needed to reach the goal, in order. For a big order (several separate builds), don't design everything before submitting: submit the first finished part with more=true so the actor starts building it, then design and submit the next part (the last one without more). Each part needs its own steps; put the expect checks where they belong. Prefer reusing what exists (belts, poles, chests). Keep builds compact and away from existing stuff (check the area first). Never hand-feed machines when the order says to automate: build inserters and belts.
 
 submit_plan fields: goal (what done looks like, one line), steps, expect (machine-checkable conditions: {{"check":"working","recipe":R,"count":N,"near":[x,y],"radius":r}}, {{"check":"has_item","x":..,"y":..,"item":I,"count":N}} (a chest or machine holds it), {{"check":"powered","near":[x,y],"radius":r}}, {{"check":"belt_carries","x":..,"y":..,"item":I}}), say (short chat line to the player now, optional), done_text (chat line when verified).
 Chat lines are short and plain, like a player in game chat.
@@ -105,7 +105,10 @@ TOOLS = [
          "watch": {"type": "array", "items": {"type": "string"},
                    "description": "optional: problems to keep an eye out for at this build afterwards, in words "
                                   "(e.g. 'the output chest is full', 'the boiler is out of coal')"},
-         "force": {"type": "boolean", "description": "run it even though the checker reported problems"}},
+         "force": {"type": "boolean", "description": "run it even though the checker reported problems"},
+         "more": {"type": "boolean", "description": "true = this is one finished part of a bigger order and you will "
+                                                    "submit the next part right after: the actor starts building it now "
+                                                    "while you design the rest"}},
       "required": ["goal", "steps"]}),
 ]
 
@@ -240,7 +243,11 @@ class Thinker:
                 return ("NOT started yet. The plan checker found problems:\n- " + "\n- ".join(problems) +
                         "\nFix them and call submit_plan again (or resubmit with force=true if a warning is wrong).")
         self._plan_submitted = True
+        self._last_more = bool(args.get("more"))
         await self.on_plan(args, self.current)
+        if self._last_more:
+            return (f"part accepted ({len(steps)} steps); the actor is building it now. Design the next part and "
+                    "submit it (more=true again if there's still more after it; leave it out on the last part).")
         return f"plan accepted ({len(steps)} steps); the actor is running it now. End your turn."
 
     async def _loop(self) -> None:
@@ -270,6 +277,7 @@ class Thinker:
 
         t0 = time.time()
         self._plan_submitted = False
+        self._last_more = False
         self.lint_rounds = 0
         interrupted = False
         self.log_fn({"t": t0, "kind": "thinker_prompt", "req": req.kind, "order": req.order_id, "text": prompt})
@@ -280,7 +288,7 @@ class Thinker:
                 for b in msg.content:
                     if isinstance(b, TextBlock) and b.text.strip():
                         texts.append(b.text)
-                        if self._plan_submitted and not interrupted:
+                        if self._plan_submitted and not interrupted and not getattr(self, "_last_more", False):
                             interrupted = True  # the plan is in; the commentary after it only costs time
                             try:
                                 await self.client.interrupt()
