@@ -529,6 +529,46 @@ class Runner:
             return {"ok": False, "msg": f"no saved design {s.get('name')!r}"}
         return await self._do_ghosts({"entities": ents})
 
+    async def _do_merge_lanes(self, s):
+        """One belt carrying two items, one per lane: the `left` belt side-loads the merged belt's left lane and the
+        `right` belt its right lane (left/right as seen facing `direction`). at=[x,y] is the first tile of the merged
+        belt; to=[x,y] optionally continues it there. left/right = the last belt tile of each feeding line."""
+        DV = {"north": (0, -1), "east": (1, 0), "south": (0, 1), "west": (-1, 0)}
+        LEFT = {"east": "north", "north": "west", "west": "south", "south": "east"}
+        d = s.get("direction")
+        if d not in DV:
+            return {"ok": False, "msg": "merge_lanes needs direction north/east/south/west"}
+        ax, ay = float(s["at"][0]), float(s["at"][1])
+        ax, ay = int(ax // 1) + 0.5, int(ay // 1) + 0.5
+        lx, ly = DV[LEFT[d]]
+        left_tile, right_tile = [ax + lx, ay + ly], [ax - lx, ay - ly]
+        into_from_left = {(0, -1): "south", (0, 1): "north", (-1, 0): "east", (1, 0): "west"}[(lx, ly)]
+        into_from_right = {"south": "north", "north": "south", "east": "west", "west": "east"}[into_from_left]
+        msgs = []
+        # feeds first, each ending beside the merge tile and pointing at it; the merge tile last, so nothing ever runs
+        # into it from behind (that would put both items on both lanes)
+        for side, src, tile, face in (("left", s.get("left"), left_tile, into_from_left),
+                                      ("right", s.get("right"), right_tile, into_from_right)):
+            if not src:
+                continue
+            r = await self._act({"op": "connect", "item": s.get("item", "transport-belt"), "from": list(src),
+                                 "to": tile, "end_direction": face}, timeout=420)
+            msgs.append(f"{side}: {str(r.get('msg'))[:140]}")
+            if not r.get("ok"):
+                return {"ok": False, "msg": "; ".join(msgs)}
+            # the last piece must point into the merge tile from the side
+            await self._act({"op": "rotate", "x": tile[0], "y": tile[1], "direction": face})
+        r = await self._do_place({"name": s.get("item", "transport-belt"), "x": ax, "y": ay, "direction": d})
+        if not r.get("ok"):
+            return {"ok": False, "msg": f"merge tile: {r.get('msg')}; " + "; ".join(msgs)}
+        if s.get("to"):
+            r = await self._act({"op": "connect", "item": s.get("item", "transport-belt"),
+                                 "from": [ax, ay], "to": list(s["to"])}, timeout=420)
+            msgs.append(f"onward: {str(r.get('msg'))[:140]}")
+            if not r.get("ok"):
+                return {"ok": False, "msg": "; ".join(msgs)}
+        return {"ok": True, "msg": "; ".join(msgs) or "merged"}
+
     async def _do_route(self, s):
         """Several separate belt lines at once (pairs of from/to tiles), laid by the router so they never mix:
         crossings go under with undergrounds. Then built as ghosts."""
@@ -706,6 +746,13 @@ def plan_needs(steps: list[dict]) -> dict:
                 add(item, dist * 1.2 + 4)
         elif d == "power":
             add(s.get("item", "small-electric-pole"), 6)
+        elif d == "merge_lanes":
+            for k in ("left", "right"):
+                src = s.get(k)
+                if isinstance(src, (list, tuple)) and isinstance(s.get("at"), (list, tuple)):
+                    add(s.get("item", "transport-belt"), abs(src[0] - s["at"][0]) + abs(src[1] - s["at"][1]) + 6)
+            if isinstance(s.get("to"), (list, tuple)) and isinstance(s.get("at"), (list, tuple)):
+                add(s.get("item", "transport-belt"), abs(s["to"][0] - s["at"][0]) + abs(s["to"][1] - s["at"][1]) + 4)
         elif d == "route":
             for pr in s.get("pairs") or []:
                 try:

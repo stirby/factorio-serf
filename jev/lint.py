@@ -79,7 +79,7 @@ def plan_points(steps: list[dict]) -> list[tuple[float, float]]:
             pts.append((float(s["belt"][0]) - 8, float(s["belt"][1]) - 8))
             pts.append((float(s["belt"][0]) + 6 * n + 8, float(s["belt"][1]) + 6 * n + 8))
             pts.append((float(s["belt"][0]) - 6 * n - 8, float(s["belt"][1]) - 6 * n - 8))
-        for k in ("from", "to", "pickup", "drop"):
+        for k in ("from", "to", "pickup", "drop", "at", "left", "right"):
             v = s.get(k)
             if isinstance(v, (list, tuple)) and len(v) == 2:
                 pts.append((float(v[0]), float(v[1])))

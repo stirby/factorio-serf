@@ -33,6 +33,7 @@ Step ops (each step is an object {{"do": op, ...}}):
   stamp string x y [direction]              lay a blueprint string as ghosts and build it
   design name x y                           build a saved design (save_design) with its 0,0 anchor at x,y
   block name x y [rotation] [anchor]        build a built-in, game-tested block (list below): its rotated top-left corner goes at x,y (rotation 0/90/180/270 clockwise, or east/south/west); use block_info first to see exactly where its input and output belts end up
+  merge_lanes left=[x,y] right=[x,y] at=[x,y] direction [to=[x,y]]   make one belt carrying two items, one per lane (what blocks like red-science-5 want): the belt line ending at `left` side-loads the new belt's left lane, the one ending at `right` its right lane (left/right facing `direction`); `at` is the new belt's first tile, `to` continues it there
   route pairs=[{{name, from:[x,y], to:[x,y]}}]   lay several separate belt lines at once without mixing (crossings go under with undergrounds); code solves the layout exactly. Use it for any set of 2+ belt lines that must not touch, e.g. belt puzzles or buses
   build_ghosts [x y radius]                 build planned ghosts (also the players' own)
   insert x y item [count] | take x y [item] [count] | empty_chest x y
