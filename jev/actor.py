@@ -154,7 +154,9 @@ class Actor:
             call = await decide.chat(self.jev, self.name, speaker, msg, doing, self.last_said)
         except JevError as e:
             self.log({"kind": "error", "where": "jev chat", "error": str(e)})
-            call = decide.ChatCall(1.0 if explicit else 0.0, "new_job", 0.0, "plan", 0.0)
+            # Jev is unreachable: an explicit @ is an order for the planner, and a plain "stop" still stops
+            stop = re.match(r"^\W*(@\S+\s*)?(stop|cancel|halt|wait)\b", msg.strip(), re.I)
+            call = decide.ChatCall(1.0 if explicit or stop else 0.0, "stop" if stop else "new_job", 0.0, "plan", 0.0)
         self.log({"kind": "chat", "speaker": speaker, "msg": msg, "addressed": round(call.addressed, 3),
                   "kind_": call.kind, "kind_conf": round(call.kind_conf, 3), "playbook": call.playbook,
                   "playbook_conf": round(call.playbook_conf, 3)})

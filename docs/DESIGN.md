@@ -14,7 +14,8 @@ One character in Factorio, three parts.
 A plan has a goal, steps, checks (`expect`), chat lines, and optionally things to `watch`.
 
 The step operations are:
-- `place`, `rotate`, `set_recipe`, `connect`, `ghosts` (with compact `repeat` and `line` notation), `row`, `block`, `design`, `route`
+- `place`, `rotate`, `set_recipe`, `connect` (lines over ~230 tiles go in legs), `ghosts` (with compact `repeat` and `line` notation), `row`, `block`, `design`, `route`, `merge_lanes`
+- `upgrade` (a better tier in place, along a belt line or in an area), `clear` (pick up buildings in an area)
 - `power`, `refuel`, `insert`, `take`, `empty_chest`, `fetch`, `craft`, `mine`, `mine_at`
 - `research` (`tech="cheapest"`), `move`, `follow`, `wait`, `say`
 
