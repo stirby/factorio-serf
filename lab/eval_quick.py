@@ -35,6 +35,9 @@ CASES = [
      "these belts.", MALL, True, "inserter", "1", "chest"),
     ("@serf make gears off this belt [gps=3,3]", IRON, True, "iron-gear-wheel", "not_said", "chest"),
     ("@serf build 6 furnaces off the ore belt at [gps=5,5], plates into chests", ORE, True, "iron-plate", "6", "chest"),
+    ("@serf make me a smelter column: 8 stone furnaces off the ore belt at [gps=12,8] (iron ore and coal on it), "
+     "plates on a belt into the chest at [gps=16,30]. Materials are in the supply chest at [gps=0,8], grid pole at "
+     "[gps=-7,14].", ORE, False, None, None, None),  # (sent on: the compose path takes it, not accept())
     ("@serf set up 3 assemblers making iron chests from the plate belt at [gps=1,1]", IRON, True, "iron-chest", "3",
      "chest"),
     ("@serf copper cable please, off the copper belt at [gps=2,2], put it on a belt", COPPER, True, "copper-cable",
