@@ -802,23 +802,34 @@ class Actor:
             if not fl:
                 pre = f"I already did: {'; '.join(fixed)}. " if fixed else ""
                 return pre + "Problems I see but can't fix by myself: " + "; ".join(f["text"] for f in allf[:8])
-            idx, conf, p_any = await decide.fault(self.jev, o.text, fl)
-            self.log({"kind": "fault_pick", "order": o.id, "faults": [f["text"] for f in fl], "pick": idx,
+            # faults of the same kind are one option ("4 furnaces: output full"): they're usually one problem, and
+            # picking one of four identical faults only splits Jev's confidence
+            groups: dict = {}
+            for f in fl:
+                groups.setdefault(f["kind"], []).append(f)
+            opts = []
+            for kind, mem in groups.items():
+                text = mem[0]["text"] if len(mem) == 1 else f"{len(mem)} of these: {mem[0]['text']}"
+                opts.append({"text": text, "members": mem})
+            idx, conf, p_any = await decide.fault(self.jev, o.text, opts)
+            self.log({"kind": "fault_pick", "order": o.id, "faults": [x["text"] for x in opts], "pick": idx,
                       "conf": round(conf, 3), "p_any": round(p_any, 3)})
-            if idx is None or idx >= len(fl) or (conf < 0.4 and p_any < 0.5):
-                return "unsure which fault is meant: " + "; ".join(f["text"] for f in fl[:6])
-            f = fl[idx]
-            fx = f["fixes"][0]
-            step = {k: v for k, v in fx.items() if k != "text"}
-            if fx.get("do") == "refuel_boilers":
-                ok = await self._refuel_grid(w, f.get("grid"))
-                r = {"ok": ok, "msg": "refuelled boilers" if ok else "couldn't refuel boilers"}
-            else:
-                await self.g.status(text=fx.get("text", "")[:80])
-                r = await self.runner.run(step)
-            self.log({"kind": "fix", "order": o.id, "fault": f["text"], "fix": fx, "ok": r.get("ok"), "msg": r.get("msg")})
-            if not r.get("ok"):
-                return f"tried to fix '{f['text']}' by '{fx.get('text')}' and it failed: {r.get('msg')}"
+            if idx is None or idx >= len(opts) or (conf < 0.4 and p_any < 0.5):
+                return "unsure which fault is meant: " + "; ".join(x["text"] for x in opts[:6])
+            r, f, fx = {"ok": True}, None, None
+            for f in opts[idx]["members"]:
+                fx = f["fixes"][0]
+                step = {k: v for k, v in fx.items() if k != "text"}
+                if fx.get("do") == "refuel_boilers":
+                    ok = await self._refuel_grid(w, f.get("grid"))
+                    r = {"ok": ok, "msg": "refuelled boilers" if ok else "couldn't refuel boilers"}
+                else:
+                    await self.g.status(text=fx.get("text", "")[:80])
+                    r = await self.runner.run(step)
+                self.log({"kind": "fix", "order": o.id, "fault": f["text"], "fix": fx, "ok": r.get("ok"),
+                          "msg": r.get("msg")})
+                if not r.get("ok"):
+                    return f"tried to fix '{f['text']}' by '{fx.get('text')}' and it failed: {r.get('msg')}"
             fixed.append(fx.get("text"))
             self.metrics["fast_path"] += 1
             # let it run: success when the machines that were stopped got going
