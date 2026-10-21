@@ -1307,8 +1307,13 @@ local function pole_hops(c, ent, from, to, free_tile)
     if e then pcall(function() r = math.min(r, e.prototype.get_max_wire_distance()) end) end
     return r - 0.05
   end
+  -- 1x1 poles sit on tile centers, 2x2 ones on corners. By tile width: a small pole's collision box is only 0.3
+  -- wide, which read as "even", so hops were picked on corners and the game then moved each pole up to 0.7 tiles
+  -- further, past wire reach.
   local box = ent.collision_box
-  local odd = math.floor(box.right_bottom.x - box.left_top.x + 0.5) % 2 == 1 -- 1x1 poles sit on tile centers
+  local tw = math.floor(box.right_bottom.x - box.left_top.x + 0.999)
+  pcall(function() tw = ent.tile_width end)
+  local odd = tw % 2 == 1
   local function to_grid(v) return odd and (math.floor(v) + 0.5) or math.floor(v + 0.5) end
   local function placeable(p)
     return s.can_place_entity { name = ent.name, position = p, force = c.force,
