@@ -241,6 +241,29 @@ class World:
                     break
         return out
 
+    def connected(self, seeds) -> set[int]:
+        """Everything linked to the seed units by inserters and belts, upstream and down: an inserter's pickup and drop,
+        whatever feeds or takes from a unit, a belt's whole line with what puts onto it and takes from it, and the lines
+        it continues into or that continue into it (across a gap)."""
+        into: dict = {}
+        for ln in self.lines:
+            for nx in self._continues(ln):
+                into.setdefault(nx.id, []).append(ln)
+        seen, todo = set(), [u for u in seeds if u in self.ents]
+        while todo:
+            u = todo.pop()
+            if u in seen:
+                continue
+            seen.add(u)
+            e = self.ents.get(u) or {}
+            nb = [e.get("pku"), e.get("dpu")] + self.takers.get(u, []) + self.feeders.get(u, [])
+            ln = self.line_of.get(u)
+            if ln:
+                for other in [ln] + self._continues(ln) + into.get(ln.id, []):
+                    nb += other.belts + other.takers + other.putters
+            todo += [x for x in nb if x and x in self.ents and x not in seen]
+        return seen
+
     def _engine_slots(self, grid_id) -> list[dict]:
         """Fixes for a maxed grid that code can do: a boiler on it driving fewer than its 2 steam engines gets the
         next one, end to end along its steam output (a free 3x5 spot needed). More boilers are the planner's job."""

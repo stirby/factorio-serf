@@ -1149,6 +1149,13 @@ class Actor(FastPaths):
             allf = w.wanted_faults(wanted) + w.faults()
             await self._look_past_edge(w, allf)
             fl = [f for f in allf if f.get("fixes")]
+            if not fl:
+                # nothing wrong here: the cause may be up or down the line ("no gears" when the ore belt feeding the
+                # furnaces has a gap 20 tiles away). Look wider, at what's linked to this spot by belts and inserters.
+                wide, traced = await self._traced_faults(o.focus)
+                if traced:
+                    self.log({"kind": "fix_traced", "order": o.id, "faults": [f["text"] for f in traced][:8]})
+                    w, allf, fl = wide, traced, traced
             if not allf and not (self._stopped(w) & watch):
                 if fixed:
                     await self.say(fixed_words(fixed))
@@ -1204,6 +1211,22 @@ class Actor(FastPaths):
                 return True
         w = await self.world(o.focus, 18)
         return (f"I did: {'; '.join(fixed)}, but problems remain: " + "; ".join(f["text"] for f in w.faults()[:8]))
+
+    async def _traced_faults(self, at, near: float = 12, reach: int = 40) -> tuple[World, list[dict]]:
+        """Fixable faults within `reach` of the point on things linked by belts and inserters to what stands within
+        `near` of it."""
+        w = await self.world(at, reach)
+        seeds = {e["u"] for e in w.near(at, near) if e["t"] != "electric-pole"}
+        linked = w.connected(seeds)
+        pos = [(w.ents[u]["x"], w.ents[u]["y"]) for u in linked]
+        out = []
+        for f in w.faults():
+            if not f.get("fixes"):
+                continue
+            if f.get("u") in linked or (f.get("at") and not f.get("u") and any(
+                    abs(f["at"][0] - x) <= 1.5 and abs(f["at"][1] - y) <= 1.5 for x, y in pos)):
+                out.append(f)
+        return w, out
 
     async def _look_past_edge(self, w: World, faults: list[dict]) -> None:
         """A machine stopped with its output full, whose output inserter drops into something outside the area

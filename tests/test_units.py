@@ -244,6 +244,24 @@ def test_wrong_recipe():
           not w.wanted_faults(quickbuild.products_named("the smelter at [gps=1,1] isn't making much", list(rec))))
 
 
+def test_connected():
+    # ore line A (x 0.5..3.5), a gap at 4.5, line B (x 5.5..8.5) feeding a furnace by an inserter; plates out by another
+    # inserter into a chest. From the chest, the gap's last belt is linked; an unrelated belt nearby isn't.
+    a = _line(1, 0.5, 4, {"iron-ore": 2})
+    b = [dict(e, x=e["x"] + 5) for e in _line(11, 0.5, 4, {"iron-ore": 2})]
+    fur = {"u": 30, "n": "stone-furnace", "t": "furnace", "x": 8.0, "y": 3.0, "w": 2, "h": 2}
+    i1 = {"u": 31, "n": "inserter", "t": "inserter", "x": 7.5, "y": 1.5, "pku": 13, "dpu": 30}
+    i2 = {"u": 32, "n": "inserter", "t": "inserter", "x": 7.5, "y": 4.5, "pku": 30, "dpu": 33}
+    chest = {"u": 33, "n": "iron-chest", "t": "container", "x": 7.5, "y": 5.5}
+    other = _line(41, 9.5, 3, {"stone": 1})
+    w = World({"ents": a + b + [fur, i1, i2, chest] + other, "center": [5, 3], "radius": 20})
+    linked = w.connected({33})
+    gaps = [f for f in w.faults() if f["kind"] == "belt_gap"]
+    check("world: from the chest, the line through the furnace back to the gap is linked; the stone belt isn't",
+          4 in linked and 30 in linked and not (linked & {41, 42, 43}) and gaps and gaps[0]["u"] in linked,
+          (sorted(linked), gaps))
+
+
 def test_engine_slot():
     ents = [{"u": 1, "n": "boiler", "t": "boiler", "x": 0.5, "y": 5.0, "d": "north", "w": 3, "h": 2},
             {"u": 2, "n": "steam-engine", "t": "generator", "x": 0.5, "y": 1.5, "d": "north", "w": 3, "h": 5, "net": 7}]
