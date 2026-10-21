@@ -51,7 +51,9 @@ def build(rnd: random.Random, kind: str, src_dir: str, dist: int, angle: float, 
     dx, dy = DIRS[src_dir]
     for k in range(src_len):  # the source belt, ending at (0, 0)
         ents.append(("transport-belt", -dx * k + 0.5, -dy * k + 0.5, {"direction": src_dir}))
-    ents.append(("fast-inserter", -dx * src_len + 0.5, -dy * src_len + 0.5, {"direction": OPP[src_dir]}))
+    # burner inserters with fuel of their own: no power needed at the source
+    ents.append(("burner-inserter", -dx * src_len + 0.5, -dy * src_len + 0.5, {"direction": OPP[src_dir],
+                                                                            "fuel": "coal"}))
     ents.append(("SOURCE", -dx * (src_len + 1) + 0.5, -dy * (src_len + 1) + 0.5, {"item": item}))
     tx, ty = round(math.cos(angle) * dist), round(math.sin(angle) * dist)
     grid = (tx + 4, ty + 4)
@@ -107,7 +109,7 @@ def build(rnd: random.Random, kind: str, src_dir: str, dist: int, angle: float, 
                 ents.append(("tree-01", x + rnd.choice([-2, 0, 2]), y, {}))
         if obstacle == "belt":  # a busy one: stone fed in at its start
             x, y = (mx + 0.5, my - 13.5) if horiz else (mx - 13.5, my + 0.5)
-            ents.append(("fast-inserter", x, y, {"direction": "north" if horiz else "west"}))
+            ents.append(("burner-inserter", x, y, {"direction": "north" if horiz else "west", "fuel": "coal"}))
             x, y = (mx + 0.5, my - 14.5) if horiz else (mx - 14.5, my + 0.5)
             ents.append(("SOURCE", x, y, {"item": "stone"}))
     return item, ents, (tx, ty), grid

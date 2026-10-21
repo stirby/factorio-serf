@@ -7,3 +7,15 @@
 {"task": "chat", "variant": "current", "addressed": 1.0, "kind": 0.9565217391304348, "playbook": 1.0, "kind_conf_cov": 0.9130434782608695}
 {"task": "chat", "variant": "current", "addressed": 1.0, "kind": 0.9803921568627451, "playbook": 1.0, "kind_conf_cov": 0.9411764705882353}
 {"task": "chat", "variant": "current", "addressed": 1.0, "kind": 0.9565217391304348, "playbook": 1.0, "kind_conf_cov": 0.8695652173913043}
+{"task": "chat", "variant": "current", "addressed": 1.0, "kind": 0.9803921568627451, "playbook": 1.0, "kind_conf_cov": 0.9411764705882353}
+{"task": "chat", "variant": "split", "addressed": 1.0, "kind": 0.9411764705882353, "playbook": 1.0, "kind_conf_cov": 0.9019607843137255}
+{"task": "chat", "variant": "split2", "addressed": 1.0, "kind": 0.9803921568627451, "playbook": 1.0, "kind_conf_cov": 0.9215686274509803}
+{"task": "chat", "variant": "current", "addressed": 1.0, "kind": 0.9565217391304348, "playbook": 1.0, "kind_conf_cov": 0.8695652173913043}
+{"task": "chat", "variant": "split", "addressed": 1.0, "kind": 0.9565217391304348, "playbook": 1.0, "kind_conf_cov": 0.8695652173913043}
+{"task": "chat", "variant": "split2", "addressed": 1.0, "kind": 0.9565217391304348, "playbook": 0.9, "kind_conf_cov": 0.9130434782608695}
+{"task": "chat", "variant": "current", "addressed": 1.0, "kind": 0.9803921568627451, "playbook": 1.0, "kind_conf_cov": 0.9215686274509803}
+{"task": "chat", "variant": "split", "addressed": 1.0, "kind": 0.9607843137254902, "playbook": 1.0, "kind_conf_cov": 0.9019607843137255}
+{"task": "chat", "variant": "split2", "addressed": 1.0, "kind": 0.9803921568627451, "playbook": 1.0, "kind_conf_cov": 0.9215686274509803}
+{"task": "chat", "variant": "current", "addressed": 1.0, "kind": 0.9565217391304348, "playbook": 1.0, "kind_conf_cov": 0.9130434782608695}
+{"task": "chat", "variant": "split", "addressed": 1.0, "kind": 0.9565217391304348, "playbook": 1.0, "kind_conf_cov": 0.8695652173913043}
+{"task": "chat", "variant": "split2", "addressed": 1.0, "kind": 0.9565217391304348, "playbook": 0.9, "kind_conf_cov": 0.9130434782608695}

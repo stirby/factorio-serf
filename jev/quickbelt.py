@@ -113,14 +113,18 @@ def endpoints(wa: World, a, wb: World, b) -> dict | None:
 
 async def read_order(jev: Jev, order: str) -> float:
     a = await jev.ask({"order": order}, {
-        "move": noul("Does `order` ask for items to be carried by a new belt from one place it points at to another?",
+        "move": noul("Does `order` want items from one place it points at (a belt, drills, a machine) to keep "
+                     "reaching another place it points at, which a new belt between them would do?",
                      "yes: 'belt coal to the boiler from the drills', 'belt their ore to the furnaces', 'get the "
-                     "copper plates from that belt over to the chest at [gps]', 'run the gears to the science'",
-                     "no: building machines, fixing or refuelling, power, bringing a number of items by hand, a "
-                     "question"),
-        "build": noul("Does `order` also ask for new machines, furnaces or mining drills to be built?",
+                     "copper plates from that belt over to the chest at [gps]', 'run the gears to the science', 'the "
+                     "boiler at [gps] needs coal, it's on the belt at [gps]', 'connect the belt end at [gps] to the "
+                     "chest at [gps]'",
+                     "no: building machines, fixing or refuelling something, power, taking or bringing a number of "
+                     "items by hand ('take 50 coal to the boiler'), a question"),
+        "build": noul("Does `order` also ask for something new to be made or built: an item made from what's "
+                      "there, or new machines, furnaces or mining drills?",
                       "yes: 'build 8 furnaces ... and send the plates on a belt', 'set up an iron mine and belt the "
-                      "ore back'",
+                      "ore back', 'make gears off the belt into a chest'",
                       "no: only a belt (and what it needs to deliver) between things that are already there"),
     }, kind="quickbelt")
     # a belt plus new machines is a build with a belt in it: the planner's job

@@ -29,6 +29,15 @@ CASES = [
      False),
     ("@serf bring 50 plates from the chest at [gps=1,1] to the one at [gps=30,1]", False),
     ("@serf make gears off the belt at [gps=1,1], into a chest at [gps=10,5]", False),
+    # the belt variants' wordings (bench/gen_fuzz_belt.py)
+    ("@serf get that coal over to that boiler [gps=-23,92] from the belt at [gps=-51,64]", True),
+    ("@serf get that iron plates over to the assembler [gps=10,4] from the belt at [gps=-4,4]", True),
+    ("@serf That boiler at [gps=5,40] needs coal, it's on the belt at [gps=5,5]", True),
+    ("@serf connect the belt end at [gps=0,0] to the iron chest at [gps=40,30]", True),
+    ("@serf run a belt from [gps=0,0] to the smelter row [gps=70,0] so it gets iron ore", True),
+    ("@serf belt the copper from [gps=0,0] to the inserter into the chest at [gps=30,-20]", True),
+    ("@serf can you take 50 coal over to the boiler at [gps=5,40]", False),
+    ("@serf the boiler at [gps=5,40] is out of coal", False),
 ]
 
 
