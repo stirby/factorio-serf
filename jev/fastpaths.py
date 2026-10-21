@@ -262,25 +262,33 @@ class FastPaths:
     async def _quick_mine(self, o: Order) -> bool | str | None:
         """'Set up an iron mine on the patch at [gps] and belt the ore to [gps]' (jev/quickmine.py)."""
         try:
-            w = await self.world(o.focus, 24)
-            ores = sorted(k for k in (w.res or {}) if k in ("iron-ore", "copper-ore", "coal", "stone", "uranium-ore"))
+            # the patch is whichever named point has ore ("we need copper at [chest]: drills on [patch]" names the
+            # chest first)
+            at, ores = o.focus, []
+            for pt in o.points[:3] or [o.focus]:
+                w = await self.world(pt, 24)
+                ores = sorted(k for k in (w.res or {}) if k in ("iron-ore", "copper-ore", "coal", "stone",
+                                                                "uranium-ore"))
+                if ores:
+                    at = pt
+                    break
             if not ores:
                 return None
             p, ore, op = await quickmine.read_order(self.jev, o.text, ores)
             self.log({"kind": "quickmine", "order": o.id, "p": round(p, 3), "ore": ore, "ore_p": round(op, 3)})
             if p < 0.7 or not ore or op < 0.6:
                 return None
-            q = await self.g.call("query", what="ore", name=ore, x=o.focus[0], y=o.focus[1], radius=24)
+            q = await self.g.call("query", what="ore", name=ore, x=at[0], y=at[1], radius=24)
             tiles = {tuple(t) for t in q.get("tiles") or []}
-            away = [x for x in o.points if math.hypot(x[0] - o.focus[0], x[1] - o.focus[1]) > 12]
-            dest = max(away, key=lambda x: math.hypot(x[0] - o.focus[0], x[1] - o.focus[1])) if away else None
+            away = [x for x in o.points if math.hypot(x[0] - at[0], x[1] - at[1]) > 12]
+            dest = max(away, key=lambda x: math.hypot(x[0] - at[0], x[1] - at[1])) if away else None
             # small poles if they can be had (wood and copper), else medium ones from storage
             stock = dict((await self.g.call("query", what="materials", outputs=True)).get("materials") or {})
             for k, v in (await self.runner.refresh_inventory()).items():
                 stock[k] = stock.get(k, 0) + v
             pole = ("small-electric-pole" if craft.most("small-electric-pole", stock, self.recipes, 12) >= 8
                     else "medium-electric-pole")
-            lay = quickmine.layout(tiles, quickmine.wanted_drills(o.text), dest[0] if dest else o.focus[0] + 100, pole)
+            lay = quickmine.layout(tiles, quickmine.wanted_drills(o.text), dest[0] if dest else at[0] + 100, pole)
             if not lay:
                 return None
             if any((e := w.at(x["x"], x["y"])) is not None and e["u"] > 0 for x in lay["ents"]):
