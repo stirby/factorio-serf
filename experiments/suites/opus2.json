@@ -1,12 +1,28 @@
 {
- "note": "Opus track, night 2 (2026-10-20), alongside the Sonnet suite night2.json. Opus 5.5 plays only the hard tasks, once each per cycle, with its own library, so the morning can compare its scripts and results with Sonnet's on the same tasks. No holdout-before; holdout-after has Sonnet play the held-out tasks with Opus's library, to compare with the Sonnet night's empty and own-library holdouts.",
- "train": ["x-scale-ladder", "x-red-circuits", "tbm-5", "x-sweep"],
- "long": ["x-outpost", "f1-feldspar-iron", "x-multi-fault"],
- "long_every": 1,
- "holdout": ["x-green-science", "tbm-4"],
- "holdout_before": false,
- "holdout_variant": "sonnet",
- "holdout_repeat": 2,
- "cycle_minutes_estimate": 70,
- "holdout_minutes_estimate": 40
+ "note": "Opus track of night 2 (2026-10-20): the same tests as the Sonnet suite night2.json, run once each with 2 in parallel, to spend the ~$135 left from night 1's budget. Holdouts played once (Opus is ~2x Sonnet's cost).",
+ "train": [
+  "x-red-circuits",
+  "x-multi-fault",
+  "x-sweep",
+  "tbm-1",
+  "tbm-2",
+  "tbm-3",
+  "tbm-5",
+  "t-smelter-column",
+  "t-red-block"
+ ],
+ "holdout": [
+  "x-green-science",
+  "tbm-4"
+ ],
+ "long": [
+  "x-scale-ladder",
+  "x-outpost",
+  "d2-science-steps",
+  "f1-feldspar-iron"
+ ],
+ "long_every": 2,
+ "cycle_minutes_estimate": 75,
+ "holdout_minutes_estimate": 40,
+ "holdout_repeat": 1
 }
