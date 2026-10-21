@@ -18,6 +18,15 @@ bench) is maintained by people in the day cycle. The **agent layer** (designs, l
     .venv/bin/python experiments/overnight.py --until 07:30 -P 6 --repeat 2
     .venv/bin/python experiments/night_report.py <night> out.html
 
+A second track can run beside it with another model, its own night dir and its own instances, e.g. Opus on the
+hard tasks only (2026-10-20):
+
+    .venv/bin/python experiments/overnight.py --suite experiments/suites/opus2.json --night 20261020-opus \
+        --variant opus --base-instance 30 -P 3 --repeat 1 --budget 135
+
+Suite keys: `holdout_variant` (who plays the held-out tasks; Sonnet with Opus's library tests whether Opus's
+scripts help a cheaper model), `holdout_before` (false to skip), `holdout_repeat`.
+
 Suite: `experiments/suites/night.json` (train, holdout, long). Phases: holdout-before (fresh library), train
 cycles (shared library at `nights/<night>/library`, debrief after every run, a long task every few cycles),
 holdout-after (the night's library, read-only).

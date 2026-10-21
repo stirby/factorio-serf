@@ -103,8 +103,8 @@ class Night:
             time.sleep(self.a.pause * 60)
         return out
 
-    def jobs(self, names: list[str], repeat: int = 1) -> list[dict]:
-        return [{"scenario": n, "variant": self.a.variant} for n in names for _ in range(repeat)]
+    def jobs(self, names: list[str], repeat: int = 1, variant: str | None = None) -> list[dict]:
+        return [{"scenario": n, "variant": variant or self.a.variant} for n in names for _ in range(repeat)]
 
     def snapshot_library(self, tag: str) -> None:
         """A copy of the library at this point, so the review can diff what the serfs built during the night."""
@@ -116,9 +116,12 @@ class Night:
         s, a = self.suite, self.a
         self.event("night_start", suite=a.suite, until=time.strftime("%H:%M", time.localtime(self.until)),
                    parallel=a.parallel, budget=a.budget)
-        if not a.skip_holdout_before and not any(json.loads(l).get("phase") == "holdout-before"
+        # holdout_variant: who plays the held-out tasks. A different model from the trainers tests whether their
+        # library helps someone else (e.g. Opus builds scripts, Sonnet uses them).
+        hv = s.get("holdout_variant")
+        if s.get("holdout_before", True) and not a.skip_holdout_before and not any(json.loads(l).get("phase") == "holdout-before"
                                                  for l in self._lines("runs.jsonl")):
-            self.phase("holdout-before", self.jobs(s["holdout"]), {"SERF_DEBRIEF": "1"})
+            self.phase("holdout-before", self.jobs(s["holdout"], s.get("holdout_repeat", 1), variant=hv), {"SERF_DEBRIEF": "1"})
         cycle = 1 + max([json.loads(l).get("cycle") or 0 for l in self._lines("runs.jsonl")] or [0])
         cycle_min = s.get("cycle_minutes_estimate", 45)
         holdout_min = s.get("holdout_minutes_estimate", 20)
@@ -134,7 +137,7 @@ class Night:
                        {"SERF_NIGHT_LIBRARY": str(self.lib), "SERF_DEBRIEF": "1"}, cycle)
             self.snapshot_library(f"after-{cycle}")
             cycle += 1
-        self.phase("holdout-after", self.jobs(s["holdout"]),
+        self.phase("holdout-after", self.jobs(s["holdout"], s.get("holdout_repeat", 1), variant=hv),
                    {"SERF_NIGHT_LIBRARY": str(self.lib), "SERF_LIBRARY_FROZEN": "1", "SERF_DEBRIEF": "1"})
         self.event("night_end", spent=round(self.spent, 2))
 

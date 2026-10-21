@@ -1,13 +1,28 @@
 {
  "note": "Night 2 (2026-10-20): harder tasks. Kept from night 1 only the tests with failed runs. New: assembler chains, scale ladder, faults, sweep, outpost (lab stage) and Transport Belt Madness levels. holdout = never trained on, run at both ends of the night. long = one every long_every cycles.",
  "train": [
-  "x-red-circuits", "x-multi-fault", "x-sweep",
-  "tbm-1", "tbm-2", "tbm-3", "tbm-5",
-  "t-smelter-column", "t-red-block"
+  "x-red-circuits",
+  "x-multi-fault",
+  "x-sweep",
+  "tbm-1",
+  "tbm-2",
+  "tbm-3",
+  "tbm-5",
+  "t-smelter-column",
+  "t-red-block"
  ],
- "holdout": ["x-green-science", "tbm-4"],
- "long": ["x-scale-ladder", "x-outpost", "d2-science-steps", "f1-feldspar-iron"],
+ "holdout": [
+  "x-green-science",
+  "tbm-4"
+ ],
+ "long": [
+  "x-scale-ladder",
+  "x-outpost",
+  "d2-science-steps",
+  "f1-feldspar-iron"
+ ],
  "long_every": 2,
  "cycle_minutes_estimate": 75,
- "holdout_minutes_estimate": 40
+ "holdout_minutes_estimate": 40,
+ "holdout_repeat": 2
 }
