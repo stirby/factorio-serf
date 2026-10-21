@@ -96,8 +96,7 @@ class Actor:
         rec = await self.g.call("recipes", agent=self.name, detail=True)
         self.recipes = rec.get("recipes") if isinstance(rec, dict) else {}
         self.runner.recipes = self.recipes
-        self.items = await self.g.eval(
-            "local t={} for n,p in pairs(prototypes.item) do if not p.hidden then t[#t+1]=n end end return t") or []
+        self.items = (await self.g.call("query", what="items")).get("items") or []
         if self.thinker:
             await self.thinker.start()
         self._tasks = [asyncio.create_task(self._chat_loop()), asyncio.create_task(self._work_loop())]
@@ -806,10 +805,7 @@ class Actor:
     # ------------------------------------------------------------------ reading the world
     async def materials(self) -> list[tuple[str, int]]:
         """Items in the force's storage chests (not endless ones), biggest first."""
-        lua = ("local s=game.surfaces.nauvis local t={} for _,c in pairs(s.find_entities_filtered{type={'container',"
-               "'logistic-container'},force='player'}) do local inv=c.get_inventory(defines.inventory.chest) if inv then "
-               "for _,it in pairs(inv.get_contents()) do t[it.name]=(t[it.name] or 0)+it.count end end end return t")
-        t = await self.g.eval(lua) or {}
+        t = (await self.g.call("query", what="materials")).get("materials") or {}
         return sorted(((k, int(v)) for k, v in t.items()), key=lambda kv: -kv[1]) if isinstance(t, dict) else []
 
     async def world(self, center, radius: int = 20) -> World:

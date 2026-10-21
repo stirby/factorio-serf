@@ -316,6 +316,41 @@ API.recipes = function(req) return { recipes = observe.recipes(live(req), req) }
 API.techs = function(req) return { available = observe.techs(live(req), req) } end
 API.production = function(req) return observe.production(live(req), req) end
 
+-- Read-only lookups the agent app needs that would otherwise take eval (which only RCON may use):
+--   items        names of every (not hidden) item prototype
+--   materials    totals of every item in the force's storage chests (not endless ones), {item = n}
+--   live_pole    the nearest pole on a grid that has produced power, within radius (default 300) of x,y
+--   items_near   totals of the given items in containers near x,y (radius), e.g. a belt puzzle's kit
+API.query = function(req)
+  local s = game.surfaces[req.surface or "nauvis"] or game.surfaces.nauvis
+  local w = req.what
+  if w == "items" then
+    local t = {}
+    for n, p in pairs(prototypes.item) do if not p.hidden then t[#t + 1] = n end end
+    return { items = t }
+  elseif w == "materials" then
+    local t = {}
+    for _, c in pairs(s.find_entities_filtered { type = { "container", "logistic-container" }, force = "player" }) do
+      local inv = c.get_inventory(defines.inventory.chest)
+      if inv then for _, it in pairs(inv.get_contents()) do t[it.name] = (t[it.name] or 0) + it.count end end
+    end
+    return { materials = t }
+  elseif w == "live_pole" then
+    local p = { x = tonumber(req.x) or 0, y = tonumber(req.y) or 0 }
+    local best, bd
+    for _, e in pairs(s.find_entities_filtered { type = "electric-pole", position = p,
+      radius = math.min(tonumber(req.radius) or 300, 500), force = "player" }) do
+      local st = e.electric_network_statistics
+      if st and next(st.output_counts) then
+        local d = (e.position.x - p.x) ^ 2 + (e.position.y - p.y) ^ 2
+        if not bd or d < bd then best, bd = e, d end
+      end
+    end
+    return { pole = best and { best.position.x, best.position.y } or nil }
+  end
+  error("unknown query " .. tostring(w))
+end
+
 -- One compact snapshot of an area (all buildings, belts with neighbours, grids as numbers) for the world model.
 API.scan = function(req) return scan.area(req.agent and storage.agents[req.agent] or nil, req) end
 

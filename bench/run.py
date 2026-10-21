@@ -131,7 +131,19 @@ async def run(a) -> dict:
         loop.add_signal_handler(sig, stop.set)
     if inst.running():  # a leftover from a run that died: our instance numbers are ours
         await asyncio.to_thread(inst.stop)
-    await asyncio.to_thread(inst.start, 240)
+    import subprocess  # orphans the pidfile doesn't know about (a run killed mid-start)
+    pids = subprocess.run(["pgrep", "-f", f"bin/x64/[f]actorio -c {inst.dir}/config/"], capture_output=True,
+                          text=True).stdout.split()
+    for pid in pids:
+        subprocess.run(["kill", pid], check=False)
+    if pids:
+        await asyncio.sleep(2)
+    try:
+        await asyncio.to_thread(inst.start, 240)
+    except RuntimeError as e:  # e.g. a mod file caught mid-edit: once more
+        res["errors"].append(f"start retry: {str(e)[:200]}")
+        await asyncio.sleep(5)
+        await asyncio.to_thread(inst.start, 240)
     actor = None
     jev = Jev(log_path=d / "jev.jsonl")
     try:

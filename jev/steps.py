@@ -233,11 +233,25 @@ class Runner:
         n = int(s.get("count", 20))
         fuel = s.get("fuel") or next((f for f in FUELS if inv.get(f, 0) >= 5), None) or "coal"
         if inv.get(fuel, 0) < min(n, 5):
-            r = await self.ensure(fuel, n)
-            if not r.get("ok") and fuel == "coal":
-                r = await self._act({"op": "mine", "name": "coal", "count": n}, timeout=400)
+            # stock fuel for several machines at once: storage, then mining coal, then wood from trees
+            want = max(n, int(s.get("stock", 40)))
+            r = await self.ensure(fuel, want) if fuel != "coal" else {"ok": False}
             if not r.get("ok"):
-                return {"ok": False, "msg": f"no {fuel}: {r.get('msg')}", "missing": {fuel: n}, "unobtainable": True}
+                r = await self.ensure("coal", want)
+                fuel = "coal"
+            if not r.get("ok"):
+                r = await self._act({"op": "mine", "name": "coal", "count": want}, timeout=400)
+            if not r.get("ok"):
+                inv = await self.refresh_inventory()
+                fuel = "wood"
+                if inv.get("wood", 0) < 10:
+                    r = await self.ensure("wood", want)
+                    if not r.get("ok"):
+                        r = await self._act({"op": "mine", "name": "tree", "count": max(4, want // 4)}, timeout=400)
+                inv = await self.refresh_inventory()
+                if inv.get("wood", 0) <= 0:
+                    return {"ok": False, "msg": f"no fuel: no coal anywhere and no wood ({r.get('msg')})",
+                            "missing": {"coal": n}, "unobtainable": True}
         have = (await self.refresh_inventory()).get(fuel, 0)
         return await self._act({"op": "insert", "x": p[0], "y": p[1], "item": fuel, "count": max(1, min(n, have))})
 
@@ -292,20 +306,12 @@ class Runner:
     async def _long_power(self, p, s) -> dict:
         """No live pole nearby: find the nearest pole on a generating grid within 300 tiles and run a line from it in
         legs of at most ~180 tiles (medium poles when there are any, else small)."""
-        lua = (f"local p={{x={p[0]},y={p[1]}}} local best,bd "
-               "for _,e in pairs(game.surfaces.nauvis.find_entities_filtered{type='electric-pole',position=p,"
-               "radius=300,force='player'}) do local st=e.electric_network_statistics "
-               "if st and next(st.output_counts) then local d=(e.position.x-p.x)^2+(e.position.y-p.y)^2 "
-               "if not bd or d<bd then best,bd=e,d end end end "
-               "return best and {best.position.x,best.position.y} or nil")
-        src = await self.g.eval(lua)
+        src = (await self.g.call("query", what="live_pole", x=p[0], y=p[1], radius=300)).get("pole")
         if not src:
             return {"ok": False, "msg": "no powered pole within 300 tiles to run power from"}
         inv = await self.refresh_inventory()
-        mats = await self.g.eval("local t={} for _,c in pairs(game.surfaces.nauvis.find_entities_filtered{type={"
-                                 "'container','logistic-container'},force='player'}) do local i=c.get_inventory("
-                                 "defines.inventory.chest) if i then t.m=(t.m or 0)+i.get_item_count("
-                                 "'medium-electric-pole') end end return t") or {}
+        mats = {"m": ((await self.g.call("query", what="materials")).get("materials") or {}).get(
+            "medium-electric-pole", 0)}
         item = s.get("item") or ("medium-electric-pole" if (inv.get("medium-electric-pole", 0) +
                                                             (mats.get("m") or 0)) >= 10 else "small-electric-pole")
         import math as _m
@@ -429,11 +435,7 @@ class Runner:
             blocked.discard(b)
         g = Grid(blocked, (min(xs) - margin, min(ys) - margin, max(xs) + margin, max(ys) + margin))
         inv = await self.refresh_inventory()
-        stock = await self.g.eval("local t={} for _,c in pairs(game.surfaces.nauvis.find_entities_filtered{type={"
-                                  "'container','logistic-container'},force='player'}) do local i=c.get_inventory("
-                                  "defines.inventory.chest) if i then for _,n in pairs({'transport-belt','underground-belt',"
-                                  "'fast-underground-belt','express-underground-belt'}) do t[n]=(t[n] or 0)+"
-                                  "i.get_item_count(n) end end end return t") or {}
+        stock = (await self.g.call("query", what="materials")).get("materials") or {}
         names = ("transport-belt", "underground-belt", "fast-underground-belt", "express-underground-belt")
         kit = {n: inv.get(n, 0) + int((stock or {}).get(n, 0)) for n in names}
         kit = {n: v for n, v in kit.items() if v > 0} or None

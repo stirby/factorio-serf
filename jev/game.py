@@ -32,8 +32,11 @@ class Game:
         return await self.crew.call(op, timeout=timeout, **kw)
 
     async def start(self, spawn: bool = True, **spawn_args) -> None:
+        """Spawn (or take over) the character. Over RCON pass client="rcon" (the default); over UDP the mod sets
+        the client and owner from the packet, so pass nothing."""
         if spawn:
-            await self.call("spawn", name=self.name, client="rcon", **spawn_args)
+            args = {"client": "rcon", **spawn_args} if not hasattr(self.crew, "port") else dict(spawn_args)
+            await self.call("spawn", name=self.name, **args)
         await self.call("poll")  # start the feed now: no stale chat
         self._task = asyncio.create_task(self._poll_loop())
 
