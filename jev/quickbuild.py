@@ -236,10 +236,11 @@ async def read_order(jev: Jev, order: str, products: list[str], carried: list[st
                       "belt'",
                       "no: moving or belting items that already exist from one place to another, fixing or "
                       "refuelling, power, putting drills on ore, research, a question"),
-        "several": noul("Does `order` ask for two or more different products?",
+        "several": noul("Does `order` ask for two or more DIFFERENT kinds of item to be made?",
                         "yes: 'make gears and pipes', 'iron chests and pipes off the belt'",
-                        "no: one product, even if something has to be made for it first (red science, green "
-                        "circuits)"),
+                        "no: one kind of item, whatever the plurals or how many machines and chests ('pipes, 3 "
+                        "assemblers, into chests'); one item even if something has to be made for it first (red "
+                        "science, green circuits)"),
         "onward": noul("Does `order` ask for the product to feed further new machines that make something else from "
                        "it?",
                        "yes: 'gear production feeding a row of red science assemblers', 'a science line with gears "
