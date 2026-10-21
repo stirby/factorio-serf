@@ -21,6 +21,7 @@ from .game import Game
 log = logging.getLogger("jev.steps")
 
 FUELS = ("coal", "wood", "solid-fuel")
+MINEABLE = {"wood": "tree", "iron-ore": "iron-ore", "copper-ore": "copper-ore", "stone": "stone", "coal": "coal"}
 PLACE_ITEM = {"straight-rail": "rail", "curved-rail-a": "rail", "curved-rail-b": "rail"}
 
 
@@ -159,7 +160,13 @@ class Runner:
                 if inv.get(ing, 0) < need:
                     gi = await self._act({"op": "grab", "item": ing, "count": need - inv.get(ing, 0)}, timeout=120)
                     if not gi.get("ok"):
-                        await self._act({"op": "fetch", "item": ing, "count": need}, timeout=300)
+                        fi = await self._act({"op": "fetch", "item": ing, "count": need}, timeout=300)
+                        if not fi.get("ok") and ing in MINEABLE:
+                            # raw: mine it (wood from trees: 4 per tree)
+                            short_ing = need - (await self.refresh_inventory()).get(ing, 0)
+                            await self._act({"op": "mine", "name": MINEABLE[ing],
+                                             "count": max(1, -(-short_ing // 4)) if ing == "wood" else short_ing},
+                                            timeout=600)
             r2 = await self._act({"op": "fetch", "item": item, "count": count}, timeout=300)
             if r2.get("ok"):
                 return r2
