@@ -570,6 +570,19 @@ class Runner:
         ents, info = await asyncio.to_thread(solve, g, nets, kit, float(s.get("seconds", 25)))
         self.log_fn({"t": t0, "kind": "route", "nets": len(nets), "ok": bool(ents), "info": info, "kit": kit,
                      "secs": round(time.time() - t0, 2)})
+        if not ents and not s.get("_cleared"):
+            # our own earlier belts in the way (a failed or reset attempt): pick them up and route on a clean area.
+            # Never touches what players built.
+            mine = [e for e in w.ents.values() if e.get("t") in ("transport-belt", "underground-belt", "splitter")
+                    and e.get("by") == self.g.name]
+            if mine:
+                me = await self.g.me()
+                pos = me.get("position") or (cx, cy)
+                mine.sort(key=lambda e: (e["x"] - pos[0]) ** 2 + (e["y"] - pos[1]) ** 2)
+                for e in mine:
+                    await self._act({"op": "mine", "x": e["x"], "y": e["y"]}, timeout=60)
+                self.log_fn({"t": time.time(), "kind": "route_cleared", "n": len(mine)})
+                return await self._do_route({**s, "_cleared": True})
         if not ents:
             return {"ok": False, "msg": f"router: {info}"}
         r = await self._do_ghosts({"entities": ents})
