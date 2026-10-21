@@ -1,0 +1,28 @@
+{
+ "name": "t-starved",
+ "stage": "stage-s3-steel-oil-ready",
+ "minutes": 10,
+ "agents": 1,
+ "kind": "directive",
+ "note": "Micro (diagnose): a belt-fed 3-assembler red science line starves because one copper belt faces the wrong way. The player only reports the symptom. Met = the 3 assemblers running (or output-full) for 2 samples and not chest-fed.",
+ "setup_lua": "-- t-starved setup (stage S3): a 3-assembler red science line, belt-fed (copper belt on top, gear belt below,\n-- each loaded from an infinity chest), powered by an energy interface. One copper belt faces the wrong way, so all\n-- three starve. The fix has to make them run on their own: hand-feeding doesn't count (score skips chest-fed ones).\nlocal s, f = game.surfaces.nauvis, game.forces.player\nlocal function free(x, y, w, h)\n  local a = { { x, y }, { x + w, y + h } }\n  if s.count_tiles_filtered { area = a, collision_mask = \"water_tile\" } > 0 then return false end\n  return s.count_entities_filtered { area = a, type = { \"tree\", \"simple-entity\", \"resource\", \"corpse\", \"fish\" },\n    invert = true } == 0 and s.count_entities_filtered { area = a, type = \"resource\" } == 0\nend\nlocal function find(w, h, r0)\n  for r = r0, 240, 4 do\n    for _, d in pairs { { 1, 0 }, { 0, 1 }, { -1, 0 }, { 0, -1 }, { 1, 1 }, { -1, 1 }, { 1, -1 }, { -1, -1 } } do\n      local x, y = d[1] * r, d[2] * r\n      if free(x, y, w, h) then return x, y end\n    end\n  end\nend\nlocal function clear(x, y, w, h)\n  for _, e in pairs(s.find_entities_filtered { area = { { x, y }, { x + w, y + h } }, type = { \"tree\", \"simple-entity\" } }) do\n    e.destroy()\n  end\nend\nlocal function put(name, x, y, dir, extra)\n  local spec = { name = name, position = { x, y }, direction = dir, force = f }\n  for k, v in pairs(extra or {}) do spec[k] = v end\n  local e = s.create_entity(spec)\n  if not e then error(\"could not place \" .. name .. \" at \" .. x .. \",\" .. y) end\n  return e\nend\nlocal function source(x, y, item) -- an infinity chest that never runs out\n  local c = put(\"infinity-chest\", x, y)\n  c.set_infinity_container_filter(1, { name = item, count = 100, mode = \"exactly\", index = 1 })\n  return c\nend\nlocal N, E, S, W = defines.direction.north, defines.direction.east, defines.direction.south, defines.direction.west\nlocal ox, oy = find(22, 14, 40)\nif not ox then error(\"no free 22x14 area\") end\nclear(ox, oy, 22, 14)\nlocal X, Y = ox + 4, oy + 2\nlocal eei = put(\"electric-energy-interface\", X - 1, Y + 4)\neei.power_production, eei.electric_buffer_size = 2000000, 10000000\nsource(X + 0.5, Y - 1.5, \"copper-plate\")\nput(\"inserter\", X + 0.5, Y - 0.5, N) -- picks from the chest to the north, drops on the copper belt\nsource(X + 0.5, Y + 8.5, \"iron-gear-wheel\")\nput(\"inserter\", X + 0.5, Y + 7.5, S)\nfor i = 0, 13 do\n  put(\"transport-belt\", X + i + 0.5, Y + 0.5, E)\n  put(\"transport-belt\", X + i + 0.5, Y + 6.5, E)\nend\nfor k = 0, 2 do\n  local ax = X + 3.5 + 4 * k\n  local a = put(\"assembling-machine-1\", ax, Y + 3.5)\n  a.set_recipe(\"automation-science-pack\")\n  put(\"inserter\", ax, Y + 1.5, N)\n  put(\"inserter\", ax, Y + 5.5, S)\nend\nfor _, px in pairs { 1.5, 5.5, 9.5 } do\n  put(\"small-electric-pole\", X + px, Y + 1.5)\n  put(\"small-electric-pole\", X + px, Y + 5.5)\nend\n-- the fault: one copper belt turned back against the flow\ns.find_entity(\"transport-belt\", { X + 2.5, Y + 0.5 }).direction = W\nstorage.bench_starved = { area = { { X - 3, Y - 3 }, { X + 16, Y + 10 } }, bad = { X + 2.5, Y + 0.5 } }\nreturn { gx = math.floor(X + 7), gy = math.floor(Y + 3) }\n",
+ "objectives": [
+  {
+   "name": "red-running",
+   "minutes": 10,
+   "hold_samples": 2,
+   "goal": "@{agent} red science stopped at [gps={gx},{gy}]. Can you get it going again?",
+   "answer": "Your call. Just make it run on its own again, no hand-feeding.",
+   "score": [
+    {
+     "name": "red_assemblers_running",
+     "target": 3,
+     "lua": "local function chestfed(a) for _,i in pairs(s.find_entities_filtered{type='inserter', force=f, area={{a.position.x-3,a.position.y-3},{a.position.x+3,a.position.y+3}}}) do if i.drop_target==a then local p=i.pickup_target if p and (p.type=='container' or (p.type=='logistic-container' and p.prototype.logistic_mode~='requester' and p.prototype.logistic_mode~='buffer')) then return true end end end return false end local n=0 for _,e in pairs(s.find_entities_filtered{area=storage.bench_starved.area, name='assembling-machine-1'}) do local r=e.get_recipe() if r and r.name=='automation-science-pack' and (e.status==defines.entity_status.working or e.status==defines.entity_status.full_output) and not chestfed(e) then n=n+1 end end return n"
+    }
+   ],
+   "selftest_lua": "local b=storage.bench_starved.bad s.find_entity('transport-belt', b).direction=defines.direction.east return 1",
+   "selftest_wait": 30
+  }
+ ],
+ "score": []
+}

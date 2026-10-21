@@ -1,0 +1,48 @@
+{
+ "name": "s3-steel",
+ "stage": "stage-s3-steel-oil-ready",
+ "minutes": 30,
+ "agents": [
+  {
+   "name": "claude-1",
+   "role": "foreman",
+   "focus": "production"
+  },
+  {
+   "name": "claude-2",
+   "role": "worker",
+   "focus": "resources"
+  },
+  {
+   "name": "claude-3",
+   "role": "worker",
+   "focus": "infrastructure"
+  }
+ ],
+ "goal": "@all Mid-game push. Automate steel: at least 0.5 steel/s (30 per minute) from furnaces fed by belts or inserters, with plates delivered to the depot (marked provider) automatically. Use the depot stock to build. No hand-feeding.",
+ "score": [
+  {
+   "name": "steel_per_min",
+   "lua": "pm('steel-plate')",
+   "target": 30
+  },
+  {
+   "name": "steel_finished_per_min",
+   "lua": "finished('steel-plate')",
+   "rate": true,
+   "note": "info only; steel can't be hand-smelted, so production stats are the score"
+  },
+  {
+   "name": "iron_per_min",
+   "lua": "pm('iron-plate')"
+  },
+  {
+   "name": "electric_drills",
+   "lua": "count('electric-mining-drill')"
+  },
+  {
+   "name": "furnaces",
+   "lua": "count('stone-furnace') + count('steel-furnace')"
+  }
+ ]
+}

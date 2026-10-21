@@ -1,0 +1,59 @@
+{
+ "name": "s3-research-rush",
+ "stage": "stage-s3-steel-oil-ready",
+ "minutes": 60,
+ "agents": [
+  {
+   "name": "claude-1",
+   "role": "foreman",
+   "focus": "production"
+  },
+  {
+   "name": "claude-2",
+   "role": "worker",
+   "focus": "resources"
+  },
+  {
+   "name": "claude-3",
+   "role": "worker",
+   "focus": "infrastructure"
+  }
+ ],
+ "goal": "@all Advance the tech tree as fast as you can. Keep the labs busy with automated red and green science, scale it up, and research toward oil processing and chemical (blue) science. Queue research yourselves. This is a long push: keep everyone productive and fix bottlenecks as they appear.",
+ "score": [
+  {
+   "name": "techs_researched",
+   "lua": "local k=0 for _,t in pairs(f.technologies) do if t.researched then k=k+1 end end return k",
+   "target_delta": 6,
+   "note": "techs completed during the run (delta from start)"
+  },
+  {
+   "name": "science_consumed_per_min",
+   "lua": "pm('automation-science-pack','output') + pm('logistic-science-pack','output')"
+  },
+  {
+   "name": "red_asm_per_min",
+   "lua": "finished('automation-science-pack')",
+   "rate": true
+  },
+  {
+   "name": "green_asm_per_min",
+   "lua": "finished('logistic-science-pack')",
+   "rate": true
+  },
+  {
+   "name": "labs",
+   "lua": "count('lab')"
+  },
+  {
+   "name": "researching",
+   "lua": "local c=f.current_research return c and 1 or 0",
+   "note": "1 if a tech is in progress"
+  },
+  {
+   "name": "science_packs_used",
+   "lua": "st.get_output_count('automation-science-pack')+st.get_output_count('logistic-science-pack')+st.get_output_count('chemical-science-pack')",
+   "note": "lifetime packs consumed by labs; progress = value - baseline (robust to which techs were picked)"
+  }
+ ]
+}

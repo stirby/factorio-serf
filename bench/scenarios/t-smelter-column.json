@@ -1,0 +1,45 @@
+{
+ "name": "t-smelter-column",
+ "stage": "stage-s3-steel-oil-ready",
+ "minutes": 12,
+ "agents": 1,
+ "kind": "directive",
+ "group": "logistics",
+ "note": "Micro (logistics/build): 8 stone furnaces fed from a mixed ore+coal belt, plates out on a belt to a chest's inserter 12 tiles south. Passes on 8 furnaces each fed by an inserter from a belt and making plates, and >= 60 plates/min arriving in the chest through its inserter from a belt.",
+ "setup_lua": "-- Shared helpers for the t-* logistics micro scenarios (pasted at the top of each setup_lua by t-logistics-gen.py).\n-- find(w, h): an open w x h area away from the base (no water, ore or buildings; trees and rocks are cleared).\n-- put(name, x, y, dir, extra): create a player-force entity at X+x, Y+y or fail loudly.\nlocal s, f = game.surfaces.nauvis, game.forces.player\nlocal D = defines.direction\nlocal function open(x, y, w, h)\n  local a = { { x, y }, { x + w, y + h } }\n  for _, c in pairs { { x, y }, { x + w, y }, { x, y + h }, { x + w, y + h } } do\n    if not s.is_chunk_generated { math.floor(c[1] / 32), math.floor(c[2] / 32) } then return false end\n  end\n  if s.count_tiles_filtered { area = a, collision_mask = \"water_tile\" } > 0 then return false end\n  if s.count_entities_filtered { area = a, type = \"resource\" } > 0 then return false end\n  return s.count_entities_filtered { area = a, invert = true,\n    type = { \"tree\", \"simple-entity\", \"corpse\", \"fish\", \"item-entity\", \"character\" } } == 0\nend\nlocal function find(w, h, r0)\n  for r = r0 or 50, 260, 6 do\n    for _, d in pairs { { 1, 0 }, { 0, 1 }, { -1, 0 }, { 0, -1 }, { 1, 1 }, { -1, 1 }, { 1, -1 }, { -1, -1 } } do\n      local x, y = d[1] * r, d[2] * r\n      if open(x, y, w, h) then return x, y end\n    end\n  end\n  error(\"no open \" .. w .. \"x\" .. h .. \" area\")\nend\nlocal X, Y\nlocal function clear(x1, y1, x2, y2)\n  for _, e in pairs(s.find_entities_filtered { area = { { x1, y1 }, { x2, y2 } },\n    type = { \"tree\", \"simple-entity\", \"item-entity\", \"corpse\" } }) do e.destroy() end\nend\nlocal function put(name, x, y, dir, extra)\n  local spec = { name = name, position = { X + x, Y + y }, direction = dir, force = f }\n  for k, v in pairs(extra or {}) do spec[k] = v end\n  local e = s.create_entity(spec)\n  if not e then error(\"could not place \" .. name .. \" at \" .. (X + x) .. \",\" .. (Y + y)) end\n  return e\nend\nlocal function grid(x, y) -- an always-on power source with its own pole, like a corner of the main grid\n  local e = put(\"electric-energy-interface\", x, y)\n  e.power_production, e.electric_buffer_size = 100000, 10000000 -- 6 MW\n  return e\nend\nlocal function gps(x, y) return math.floor(X + x) .. \",\" .. math.floor(Y + y) end\n\n-- t-smelter-column: an ore belt (iron ore on the south lane, coal on the north lane, like a mixed mining belt) runs\n-- east past open ground, with grid poles along its north side; a chest with its inserter waits 12 tiles south.\n-- The task: 8 stone furnaces fed from the belt, plates out on a belt to that chest.\n-- Sources at the west end: infinity chests and inserters (2 fast inserters for ore, 1 inserter for coal).\nlocal ox, oy = find(50, 28)\nX, Y = ox + 4, oy + 8\nclear(ox, oy, ox + 50, oy + 28)\ngrid(4, -3)\nlocal function source(item, x, y, name)\n  local c = put(\"infinity-chest\", x, y)\n  c.set_infinity_container_filter(1, { name = item, count = 100, mode = \"at-least\" })\nend\nsource(\"iron-ore\", 0.5, -1.5) put(\"fast-inserter\", 0.5, -0.5, D.north) -- drops on the far (south) lane\nsource(\"iron-ore\", 1.5, -1.5) put(\"fast-inserter\", 1.5, -0.5, D.north)\nsource(\"coal\", 0.5, 2.5) put(\"inserter\", 0.5, 1.5, D.south) -- drops on the far (north) lane\nfor x = 0, 40 do put(\"transport-belt\", x + 0.5, 0.5, D.east) end\nput(\"small-electric-pole\", 2.5, -1.5)\nput(\"small-electric-pole\", 1.5, 2.5)\nfor _, x in pairs { 8.5, 14.5, 20.5, 26.5, 32.5, 38.5 } do put(\"small-electric-pole\", x, -2.5) end\nlocal dest = put(\"iron-chest\", 28.5, 14.5)\nlocal ins = put(\"fast-inserter\", 28.5, 13.5, D.north) -- picks from (28.5, 12.5), drops into the chest\ngrid(31, 15)\nput(\"small-electric-pole\", 29.5, 13.5)\nstorage.bench_smelt = { area = { { X - 1, Y + 1 }, { X + 42, Y + 13 } }, dest = dest, ins = ins, X = X, Y = Y }\nreturn { ore = gps(20, 0.5), chest = gps(28.5, 14.5) }\n",
+ "objectives": [
+  {
+   "name": "eight-furnaces",
+   "minutes": 12,
+   "hold_samples": 2,
+   "goal": "@{agent} build 8 stone furnaces off the ore belt at [gps={ore}] (it carries iron ore and coal), and send the plates on a belt to the chest at [gps={chest}].",
+   "answer": "Anywhere south of the ore belt is fine. The chest's inserter is already there, end the plate belt next to it.",
+   "score": [
+    {
+     "name": "furnaces_smelting",
+     "lua": "local b=storage.bench_smelt b.seen=b.seen or {} local n=0 for _,e in pairs(s.find_entities_filtered{area=b.area, name='stone-furnace'}) do local p=e.products_finished if p>(b.seen[e.unit_number] or 0) then n=n+1 end b.seen[e.unit_number]=p end return n",
+     "target": 8
+    },
+    {
+     "name": "furnaces_belt_fed",
+     "lua": "local b=storage.bench_smelt local n=0 for _,fu in pairs(s.find_entities_filtered{area=b.area, name='stone-furnace'}) do for _,i in pairs(s.find_entities_filtered{position=fu.position, radius=2.5, type='inserter'}) do local p=i.pickup_target if i.drop_target==fu and p and (p.type=='transport-belt' or p.type=='underground-belt' or p.type=='splitter') then n=n+1 break end end end return n",
+     "target": 8
+    },
+    {
+     "name": "plates_per_min",
+     "lua": "local d=storage.bench_smelt.dest return d.valid and d.get_item_count('iron-plate') or 0",
+     "rate": true,
+     "target": 60
+    },
+    {
+     "name": "chest_inserter_takes_from_belt",
+     "lua": "local i=storage.bench_smelt.ins local p=i.valid and i.pickup_target return p and (p.type=='transport-belt' or p.type=='underground-belt' or p.type=='splitter') and 1 or 0",
+     "target": 1
+    }
+   ],
+   "selftest_lua": "local b=storage.bench_smelt local X,Y=b.X,b.Y local D=defines.direction local function put(n,x,y,d,t) for _,e in pairs(s.find_entities_filtered{position={X+x,Y+y},radius=0.9,type={'tree','simple-entity'}}) do e.destroy() end local e=s.create_entity{name=n,position={X+x,Y+y},direction=d,force='player',type=t} if not e then error('selftest: no '..n..' at '..x..','..y) end return e end\nfor k=0,7 do local x=10.5+2*k put('inserter',x,1.5,D.north) put('stone-furnace',x+0.5,3) put('inserter',x,4.5,D.north) end for _,x in pairs{11.5,15.5,19.5,23.5,25.5} do put('small-electric-pole',x,1.5) put('small-electric-pole',x,4.5) end for x=10,27 do put('transport-belt',x+0.5,5.5,D.east) end for y=5,12 do put('transport-belt',28.5,y+0.5,D.south) end return 'built'",
+   "selftest_wait": 75
+  }
+ ],
+ "score": []
+}

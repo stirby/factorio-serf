@@ -1,0 +1,34 @@
+---------------------------------------------------------------------------------------------------
+Version: 0.3.1
+Date: 2026-10-19
+  Features:
+    - Teach serf: hold a blueprint or a whole blueprint book and click Teach serf in the toolbar (or ctrl+shift+T, or /serf learn [name]). Every blueprint goes into your serf's design library, named from its label.
+    - Blueprints held straight from Game blueprints work everywhere; My blueprints work in single player (on a server, drag it to Game blueprints or your inventory first).
+    - /serf join works as another name for /serf add.
+  Changes:
+    - Placing clears trees and rocks in the way (with mining time), rotates or upgrades what's already there like a click would, and lines coordinates up with the grid.
+    - Building ghosts clears trees and rocks in their way.
+    - Pole lines hop by wire reach over belts, machines and water.
+    - Belt and pipe lines go under crossings and water with undergrounds.
+    - Belt lines built in legs chain up: a line from the last belt of another continues it around the corner, a line to an existing belt feeds into it (never head-on), and missing undergrounds or belts get hand-crafted.
+    - Walking to a spot nobody can stand on ends at the nearest free spot; a serf caught on a corner wiggles free.
+    - diagnose understands fluids (petroleum gas, steam, water, crude oil).
+    - Power is visible: inspecting a machine says powered, low power, or no power and the nearest grid pole; inspecting any pole shows its grid (load vs capacity, generators, boiler fuel, top users).
+    - Placing, stamping and building warn when machines have no power, and a pole line that doesn't reach the grid says so.
+    - craft count is the number of items (copper-cable count=10 is 5 crafts), and a short craft says which ingredient ran out.
+    - Inserters say which side they pick from and drop to; underground belts say entrance or exit; look can look around any x,y.
+    - trace follows a belt line from any of its belts, downstream or upstream: its runs and underground hops, why it ends (a gap, head-on, side-loading another belt), what's on each lane, and the inserters and drills taking from or putting onto it.
+    - Clearer messages when take, insert, mine, place or find can't do what was asked.
+    - find with an item name (copper-plate, underground-belt) lists where it's stored: chests and machine outputs, nearest first, with counts.
+    - fetch walks to the nearest storage and takes the items it's asked for, then hand-crafts whatever storage lacks.
+    - Belt, pipe and pole lines fetch every piece their route needs from storage before hand-crafting it, and say whether each end joined a belt; a start next to a line's last belt continues that line.
+---------------------------------------------------------------------------------------------------
+Version: 0.3.0
+Date: 2026-10-19
+  Features:
+    - Design library: serfs build from proven designs, the builds they verified and saved, and designs players teach them.
+---------------------------------------------------------------------------------------------------
+Version: 0.2.0
+Date: 2026-10-19
+  Features:
+    - /serf add: bring your own AI helper into single player or a multiplayer game, driven by the serf app on your computer.

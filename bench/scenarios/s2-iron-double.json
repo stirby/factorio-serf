@@ -1,0 +1,44 @@
+{
+ "name": "s2-iron-double",
+ "stage": "stage-s2-electric-midgame",
+ "minutes": 30,
+ "agents": [
+  {
+   "name": "claude-1",
+   "role": "foreman",
+   "focus": "production"
+  },
+  {
+   "name": "claude-2",
+   "role": "worker",
+   "focus": "resources"
+  },
+  {
+   "name": "claude-3",
+   "role": "worker",
+   "focus": "infrastructure"
+  }
+ ],
+ "setup_lua": "return {iron=math.floor(pm('iron-plate')+0.5), drills=count('electric-mining-drill'), furnaces=count('stone-furnace')+count('steel-furnace')}",
+ "goal": "@all Double our iron plate production (now about {iron} per minute, so the target is 2x that) by adding electric mining drills on iron ore and belt-fed furnace columns. Report in chat when the new lines run.",
+ "score": [
+  {
+   "name": "iron_per_min",
+   "lua": "pm('iron-plate')",
+   "target": 400,
+   "note": "fixed target: the S2 base was hand-fed and runs down without agents, so a measured baseline is unreliable"
+  },
+  {
+   "name": "electric_drills",
+   "lua": "count('electric-mining-drill')"
+  },
+  {
+   "name": "furnaces",
+   "lua": "count('stone-furnace') + count('steel-furnace')"
+  },
+  {
+   "name": "iron_furnaces_working",
+   "lua": "local k=0 for _,e in pairs(machines('iron-plate')) do if e.status==defines.entity_status.working then k=k+1 end end return k"
+  }
+ ]
+}

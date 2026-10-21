@@ -1,0 +1,33 @@
+{
+ "name": "t-brownout",
+ "stage": "stage-s3-steel-oil-ready",
+ "minutes": 12,
+ "agents": 1,
+ "kind": "directive",
+ "note": "Micro (diagnose): 1 boiler + 1 steam engine (0.9 MW) asked for ~2.7 MW by 8 engine-unit assemblers and a fixed 1.5 MW load (an energy interface standing in for the rest of the factory). Met = all 8 at full speed with the load still on the same grid, held 3 samples (hand-fuelled new boilers run dry in ~2 min, so fuel has to come by belt).",
+ "setup_lua": "-- t-brownout setup (stage S3): a little steam plant (offshore pump on a pond, 1 coal boiler fed by an inserter\n-- from a coal belt, 1 steam engine = 0.9 MW) powering 8 engine-unit assemblers plus a fixed 1.5 MW load (an energy\n-- interface standing in for the rest of the factory): ~2.7 MW asked of 0.9 MW. Met = all 8 assemblers back to\n-- full speed with the load still there, i.e. more steam (boilers + engines, coal by belt).\nlocal s, f = game.surfaces.nauvis, game.forces.player\nlocal function free(x, y, w, h)\n  local a = { { x, y }, { x + w, y + h } }\n  if s.count_tiles_filtered { area = a, collision_mask = \"water_tile\" } > 0 then return false end\n  return s.count_entities_filtered { area = a, type = { \"tree\", \"simple-entity\", \"resource\", \"corpse\", \"fish\" },\n    invert = true } == 0 and s.count_entities_filtered { area = a, type = \"resource\" } == 0\nend\nlocal function find(w, h, r0)\n  for r = r0, 240, 4 do\n    for _, d in pairs { { 1, 0 }, { 0, 1 }, { -1, 0 }, { 0, -1 }, { 1, 1 }, { -1, 1 }, { 1, -1 }, { -1, -1 } } do\n      local x, y = d[1] * r, d[2] * r\n      if free(x, y, w, h) then return x, y end\n    end\n  end\nend\nlocal function clear(x, y, w, h)\n  for _, e in pairs(s.find_entities_filtered { area = { { x, y }, { x + w, y + h } }, type = { \"tree\", \"simple-entity\" } }) do\n    e.destroy()\n  end\nend\nlocal function put(name, x, y, dir, extra)\n  local spec = { name = name, position = { x, y }, direction = dir, force = f }\n  for k, v in pairs(extra or {}) do spec[k] = v end\n  local e = s.create_entity(spec)\n  if not e then error(\"could not place \" .. name .. \" at \" .. x .. \",\" .. y) end\n  return e\nend\nlocal function source(x, y, item) -- an infinity chest that never runs out\n  local c = put(\"infinity-chest\", x, y)\n  c.set_infinity_container_filter(1, { name = item, count = 100, mode = \"exactly\", index = 1 })\n  return c\nend\nlocal N, E, S, W = defines.direction.north, defines.direction.east, defines.direction.south, defines.direction.west\nlocal ox, oy = find(40, 24, 40)\nif not ox then error(\"no free 40x24 area\") end\nclear(ox, oy, 40, 24)\nlocal X, Y = ox + 7, oy + 4\nlocal t = {}\nfor x = X - 6, X - 1 do for y = Y, Y + 6 do t[#t + 1] = { name = \"water\", position = { x, y } } end end\ns.set_tiles(t)\nput(\"offshore-pump\", X + 0.5, Y + 3.5, W)\nput(\"pipe\", X + 1.5, Y + 3.5)\nlocal boiler = put(\"boiler\", X + 3.5, Y + 3, N)\nput(\"steam-engine\", X + 3.5, Y - 0.5, N)\nput(\"inserter\", X + 3.5, Y + 4.5, S) -- coal from the belt into the boiler\nfor x = 2, 9 do put(\"transport-belt\", X + x + 0.5, Y + 5.5, W) end\nsource(X + 9.5, Y + 7.5, \"coal\")\nput(\"inserter\", X + 9.5, Y + 6.5, S)\nboiler.insert { name = \"coal\", count = 20 }\n-- the load: 8 engine-unit assemblers (slow recipe, so only power limits them; parts in from infinity chests,\n-- engines out into a chest that deletes them)\nfor row = 0, 1 do\n  for k = 0, 3 do\n    local ax, ay = X + 13.5 + 4 * k, Y + 1.5 + 8 * row\n    put(\"assembling-machine-2\", ax, ay).set_recipe(\"engine-unit\")\n    local parts = source(ax, ay - 3, \"steel-plate\")\n    parts.set_infinity_container_filter(2, { name = \"iron-gear-wheel\", count = 100, mode = \"exactly\", index = 2 })\n    parts.set_infinity_container_filter(3, { name = \"pipe\", count = 100, mode = \"exactly\", index = 3 })\n    put(\"inserter\", ax, ay - 2, N)\n    put(\"inserter\", ax, ay + 2, N)\n    local sink = put(\"infinity-chest\", ax, ay + 3)\n    sink.set_infinity_container_filter(1, { name = \"engine-unit\", count = 0, mode = \"exactly\", index = 1 })\n  end\nend\nlocal load = put(\"electric-energy-interface\", X + 30, Y + 6)\nload.power_production, load.power_usage, load.electric_buffer_size = 0, 25000, 100000 -- 25 kJ/tick = 1.5 MW\n-- poles: by the plant, then down the gaps between the assembler columns\nfor _, p in pairs { { 5.5, 1.5 }, { 5.5, 4.5 }, { 10.5, 6.5 }, { 11.5, 1.5 }, { 11.5, 5.5 }, { 11.5, 9.5 },\n  { 15.5, 1.5 }, { 19.5, 1.5 }, { 23.5, 1.5 }, { 27.5, 1.5 }, { 15.5, 9.5 }, { 19.5, 9.5 }, { 23.5, 9.5 },\n  { 27.5, 9.5 }, { 27.5, 5.5 } } do\n  put(\"small-electric-pole\", X + p[1], Y + p[2])\nend\nstorage.bench_brownout = { area = { { X - 1, Y - 6 }, { X + 34, Y + 18 } }, load = load, origin = { X, Y } }\nreturn { gx = math.floor(X + 18), gy = math.floor(Y + 5) }\n",
+ "objectives": [
+  {
+   "name": "power-steady",
+   "minutes": 12,
+   "hold_samples": 3,
+   "goal": "@{agent} power keeps dipping at [gps={gx},{gy}], the machines there crawl. Can you sort it out?",
+   "answer": "Your call. There's coal on the belt by the boiler and the pond is right there.",
+   "score": [
+    {
+     "name": "assemblers_full_speed",
+     "target": 8,
+     "lua": "local n=0 for _,e in pairs(s.find_entities_filtered{area=storage.bench_brownout.area, name='assembling-machine-2'}) do if e.status==defines.entity_status.working then n=n+1 end end return n"
+    },
+    {
+     "name": "load_on_grid",
+     "target": 1,
+     "lua": "local b=storage.bench_brownout local a=s.find_entities_filtered{area=b.area, name='assembling-machine-2', limit=1}[1] return (a and b.load.valid and b.load.power_usage>=25000 and b.load.electric_network_id==a.electric_network_id) and 1 or 0"
+    }
+   ],
+   "selftest_lua": "local o=storage.bench_brownout.origin local e=s.create_entity{name='electric-energy-interface', position={o[1]+30,o[2]+2}, force=f} e.power_production=70000 e.electric_buffer_size=10000000 return e.electric_network_id",
+   "selftest_wait": 20
+  }
+ ],
+ "score": []
+}

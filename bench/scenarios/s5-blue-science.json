@@ -1,0 +1,61 @@
+{
+ "name": "s5-blue-science",
+ "stage": "stage-s5-oil-plastics",
+ "minutes": 60,
+ "agents": [
+  {
+   "name": "claude-1",
+   "role": "foreman",
+   "focus": "production"
+  },
+  {
+   "name": "claude-2",
+   "role": "worker",
+   "focus": "resources"
+  },
+  {
+   "name": "claude-3",
+   "role": "worker",
+   "focus": "infrastructure"
+  }
+ ],
+ "goal": "@all Next stage: automate chemical (blue) science to at least 0.1/s (6 per minute) into the labs. That needs sulfur (finish sulfur processing), advanced circuits (plastic + copper cable + circuits), engine units (steel, gears, pipes), and research of whatever unlocks them. Keep red and green flowing meanwhile.",
+ "score": [
+  {
+   "name": "blue_per_min_assemblers",
+   "lua": "finished('chemical-science-pack')",
+   "rate": true,
+   "target": 6
+  },
+  {
+   "name": "blue_per_min",
+   "lua": "pm('chemical-science-pack')"
+  },
+  {
+   "name": "advanced_circuits_per_min",
+   "lua": "pm('advanced-circuit')"
+  },
+  {
+   "name": "engine_units_per_min",
+   "lua": "pm('engine-unit')"
+  },
+  {
+   "name": "sulfur_per_min",
+   "lua": "pm('sulfur')"
+  },
+  {
+   "name": "techs_researched",
+   "lua": "local k=0 for _,t in pairs(f.technologies) do if t.researched then k=k+1 end end return k",
+   "target_delta": 3
+  },
+  {
+   "name": "science_consumed_per_min",
+   "lua": "pm('automation-science-pack','output') + pm('logistic-science-pack','output') + pm('chemical-science-pack','output')"
+  },
+  {
+   "name": "science_packs_used",
+   "lua": "st.get_output_count('automation-science-pack')+st.get_output_count('logistic-science-pack')+st.get_output_count('chemical-science-pack')",
+   "note": "lifetime packs consumed by labs; progress = value - baseline (robust to which techs were picked)"
+  }
+ ]
+}

@@ -1,0 +1,11 @@
+{
+  "name": "factorio-serf",
+  "version": "0.3.1",
+  "title": "Serf",
+  "author": "Stephen Kirby",
+  "factorio_version": "2.0",
+  "dependencies": [
+    "base >= 2.0"
+  ],
+  "description": "An AI teammate (\"serf\") that plays as a real character next to you: walks, mines, crafts and builds under normal player rules, and takes orders from chat. Type /serf add. It runs on your own computer with your own Claude login (the serf app); servers can also host serfs over RCON. github.com/stirby/factorio-serf"
+}

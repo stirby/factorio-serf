@@ -1,0 +1,49 @@
+{
+ "name": "s3-science-scale",
+ "stage": "stage-s3-steel-oil-ready",
+ "minutes": 40,
+ "agents": [
+  {
+   "name": "claude-1",
+   "role": "foreman",
+   "focus": "production"
+  },
+  {
+   "name": "claude-2",
+   "role": "worker",
+   "focus": "resources"
+  },
+  {
+   "name": "claude-3",
+   "role": "worker",
+   "focus": "infrastructure"
+  }
+ ],
+ "goal": "@all Scale science: get red and green science to 1 per second each, feeding at least 10 labs, all automated. Research whatever helps on the way (queue it).",
+ "score": [
+  {
+   "name": "red_per_min",
+   "lua": "pm('automation-science-pack')",
+   "target": 60
+  },
+  {
+   "name": "green_per_min",
+   "lua": "pm('logistic-science-pack')",
+   "target": 60
+  },
+  {
+   "name": "labs",
+   "lua": "count('lab')",
+   "target": 10
+  },
+  {
+   "name": "science_consumed_per_min",
+   "lua": "pm('automation-science-pack','output') + pm('logistic-science-pack','output')"
+  },
+  {
+   "name": "science_packs_used",
+   "lua": "st.get_output_count('automation-science-pack')+st.get_output_count('logistic-science-pack')+st.get_output_count('chemical-science-pack')",
+   "note": "lifetime packs consumed by labs; progress = value - baseline (robust to which techs were picked)"
+  }
+ ]
+}

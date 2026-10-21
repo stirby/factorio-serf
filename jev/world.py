@@ -1,0 +1,512 @@
+"""World model: one scan of an area turned into things a player thinks about.
+
+Code does everything exact here (geometry, counting, belt continuity, which inserter feeds what, power numbers).
+Jev never sees raw numbers it has to compare; Opus gets the same model with coordinates.
+
+    w = World(scan, recipes)
+    w.lines            belt lines (ordered belts, direction, items, where they start and end and why)
+    w.machines         crafting machines, drills, boilers, labs with their feeders and a plain-words state
+    w.faults()         things that look broken, each with a cause in words and candidate fixes (actions)
+"""
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass, field
+
+DIRS = {"north": (0, -1), "east": (1, 0), "south": (0, 1), "west": (-1, 0)}
+OPP = {"north": "south", "south": "north", "east": "west", "west": "east"}
+BELT_T = {"transport-belt", "underground-belt", "splitter"}
+CRAFTERS = {"assembling-machine", "furnace", "lab", "mining-drill", "boiler", "rocket-silo", "reactor",
+            "generator", "burner-generator"}
+CHESTS = {"container", "logistic-container", "infinity-container"}
+FUELS = ["coal", "wood", "solid-fuel", "rocket-fuel", "nuclear-fuel"]
+
+STATUS_WORDS = {
+    "working": "working",
+    "normal": "idle",
+    "no_power": "stopped: no power",
+    "low_power": "slowed: low power",
+    "no_fuel": "stopped: out of fuel",
+    "item_ingredient_shortage": "stopped: missing ingredients",
+    "fluid_ingredient_shortage": "stopped: missing fluid",
+    "full_output": "stopped: output full",
+    "no_recipe": "stopped: no recipe set",
+    "waiting_for_source_items": "waiting for items to pick up",
+    "waiting_for_space_in_destination": "blocked: destination full",
+    "no_minable_resources": "stopped: ore ran out",
+    "missing_required_fluid": "stopped: missing fluid",
+    "no_input_fluid": "stopped: no water/fluid",
+    "disabled_by_control_behavior": "disabled by circuit",
+    "disabled_by_script": "disabled",
+    "marked_for_deconstruction": "marked for removal",
+    "networks_disconnected": "not connected",
+    "out_of_logistic_network": "outside logistic network",
+    "not_plugged_in_electric_network": "stopped: not on the power grid",
+    "frozen": "frozen",
+}
+STOPPED = {"no_power", "no_fuel", "item_ingredient_shortage", "fluid_ingredient_shortage", "full_output",
+           "no_recipe", "no_minable_resources", "missing_required_fluid", "no_input_fluid", "low_power",
+           "not_plugged_in_electric_network", "waiting_for_space_in_destination"}
+
+
+def compass(dx: float, dy: float) -> str:
+    if abs(dx) < 0.75 and abs(dy) < 0.75:
+        return "here"
+    ang = math.degrees(math.atan2(dx, -dy)) % 360  # 0 = north, clockwise
+    names = ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"]
+    return names[int((ang + 22.5) // 45) % 8]
+
+
+def rel(frm, to) -> str:
+    """'12 tiles north-east' (rounded words for Jev)."""
+    dx, dy = to[0] - frm[0], to[1] - frm[1]
+    d = math.hypot(dx, dy)
+    if d < 1.5:
+        return "right here"
+    n = int(round(d))
+    return f"{n} tiles {compass(dx, dy)}"
+
+
+def fmt_xy(p) -> str:
+    return f"{p[0]:g},{p[1]:g}"
+
+
+def items_words(d: dict | None, limit: int = 6) -> str:
+    if not d:
+        return "nothing"
+    parts = [f"{n} {k}" for k, n in sorted(d.items(), key=lambda kv: -kv[1])[:limit]]
+    more = len(d) - limit
+    return ", ".join(parts) + (f" (+{more} more kinds)" if more > 0 else "")
+
+
+def amount_word(n: float, full: float) -> str:
+    if n <= 0:
+        return "empty"
+    f = n / full if full else 1
+    return "nearly empty" if f < 0.15 else "low" if f < 0.4 else "half" if f < 0.7 else "full" if f >= 0.9 else "mostly full"
+
+
+@dataclass
+class Line:
+    id: str
+    belts: list[int]
+    direction: str  # the direction of most belts
+    items: dict
+    start: tuple
+    end: tuple
+    start_reason: str
+    end_reason: str
+    density: float  # items per belt tile (0..8)
+    takers: list[int] = field(default_factory=list)  # inserters/units taking from it
+    putters: list[int] = field(default_factory=list)
+
+    @property
+    def length(self) -> int:
+        return len(self.belts)
+
+
+class World:
+    def __init__(self, scan: dict, recipes: dict | None = None, me: dict | None = None):
+        self.raw = scan
+        self.recipes = recipes or {}
+        self.me = me or {}
+        ents = scan.get("ents") or []
+        if isinstance(ents, dict):
+            ents = list(ents.values())
+        self.ents: dict[int, dict] = {}
+        self.ghosts: list[dict] = []
+        for e in ents:
+            if e.get("ghost"):
+                self.ghosts.append(e)
+            elif e.get("u") is not None:
+                self.ents[e["u"]] = e
+        self.center = tuple(scan.get("center") or (0, 0))
+        self.tile: dict[tuple[int, int], int] = {}
+        for u, e in self.ents.items():
+            w, h = e.get("w", 1), e.get("h", 1)
+            x0, y0 = math.floor(e["x"] - w / 2 + 0.01), math.floor(e["y"] - h / 2 + 0.01)
+            for i in range(w):
+                for j in range(h):
+                    self.tile[(x0 + i, y0 + j)] = u
+        self.res = scan.get("res") if isinstance(scan.get("res"), dict) else {}
+        self.grids = {g["id"]: g for g in (scan.get("grids") or []) if isinstance(g, dict)}
+        self.chars = scan.get("chars") if isinstance(scan.get("chars"), list) else []
+        self.water = scan.get("water") if isinstance(scan.get("water"), dict) else None
+        self.feeders: dict[int, list[int]] = {}  # machine/chest u -> inserters dropping into it
+        self.takers: dict[int, list[int]] = {}  # u -> inserters picking from it
+        for u, e in self.ents.items():
+            if e["t"] == "inserter":
+                if e.get("dpu"):
+                    self.feeders.setdefault(e["dpu"], []).append(u)
+                if e.get("pku"):
+                    self.takers.setdefault(e["pku"], []).append(u)
+            if e["t"] == "mining-drill" and e.get("dpu"):
+                self.feeders.setdefault(e["dpu"], []).append(u)
+        self.lines: list[Line] = []
+        self.line_of: dict[int, Line] = {}
+        self._build_lines()
+        self._labels()
+
+    # ------------------------------------------------------------------ lookups
+    def at(self, x: float, y: float) -> dict | None:
+        u = self.tile.get((math.floor(x), math.floor(y)))
+        return self.ents.get(u) if u else None
+
+    def of_type(self, *types) -> list[dict]:
+        return [e for e in self.ents.values() if e["t"] in types]
+
+    def near(self, p, r: float, types=None) -> list[dict]:
+        out = [e for e in self.ents.values() if abs(e["x"] - p[0]) <= r and abs(e["y"] - p[1]) <= r
+               and (not types or e["t"] in types)]
+        return sorted(out, key=lambda e: (e["x"] - p[0]) ** 2 + (e["y"] - p[1]) ** 2)
+
+    # ------------------------------------------------------------------ belts
+    def _build_lines(self) -> None:
+        belts = {u: e for u, e in self.ents.items() if e["t"] in BELT_T}
+        nxt: dict[int, int] = {}
+        prev_count: dict[int, int] = {}
+        for u, e in belts.items():
+            outs = [o for o in (e.get("o") or []) if o in belts]
+            if e["t"] == "underground-belt" and e.get("ug") == "input" and e.get("pair") in belts:
+                outs = [e["pair"]]
+            if len(outs) == 1:
+                nxt[u] = outs[0]
+                prev_count[outs[0]] = prev_count.get(outs[0], 0) + 1
+        # a line starts where no single belt leads in (or a merge), and runs while each step has one successor
+        seen: set[int] = set()
+        starts = [u for u in belts if prev_count.get(u, 0) != 1]
+        n = 0
+        for s in sorted(starts, key=lambda u: (belts[u]["y"], belts[u]["x"])) + sorted(belts, key=lambda u: (belts[u]["y"], belts[u]["x"])):
+            if s in seen:
+                continue
+            chain = [s]
+            seen.add(s)
+            cur = s
+            while cur in nxt and nxt[cur] not in seen and prev_count.get(nxt[cur], 0) == 1:
+                cur = nxt[cur]
+                chain.append(cur)
+                seen.add(cur)
+            n += 1
+            self._add_line(f"L{n}", chain, belts, nxt)
+
+    def _add_line(self, lid: str, chain: list[int], belts: dict, nxt: dict) -> None:
+        items: dict = {}
+        load = 0
+        dirs: dict = {}
+        for u in chain:
+            e = belts[u]
+            dirs[e.get("d", "?")] = dirs.get(e.get("d", "?"), 0) + 1
+            for lane in e.get("lanes") or []:
+                for k, v in (lane or {}).items():
+                    items[k] = items.get(k, 0) + v
+                    load += v
+        first, last = belts[chain[0]], belts[chain[-1]]
+        direction = max(dirs, key=dirs.get)
+        line = Line(lid, chain, direction, items, (first["x"], first["y"]), (last["x"], last["y"]),
+                    self._start_reason(first), self._end_reason(last, nxt), round(load / max(1, len(chain)), 1))
+        for u in chain:
+            line.takers += self.takers.get(u, [])
+            line.putters += self.feeders.get(u, [])
+            self.line_of[u] = line
+        self.lines.append(line)
+
+    def _ahead(self, e: dict):
+        d = DIRS.get(e.get("d", ""), (0, 0))
+        return e["x"] + d[0], e["y"] + d[1]
+
+    def _behind(self, e: dict):
+        d = DIRS.get(e.get("d", ""), (0, 0))
+        return e["x"] - d[0], e["y"] - d[1]
+
+    def _end_reason(self, e: dict, nxt: dict) -> str:
+        if e["u"] in nxt:
+            return f"merges into another line at {fmt_xy(self._ahead(e))}"
+        if e["t"] == "underground-belt" and e.get("ug") == "input":
+            return "underground entrance with no exit"
+        ax, ay = self._ahead(e)
+        o = self.at(ax, ay)
+        if o is None:
+            return "ends (nothing ahead)"
+        if o["t"] in BELT_T:
+            if o.get("d") == OPP.get(e.get("d")):
+                return f"runs head-on into a belt facing {o.get('d')} at {fmt_xy((o['x'], o['y']))}"
+            return f"stops against a {o['n']} at {fmt_xy((o['x'], o['y']))}"
+        return f"ends at a {o['n']} (belts can't feed machines; an inserter must)"
+
+    def _start_reason(self, e: dict) -> str:
+        if e.get("i"):
+            return "fed from another line"
+        bx, by = self._behind(e)
+        o = self.at(bx, by)
+        if o is not None and o["t"] in BELT_T and o.get("d") == OPP.get(e.get("d")):
+            return f"the belt behind it at {fmt_xy((o['x'], o['y']))} faces {o.get('d')}, away from this line"
+        if o is not None and o["t"] in BELT_T:
+            return f"a {o['n']} behind it at {fmt_xy((o['x'], o['y']))} doesn't feed it"
+        return "starts here"
+
+    # ------------------------------------------------------------------ labels
+    def _labels(self) -> None:
+        """Short stable handles for this scan: A1 assembler, F2 furnace, D3 drill, C4 chest, I5 inserter, P6 pole..."""
+        pref = {"assembling-machine": "A", "furnace": "F", "mining-drill": "D", "container": "C",
+                "logistic-container": "C", "infinity-container": "S", "inserter": "I", "electric-pole": "P",
+                "lab": "R", "boiler": "B", "generator": "G", "offshore-pump": "W", "pipe": "Q", "pipe-to-ground": "Q",
+                "transport-belt": "T", "underground-belt": "U", "splitter": "X", "electric-energy-interface": "E"}
+        self.label: dict[int, str] = {}
+        self.by_label: dict[str, int] = {}
+        count: dict[str, int] = {}
+        for u, e in sorted(self.ents.items(), key=lambda kv: (kv[1]["y"], kv[1]["x"])):
+            p = pref.get(e["t"], "M")
+            count[p] = count.get(p, 0) + 1
+            lab = f"{p}{count[p]}"
+            self.label[u] = lab
+            self.by_label[lab] = u
+        for ln in self.lines:
+            self.by_label[ln.id] = ln.belts[0]
+
+    def name(self, u: int) -> str:
+        e = self.ents.get(u)
+        if not e:
+            return f"#{u}"
+        return f"{e['n']} {self.label.get(u, '')}".strip()
+
+    # ------------------------------------------------------------------ machines
+    def ingredients(self, recipe: str | None) -> dict:
+        r = self.recipes.get(recipe or "") or {}
+        return r.get("ingredients") or {}
+
+    def source_of(self, ins: dict) -> str:
+        """What an inserter picks up from, in words."""
+        pu = ins.get("pku")
+        if pu and pu in self.ents:
+            src = self.ents[pu]
+            if src["t"] in BELT_T:
+                ln = self.line_of.get(pu)
+                carried = items_words(ln.items, 3) if ln and ln.items else "nothing"
+                return f"belt line {ln.id if ln else '?'} (carrying {carried})"
+            return self.name(pu)
+        return "the ground (nothing there)"
+
+    def machine_state(self, e: dict) -> dict:
+        """Plain-words state of a machine: what it does, whether it runs, and the most likely reason if not."""
+        st = e.get("s") or "?"
+        words = STATUS_WORDS.get(st, st.replace("_", " "))
+        out = {"id": self.label.get(e["u"]), "what": e["n"], "at": fmt_xy((e["x"], e["y"])), "state": words}
+        if e.get("r"):
+            out["recipe"] = e["r"]
+        if e.get("pw") and st not in ("working",):
+            out["power"] = e["pw"]
+        if "fuel" in e:
+            nf = sum((e.get("fuel") or {}).values())
+            out["fuel"] = "none" if nf == 0 else ("low" if nf < 5 else "ok")
+        feeds = self.feeders.get(e["u"], [])
+        takes = self.takers.get(e["u"], [])
+        if feeds:
+            out["fed_by"] = [f"{self.name(i)} from {self.source_of(self.ents[i])}" for i in feeds if i in self.ents]
+        if takes:
+            dst = []
+            for i in takes:
+                ins = self.ents.get(i)
+                if not ins:
+                    continue
+                du = ins.get("dpu")
+                dst.append(f"{self.name(i)} into {self.name(du) if du else 'the ground'}"
+                           + (f" (belt line {self.line_of[du].id})" if du in self.line_of else ""))
+            out["emptied_by"] = dst
+        if e.get("inp"):
+            out["holds_inputs"] = items_words(e["inp"])
+        if e.get("out"):
+            out["holds_output"] = items_words(e["out"])
+        if st == "item_ingredient_shortage":
+            need = self.ingredients(e.get("r"))
+            have = e.get("inp") or {}
+            missing = [k for k in need if have.get(k, 0) < need[k]]
+            if missing:
+                out["missing"] = missing
+                out["why"] = self._why_missing(e, missing)
+        return out
+
+    def _why_missing(self, e: dict, missing: list[str]) -> list[str]:
+        reasons = []
+        feeds = [self.ents[i] for i in self.feeders.get(e["u"], []) if i in self.ents]
+        for item in missing:
+            srcs = []
+            for ins in feeds:
+                pu = ins.get("pku")
+                src = self.ents.get(pu) if pu else None
+                if src and src["t"] in BELT_T:
+                    ln = self.line_of.get(pu)
+                    if ln and item in (ln.items or {}):
+                        srcs.append(("has", ln))
+                    elif ln:
+                        srcs.append(("line", ln))
+                elif src and src["t"] in CHESTS | {"assembling-machine", "furnace"}:
+                    has = (src.get("inv") or src.get("out") or {}).get(item, 0)
+                    srcs.append(("chest", src, has))
+            if not srcs:
+                reasons.append(f"no inserter brings it {item}")
+                continue
+            lines = [s[1] for s in srcs if s[0] == "line"]
+            if any(s[0] == "has" for s in srcs):
+                reasons.append(f"{item} is on its belt but not arriving fast enough (or the inserter is slow)")
+            elif lines:
+                for ln in lines:
+                    if ln.items:
+                        reasons.append(f"its belt line {ln.id} carries {items_words(ln.items, 3)}, not {item}")
+                    else:
+                        why = ln.start_reason if ln.start_reason != "starts here" else "nothing puts items on it"
+                        reasons.append(f"its belt line {ln.id} is empty: {why}")
+            else:
+                reasons.append(f"the chest/machine feeding it has no {item}")
+        return reasons
+
+    # ------------------------------------------------------------------ faults
+    def faults(self) -> list[dict]:
+        """Things that look broken, with code-generated candidate fixes (actions for the step runner)."""
+        out: list[dict] = []
+        belts = [e for e in self.ents.values() if e["t"] == "transport-belt"]
+        # 1. a belt facing against the line it sits in: neighbours on its axis both disagree with it
+        for e in belts:
+            d = e.get("d")
+            if d not in DIRS:
+                continue
+            ahead, behind = self.at(*self._ahead(e)), self.at(*self._behind(e))
+            dx, dy = DIRS[d]
+            votes_opp = 0
+            for o in (ahead, behind):
+                if o is not None and o["t"] in BELT_T and o.get("d") == OPP[d]:
+                    votes_opp += 1
+            if votes_opp == 2 or (votes_opp == 1 and not e.get("i") and not e.get("o")):
+                out.append({"kind": "belt_reversed", "u": e["u"], "at": (e["x"], e["y"]),
+                            "text": f"a belt at {fmt_xy((e['x'], e['y']))} faces {d}, against the belts around it "
+                                    f"(they run {OPP[d]}), so items can't pass",
+                            "fixes": [{"do": "rotate", "x": e["x"], "y": e["y"], "direction": OPP[d],
+                                       "text": f"turn the belt at {fmt_xy((e['x'], e['y']))} to face {OPP[d]}"}]})
+        # 2. machines stopped
+        for e in self.ents.values():
+            if e["t"] not in CRAFTERS:
+                continue
+            st = e.get("s")
+            pos = (e["x"], e["y"])
+            if st == "no_fuel" or ("fuel" in e and not e.get("fuel") and st not in ("working",) and e["t"] in ("boiler", "furnace", "mining-drill")):
+                out.append({"kind": "no_fuel", "u": e["u"], "at": pos,
+                            "text": f"{self.name(e['u'])} at {fmt_xy(pos)} is out of fuel",
+                            "fixes": [{"do": "refuel", "x": e["x"], "y": e["y"],
+                                       "text": f"put coal into {self.name(e['u'])}"}]})
+            elif st == "full_output":
+                fx = []
+                for i in self.takers.get(e["u"], []):
+                    ins = self.ents.get(i)
+                    du = ins.get("dpu") if ins else None
+                    if du and du in self.ents and self.ents[du]["t"] in CHESTS and not self.ents[du].get("free"):
+                        c = self.ents[du]
+                        fx.append({"do": "empty_chest", "x": c["x"], "y": c["y"],
+                                   "text": f"empty the full chest {self.name(du)} at {fmt_xy((c['x'], c['y']))}"})
+                if not fx:
+                    fx.append({"do": "take", "x": e["x"], "y": e["y"],
+                               "text": f"take the finished items out of {self.name(e['u'])}"})
+                out.append({"kind": "output_full", "u": e["u"], "at": pos,
+                            "text": f"{self.name(e['u'])} at {fmt_xy(pos)} stopped: its output is full", "fixes": fx})
+            elif st in ("no_power", "not_plugged_in_electric_network") or (e.get("pw") or "").startswith("no power"):
+                out.append({"kind": "no_power", "u": e["u"], "at": pos,
+                            "text": f"{self.name(e['u'])} at {fmt_xy(pos)} has no power ({e.get('pw') or st})",
+                            "fixes": [{"do": "power", "x": e["x"], "y": e["y"],
+                                       "text": f"run poles from the grid to {self.name(e['u'])}"}]})
+            elif st == "no_recipe" and e["t"] == "assembling-machine":
+                out.append({"kind": "no_recipe", "u": e["u"], "at": pos,
+                            "text": f"{self.name(e['u'])} at {fmt_xy(pos)} has no recipe", "fixes": []})
+            elif st == "item_ingredient_shortage":
+                ms = self.machine_state(e)
+                if ms.get("why"):
+                    out.append({"kind": "starved", "u": e["u"], "at": pos,
+                                "text": f"{self.name(e['u'])} at {fmt_xy(pos)} is missing {', '.join(ms.get('missing', []))}: "
+                                        + "; ".join(ms["why"]), "fixes": []})
+        # 3. power grids that can't keep up
+        for g in self.grids.values():
+            cap, used = g.get("cap_w") or 0, g.get("used_w") or 0
+            if g.get("boilers_low_fuel"):
+                out.append({"kind": "boiler_fuel", "grid": g["id"], "at": self.center,
+                            "text": f"grid {g['id']}: {g['boilers_low_fuel']} of {g['boilers']} boilers low on fuel",
+                            "fixes": [{"do": "refuel_boilers", "grid": g["id"], "text": "refuel the boilers"}]})
+            if cap and used >= 0.97 * cap:
+                out.append({"kind": "power_maxed", "grid": g["id"], "at": self.center,
+                            "text": f"grid {g['id']} is maxed out: using {used / 1e6:.1f} MW of {cap / 1e6:.1f} MW",
+                            "fixes": []})
+        # 4. chests that are full and block an inserter
+        for e in self.ents.values():
+            if e["t"] in ("container", "logistic-container") and e.get("free") == 0 and self.feeders.get(e["u"]):
+                out.append({"kind": "chest_full", "u": e["u"], "at": (e["x"], e["y"]),
+                            "text": f"{self.name(e['u'])} at {fmt_xy((e['x'], e['y']))} is full ({items_words(e.get('inv'), 3)})",
+                            "fixes": [{"do": "empty_chest", "x": e["x"], "y": e["y"],
+                                       "text": f"empty {self.name(e['u'])}"}]})
+        # 5. inserters dropping on the ground or picking from nothing
+        for e in self.ents.values():
+            if e["t"] == "inserter" and e.get("s") == "waiting_for_source_items" and not e.get("pku"):
+                out.append({"kind": "inserter_no_source", "u": e["u"], "at": (e["x"], e["y"]),
+                            "text": f"{self.name(e['u'])} at {fmt_xy((e['x'], e['y']))} has nothing to pick up from "
+                                    f"at {fmt_xy(e['pk'])}", "fixes": []})
+        return out
+
+    # ------------------------------------------------------------------ summaries
+    def summary(self, focus=None, coords: bool = True, max_items: int = 40) -> dict:
+        """The area as a player would describe it. coords=False gives relative words only (for Jev)."""
+        focus = focus or self.center
+
+        def where(x, y):
+            return fmt_xy((x, y)) if coords else rel(focus, (x, y))
+        machines = []
+        for e in sorted(self.of_type(*CRAFTERS), key=lambda e: (e["y"], e["x"]))[:max_items]:
+            m = self.machine_state(e)
+            m["at"] = where(e["x"], e["y"])
+            machines.append(m)
+        lines = []
+        for ln in sorted(self.lines, key=lambda l: -l.length)[:max_items]:
+            d = {"id": ln.id, "belts": ln.length, "runs": ln.direction, "from": where(*ln.start), "to": where(*ln.end),
+                 "carrying": items_words(ln.items, 4), "end": ln.end_reason}
+            if ln.start_reason not in ("starts here", "fed from another line"):
+                d["start"] = ln.start_reason
+            if ln.density >= 7:
+                d["backed_up"] = True
+            if ln.takers:
+                d["taken_by"] = len(ln.takers)
+            lines.append(d)
+        chests = []
+        for e in self.of_type(*CHESTS):
+            c = {"id": self.label.get(e["u"]), "what": e["n"], "at": where(e["x"], e["y"]),
+                 "holds": items_words(e.get("inv"), 5)}
+            if e.get("free") == 0:
+                c["full"] = True
+            if e.get("infinite"):
+                c["endless"] = True
+            chests.append(c)
+        grids = []
+        for g in self.grids.values():
+            cap, used = g.get("cap_w") or 0, g.get("used_w") or 0
+            gd = {"grid": g["id"], "load": f"{used / 1e6:.1f} of {cap / 1e6:.1f} MW" if coords else
+                  ("overloaded" if cap and used >= 0.97 * cap else "busy" if cap and used > 0.7 * cap else "fine"),
+                  "generators": ", ".join(f"{n} {k}" for k, n in (g.get("gens") or {}).items()) or "none"}
+            if g.get("boilers"):
+                gd["boilers"] = f"{g['boilers']} ({g.get('boilers_low_fuel', 0)} low on fuel)"
+            grids.append(gd)
+        out = {"machines": machines, "belt_lines": lines, "chests": chests, "power": grids}
+        others = {}
+        for e in self.ents.values():
+            if e["t"] not in CRAFTERS | CHESTS | BELT_T | {"inserter"}:
+                others[e["n"]] = others.get(e["n"], 0) + 1
+        if others:
+            out["other"] = others
+        ins = self.of_type("inserter")
+        if ins:
+            out["inserters"] = len(ins)
+        if self.ghosts:
+            gh: dict = {}
+            for g in self.ghosts:
+                gh[g["n"]] = gh.get(g["n"], 0) + 1
+            out["planned_ghosts"] = gh
+        if self.res:
+            out["ore"] = {k: {"tiles": v["n"], "amount": v["amount"],
+                              "area": f"{v['x0']:g},{v['y0']:g} to {v['x1']:g},{v['y1']:g}" if coords else
+                              rel(focus, ((v['x0'] + v['x1']) / 2, (v['y0'] + v['y1']) / 2))}
+                          for k, v in self.res.items()}
+        if self.water:
+            out["water"] = where(self.water["x"], self.water["y"])
+        return out

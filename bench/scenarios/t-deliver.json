@@ -1,0 +1,33 @@
+{
+ "name": "t-deliver",
+ "stage": "stage-s3-steel-oil-ready",
+ "minutes": 8,
+ "agents": 1,
+ "kind": "directive",
+ "note": "Micro (basics): fill an empty chest near the base with 20 inserters and 50 transport belts, from stock or crafted. Met = the chest holds both.",
+ "setup_lua": "-- t-deliver setup (stage S3): an empty iron chest on open ground near the base. The player wants 20 inserters and\n-- 50 transport belts in it: from the base's stock chests, or crafted. Met = the chest holds both.\nlocal s, f = game.surfaces.nauvis, game.forces.player\nlocal function free(x, y, w, h)\n  local a = { { x, y }, { x + w, y + h } }\n  if s.count_tiles_filtered { area = a, collision_mask = \"water_tile\" } > 0 then return false end\n  return s.count_entities_filtered { area = a, type = { \"tree\", \"simple-entity\", \"resource\", \"corpse\", \"fish\" },\n    invert = true } == 0 and s.count_entities_filtered { area = a, type = \"resource\" } == 0\nend\nlocal function find(w, h, r0)\n  for r = r0, 240, 4 do\n    for _, d in pairs { { 1, 0 }, { 0, 1 }, { -1, 0 }, { 0, -1 }, { 1, 1 }, { -1, 1 }, { 1, -1 }, { -1, -1 } } do\n      local x, y = d[1] * r, d[2] * r\n      if free(x, y, w, h) then return x, y end\n    end\n  end\nend\nlocal function clear(x, y, w, h)\n  for _, e in pairs(s.find_entities_filtered { area = { { x, y }, { x + w, y + h } }, type = { \"tree\", \"simple-entity\" } }) do\n    e.destroy()\n  end\nend\nlocal function put(name, x, y, dir, extra)\n  local spec = { name = name, position = { x, y }, direction = dir, force = f }\n  for k, v in pairs(extra or {}) do spec[k] = v end\n  local e = s.create_entity(spec)\n  if not e then error(\"could not place \" .. name .. \" at \" .. x .. \",\" .. y) end\n  return e\nend\nlocal function source(x, y, item) -- an infinity chest that never runs out\n  local c = put(\"infinity-chest\", x, y)\n  c.set_infinity_container_filter(1, { name = item, count = 100, mode = \"exactly\", index = 1 })\n  return c\nend\nlocal N, E, S, W = defines.direction.north, defines.direction.east, defines.direction.south, defines.direction.west\nlocal ox, oy = find(4, 4, 20)\nif not ox then error(\"no free 4x4 area\") end\nclear(ox, oy, 4, 4)\nlocal chest = put(\"iron-chest\", ox + 1.5, oy + 1.5)\nstorage.bench_deliver = { chest = chest }\nreturn { gx = math.floor(ox + 1.5), gy = math.floor(oy + 1.5) }\n",
+ "objectives": [
+  {
+   "name": "chest-filled",
+   "minutes": 8,
+   "hold_samples": 1,
+   "goal": "@{agent} I need 20 inserters and 50 transport belts in the chest at [gps={gx},{gy}].",
+   "answer": "Take them from stock or craft them, your call.",
+   "score": [
+    {
+     "name": "inserters",
+     "target": 20,
+     "lua": "local c=storage.bench_deliver.chest return c.valid and c.get_item_count('inserter') or 0"
+    },
+    {
+     "name": "belts",
+     "target": 50,
+     "lua": "local c=storage.bench_deliver.chest return c.valid and c.get_item_count('transport-belt') or 0"
+    }
+   ],
+   "selftest_lua": "local c=storage.bench_deliver.chest c.insert{name='inserter', count=20} c.insert{name='transport-belt', count=50} return 1",
+   "selftest_wait": 2
+  }
+ ],
+ "score": []
+}
