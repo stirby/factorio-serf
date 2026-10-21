@@ -53,6 +53,11 @@ b.gears = put("iron-chest", X + 28.5, Y + 5.5)
 b.pole_chest = put("small-electric-pole", X + 21.5, Y + 4.5)
 b.pole_asm = put("small-electric-pole", X + 27.5, Y + 4.5)
 put("small-electric-pole", X - 1.5, Y + 7.5)
+do  -- spares, as a base would have (the lab stage has no storage)
+  local c = put("steel-chest", X - 3.5, Y + 11.5)
+  for n, k in pairs { ["small-electric-pole"] = 20, ["inserter"] = 10, ["transport-belt"] = 50, ["coal"] = 50,
+    ["iron-chest"] = 5, ["burner-inserter"] = 5 } do c.insert { name = n, count = k } end
+end
 put("small-electric-pole", X + 0.5, Y + 2.5)
 put("small-electric-pole", X + 16.5, Y + 4.5)
 """
