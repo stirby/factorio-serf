@@ -129,8 +129,7 @@ class FastPaths:
             end = info["output_belt_end"]
             plan["steps"] += [{"do": "connect", "item": "transport-belt", "from": end, "to": dst["to"]}]
             plan["steps"] += self._delivery_steps(dst, r["product"])
-            plan["expect"].append({"check": "belt_carries", "x": dst["to"][0], "y": dst["to"][1],
-                                   "item": r["product"]})
+            plan["expect"] += quickbelt.delivered(dst, r["product"])
             plan["goal"] += f", belted on to {dst['what']}"
             what += f", belted to {dst['what']}"
         return await self._run_quick(o, plan, what)
@@ -312,7 +311,7 @@ class FastPaths:
         if dst:
             steps.append({"do": "connect", "item": "transport-belt", "from": lay["belt_end"], "to": dst["to"]})
             steps += self._delivery_steps(dst, ore)
-            expect.append({"check": "belt_carries", "x": dst["to"][0], "y": dst["to"][1], "item": ore})
+            expect += quickbelt.delivered(dst, ore)
             what += f", belted to {dst['what']}"
         else:
             expect.append({"check": "belt_carries", "x": lay["belt_end"][0], "y": lay["belt_end"][1], "item": ore})
@@ -388,6 +387,5 @@ class FastPaths:
         steps += self._delivery_steps(ep, ep["item"])
         word = quickbuild.SAY.get(ep["item"], ep["item"].replace("-", " "))
         plan = {"goal": f"a belt carrying {word} from {ep['from'][0]:g},{ep['from'][1]:g} to {ep['what']}",
-                "steps": steps, "expect": [{"check": "belt_carries", "x": ep["to"][0], "y": ep["to"][1],
-                                            "item": ep["item"]}]}
+                "steps": steps, "expect": quickbelt.delivered(ep, ep["item"])}
         return await self._run_quick(o, plan, f"belting {word} to {ep['what']}")

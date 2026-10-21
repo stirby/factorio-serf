@@ -66,7 +66,8 @@ def sink(w: World, p, toward) -> dict | None:
             fed = w.ents.get(e.get("dpu")) or {}
             what = (f"the {fed['n'].replace('-', ' ')} at {fed['x']:g},{fed['y']:g}" if fed.get("n")
                     else f"the inserter at {e['x']:g},{e['y']:g}")
-            return {"to": [tx, ty], "kind": "inserter", "what": what}
+            return {"to": [tx, ty], "kind": "inserter", "what": what,
+                    **({"target": [fed["x"], fed["y"]]} if fed.get("n") else {})}
     # a machine, boiler or chest at p: an inserter on its side facing `toward`, the belt ending behind it
     tgt = min((e for e in w.ents.values() if e.get("t") in TAKES and e["u"] > 0 and _d((e["x"], e["y"]), p) <= 3),
               key=lambda e: _d((e["x"], e["y"]), p), default=None)
@@ -96,7 +97,16 @@ def sink(w: World, p, toward) -> dict | None:
     name = "burner-inserter" if burner_target or not powered else "inserter"
     return {"to": [belt[0], belt[1]], "kind": "new_inserter", "inserter": {"name": name, "x": ins[0], "y": ins[1],
             "pickup": [belt[0], belt[1]]}, "what": f"the {tgt['n'].replace('-', ' ')} at {tgt['x']:g},{tgt['y']:g}",
-            "electric": powered and not burner_target}
+            "electric": powered and not burner_target, "target": [tgt["x"], tgt["y"]]}
+
+
+def delivered(dst: dict, item: str) -> list[dict]:
+    """Checks that the item gets where it's going: onto the belt's last tile, and into the machine or chest an
+    inserter there feeds (a belt that arrives is no use if its inserter has no power)."""
+    out = [{"check": "belt_carries", "x": dst["to"][0], "y": dst["to"][1], "item": item}]
+    if dst.get("target"):
+        out.append({"check": "has_item", "x": dst["target"][0], "y": dst["target"][1], "item": item})
+    return out
 
 
 def endpoints(wa: World, a, wb: World, b) -> dict | None:

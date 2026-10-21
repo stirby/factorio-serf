@@ -1092,7 +1092,7 @@ class Actor(FastPaths):
                 ent = w.at(e["x"], e["y"])
                 if not ent:
                     return False, f"nothing at {e['x']},{e['y']}"
-                have = (ent.get("inv") or {}).get(e["item"], 0) + (ent.get("out") or {}).get(e["item"], 0)
+                have = sum((ent.get(k) or {}).get(e["item"], 0) for k in ("inv", "out", "inp", "fuel"))
                 if have >= int(e.get("count", 1)):
                     return True, ""
                 return False, f"{ent['n']} at {e['x']},{e['y']} holds {have} {e['item']} (want {e.get('count', 1)})"
