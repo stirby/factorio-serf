@@ -519,8 +519,10 @@ class Runner:
         direction, recipe and the items on a belt): everything upgradable within `radius` of x,y, or one belt line
         (line=[x,y], a tile of it). `into` names the new tier; `only` limits it to one old name."""
         mp = upgrade_map(str(s.get("into") or ""))
-        if s.get("only"):
-            only = [s["only"]] if isinstance(s["only"], str) else list(s["only"])
+        only = s.get("only")
+        if isinstance(only, str):
+            only = [only]
+        if isinstance(only, list) and only:  # (other values, like only=true for "just this one", mean no filter)
             mp = {k: v for k, v in mp.items() if k in only}
         if not mp:
             return {"ok": False, "msg": f"nothing upgrades into {s.get('into')!r} (try e.g. fast-transport-belt, "
