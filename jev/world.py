@@ -491,10 +491,30 @@ class World:
         def where(x, y):
             return fmt_xy((x, y)) if coords else rel(focus, (x, y))
         machines = []
-        for e in sorted(self.of_type(*CRAFTERS), key=lambda e: (e["y"], e["x"]))[:max_items]:
-            m = self.machine_state(e)
-            m["at"] = where(e["x"], e["y"])
-            machines.append(m)
+        crafters = sorted(self.of_type(*CRAFTERS), key=lambda e: (e["y"], e["x"]))
+        if len(crafters) > 30:
+            # a big area: groups of the same machine, recipe and state, with where they are; look closer for detail
+            groups: dict = {}
+            for e in crafters:
+                st = STATUS_WORDS.get(e.get("s") or "?", e.get("s") or "?")
+                key = (e["n"], e.get("r"), st)
+                g = groups.setdefault(key, {"what": e["n"], "recipe": e.get("r"), "state": st, "count": 0,
+                                            "xs": [], "ys": []})
+                g["count"] += 1
+                g["xs"].append(e["x"])
+                g["ys"].append(e["y"])
+            for g in sorted(groups.values(), key=lambda g: -g["count"]):
+                xs, ys = g.pop("xs"), g.pop("ys")
+                g["area"] = (f"{min(xs):g}..{max(xs):g}, {min(ys):g}..{max(ys):g}" if coords else
+                             rel(focus, ((min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2)))
+                if not g["recipe"]:
+                    g.pop("recipe")
+                machines.append(g)
+        else:
+            for e in crafters[:max_items]:
+                m = self.machine_state(e)
+                m["at"] = where(e["x"], e["y"])
+                machines.append(m)
         lines = []
         for ln in sorted(self.lines, key=lambda l: -l.length)[:max_items]:
             d = {"id": ln.id, "belts": ln.length, "runs": ln.direction, "from": where(*ln.start), "to": where(*ln.end),
