@@ -1229,6 +1229,11 @@ class Actor:
                           f"\nFailed at step {i + 1}: {json.dumps(st)}\nError: {msg}" +
                           (f"\n{len(rest)} steps were not run yet." if rest else ""))
                 return False, report
+        if o.interrupt:  # a correction that came during the last step still counts
+            note, o.interrupt = o.interrupt, None
+            await self.say("ok, changing it")
+            return False, (f"The player changed the job while it was running (all {len(done)} steps had run): "
+                           f"\"{note}\". Steps done:\n" + "\n".join(done[-15:]))
         return True, "all steps ran:\n" + "\n".join(done[-20:])
 
     async def _recovery(self, goal: str, st: dict, msg: str, tries: int, missing: dict) -> tuple[str, float]:
