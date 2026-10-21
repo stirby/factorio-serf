@@ -1,0 +1,1 @@
+- Fast inserters in 2.0 support filters (configure filter=item): use them to share one belt between two items, one per lane via sideloads.

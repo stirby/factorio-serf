@@ -1,5 +1,9 @@
 # Factorio Serf
 
+> **Frozen 2026-10-21 (tag `serf-v1-final`).** Development moved to a new prototype that splits the player into a fast
+> decision model (Jev) acting and Opus thinking. This repo stays as the baseline: its night-1 and night-2 test results
+> are what the new system is measured against. Night 2 was stopped after its first phase.
+
 An AI teammate (a Claude agent) that plays Factorio 2.0 (Space Age) **as a player, next to you**, in single player
 or multiplayer. You talk to it in game chat; it walks, mines, crafts and builds under the same rules you do, and
 reports back.

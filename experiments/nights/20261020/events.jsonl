@@ -1,0 +1,4 @@
+{"t": 1792560416.0273867, "at": "00:26:56", "event": "night_start", "suite": "experiments/suites/night2.json", "until": "07:30", "parallel": 6, "budget": 115.0}
+{"t": 1792560416.0276234, "at": "00:26:56", "event": "phase_start", "phase": "holdout-before", "cycle": null, "jobs": 4}
+{"t": 1792561901.4471433, "at": "00:51:41", "event": "phase_end", "phase": "holdout-before", "cycle": null, "runs": 4, "success": 2, "spent": 6.47, "minutes": 24.8, "usage_limited": 0}
+{"t": 1792561901.4474616, "at": "00:51:41", "event": "phase_start", "phase": "train-1", "cycle": 1, "jobs": 18}

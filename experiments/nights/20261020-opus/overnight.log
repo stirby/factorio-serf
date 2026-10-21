@@ -1,0 +1,4 @@
+[night 00:26:57] night_start {"suite": "experiments/suites/opus2.json", "until": "07:30", "parallel": 2, "budget": 95.0}
+[night 00:26:57] phase_start {"phase": "holdout-before", "cycle": null, "jobs": 2}
+[night 00:48:49] phase_end {"phase": "holdout-before", "cycle": null, "runs": 2, "success": 1, "spent": 5.43, "minutes": 21.9, "usage_limited": 0}
+[night 00:48:49] phase_start {"phase": "train-1", "cycle": 1, "jobs": 9}

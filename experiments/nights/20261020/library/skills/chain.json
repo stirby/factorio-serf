@@ -1,0 +1,18 @@
+{
+ "name": "chain",
+ "kind": "script",
+ "doc": "Lay a straight run of tiles as underground chain (saves belts). Tiles x1,y1 -> x2,y2 are tile CENTERS (e.g. 3.5), dir=east|west|north|south. Pairs span 6 tiles; leftover tiles are plain belts. Does no",
+ "author": "serf",
+ "run": "20261021-010302-tbm-5-sonnet-i5",
+ "code": "dx = 0\ndy = 0\nif dir == \"east\":\n    dx = 1\nif dir == \"west\":\n    dx = -1\nif dir == \"south\":\n    dy = 1\nif dir == \"north\":\n    dy = -1\nn = abs(x2 - x1) + abs(y2 - y1) + 1\ni = 0\nacts = []\nwhile i < n:\n    rem = n - i\n    if rem >= 3:\n        k = rem\n        if k > 6:\n            k = 6\n        acts.append({\"op\": \"place\", \"name\": \"underground-belt\", \"x\": x1 + dx * i, \"y\": y1 + dy * i, \"direction\": dir, \"type\": \"input\"})\n        acts.append({\"op\": \"place\", \"name\": \"underground-belt\", \"x\": x1 + dx * (i + k - 1), \"y\": y1 + dy * (i + k - 1), \"direction\": dir, \"type\": \"output\"})\n        i = i + k\n    else:\n        acts.append({\"op\": \"place\", \"name\": \"transport-belt\", \"x\": x1 + dx * i, \"y\": y1 + dy * i, \"direction\": dir})\n        i = i + 1\nr = act(acts)\nreturn r\n",
+ "params": [
+  "x1",
+  "y1",
+  "x2",
+  "y2",
+  "dir"
+ ],
+ "version": 1,
+ "created": "2026-10-21 01:23:45",
+ "updated": "2026-10-21 01:23:45"
+}

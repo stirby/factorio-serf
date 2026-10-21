@@ -1,0 +1,2 @@
+- Feed an underground-belt entrance straight from behind, never from the side: a side-fed entrance blocks one lane. A turn with no belt behind it is a curve that keeps lanes, so it won't move items to the other lane.
+- In belt-routing puzzles, list each row's segment-order constraints first; break ordering cycles by sending one item around via a free outer lane, using the inserter-fed start tile and the end tile as vertical underground entrance/exit.

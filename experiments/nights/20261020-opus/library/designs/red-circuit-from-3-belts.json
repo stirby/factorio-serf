@@ -1,0 +1,37 @@
+{
+ "name": "red-circuit-from-3-belts",
+ "description": "~7.5 advanced-circuit/min with 4 AM2 (2 cable, 1 green, 1 red). Taps eastbound belts: iron at top row y=8 (inserter just above copy top), copper belt crossing middle (y=20 rel ~11), plastic below bottom (y=32). Output iron chest east of red assembler. Needs medium-pole power.",
+ "size": [
+  13,
+  25
+ ],
+ "needs": {
+  "iron-chest": 1,
+  "transport-belt": 50,
+  "inserter": 9,
+  "long-handed-inserter": 1,
+  "medium-electric-pole": 5,
+  "assembling-machine-2": 4
+ },
+ "contents": {
+  "transport-belt": 50,
+  "inserter": 9,
+  "medium-electric-pole": 5,
+  "assembling-machine-2": 4,
+  "long-handed-inserter": 1,
+  "iron-chest": 1
+ },
+ "string": "0eNqtmetuozAUhN/Fv02Fb1zyKlVUEWK1lsBQIN2tqrz7mqQb2i60c6z9ExISPp9jPMwQ3tihOdl+cH5iuzfm6s6PbHf/xkb36Ktm3uer1rIdm4bKj303TMnBNhM7c+b80f5mO3HmKz+vxtG2h8b5x6St6ifnbSI/HCTPe86sn9zk7HXAy4fXB39qD3YIVL4xMGd9N4bDOj+PNo9v7gxnr2xX3JkwwNENtr5+refKvnAlztUUrsK5OYWrcW5G4RqcW1K4Gc4tKNz8xnV+tMMU9v1DlOk7MVR8XmEUcG1SUGorcW5K4YoUBysSGFeXlCQwLi9Jkq3A9SVJuhW4wCRJYMLQV4UQX8nFGjmLIKcQeVFZa4/u1Ca2Cb8fXJ30XWO/uTYIuS45UUTUqqBaI1R3qfJHskwjyBoiC8pVbDa2tTmVi8hWXXbbGWbrCVWGGl0/H153fW+HpK4Ol5N73f/wfKqaMF743ndDG1x9rQYFdHK7wr+P+2F2hFyDamJjy1R9aey6bDsfFm7thvrkJmJ7BmnvNq0ldPIzqriKj/w14iLXpgsz9VSFcHVMkKW1RSzosUumUO4q6cELI6sUOVd/Q9fs7GudK0EPcGB9kh7hQLKihziQrOkxDiQbeggDyRG2CJJzeg4DyQU9iIHkkp7EMLJO6VEMJAt6FgPJZMu8aVz9L8vUkGWWn8f9yTI12TJvopKfG6uOL5Wvg31EGaZGDHMRh8SaWxTtgpkn9ZMdv11lGyFUR8dauRHBdMSt5CarRKbuRoGCpkmJHS+nRq9XaUREx9kGS0aw8g2WimAVGywdwdpIUibC51S6wcooK0RBN5Emj10hm1VGZEclof+qIrIjRs5SeuoDyYKe+kCypKc+kKzoqQ8kRygLJEf8zQKSM3rqA8k5PfWB5IKe+kBySU99GDlP6alvjbzn7Ff4PD9NuBc5NzzccJs9v583PBji/F7ny/t5w8Nl0OzDkW6ybShgeRjC2YsdxgvaZLLUZWkKneXh5Xz+A1yEMZ4=",
+ "learned": {
+  "by": "serf",
+  "world": "state",
+  "area": [
+   15,
+   9,
+   26,
+   32
+  ],
+  "at": "2026-10-21 00:51"
+ },
+ "uses": 0
+}
