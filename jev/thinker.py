@@ -8,7 +8,6 @@ thinker remembers earlier orders and plans.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import time
 from dataclasses import dataclass, field
@@ -304,7 +303,7 @@ class Thinker:
                 self.current = None
 
     async def _turn(self, prompt: str, req: Request) -> None:
-        from claude_agent_sdk import AssistantMessage, ResultMessage, TextBlock, ToolUseBlock
+        from claude_agent_sdk import AssistantMessage, ResultMessage, TextBlock
 
         t0 = time.time()
         self._plan_submitted = False

@@ -799,7 +799,7 @@ class Runner:
 
     async def row_layout(self, s: dict):
         """The entities of a row step (needs the belt's direction from the game; picks a free side if none given)."""
-        from .rowgen import DIRS, SIZE, row_entities
+        from .rowgen import DIRS, row_entities
         from .world import World
         b = s.get("belt")
         sc = await self.g.scan(center=(float(b[0]), float(b[1])), radius=int(10 + 6 * int(s.get("count", 1))))
@@ -816,7 +816,6 @@ class Runner:
             ents, info = row_entities((e["x"], e["y"]), d, sd, s.get("machine", "assembling-machine-1"),
                                       s.get("recipe"), int(s.get("count", 1)), bool(s.get("second_belt")),
                                       s.get("output", "chest"), s.get("inserter", "inserter"), int(s.get("offset", 0)))
-            S = SIZE.get(s.get("machine", "assembling-machine-1"), 3)
             blocked = sum(1 for x in ents if w.at(x["x"], x["y"]) is not None)
             if best is None or blocked < best[0]:
                 best = (blocked, ents, info, sd)

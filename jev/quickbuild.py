@@ -219,7 +219,7 @@ def plain_counts(order: str) -> str:
 
 
 async def read_order(jev: Jev, order: str, products: list[str], carried: list[str] | None = None) -> dict:
-    alias = {"iron-gear-wheel": "gears", "steel-plate": "steel", "firearm-magazine": "yellow ammo",
+    alias = {"iron-gear-wheel": "gears", "firearm-magazine": "yellow ammo",
              "electronic-circuit": "green circuits", "automation-science-pack": "red science",
              "iron-plate": "plates: furnaces smelting iron ore", "copper-plate": "plates: furnaces smelting copper ore",
              "stone-brick": "bricks: furnaces smelting stone", "steel-plate": "steel: furnaces on iron plates"}
