@@ -28,6 +28,8 @@
   "tbm-5",
   "t-change",
   "t-maintain",
-  "t-session"
+  "t-session",
+  "t-quick-mix",
+  "t-upgrade"
  ]
 }
