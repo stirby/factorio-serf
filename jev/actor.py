@@ -19,7 +19,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import craft, decide
+from . import craft, decide, quickbuild
 from .fastpaths import FastPaths
 from .game import Game
 from .lint import lint, plan_points
@@ -1137,11 +1137,13 @@ class Actor(FastPaths):
         fixed = []
         w = await self.world(o.focus, 18)
         watch = self._stopped(w)
+        # products the order names ("no gears coming out"): a machine there set to something else is a fault too
+        wanted = quickbuild.products_named(o.text, [r for r in self.recipes if not r.endswith("-barrel")])
         for rnd in range(6):
             if rnd:
                 w = await self.world(o.focus, 18)
-            fl = [f for f in w.faults() if f.get("fixes")]
-            allf = w.faults()
+            allf = w.wanted_faults(wanted) + w.faults()
+            fl = [f for f in allf if f.get("fixes")]
             if not allf and not (self._stopped(w) & watch):
                 if fixed:
                     await self.say(fixed_words(fixed))

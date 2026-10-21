@@ -224,25 +224,26 @@ PRODUCT_Q = "Which of these does `order` ask to have made?"
 COUNTS = {"not_said": "the order doesn't say how many machines", **{str(n): f"{n} machine(s)" for n in range(1, 13)}}
 
 
-def named_products(order: str, products: list[str]) -> int:
-    """How many of the products the order names by their words ('gears and pipes' -> 2; 'pipes, 3 assemblers, into
-    chests' -> 1: an iron chest needs 'iron' too). Plurals and the chat names in SAY count."""
-
-
+def products_named(order: str, products) -> list[str]:
+    """The products the order names by their words ('gears and pipes' -> both; 'pipes, 3 assemblers, into chests'
+    -> pipes only: an iron chest needs 'iron' too). Plurals and the chat names in SAY count."""
     def stem(w):
         return w[:-1] if w.endswith("s") and len(w) > 3 else w
     words = {stem(w) for w in re.findall(r"[a-z]+", order.lower())}
-    n = 0
+    out = []
     for p in products:
         names = [p.replace("-", " ")] + ([SAY[p]] if p in SAY else [])
         if any(all(stem(w) in words for w in nm.split()) for nm in names):
-            n += 1
-    return n
+            out.append(p)
+    return out
+
+
+def named_products(order: str, products: list[str]) -> int:
+    return len(products_named(order, products))
 
 
 def plain_counts(order: str) -> str:
     """'a couple of machines' -> '2 machines', 'a few' -> '3': Jev read 'a couple' as several products."""
-
     order = re.sub(r"\ba couple(?: of)?\b", "2", order, flags=re.I)
     order = re.sub(r"\ba few\b", "3", order, flags=re.I)
     return order

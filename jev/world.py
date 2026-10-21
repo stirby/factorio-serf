@@ -424,6 +424,33 @@ class World:
         return reasons
 
     # ------------------------------------------------------------------ faults
+    def wanted_faults(self, wanted: list[str]) -> list[dict]:
+        """The order names a product ("fix the gear setup") that no machine here makes, and an assembler here makes
+        something else from the same ingredients: it was probably set to the wrong recipe."""
+        asm = [m for m in self.ents.values() if m.get("t") == "assembling-machine" and m.get("r") in self.recipes]
+        out = []
+        for want in wanted:
+            if want not in self.recipes or any(m.get("r") == want for m in asm):
+                continue
+            need = set(self.recipes[want].get("ingredients") or {})
+            for m in asm:
+                r = m["r"]
+                if not need or not need <= set(self.recipes[r].get("ingredients") or {}):
+                    continue
+                out_at = next((e["dp"] for e in self.ents.values() if e.get("t") == "inserter"
+                               and e.get("pku") == m["u"] and self.line_of.get(e.get("dpu")) and e.get("dp")), None)
+                pos = (m["x"], m["y"])
+                out.append({"kind": "wanted_recipe", "u": m["u"], "at": pos,
+                            "text": f"{self.name(m['u'])} at {fmt_xy(pos)} makes {r}; nothing here makes {want}, "
+                                    f"which it could make from the same ingredients",
+                            "fixes": [{"do": "set_recipe", "x": m["x"], "y": m["y"], "recipe": want,
+                                       "text": f"set {self.name(m['u'])} to make {want}",
+                                       "done": f"set the {m['n']} at {fmt_xy(pos)} to make {want}"
+                                               + (f" and cleared the {r} off its belt" if out_at else ""),
+                                       "then_purge": {"item": r, "x": out_at[0], "y": out_at[1]} if out_at else None}]})
+                break
+        return out
+
     def faults(self) -> list[dict]:
         """Things that look broken, with code-generated candidate fixes (actions for the step runner)."""
         out: list[dict] = []

@@ -225,6 +225,14 @@ def test_wrong_recipe():
     f = next((x for x in w.faults() if x["kind"] == "wrong_recipe"), None)
     check("world: a pipe assembler feeding red science should make gears",
           f and f["fixes"][0]["recipe"] == "iron-gear-wheel", f)
+    # "fix the gear setup": a pipe assembler filling a chest, nothing downstream to say gears are wanted but the order
+    w = World({"ents": ents[:2], "center": [1, 3]}, rec)
+    wanted = quickbuild.products_named("@serf fix the gear setup at [gps=1,1]", list(rec))
+    f = w.wanted_faults(wanted)
+    check("world: the order names gears and an assembler there makes pipes from the same plates",
+          wanted == ["iron-gear-wheel"] and f and f[0]["fixes"][0]["recipe"] == "iron-gear-wheel", (wanted, f))
+    check("world: no such fault when the order names nothing made here",
+          not w.wanted_faults(quickbuild.products_named("the smelter at [gps=1,1] isn't making much", list(rec))))
 
 
 def test_engine_slot():
