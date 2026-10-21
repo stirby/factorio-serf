@@ -29,6 +29,23 @@ TAKES_ITEMS = {"assembling-machine", "furnace", "lab", "container", "logistic-co
                "burner-mining-drill", "mining-drill", "reactor", "burner-generator", "chemical-plant"}
 
 
+REPLACE_GROUP = {}
+for _grp, _names in {
+    "belt": ["transport-belt", "fast-transport-belt", "express-transport-belt", "turbo-transport-belt",
+             "underground-belt", "fast-underground-belt", "express-underground-belt", "turbo-underground-belt",
+             "splitter", "fast-splitter", "express-splitter", "turbo-splitter"],
+    "chest": ["wooden-chest", "iron-chest", "steel-chest"],
+    "inserter": ["burner-inserter", "inserter", "fast-inserter", "long-handed-inserter", "bulk-inserter",
+                 "filter-inserter", "stack-inserter"],
+    "assembler": ["assembling-machine-1", "assembling-machine-2", "assembling-machine-3"],
+    "furnace": ["stone-furnace", "steel-furnace"],
+    "pole": ["small-electric-pole", "medium-electric-pole"],
+    "pipe": ["pipe", "pipe-to-ground"],
+}.items():
+    for _n in _names:
+        REPLACE_GROUP[_n] = _grp
+
+
 def size_of(name: str, direction: str | None = None) -> tuple[int, int]:
     w, h = SIZE.get(name, (1, 1))
     if direction in ("east", "west") and name in ("steam-engine", "boiler", "offshore-pump", "splitter",
@@ -97,8 +114,10 @@ def lint(steps: list[dict], w: World, available: set[str] | None = None, recipes
                            f"{'.5 centers' if n % 2 else 'integer corners'}; the game will shift it")
                 break
         for t in tl:
-            if t in occ and t not in removed and not (name in ("transport-belt",) and occ[t] in ("transport-belt",)):
-                out.append(f"{name} at {fmt_xy((x, y))} overlaps {occ[t]} at tile {t[0]},{t[1]}")
+            other = occ.get(t)
+            same_group = other and REPLACE_GROUP.get(name) and REPLACE_GROUP.get(name) == REPLACE_GROUP.get(other)
+            if other and t not in removed and not same_group:  # same family = upgrade in place (fast replace)
+                out.append(f"{name} at {fmt_xy((x, y))} overlaps {other} at tile {t[0]},{t[1]}")
                 break
         for t in tl:
             occ[t] = name
@@ -179,8 +198,9 @@ def lint(steps: list[dict], w: World, available: set[str] | None = None, recipes
 
     for e in planned:
         n = e["name"]
-        if available is not None and n not in available:
-            out.append(f"{n} is not available (not in storage, inventory, or hand-craftable from what's there)")
+        if available is not None and n not in available and recipes is not None and n not in recipes:
+            # only when there's no recipe at all: craftable items can come from plates on belts or elsewhere
+            out.append(f"{n} is not available: none in storage or inventory, and it has no recipe you can use")
         if n in INSERTERS:
             reach = 2 if n == "long-handed-inserter" else 1
             if e["pickup"]:
