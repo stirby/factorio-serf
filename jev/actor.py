@@ -428,6 +428,7 @@ class Actor:
 
     # ------------------------------------------------------------------ watching what it built
     WATCH_KINDS = {"no_fuel", "output_full", "chest_full", "no_power", "boiler_fuel", "belt_reversed", "belt_gap"}
+    HEAL_KINDS = {"no_fuel", "boiler_fuel", "no_power"}  # fixed without asking when a plan's checks fail
 
     def _add_watch(self, o: Order) -> None:
         conds = [c for c in (getattr(o, "watch_what", None) or []) if isinstance(c, str)][:5]
@@ -988,10 +989,28 @@ class Actor:
         try:
             w = await self.world(center, 20)
             fl = w.faults()
+            heal = [f for f in fl if f["kind"] in self.HEAL_KINDS and f.get("fixes")]
+            if heal and not plan.get("_healed"):
+                # faults code can fix by itself (fuel, power) get fixed before the planner hears about it
+                plan["_healed"] = True
+                done = []
+                for f in heal[:6]:
+                    fx = f["fixes"][0]
+                    if fx.get("do") == "refuel_boilers":
+                        r = {"ok": await self._refuel_grid(w, f.get("grid"))}
+                    else:
+                        r = await self.runner.run({k: v for k, v in fx.items() if k not in ("text", "done")})
+                    self.log({"kind": "heal", "order": o.id, "fault": f["text"], "ok": r.get("ok")})
+                    if r.get("ok"):
+                        done.append(fx.get("done") or fx.get("text"))
+                if done:
+                    ok2, rep2 = await self._verify(o, plan)
+                    note = "The actor fixed by itself before checking again: " + "; ".join(done) + "."
+                    return ok2, (rep2 if ok2 else f"{note}\n{rep2}")
             if fl:
                 last += "\nProblems the actor sees there now: " + "; ".join(f["text"] for f in fl[:10])
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as ex:  # noqa: BLE001
+            self.log({"kind": "error", "where": "verify faults", "error": repr(ex)})
         return False, last
 
     async def _check(self, e: dict) -> tuple[bool, str]:
