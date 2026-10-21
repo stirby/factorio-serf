@@ -408,7 +408,7 @@ class Runner:
         rad = float(s.get("radius", 6))
         item = s.get("item", "small-electric-pole")
         msgs = []
-        prev_off, stuck = None, 0
+        prev_off, stuck, stocked = None, 0, False
         for rnd in range(10):
             sc = await self.g.scan(center=p, radius=int(max(rad + 40, 48)))
             ents = [e for e in (sc.get("ents") or []) if not e.get("ghost")]
@@ -444,6 +444,14 @@ class Runner:
                 if cand:
                     src = cand[0]
             tgt = best[1]
+            if not stocked:
+                # poles in hand first, the full way (storage, crafting, wood from trees): the game's line routing
+                # only fetches from storage; medium poles will do if small ones can't be had
+                stocked = True
+                got = await self.ensure(item, 8)
+                if not got.get("ok") and not s.get("item"):
+                    if (await self.refresh_inventory()).get("medium-electric-pole", 0) >= 3:
+                        item = "medium-electric-pole"
             r = await self._act({"op": "connect", "item": item, "from": [src["x"], src["y"]],
                                  "to": [tgt["x"], tgt["y"]]}, timeout=420)
             msgs.append(str(r.get("msg"))[:160])
