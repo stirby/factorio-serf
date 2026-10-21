@@ -11,7 +11,7 @@ from jev.decide import failure_facts  # noqa: E402
 from jev.lint import lint  # noqa: E402
 from jev.router import Grid, solve  # noqa: E402
 from jev.rowgen import row_entities  # noqa: E402
-from jev.steps import expand, plan_needs  # noqa: E402
+from jev.steps import expand, ghost_result, plan_needs, unplaced  # noqa: E402
 from jev.world import World  # noqa: E402
 
 FAILS = []
@@ -70,6 +70,32 @@ def test_world_gap():
         fx = gaps[0]["fixes"][0]
         check("world: gap fix connects the two ends", fx["do"] == "connect" and fx["from"] == [1.5, 0.5]
               and fx["to"] == [4.5, 0.5], fx)
+
+
+def test_world_view_edge():
+    # a line running east off the side of a radius-3 scan isn't "ending": it goes on out of sight
+    ents = [belt(1, 1.5, 0.5, "east", o=[2], items={"iron-plate": 4}), belt(2, 2.5, 0.5, "east", i=[1])]
+    w = World({"ents": ents, "center": [0, 0], "radius": 3})
+    ln = w.lines[0]
+    check("world: line past the view edge says so", "edge of this view" in ln.end_reason, ln.end_reason)
+    w = World({"ents": ents, "center": [0, 0], "radius": 10})
+    check("world: line inside the view ends", w.lines[0].end_reason == "ends (nothing ahead)", w.lines[0].end_reason)
+    check("world: no gap fault from a line leaving the view",
+          not [f for f in World({"ents": ents, "center": [0, 0], "radius": 3}).faults() if f["kind"] == "belt_gap"])
+
+
+def test_ghost_refusals():
+    asked = [{"name": "transport-belt", "x": 1.5, "y": 0.5, "direction": "east"},
+             {"name": "transport-belt", "x": 2.5, "y": 0.5, "direction": "east"}]
+    r = {"ok": True, "ghosts": 0, "failed": [{"name": "transport-belt", "x": 1.5, "y": 0.5, "why": "same"},
+                                             {"name": "transport-belt", "x": 2.5, "y": 0.5,
+                                              "why": "blocked by inserter@2.5,0.5"}]}
+    bad = unplaced(asked, r)
+    check("ghosts: identical entity already there isn't a refusal", len(bad) == 1 and bad[0]["x"] == 2.5, bad)
+    res = ghost_result({"ok": True, "msg": "built 0 ghosts"}, {"_unplaced": bad})
+    check("ghosts: a refused part fails the step and names the blocker", not res["ok"] and "inserter@2.5,0.5" in res["msg"],
+          res)
+    check("ghosts: nothing refused stays ok", ghost_result({"ok": True, "msg": "x"}, {"_unplaced": []})["ok"])
 
 
 def test_router_cross():

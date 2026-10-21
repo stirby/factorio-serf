@@ -1746,10 +1746,70 @@ local function pair_undergrounds(entities)
   return out
 end
 
+-- Things that can swap for each other in place (the game's fast-replace), so a ghost may go on top of one.
+local BELTISH = { ["transport-belt"] = true, ["underground-belt"] = true, splitter = true, loader = true,
+  ["loader-1x1"] = true, ["lane-splitter"] = true }
+local PIPEISH = { pipe = true, ["pipe-to-ground"] = true }
+local NOT_SOLID = { character = true, ["entity-ghost"] = true, ["tile-ghost"] = true, ["item-request-proxy"] = true,
+  ["highlight-box"] = true, ["item-entity"] = true, corpse = true, ["character-corpse"] = true, ["deconstructible-tile-proxy"] = true }
+
+local function same_family(proto, o)
+  local a, b = proto.type, o.type
+  if (BELTISH[a] and BELTISH[b]) or (PIPEISH[a] and PIPEISH[b]) then return true end
+  local g = proto.fast_replaceable_group
+  return g ~= nil and g ~= "" and g == o.prototype.fast_replaceable_group
+end
+
+-- A built thing of ours in the ghost's footprint that the ghost can't replace (create_entity places ghosts without
+-- checking, so such a ghost could never be built). Trees and rocks don't count: the builder clears those.
+local function ghost_conflict(c, ename, p, dir)
+  local proto = prototypes.entity[ename]
+  if not proto then return nil end
+  local b = proto.collision_box
+  local w, h = b.right_bottom.x - b.left_top.x, b.right_bottom.y - b.left_top.y
+  if dir == defines.direction.east or dir == defines.direction.west then w, h = h, w end
+  local area = { { p.x - w / 2 + 0.05, p.y - h / 2 + 0.05 }, { p.x + w / 2 - 0.05, p.y + h / 2 - 0.05 } }
+  for _, o in ipairs(c.surface.find_entities_filtered { area = area, force = c.force }) do
+    if o.valid and not NOT_SOLID[o.type] and not o.to_be_deconstructed() and not same_family(proto, o) then
+      return "blocked by " .. o.name .. "@" .. o.position.x .. "," .. o.position.y
+    end
+  end
+end
+
+-- Why a ghost couldn't go at p: "same" when an identical entity (or ghost) already stands there (nothing to do),
+-- else what blocks it.
+local function ghost_blocker(c, ename, p, dir)
+  local s = c.surface
+  local here = s.find_entities_filtered { area = { { p.x - 0.45, p.y - 0.45 }, { p.x + 0.45, p.y + 0.45 } } }
+  local names = {}
+  for _, o in ipairs(here) do
+    if o.valid and o.type ~= "character" then
+      local oname = o.name == "entity-ghost" and o.ghost_name or o.name
+      if oname == ename and (dir == nil or o.direction == dir) then
+        return { name = ename, x = p.x, y = p.y, why = "same" }
+      end
+      local n = o.name == "entity-ghost" and ("ghost of " .. o.ghost_name) or o.name
+      local proto = prototypes.entity[ename]
+      if o.name ~= "entity-ghost" and proto and same_family(proto, o) then
+        return { name = ename, x = p.x, y = p.y, why = "a " .. o.name .. " already stands at " .. o.position.x .. ","
+          .. o.position.y .. " (to turn it use rotate; to swap it, mine_at it first)" }
+      end
+      names[#names + 1] = n .. "@" .. o.position.x .. "," .. o.position.y
+      if #names >= 2 then break end
+    end
+  end
+  local why = #names > 0 and ("blocked by " .. table.concat(names, ", ")) or nil
+  if not why then
+    local okw, wet = pcall(function() return s.get_tile(p.x, p.y).collides_with("water_tile") end)
+    why = (okw and wet) and "water" or "invalid spot or too big for the gap"
+  end
+  return { name = ename, x = p.x, y = p.y, why = why }
+end
+
 H.blueprint = {
   start = function(a, job)
     local c, args = a.char, job.args
-    local ghosts = {}
+    local ghosts, why = {}, {}
     if args.string then
       local inv = game.create_inventory(1)
       local stack = inv[1]
@@ -1774,21 +1834,33 @@ H.blueprint = {
         local p = { x = e.x or e[1], y = e.y or e[2] }
         local spec = { name = "entity-ghost", inner_name = ename, position = p, direction = util.parse_dir(e.direction),
           force = c.force, expires = false, type = ug_type[i] }
-        local okp, g = pcall(c.surface.create_entity, spec)
+        local okc, conflict = pcall(ghost_conflict, c, ename, p, spec.direction)
+        local okp, g
+        if okc and conflict then
+          okp, g = true, nil
+        else
+          okp, g = pcall(c.surface.create_entity, spec)
+        end
         if okp and g then
           if e.recipe then pcall(function() g.set_recipe(e.recipe) end) end
           ghosts[#ghosts + 1] = g
         else
           failed = failed + 1
+          if #why < 8 and p.x and p.y then
+            why[#why + 1] = (okc and conflict) and { name = ename, x = p.x, y = p.y, why = conflict }
+              or ghost_blocker(c, ename, p, spec.direction)
+          end
         end
       end
-      if failed > 0 and #ghosts == 0 then return fail("no ghosts placed (" .. failed .. " invalid entries)") end
+      if failed > 0 and #ghosts == 0 then
+        return fail("no ghosts placed (" .. failed .. " invalid entries)", { failed = why })
+      end
     else
       return fail("blueprint needs string=<blueprint string> + x,y, or entities=[{name,x,y,direction}]")
     end
     local need = needed_items(ghosts)
     return ok("placed " .. #ghosts .. " ghosts; to build them you need " .. helpers.table_to_json(need)
-      .. " (then use build_ghosts)", { ghosts = #ghosts, needs = need })
+      .. " (then use build_ghosts)", { ghosts = #ghosts, needs = need, failed = why })
   end,
 }
 

@@ -755,6 +755,8 @@ class Actor:
                 return False, (f"The player changed the job while it was running ({len(done)} steps done): "
                                f"\"{note}\". Steps done so far:\n" + "\n".join(done[-15:]))
             tries = 0
+            # fuel the rest of the plan's refuel steps will hand out, so one coal run covers them all
+            self.runner.fuel_ahead = sum(int(x.get("count", 20)) for x in steps[i:] if x.get("do") == "refuel")
             while True:
                 tries += 1
                 await self.g.status(text=f"{describe(st)[:80]}")
@@ -831,14 +833,18 @@ class Actor:
                             "radius": max(max(xs) - min(xs), max(ys) - min(ys)) / 2 + 2})
         last = ""
         jev_checks = 0
-        for k in range(8):
+        # a plan that already waited has given things time to start: don't wait as long again
+        waited = sum(float(st.get("seconds") or 0) for st in plan.get("steps") or [] if st.get("do") == "wait")
+        for k in range(2 if waited >= 30 else 8):
             await asyncio.sleep(6 if k else 4)
             if exp:
-                results = [await self._check(e) for e in exp]
-                bad = [msg for ok, msg in results if not ok]
+                results = [(e, *await self._check(e)) for e in exp]
+                bad = [msg for _, ok, msg in results if not ok]
                 if not bad:
                     return True, "all expectations met"
                 last = "Expectations not met: " + "; ".join(bad)
+                if any(e.get("check") == "built" for e, ok, _ in results if not ok):
+                    break  # missing buildings won't appear by waiting
             else:
                 jev_checks += 1
                 if jev_checks > 3:

@@ -436,7 +436,9 @@ function observe.recipes(a, args)
       if args.detail then
         local ing = {}
         for _, i in pairs(r.ingredients) do ing[i.name] = i.amount end
-        out[name] = { ingredients = ing, category = r.category, time = r.energy }
+        local first = r.products[1]
+        out[name] = { ingredients = ing, category = r.category, time = r.energy,
+          makes = first and (first.amount or first.amount_min) or 1 }
       else
         out[#out + 1] = name
       end

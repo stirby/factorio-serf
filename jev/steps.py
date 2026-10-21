@@ -25,6 +25,34 @@ MINEABLE = {"wood": "tree", "iron-ore": "iron-ore", "copper-ore": "copper-ore", 
 PLACE_ITEM = {"straight-rail": "rail", "curved-rail-a": "rail", "curved-rail-b": "rail"}
 
 
+def unplaced(asked: list[dict], r: dict) -> list[dict]:
+    """The requested ghosts the game refused for a real reason (not "an identical one already stands there"), each
+    with that reason under "_why"."""
+    failed = r.get("failed") or []
+    if isinstance(failed, dict):
+        failed = list(failed.values())
+    out = []
+    for f in failed:
+        if not isinstance(f, dict) or f.get("why") == "same":
+            continue
+        fx, fy = float(f.get("x", 1e9)), float(f.get("y", 1e9))
+        e = next((a for a in asked if abs(a["x"] - fx) < 0.01 and abs(a["y"] - fy) < 0.01), None)
+        if e:
+            out.append({**e, "_why": f.get("why")})
+    return out
+
+
+def ghost_result(b: dict, s: dict) -> dict:
+    """A ghosts step whose layout the game refused in places has not done its job, even if the rest got built."""
+    bad = s.get("_unplaced") or []
+    if not bad or not b.get("ok"):
+        return b
+    where = "; ".join(f"{e['name']} at {e['x']},{e['y']} ({e['_why']})" for e in bad[:4])
+    more = f" and {len(bad) - 4} more" if len(bad) > 4 else ""
+    return {"ok": False, "msg": f"{b.get('msg') or ''}. But {len(bad)} part(s) of the layout couldn't be placed: "
+                                f"{where}{more}"}
+
+
 def expand(entities: list) -> list[dict]:
     """Compact layout notation -> plain entities:
       {"repeat": N, "dx": 2, "dy": 0, "entities": [...]}   the group N times, shifted by (dx, dy) each time
@@ -94,6 +122,7 @@ class Runner:
         self.log_fn = log_fn or (lambda rec: None)
         self.inventory: dict = {}
         self.recipes: dict = {}
+        self.fuel_ahead = 0  # fuel the running plan's remaining refuel steps will use (set by the actor)
 
     async def refresh_inventory(self) -> dict:
         try:
@@ -152,7 +181,7 @@ class Runner:
         rec = (self.recipes or {}).get(item)
         if rec and (rec.get("category") or "crafting") in ("crafting", "advanced-crafting", "electronics",
                                                              "pressing"):
-            per = 2 if item == "copper-cable" else 1
+            per = int(rec.get("makes") or (2 if item == "copper-cable" else 1))
             runs = -(-short // per)
             inv = await self.refresh_inventory()
             for ing, n in (rec.get("ingredients") or {}).items():
@@ -283,14 +312,15 @@ class Runner:
         n = int(s.get("count", 20))
         fuel = s.get("fuel") or next((f for f in FUELS if inv.get(f, 0) >= 5), None) or "coal"
         if inv.get(fuel, 0) < min(n, 5):
-            # stock fuel for several machines at once: storage, then mining coal, then wood from trees
-            want = max(n, int(s.get("stock", 40)))
+            # stock fuel for several machines at once (the plan's remaining refuels, within reason): storage, then
+            # mining coal, then wood from trees
+            want = max(n, int(s.get("stock") or min(max(40, self.fuel_ahead), 120)))
             r = await self.ensure(fuel, want) if fuel != "coal" else {"ok": False}
             if not r.get("ok"):
                 r = await self.ensure("coal", want)
                 fuel = "coal"
             if not r.get("ok"):
-                r = await self._act({"op": "mine", "name": "coal", "count": want}, timeout=400)
+                r = await self._act({"op": "mine", "name": "coal", "count": want}, timeout=120 + 3 * want)
             if not r.get("ok"):
                 inv = await self.refresh_inventory()
                 fuel = "wood"
@@ -446,25 +476,25 @@ class Runner:
         if not ents:
             return {"ok": False, "msg": "ghosts needs entities"}
         xs = [e["x"] for e in ents]
-        if s.get("_laid"):  # a retry: the ghosts are already there, just build them
-            ys = [e["y"] for e in ents]
-            cx, cy = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
-            rad = ((max(xs) - min(xs)) ** 2 + (max(ys) - min(ys)) ** 2) ** 0.5 / 2 + 3
-            return await self._do_build_ghosts({"x": cx, "y": cy, "radius": rad})
+        ys = [e["y"] for e in ents]
+        cx, cy = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
+        rad = ((max(xs) - min(xs)) ** 2 + (max(ys) - min(ys)) ** 2) ** 0.5 / 2 + 3
+        if s.get("_laid"):  # a retry: the ghosts are already there; try the ones that couldn't go again, then build
+            todo = s.get("_unplaced") or []
+            if todo:
+                r = await self._act({"op": "blueprint", "entities": todo})
+                s["_unplaced"] = unplaced(todo, r)
+            return ghost_result(await self._do_build_ghosts({"x": cx, "y": cy, "radius": rad}), s)
         r = await self._act({"op": "blueprint", "entities": ents})
         if not r.get("ok"):
             return r
         s["_laid"] = True
-        ys = [e["y"] for e in ents]
-        cx, cy = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
-        rad = ((max(xs) - min(xs)) ** 2 + (max(ys) - min(ys)) ** 2) ** 0.5 / 2 + 3
+        s["_unplaced"] = unplaced(ents, r)
         placed = r.get("ghosts")
         await self.stock(r.get("needs") or {})
         b = await self._do_build_ghosts({"x": cx, "y": cy, "radius": rad})
         b["msg"] = f"planned {placed} of {len(ents)}; " + (b.get("msg") or "")
-        if placed is not None and placed < len(ents):
-            b["msg"] += f" ({len(ents) - placed} couldn't be planned: blocked or invalid spots)"
-        return b
+        return ghost_result(b, s)
 
     async def row_layout(self, s: dict):
         """The entities of a row step (needs the belt's direction from the game; picks a free side if none given)."""

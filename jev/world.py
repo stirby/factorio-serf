@@ -123,6 +123,7 @@ class World:
                     e["u"] = -(i + 1)
                 self.ents[e["u"]] = e
         self.center = tuple(scan.get("center") or (0, 0))
+        self.radius = scan.get("radius")
         self.tile: dict[tuple[int, int], int] = {}
         for u, e in self.ents.items():
             w, h = e.get("w", 1), e.get("h", 1)
@@ -220,6 +221,12 @@ class World:
         d = DIRS.get(e.get("d", ""), (0, 0))
         return e["x"] - d[0], e["y"] - d[1]
 
+    def off_view(self, x: float, y: float) -> bool:
+        """Is this point outside the square the scan covered (so "nothing there" only means "not looked at")?"""
+        if not self.radius:
+            return False
+        return abs(x - self.center[0]) > self.radius or abs(y - self.center[1]) > self.radius
+
     def _end_reason(self, e: dict, nxt: dict) -> str:
         if e["u"] in nxt:
             return f"merges into another line at {fmt_xy(self._ahead(e))}"
@@ -227,6 +234,8 @@ class World:
             return "underground entrance with no exit"
         ax, ay = self._ahead(e)
         o = self.at(ax, ay)
+        if o is None and self.off_view(ax, ay):
+            return "runs on past the edge of this view (look further that way)"
         if o is None:
             return "ends (nothing ahead)"
         if o["t"] in BELT_T:
@@ -240,6 +249,8 @@ class World:
             return "fed from another line"
         bx, by = self._behind(e)
         o = self.at(bx, by)
+        if o is None and self.off_view(bx, by):
+            return "comes in from past the edge of this view"
         if o is not None and o["t"] in BELT_T and o.get("d") == OPP.get(e.get("d")):
             return f"the belt behind it at {fmt_xy((o['x'], o['y']))} faces {o.get('d')}, away from this line"
         if o is not None and o["t"] in BELT_T:
