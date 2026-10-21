@@ -48,3 +48,13 @@ Sort the serfs' complaints (debriefs, friction) before believing them: a request
 belongs in their own layer; a misconception needs a playbook or a better tool message; real friction is a core
 proposal. Most complaints are wrong; a few are the best leads (from the RuneScape Bench talk,
 `docs/video-notes-cNm4zyUtWj0.md`).
+
+## Results dashboard (over days)
+
+"Serf Nights" (https://claude.ai/artifact/E9M75Wow4dX9i8kqD6tPS5): pass rate, cost per met objective, waste and
+thinking share night over night per track, time by activity, what the serfs built, held-out start vs end, and
+every test on a chosen night. Each morning, after the review:
+
+    .venv/bin/python experiments/dash_export.py      # experiments/dash/runs.csv + library.csv (all nights)
+
+then upload both files to the dashboard as assets and point its `runs` and `library` datasets at the new urls.

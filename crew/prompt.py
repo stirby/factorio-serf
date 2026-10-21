@@ -96,24 +96,15 @@ belts between zones. Scout and record resource patches, water and oil with coord
 Later: oil (pumpjacks, refinery), and defenses if peaceful mode is off.""",
 }
 
-PARALLEL = """
+PARALLEL_TEMPLATE = """
 # Playing in parallel (think like the base's logistic network)
-- Never wait for direction. Between jobs, call `work` and take the most valuable thing you can do now, in this
-  order: unfilled requests (deliver to requester marks), unbuilt ghosts (ghosts placed by humans are their
-  plans: build them first), your board tasks, then the next roadmap goal or the biggest bottleneck that
-  `production` shows. Tell the crew in one line what you picked.
-- Shared stock lives in marked chests, not in people's pockets: put surplus in provider/storage marks, fill
-  requester marks, take from providers. Use `mark` to label anything others should know (depot, bus start,
-  "copper column here", "keep clear: future expansion").
-- Blueprints first, like a good player with a blueprint book. Anything bigger than a few pieces comes from your
+{work}- Blueprints first, like a good player with a blueprint book. Anything bigger than a few pieces comes from your
   design library (`designs`: built-in proven designs plus your own): `build kind=stamp`. To repeat something
   that works here, `copy` it and paste it. Only hand-place connections (a belt run, a pole, an inserter) and
   one-offs. When you've built and verified something new that works, `copy` it with a note (what it makes,
   rate, where inputs enter and outputs leave) so it joins your library for every world. Players can teach you
   designs with /serf learn; prefer theirs, it's how they like their base built.
-- Before building a section, claim it as a construction site with `zone` so nobody places on top of you. It's
-  not territory: release it when you're done, and expand freely anywhere that isn't an active site.
-- If you've inserted or taken the same thing by hand twice, automate it (inserter, belt, chest). Hand-feeding
+{zone}- If you've inserted or taken the same thing by hand twice, automate it (inserter, belt, chest). Hand-feeding
   doesn't scale, and your time is the crew's scarcest resource.
 - Your character should never stand still while you think: queue the whole plan, use act wait='until_last' and
   queue the next batch while the last action runs. Keep background crafting busy.
@@ -202,11 +193,32 @@ keep the character busy while you think.
 """
 
 
+# Solo serfs don't get the crew's coordination tools (mark/marks, zone, roadmap): nobody else builds or marks.
+SOLO_HIDDEN_TOOLS = {"mark", "marks", "zone", "roadmap"}
+CREW_WORK = """- Never wait for direction. Between jobs, call `work` and take the most valuable thing you can do now, in this
+  order: unfilled requests (deliver to requester marks), unbuilt ghosts (ghosts placed by humans are their
+  plans: build them first), your board tasks, then the next roadmap goal or the biggest bottleneck that
+  `production` shows. Tell the crew in one line what you picked.
+- Shared stock lives in marked chests, not in people's pockets: put surplus in provider/storage marks, fill
+  requester marks, take from providers. Use `mark` to label anything others should know (depot, bus start,
+  "copper column here", "keep clear: future expansion").
+"""
+SOLO_WORK = """- Between jobs, call `work` and take the most valuable thing you can do now, in this order: unbuilt ghosts
+  (ghosts placed by humans are their plans: build them first), your board tasks, then the biggest bottleneck
+  that `production` shows.
+"""
+CREW_ZONE = """- Before building a section, claim it as a construction site with `zone` so nobody places on top of you. It's
+  not territory: release it when you're done, and expand freely anywhere that isn't an active site.
+"""
+PARALLEL = PARALLEL_TEMPLATE.replace("{work}", CREW_WORK).replace("{zone}", CREW_ZONE)
+SOLO_PARALLEL = PARALLEL_TEMPLATE.replace("{work}", SOLO_WORK).replace("{zone}", "")
+
+
 def system_prompt(name: str, personality: str = "", focus: str = "", foreman: str | None = None,
                   solo: bool = False, owner: str | None = None, kind: str = "serf") -> str:
     if solo:
         intro = SOLO_INTRO.format(name=name, owner=owner or "the players", kind=kind)
-        role_text = SOLO.format(owner=owner or "Whoever is playing") + PARALLEL
+        role_text = SOLO.format(owner=owner or "Whoever is playing") + SOLO_PARALLEL
     else:
         intro = CREW_INTRO.format(name=name)
         role_text = WORKER
@@ -228,8 +240,9 @@ def briefing(agent, events: list[str], work: str = "") -> str:
         parts.append("[other chat since your last turn]")
         parts += [f"- {m}" for m in agent.ambient[-12:]]
         agent.ambient.clear()
-    parts.append("[roadmap]\n" + agent.board.render_roadmap())
-    parts.append("[zones]\n" + agent.board.render_zones())
+    if not getattr(agent, "solo", False):
+        parts.append("[roadmap]\n" + agent.board.render_roadmap())
+        parts.append("[zones]\n" + agent.board.render_zones())
     parts.append("[board]\n" + agent.board.render(for_agent=agent.name))
     from .lessons import render
     if taught := render():

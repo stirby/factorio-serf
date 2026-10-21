@@ -79,6 +79,9 @@ class Agent:
         from .late_tools import LATE_TOOLS
         tools = list(TOOLS) + LATE_TOOLS
         fm = getattr(orch, "foreman_brain", None)
+        if not fm:
+            from .prompt import SOLO_HIDDEN_TOOLS
+            tools = [t for t in tools if t.name not in SOLO_HIDDEN_TOOLS]
         if fm:
             from .foreman import ASK_FOREMAN, REPORT
             tools += [ASK_FOREMAN, REPORT]
@@ -346,7 +349,8 @@ class Agent:
             if self.fresh:
                 self.fresh = False
                 prompt = ("(Fresh session: your earlier conversation was cleared to keep things fast. Your notes, "
-                          "the roadmap and the board below are your memory; check `look`/`board` if unsure.)\n"
+                          + ("the board" if self.solo else "the roadmap and the board") + " below are your memory; "
+                          "check `look`/`board` if unsure.)\n"
                           + prompt)
             self._record("prompt", text=prompt)
             ui.turn_start(self.name, events)

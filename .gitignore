@@ -6,3 +6,4 @@ dist/
 crew.toml
 logs/
 crew-*.toml
+experiments/dash/

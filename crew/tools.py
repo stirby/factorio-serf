@@ -515,10 +515,12 @@ def _fmt_marks(marks: list[dict]) -> str:
 async def open_work(agent: "Agent") -> str:
     """What needs doing right now, in the order an idle logistic robot would pick it up."""
     parts = []
-    try:
-        marks = (await agent.link.call("marks"))["marks"]
-    except GameError:
-        marks = []
+    marks = []
+    if not getattr(agent, "solo", False):  # solo serfs have no marks (see prompt.SOLO_HIDDEN_TOOLS)
+        try:
+            marks = (await agent.link.call("marks"))["marks"]
+        except GameError:
+            pass
     req = [m for m in marks if m["kind"] == "requester" and m.get("missing")]
     if req:
         parts.append("Unfilled requests (deliver from providers, your inventory, or craft):\n" + _fmt_marks(req))
@@ -533,7 +535,7 @@ async def open_work(agent: "Agent") -> str:
     if tasks:
         parts.append("Tasks: " + "; ".join(f"#{t.id} {t.title}" + (f" @{t.owner}" if t.owner else " (open)")
                                          for t in tasks[:8]))
-    nxt = [m for m in agent.board.roadmap if m["status"] != "done"][:2]
+    nxt = [] if getattr(agent, "solo", False) else [m for m in agent.board.roadmap if m["status"] != "done"][:2]
     if nxt:
         parts.append("Roadmap next: " + "; ".join(m["goal"] for m in nxt))
     return "\n".join(parts)
