@@ -54,7 +54,10 @@ def busy_slots() -> set[int]:
     used = {int(m) for m in re.findall(r"--instance (\d+)", out)}
     used |= {int(m) for m in re.findall(r"instances/(\d+)/", out)}
     # running loops and batches own their whole range, even between runs
+    import os
     for line in out.splitlines():
+        if line.split(" ", 1)[0] == str(os.getpid()):
+            continue  # this batch itself
         if "loop.py" in line or "batch.py" in line:
             b = re.search(r"--base (\d+)", line)
             n = re.search(r"-P (\d+)", line)
