@@ -1,0 +1,23 @@
+{
+ "name": "sulfuric-acid-plant",
+ "description": "Sulfuric acid: 1 chemical plant (1 s for 50 acid at speed 1). The plant could make 50 acid/s; its two fast inserters bring sulfur and iron fast enough for about 44 acid/s. Per acid it uses 0.1 sulfur, 0.02 iron plate and 2 water. One processing-unit-block uses 0.75 acid/s and one flying-robot-frame-block 3/s, so this feeds 58 processing-unit-blocks or 14 robot-frame blocks (if the sulfur keeps up: 0.075 sulfur/s per processing-unit-block). Power about 0.3 MW peak (210 kW + 2 fast inserters).",
+ "size": [5, 5],
+ "inputs": [{"what": "sulfur + iron plates on separate lanes (belt runs south)", "at": [0, 0], "side": "north", "lanes": {"left": "sulfur", "right": "iron-plate"}}, {"what": "water 88/s at full speed (pipe)", "at": [4, 0], "side": "north", "kind": "fluid", "fluid": "water"}],
+ "outputs": [{"what": "sulfuric acid up to 44/s (pipe)", "at": [4, 4], "side": "south", "kind": "fluid", "fluid": "sulfuric-acid", "rate": 44.0}],
+ "power": "connect any of its small poles to your grid",
+ "test": {"producers": ["chemical-plant:sulfuric-acid"], "warmup_s": 20, "measure_s": 120},
+ "needs": {"chemical-plant": 1, "fast-inserter": 2, "pipe": 2, "small-electric-pole": 1, "transport-belt": 5},
+ "entities": [
+  {"name": "transport-belt", "x": 0.5, "y": 0.5, "direction": "south"},
+  {"name": "transport-belt", "x": 0.5, "y": 1.5, "direction": "south"},
+  {"name": "transport-belt", "x": 0.5, "y": 2.5, "direction": "south"},
+  {"name": "transport-belt", "x": 0.5, "y": 3.5, "direction": "south"},
+  {"name": "transport-belt", "x": 0.5, "y": 4.5, "direction": "south"},
+  {"name": "fast-inserter", "x": 1.5, "y": 2.5, "direction": "west"},
+  {"name": "fast-inserter", "x": 1.5, "y": 3.5, "direction": "west"},
+  {"name": "small-electric-pole", "x": 1.5, "y": 4.5, "direction": "north"},
+  {"name": "chemical-plant", "x": 3.5, "y": 2.5, "direction": "north", "recipe": "sulfuric-acid"},
+  {"name": "pipe", "x": 4.5, "y": 0.5, "direction": "north"},
+  {"name": "pipe", "x": 4.5, "y": 4.5, "direction": "north"}
+ ]
+}
