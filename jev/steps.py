@@ -857,7 +857,9 @@ class Runner:
             tr = await self._do_rotate(t)
             if not tr.get("ok"):
                 s["_unplaced"].append({"name": "turn", "x": t["x"], "y": t["y"], "_why": tr.get("msg")})
-        b["msg"] = f"planned {placed} of {len(ents)}; " + (b.get("msg") or "")
+        ex = int(r.get("existing") or 0)
+        b["msg"] = f"planned {placed} of {len(ents)}" + (f" ({ex} already built there)" if ex else "") + "; " + \
+            (b.get("msg") or "")
         return ghost_result(b, s)
 
     async def row_layout(self, s: dict):

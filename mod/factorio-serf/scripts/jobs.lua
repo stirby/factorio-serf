@@ -1892,6 +1892,7 @@ H.blueprint = {
   start = function(a, job)
     local c, args = a.char, job.args
     local ghosts, why = {}, {}
+    local existing = 0 -- entries already standing there, identical
     if args.string then
       local inv = game.create_inventory(1)
       local stack = inv[1]
@@ -1916,14 +1917,39 @@ H.blueprint = {
         local p = { x = e.x or e[1], y = e.y or e[2] }
         local spec = { name = "entity-ghost", inner_name = ename, position = p, direction = util.parse_dir(e.direction),
           force = c.force, expires = false, type = ug_type[i] }
+        -- the very same thing already standing there (a design laid again over itself): nothing to plan; a ghost on
+        -- top of it could never be built. Its recipe is set if the design wants another.
+        local same
+        if p.x and p.y then
+          for _, o in ipairs(c.surface.find_entities_filtered { name = ename, force = c.force,
+            area = { { p.x - 0.1, p.y - 0.1 }, { p.x + 0.1, p.y + 0.1 } } }) do
+            if o.valid and math.abs(o.position.x - p.x) < 0.1 and math.abs(o.position.y - p.y) < 0.1
+                and (not o.supports_direction or e.direction == nil or o.direction == spec.direction)
+                and (not ug_type[i] or o.type ~= "underground-belt" or o.belt_to_ground_type == ug_type[i]) then
+              same = o
+              break
+            end
+          end
+        end
         local okc, conflict = pcall(ghost_conflict, c, ename, p, spec.direction)
         local okp, g
-        if okc and conflict then
+        if same then
+          existing = existing + 1
+          if e.recipe and same.type == "assembling-machine" then
+            pcall(function()
+              local r = same.get_recipe()
+              if not r or r.name ~= e.recipe then same.set_recipe(e.recipe) end
+            end)
+          end
+          okp = "same"
+        elseif okc and conflict then
           okp, g = true, nil
         else
           okp, g = pcall(c.surface.create_entity, spec)
         end
-        if okp and g then
+        if okp == "same" then
+          -- already built
+        elseif okp and g then
           if e.recipe then pcall(function() g.set_recipe(e.recipe) end) end
           ghosts[#ghosts + 1] = g
         else
@@ -1934,15 +1960,16 @@ H.blueprint = {
           end
         end
       end
-      if failed > 0 and #ghosts == 0 then
+      if failed > 0 and #ghosts == 0 and existing == 0 then
         return fail("no ghosts placed (" .. failed .. " invalid entries)", { failed = why })
       end
     else
       return fail("blueprint needs string=<blueprint string> + x,y, or entities=[{name,x,y,direction}]")
     end
     local need = needed_items(ghosts)
-    return ok("placed " .. #ghosts .. " ghosts; to build them you need " .. helpers.table_to_json(need)
-      .. " (then use build_ghosts)", { ghosts = #ghosts, needs = need, failed = why })
+    return ok("placed " .. #ghosts .. " ghosts" .. (existing > 0 and (" (" .. existing .. " already built there)") or "")
+      .. "; to build them you need " .. helpers.table_to_json(need)
+      .. " (then use build_ghosts)", { ghosts = #ghosts, existing = existing, needs = need, failed = why })
   end,
 }
 

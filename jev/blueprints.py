@@ -275,7 +275,10 @@ def _port_text(p: dict, kind: str) -> str:
         return p.get("what", "?")
     if p.get("kind") in ("chest", "power") or not p.get("side"):
         return f"{p.get('what', '?')} [tile ({p['at'][0]},{p['at'][1]})]"
-    how = f"belt enters from the {p['side']}" if kind == "in" else f"belt leaves to the {p['side']}"
+    if p.get("kind") == "fluid":  # e.g. sulfuric acid: a pipe joins the block's pipe at that tile from that side
+        how = f"pipe of {p.get('fluid', 'fluid')} connects from the {p['side']}"
+    else:
+        how = f"belt enters from the {p['side']}" if kind == "in" else f"belt leaves to the {p['side']}"
     return f"{p.get('what', '?')}: {how} at tile ({p['at'][0]},{p['at'][1]})"
 
 
