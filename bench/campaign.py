@@ -62,7 +62,7 @@ class Generation:
             return None
         self.probes.append(p)
         jsonl(self.dir / "progress.jsonl", p)
-        if self.camp.target and p["level"] >= self.camp.target and self.reached is None:
+        if self.camp.target and self.reached is None and self.camp.target_met(p):
             self.reached = time.time() - self.t0
             say(f"{self.camp.name} g{self.n}: reached milestone {self.camp.target} after {self.reached / 60:.0f} min")
         return p
@@ -272,7 +272,7 @@ class Campaign:
     def __init__(self, a):
         self.name, self.k, self.effort, self.strategist_effort = a.name, a.instance, a.effort, a.strategist_effort
         self.mode = a.mode
-        self.target = a.target_level
+        self.target = a.target or (str(a.target_level) if a.target_level else None)
         self.order = a.order or PROJECT_ORDER
         self.goal = a.order.replace("@serf", "").replace("project:", "").strip() if a.order else GOAL
         self.dir = ROOT / "bench" / "campaigns" / a.name
@@ -280,6 +280,13 @@ class Campaign:
         self.state_path = self.dir / "campaign.json"
         self.state = json.loads(self.state_path.read_text()) if self.state_path.exists() else {
             "name": a.name, "stage": a.world, "gen": 0, "gens": [], "worlds": [a.world]}
+
+    def target_met(self, p: dict) -> bool:
+        """Every milestone the target names ("5", or "7,8") is met, each on its own (not the ladder in order: an
+        oil rung shouldn't wait on green science)."""
+        want = {int(x) for x in str(self.target).split(",") if x.strip()}
+        got = {lv for lv, name, _ in progress.MILESTONES if name in (p.get("milestones") or [])}
+        return want <= got
 
     def save_state(self) -> None:
         self.state_path.write_text(json.dumps(self.state, indent=1, default=str))
@@ -359,8 +366,9 @@ def main() -> None:
     p.add_argument("--mode", choices=["strategist", "project"], default="strategist",
                    help="strategist: an outside Opus player gives every order; project: one order, the serf's own "
                         "project manager (jev/project.py) does the rest")
-    p.add_argument("--target-level", type=int, default=None,
-                   help="end the generation as soon as the probe reaches this milestone (the task ladder)")
+    p.add_argument("--target-level", type=int, default=None, help="same as --target with one milestone")
+    p.add_argument("--target", default=None,
+                   help="end the generation as soon as these milestones are met, e.g. 5 or 7,8 (the task ladder)")
     p.add_argument("--order", default=None, help="project mode: the order that starts it (default: beat the game)")
     a = p.parse_args()
     os.environ["JEV_READER"] = a.reader
