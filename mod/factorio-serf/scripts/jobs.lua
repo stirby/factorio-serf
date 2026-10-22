@@ -110,7 +110,10 @@ local function find_mine_target(a, args)
     local list = c.surface.find_entities_filtered { position = p, radius = 0.8, name = args.name }
     local best, bd
     for _, e in pairs(list) do
-      if e.minable and e.type ~= "character" and e.prototype.mineable_properties.minable then
+      -- "mine x,y" picks up what's built there; the ore under it only when asked by name (a drill already gone
+      -- left its ore tile, which was then hand-mined until the 60 s timeout: 91 times in an afternoon)
+      if e.minable and e.type ~= "character" and e.prototype.mineable_properties.minable
+          and (args.name or e.type ~= "resource") then
         local d = util.dist(e.position, p)
         if not bd or d < bd then best, bd = e, d end
       end
@@ -829,6 +832,9 @@ H.grab = {
             if got > 0 then
               line.remove_item { name = name, count = got }
               job.got = job.got + got
+            elseif job.got == 0 then
+              -- the items are right there and the pocket takes none: say so now, not "nothing to grab" in 30 s
+              return fail("my inventory is full: can't grab " .. name, { inventory_full = true })
             end
           end
         end

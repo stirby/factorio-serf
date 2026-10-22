@@ -344,8 +344,44 @@ return inv.count_empty_stacks()""")
                "c.get_main_inventory().clear() return true")
 
 
+async def chk_positional(L: Live, state: dict):
+    g = L.g
+    p = await L.ev("""
+local s, c = game.surfaces.nauvis, storage.agents['serf'].char
+local r = s.find_entities_filtered { position = c.position, radius = 120, type = 'resource', name = 'iron-ore', limit = 1 }[1]
+if not r then return nil end
+c.teleport({ r.position.x + 1, r.position.y })
+return { r.position.x, r.position.y }""")
+    if not p:
+        check("positional mine: an ore tile near spawn", False, "no iron ore within 120 tiles")
+        return
+    t0 = time.monotonic()
+    r = await g.run({"op": "mine", "x": p[0], "y": p[1]}, timeout=60)
+    check("positional mine: with no building there it doesn't hand-mine the ore", not r.get("ok") and
+          time.monotonic() - t0 < 10, (r.get("msg"), round(time.monotonic() - t0)))
+    r = await g.run({"op": "mine", "x": p[0], "y": p[1], "name": "iron-ore", "count": 2}, timeout=60)
+    check("positional mine: ... unless the ore is named", r.get("ok"), r.get("msg"))
+    x0, y0 = await L.site(8, 3)
+    await L.ev(f"""
+local s, f, c = game.surfaces.nauvis, game.forces.player, storage.agents['serf'].char
+for i = 0, 5 do
+  local b = s.create_entity {{ name = 'transport-belt', position = {{ {x0} + i + 0.5, {y0} + 0.5 }}, direction = defines.direction.east, force = f }}
+  b.get_transport_line(1).insert_at_back('iron-plate')
+end
+c.teleport({{ {x0} + 2.5, {y0} + 1.5 }})
+local inv = c.get_main_inventory()
+inv.clear()
+inv.insert {{ name = 'stone', count = inv.get_insertable_count('stone') }}
+return true""")
+    t0 = time.monotonic()
+    r = await g.run({"op": "grab", "item": "iron-plate", "count": 4, "x": x0 + 2, "y": y0}, timeout=60)
+    check("grab: a full pocket fails at once and says so", not r.get("ok") and "inventory is full" in str(r.get("msg"))
+          and time.monotonic() - t0 < 10, (r.get("msg"), round(time.monotonic() - t0)))
+    await L.ev("storage.agents['serf'].char.get_main_inventory().clear() return true")
+
+
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional}
 
 
 async def main() -> int:
