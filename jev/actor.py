@@ -323,9 +323,10 @@ class Actor(FastPaths):
         self.log({"kind": "order", "order": o.id, "text": o.text, "playbook": o.playbook, "points": o.points})
         if o.next_plan and o.speaker == "planner":  # the planner's follow-up: run its plan
             return await self._planned(o, f"Your follow-up: {o.text}")
-        if o.reopened and o.quick and o.quick_plan and o.quick_plan.get("expect"):
+        if o.reopened == 1 and o.quick and o.quick_plan and o.quick_plan.get("expect"):
             # "not done yet" after a fast path: first look again. If its checks still pass, it's running (maybe
-            # just not for long yet), and the planner isn't needed.
+            # just not for long yet), and the planner isn't needed. Said twice, it's something else the player
+            # wants: the planner.
             ok, report = await self._verify(o, o.quick_plan)
             self.log({"kind": "recheck", "order": o.id, "ok": ok, "report": str(report)[:300]})
             if ok:
