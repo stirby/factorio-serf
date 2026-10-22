@@ -183,6 +183,9 @@ class Generation:
                 # one order starts the serf's own project; when a project ends before the time is up (it gave up or
                 # crashed), it's started again: its journal carries on
                 pr = actor.project
+                if pr is not None and pr.status == "done" and self.reached is not None:
+                    await asyncio.sleep(20)  # met: only the 15-minute check is left; no need to start it again
+                    continue
                 if pr is None or not pr.active:
                     if pr is not None:
                         say(f"{camp.name} g{self.n}: project ended {pr.status}: {pr.summary[:160]}")
