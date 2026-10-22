@@ -468,6 +468,18 @@ class Runner:
                 pass
         return await self._act({"op": "mine", "name": name, "count": n}, timeout=max(400, 6 * n + 60))
 
+    async def _do_launch(self, s):
+        """Launch the rocket in the silo at x,y once it's ready (walks there first)."""
+        p = _xy(s)
+        mv = await self._act({"op": "move", "x": p[0], "y": p[1], "radius": 6})
+        if not mv.get("ok"):
+            return mv
+        try:
+            r = await self.g.call("launch", agent=self.g.name, x=p[0], y=p[1])
+        except Exception as e:  # noqa: BLE001
+            return {"ok": False, "msg": str(e)}
+        return {"ok": True, "msg": f"launched the rocket ({r.get('rockets')} launched so far)"}
+
     async def _do_mine_at(self, s):
         p = _xy(s)
         a = {"op": "mine", "x": p[0], "y": p[1]}

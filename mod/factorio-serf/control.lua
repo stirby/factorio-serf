@@ -461,6 +461,25 @@ end
 -- Polling is also the heartbeat: the panel shows an agent "offline" when its orchestrator stops.
 API.poll = function(req, ctx) return link.poll(ctx, req) end
 
+-- Launch the rocket in a silo, like a player pressing its Launch button: the character must be at the silo and the
+-- rocket ready.
+API.launch = function(req)
+  local c = live(req).char
+  local at = { x = tonumber(req.x) or c.position.x, y = tonumber(req.y) or c.position.y }
+  local silo = c.surface.find_entities_filtered { type = "rocket-silo", force = c.force, position = at, radius = 8,
+    limit = 1 }[1]
+  if not silo then error("no rocket silo near " .. at.x .. "," .. at.y, 0) end
+  if util.dist(c.position, silo.position) > 12 then error("too far from the silo: walk to it first", 0) end
+  if silo.rocket_silo_status ~= defines.rocket_silo_status.rocket_ready then
+    local parts = 0
+    pcall(function() parts = silo.rocket_parts end)
+    error("the rocket isn't ready yet (" .. parts .. " parts built)", 0)
+  end
+  local okL, launched = pcall(function() return silo.launch_rocket() end)
+  if not okL or not launched then error("the game refused the launch" .. (okL and "" or (": " .. tostring(launched))), 0) end
+  return { launched = true, rockets = c.force.rockets_launched }
+end
+
 -- How far into the game the force is (read-only): research, totals made, machines standing, rockets. The names to
 -- count come with the request (jev/progress.py), so the list can grow without a mod release.
 API.progress = function(req)
