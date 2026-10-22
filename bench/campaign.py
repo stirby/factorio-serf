@@ -32,6 +32,8 @@ from jev.typesafe import reader  # noqa: E402
 GOAL = ("launch a rocket from Nauvis. On the way: automate red, green, blue, purple and yellow science, research "
         "the rocket silo, build it and feed it.")
 CONFIRM_MIN = 15  # a ladder target counts once it's still being made this many minutes later
+CONFIRM_NEED = {"petroleum-gas": 600}  # how much more must be made in that time (default CONFIRM_MIN: 1 pack a minute;
+# a fluid comes in units, and oil-r3 "passed" on 90 petroleum in 15 min, a refinery barely running)
 MILESTONE_ITEM = {3: "automation-science-pack", 4: "logistic-science-pack", 5: "petroleum-gas",
                   6: "chemical-science-pack", 7: "production-science-pack", 8: "utility-science-pack"}
 PROJECT_ORDER = "@serf project: beat the game. Launch a rocket from Nauvis; automate each science pack on the way."
@@ -76,7 +78,7 @@ class Generation:
         elif self.at_reach is not None and self.sustained is None and \
                 time.time() - self.t0 - self.reached >= CONFIRM_MIN * 60 - 30:
             more = self.camp.target_growth(self.at_reach, p)
-            ok = all(v >= CONFIRM_MIN for v in more.values())
+            ok = all(v >= CONFIRM_NEED.get(k, CONFIRM_MIN) for k, v in more.items())
             say(f"{self.camp.name} g{self.n}: {'sustained' if ok else 'NOT sustained'} over {CONFIRM_MIN} min: {more}")
             if ok:
                 self.sustained = True
