@@ -31,6 +31,9 @@ from jev.typesafe import reader  # noqa: E402
 
 GOAL = ("launch a rocket from Nauvis. On the way: automate red, green, blue, purple and yellow science, research "
         "the rocket silo, build it and feed it.")
+CONFIRM_MIN = 15  # a ladder target counts once it's still being made this many minutes later
+MILESTONE_ITEM = {3: "automation-science-pack", 4: "logistic-science-pack", 5: "petroleum-gas",
+                  6: "chemical-science-pack", 7: "production-science-pack", 8: "utility-science-pack"}
 PROJECT_ORDER = "@serf project: beat the game. Launch a rocket from Nauvis; automate each science pack on the way."
 
 
@@ -52,6 +55,9 @@ class Generation:
         self.serf_lines: list[str] = []
         self.orders_sent = 0
         self.reached: float | None = None  # seconds into the generation when the target level was first seen
+        self.at_reach: dict | None = None  # the probe that first saw it
+        self.sustained: bool | None = None  # still making it CONFIRM_MIN later (not a burst from hand-stocked chests)
+        self.bursts: list[float] = []  # minutes at which the target was seen but then not sustained
         self.t0 = time.time()
 
     async def probe(self, g: Game) -> dict | None:
@@ -64,7 +70,20 @@ class Generation:
         jsonl(self.dir / "progress.jsonl", p)
         if self.camp.target and self.reached is None and self.camp.target_met(p):
             self.reached = time.time() - self.t0
-            say(f"{self.camp.name} g{self.n}: reached milestone {self.camp.target} after {self.reached / 60:.0f} min")
+            self.at_reach = p
+            say(f"{self.camp.name} g{self.n}: reached milestone {self.camp.target} after {self.reached / 60:.0f} min; "
+                f"checking it keeps running for {CONFIRM_MIN} min")
+        elif self.at_reach is not None and self.sustained is None and \
+                time.time() - self.t0 - self.reached >= CONFIRM_MIN * 60 - 30:
+            more = self.camp.target_growth(self.at_reach, p)
+            ok = all(v >= CONFIRM_MIN for v in more.values())
+            say(f"{self.camp.name} g{self.n}: {'sustained' if ok else 'NOT sustained'} over {CONFIRM_MIN} min: {more}")
+            if ok:
+                self.sustained = True
+            else:
+                # a burst, not a running line: keep going (the project carries on) and check again later
+                self.bursts.append(round(self.reached / 60, 1))
+                self.reached, self.at_reach = None, None
         return p
 
     async def save(self, g: Game, tag: str) -> Path | None:
@@ -160,7 +179,7 @@ class Generation:
         ktask = asyncio.create_task(keeper())
         last = None
         try:
-            while camp.mode == "project" and time.time() < deadline - 150 and self.reached is None:
+            while camp.mode == "project" and time.time() < deadline - 150 and self.sustained is None:
                 # one order starts the serf's own project; when a project ends before the time is up (it gave up or
                 # crashed), it's started again: its journal carries on
                 pr = actor.project
@@ -182,7 +201,7 @@ class Generation:
                         say(f"{camp.name} g{self.n}: started the project directly")
                     continue
                 await asyncio.sleep(20)
-            while camp.mode == "strategist" and time.time() < deadline and self.reached is None:
+            while camp.mode == "strategist" and time.time() < deadline and self.sustained is None:
                 when = f"g{self.n} +{int((time.time() - t0) / 60)}m"
                 try:
                     d = await strat.decide(self.report(last, deadline - time.time()), when)
@@ -264,6 +283,7 @@ class Generation:
                              for pr in actor.projects],
                 "mode": self.camp.mode, "target": self.camp.target,
                 "reached_min": round(self.reached / 60, 1) if self.reached is not None else None,
+                "sustained": self.sustained, "bursts": self.bursts,
                 "thinker_usd": round(actor.thinker.stats.cost_usd, 2) if actor.thinker else 0,
                 "final_save": str(final) if final else None}
 
@@ -287,6 +307,17 @@ class Campaign:
         want = {int(x) for x in str(self.target).split(",") if x.strip()}
         got = {lv for lv, name, _ in progress.MILESTONES if name in (p.get("milestones") or [])}
         return want <= got
+
+    def target_growth(self, a: dict, b: dict) -> dict:
+        """How much more of each target milestone's product was made between two probes."""
+        out = {}
+        for lv in (int(x) for x in str(self.target).split(",") if x.strip()):
+            item = MILESTONE_ITEM.get(lv)
+            if not item:
+                continue
+            kind = "fluids" if item == "petroleum-gas" else "items"
+            out[item] = round((b.get(kind) or {}).get(item, 0) - (a.get(kind) or {}).get(item, 0))
+        return out
 
     def save_state(self) -> None:
         self.state_path.write_text(json.dumps(self.state, indent=1, default=str))
