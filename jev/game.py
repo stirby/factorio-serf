@@ -99,24 +99,74 @@ class Game:
             self._waiters.pop(jid, None)
             return {"id": jid, "ok": False, "msg": f"timed out after {timeout:.0f}s", "timeout": True}
 
-    async def run(self, action: dict, timeout: float = 300, replace: bool = False) -> dict:
-        """Queue one action and wait for its result: {ok, msg, ...}."""
+    QUEUE_WAIT = 600.0  # longest an action waits in the mod's queue behind other jobs before giving up
+
+    async def run(self, action: dict, timeout: float = 300, replace: bool = False,
+                  queue_timeout: float | None = None) -> dict:
+        """Queue one action and wait for its result: {ok, msg, ...}.
+
+        The character does one job at a time and several tasks (the plan, keepers, restocks) queue into the same
+        mod queue, so an action can wait behind another task's long job (p2: a restock insert waited 240 s behind a
+        fetch hand-crafting 557 pipes and was reported as "timed out", though it never started). So `timeout` is how
+        long the job may RUN; waiting in the queue counts separately, up to queue_timeout (default max(timeout, 10
+        min)). Either way only this job is withdrawn, never the job of whoever is running ahead of it."""
+        op = action.get("op")
         try:
             ids = await self.act([action], replace=replace)
         except GameError as e:
-            return {"ok": False, "msg": str(e), "op": action.get("op")}
+            return {"ok": False, "msg": str(e), "op": op}
         if not ids:
-            return {"ok": False, "msg": "not queued", "op": action.get("op")}
-        r = await self.wait_job(ids[0], timeout)
-        if r.get("timeout"):
-            # the job is still running in the mod, and whatever is queued next would wait behind it (one stuck
-            # insert held up p2 for 8 minutes): stop it
-            await self.cancel(f"{action.get('op')} timed out")
-        return r
+            return {"ok": False, "msg": "not queued", "op": op}
+        jid = ids[0]
+        qcap = queue_timeout if queue_timeout is not None else max(timeout, self.QUEUE_WAIT)
+        t0 = time.monotonic()
+        ran = None  # how long the mod says our job has been running
+        ahead: dict = {}
+        while True:
+            r = await self.wait_job(jid, min(10.0, max(1.0, timeout)))
+            if not r.get("timeout"):
+                return r
+            st = await self._job_state(jid)
+            if st is None:  # couldn't ask; fall back to wall-clock time since queueing
+                if time.monotonic() - t0 > qcap + timeout:
+                    break
+                continue
+            if st.get("running"):
+                ran = st.get("secs", 0)
+                if ran >= timeout:
+                    await self.cancel(f"{op} timed out", job=jid)
+                    return {"id": jid, "ok": False, "op": op, "timeout": True,
+                            "msg": f"timed out after {timeout:.0f}s"}
+            else:
+                ahead = st.get("ahead") or ahead
+                if time.monotonic() - t0 >= qcap:
+                    await self.cancel(f"{op} waited too long in the queue", job=jid)
+                    what = ahead.get("what") or ahead.get("op") or "other jobs"
+                    behind = f"job {ahead.get('id')} ({what}, running {ahead.get('secs', '?')}s)" if ahead else what
+                    return {"id": jid, "ok": False, "op": op, "timeout": True, "queued": True,
+                            "msg": f"timed out after {qcap:.0f}s waiting in the queue: never started, the character was "
+                                   f"busy with {behind}" + (f" and {st['queued'] - 1} more queued ahead"
+                                                            if st.get("queued", 0) > 1 else "")}
+        await self.cancel(f"{op} timed out", job=jid)
+        return {"id": jid, "ok": False, "op": op, "timeout": True, "msg": f"timed out after {timeout:.0f}s"}
 
-    async def cancel(self, reason: str = "replanned") -> None:
+    async def _job_state(self, jid: int) -> dict | None:
+        """Our job running ({running, secs}) or not yet ({ahead: the running job, queued: queue length}); None if the
+        mod couldn't be asked."""
         try:
-            await self.call("cancel", agent=self.name, reason=reason)
+            me = await self.call("self", agent=self.name, timeout=15)
+        except (GameError, RconError, asyncio.TimeoutError):
+            return None
+        job = me.get("job") or {}
+        if job.get("id") == jid:
+            return {"running": True, "secs": job.get("secs", 0)}
+        return {"running": False, "ahead": job, "queued": me.get("queued", 0)}
+
+    async def cancel(self, reason: str = "replanned", job: int | None = None) -> None:
+        """Cancel the character's running job and everything queued, or only `job` (by id)."""
+        kw = {"job": job} if job is not None else {}
+        try:
+            await self.call("cancel", agent=self.name, reason=reason, **kw)
         except GameError:
             pass
 

@@ -105,9 +105,8 @@ API.act = function(req)
   return { job_ids = jobs.enqueue(a, actions, req.replace) }
 end
 
-API.cancel = function(req)
-  jobs.cancel(agent_of(req), req.reason)
-  return {}
+API.cancel = function(req)  -- req.job: cancel only that job (running or queued); otherwise everything
+  return { cancelled = jobs.cancel(agent_of(req), req.reason, req.job) }
 end
 
 -- Live status from the orchestrator. Any field may be sent alone:

@@ -2069,8 +2069,32 @@ function jobs.enqueue(a, actions, replace)
   return ids
 end
 
-function jobs.cancel(a, why)
-  if a.job then finish(a, a.job, fail("cancelled" .. (why and (": " .. why) or ""))) end
+-- Cancel the agent's running job and everything queued, or (only = a job id) just that one job: a caller that gave
+-- up on its own job must not take down another task's job that happens to be running (p2: a restock insert that
+-- had waited behind a 5-minute hand-crafting fetch would have cancelled the fetch and all queued work).
+-- Returns "running" or "queued" for a single job, nil if it wasn't there (already finished).
+function jobs.cancel(a, why, only)
+  local reason = "cancelled" .. (why and (": " .. why) or "")
+  if only then
+    only = tonumber(only)
+    if a.job and a.job.id == only then
+      finish(a, a.job, fail(reason))
+      if agents.alive(a) then
+        movement.stop(a.char)
+        a.char.mining_state = { mining = false }
+      end
+      return "running"
+    end
+    for i, q in ipairs(a.queue) do
+      if q.id == only then
+        table.remove(a.queue, i)
+        a.results[#a.results + 1] = { id = q.id, op = q.op, ok = false, msg = reason, tick = game.tick }
+        return "queued"
+      end
+    end
+    return nil
+  end
+  if a.job then finish(a, a.job, fail(reason)) end
   for _, q in ipairs(a.queue) do
     a.results[#a.results + 1] = { id = q.id, op = q.op, ok = false, msg = "cancelled", tick = game.tick }
   end
@@ -2140,9 +2164,20 @@ function jobs.tick()
   end
 end
 
+-- A few words for a job ("fetch pipe 557", "insert electronic-circuit 200 at -65.5,-19.5").
+local function job_what(job)
+  local args, parts = job.args or {}, { job.op }
+  local item = args.item or args.name or args.recipe
+  if type(item) == "string" then parts[#parts + 1] = item end
+  if args.count then parts[#parts + 1] = tostring(args.count) end
+  if args.x and args.y then parts[#parts + 1] = "at " .. tostring(args.x) .. "," .. tostring(args.y) end
+  return table.concat(parts, " ")
+end
+
 function jobs.describe(job)
   if not job then return nil end
-  local d = { id = job.id, op = job.op, secs = math.floor((game.tick - (job.started_tick or game.tick)) / 60) }
+  local d = { id = job.id, op = job.op, secs = math.floor((game.tick - (job.started_tick or game.tick)) / 60),
+    what = job_what(job) }
   if job.move then d.walking_to = util.xy(job.move.goal) end
   if job.got then d.got = job.got end
   return d
