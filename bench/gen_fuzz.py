@@ -145,7 +145,7 @@ def main(n: int, seed: int):
         made = "made(nil, 'furnace')" if kind == "furnace" else f"made('{prod}')"
         target = {"automation-science-pack": 3, "electronic-circuit": 10, "steel-plate": 3,
                   "firearm-magazine": 5, "stone-brick": 5}.get(prod, 15)
-        name = f"f-quick-{i:02d}"
+        name = f"f-quick-{i:02d}" if seed <= 3 else f"f-quick-s{seed}-{i:02d}"  # later seeds don't overwrite
         scn = {"name": name, "stage": "stage-s3-steel-oil-ready", "minutes": 12, "agents": 1, "kind": "directive",
                "group": "fuzz",
                "note": f"Variant {i} (seed {seed}): {what} off a belt running {direction}"
@@ -162,7 +162,8 @@ def main(n: int, seed: int):
         names.append(name)
         print(f"{name}: {prod:24} {direction:5} count={count!s:12} clutter={clutter!s:5} len={length} "
               f"decoy={decoy!s:5} {goal[9:90]}")
-    (ROOT / "bench" / "suites" / "fuzz.json").write_text(json.dumps(names, indent=1) + "\n")
+    suite = "fuzz" if seed <= 3 else f"fuzz-s{seed}"
+    (ROOT / "bench" / "suites" / f"{suite}.json").write_text(json.dumps(names, indent=1) + "\n")
 
 
 if __name__ == "__main__":
