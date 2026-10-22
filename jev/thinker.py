@@ -42,7 +42,7 @@ Step ops (each step is an object {{"do": op, ...}}):
   refuel x y [fuel]                         put fuel into a burner (fetches coal)
   power x y [from=[x,y]] [item]             run poles from the nearest powered pole (or from) to x,y
   fetch item count | craft recipe count | mine name count | mine_at x y (pick up one entity)
-  research tech (or tech="cheapest") | move x y | follow player [seconds] | wait seconds | say text
+  research tech [first=true: to the front of the queue, with its unresearched prerequisites] [remove=true: take it out of the queue] (or tech="cheapest") | move x y | follow player [seconds] | wait seconds | say text
   configure x y requests={{..}}|filter=item | limit x y slots
 
 Geometry: tile (x,y) spans x..x+1. 1x1 and 3x3 entities sit at .5 centers (e.g. 10.5,4.5); 2x2 entities at integer corners (e.g. 10,4). An assembling machine is 3x3, stone/steel furnace 2x2, electric mining drill 3x3 (drops one tile in front, the direction it faces), burner drill 2x2, boiler 3x2, steam engine 3x5, small pole reaches wires 7.5 tiles and powers a 5x5 area, medium pole 9 tiles / 7x7. Inserters move items from the tile on one side to the tile on the opposite side; belts carry two lanes; a yellow belt carries 15 items/s. An inserter taking from a belt and dropping into a machine needs the machine's edge right next to it. Underground belts: max 4 tiles between entrance and exit for yellow.

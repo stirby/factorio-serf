@@ -761,7 +761,8 @@ class Runner:
         packs are all in `packs` (default red and green)."""
         tech = s.get("tech") or "cheapest"
         if tech != "cheapest":
-            r = await self._act({"op": "research", "tech": tech, **({"first": True} if s.get("first") else {})})
+            r = await self._act({"op": "research", "tech": tech, **({"first": True} if s.get("first") else {}),
+                                 **({"remove": True} if s.get("remove") else {})})
             if r.get("ok") or not s.get("fallback", True):
                 return r
             first_msg = r.get("msg")

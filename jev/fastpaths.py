@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import math
+import re
 from typing import TYPE_CHECKING
 
 from . import craft, decide, quickbelt, quickbuild, quickcopy, quickmine
@@ -17,6 +18,9 @@ from .world import fmt_xy
 
 if TYPE_CHECKING:
     from .actor import Order
+
+
+QUEUE_WORDS = re.compile(r"\b(queue|then|remove|reorder|prerequisites?|in this order|followed by)\b", re.I)
 
 
 class FastPaths:
@@ -352,9 +356,17 @@ class FastPaths:
     async def _quick_research(self, o: Order) -> bool:
         """"Research X": code lists what can be researched now, Jev picks the one the order names, code queues it."""
         try:
+            if QUEUE_WORDS.search(o.text):
+                # a queue to arrange ("after X research Y, then Z; remove W"): more than one tech, the planner's
+                self.log({"kind": "quick_research_skip", "order": o.id, "why": "several techs or a queue"})
+                return False
             t = await self.g.call("techs", agent=self.name)
             techs = [x for x in t.get("available") or [] if x.get("name")]
             if not techs:
+                return False
+            named = {x["name"] for x in techs if re.search(re.escape(x["name"]).replace("\\-", "[- ]"), o.text, re.I)}
+            if len(named) >= 2:
+                self.log({"kind": "quick_research_skip", "order": o.id, "why": f"names {sorted(named)}"})
                 return False
             tech, p = await decide.research(self.jev, o.text, techs)
             self.log({"kind": "quick_research", "order": o.id, "tech": tech, "p": round(p, 3)})
