@@ -1,0 +1,299 @@
+#!/usr/bin/env python3
+"""A campaign: how far the serf gets into the game with an Opus "player" (bench/strategist.py) giving it orders, in
+generations. Each generation runs for some hours from a save: the previous generation's last save, or a fresh world
+(scripts/new_world.py) when the previous one spent most of its time fixing without getting further. Progress is
+probed every few minutes (jev/progress.py), the world is saved every half hour, and each generation ends with a
+summary. Lessons and designs the planner saves go to the campaign's own library, so they carry over.
+
+    .venv/bin/python bench/campaign.py --name c1 --world campaign-w1 --gen-hours 3 --gens 8 --instance 75
+Files: bench/campaigns/<name>/ (campaign.json, gen-NN/{actor,jev,thinker,strategist,progress}, saves/)."""
+from __future__ import annotations
+
+import argparse
+import asyncio
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "bench"))
+from instance import INSTALL, Instance  # noqa: E402
+
+from jev import progress  # noqa: E402
+from jev.game import Game, GameError  # noqa: E402
+from jev.typesafe import reader  # noqa: E402
+
+GOAL = ("launch a rocket from Nauvis. On the way: automate red, green, blue, purple and yellow science, research "
+        "the rocket silo, build it and feed it.")
+
+
+def jsonl(p: Path, rec: dict) -> None:
+    with open(p, "a") as f:
+        f.write(json.dumps({"t": time.time(), **rec}, default=str) + "\n")
+
+
+def say(msg: str) -> None:
+    print(time.strftime("[%H:%M:%S] ") + msg, flush=True)
+
+
+class Generation:
+    def __init__(self, camp: "Campaign", n: int, stage: str):
+        self.camp, self.n, self.stage = camp, n, stage
+        self.dir = camp.dir / f"gen-{n:02d}"
+        self.dir.mkdir(parents=True, exist_ok=True)
+        self.probes: list[dict] = []
+        self.serf_lines: list[str] = []
+        self.orders_sent = 0
+
+    async def probe(self, g: Game) -> dict | None:
+        try:
+            p = (await g.call("eval", code=progress.probe_lua(), timeout=60)).get("result")
+        except Exception as e:  # noqa: BLE001
+            jsonl(self.dir / "progress.jsonl", {"error": repr(e)})
+            return None
+        lv, got = progress.level(p)
+        p["level"], p["milestones"] = lv, got
+        self.probes.append(p)
+        jsonl(self.dir / "progress.jsonl", p)
+        return p
+
+    async def save(self, g: Game, tag: str) -> Path | None:
+        name = f"{self.camp.name}-g{self.n:02d}-{tag}"
+        try:
+            await g.call("eval", code=f'game.server_save("{name}") return true', timeout=120)
+        except Exception as e:  # noqa: BLE001
+            say(f"save {name} failed: {e!r}")
+            return None
+        src = self.inst.dir / "saves" / f"{name}.zip"
+        for _ in range(60):
+            if src.exists() and src.stat().st_size > 0:
+                break
+            await asyncio.sleep(1)
+        await asyncio.sleep(3)
+        if not src.exists():
+            return None
+        dst = self.camp.dir / "saves" / f"{name}.zip"
+        dst.parent.mkdir(exist_ok=True)
+        shutil.copy2(src, dst)
+        return dst
+
+    def report(self, last: dict | None, t_left: float) -> str:
+        p = self.probes[-1] if self.probes else None
+        r = progress.rates(self.probes[-2], p) if len(self.probes) >= 2 else None
+        lines = [f"Generation {self.n}, {t_left / 60:.0f} minutes left in it. Orders given this generation: "
+                 f"{self.orders_sent}."]
+        if p:
+            lines.append("State of the world:\n" + progress.summary(p, r))
+        if last:
+            lines.append(f"Your last order: \"{last['text']}\" -> {last['outcome']} after {last['mins']:.0f} min.")
+        if self.serf_lines:
+            lines.append("What the serf said lately:\n" + "\n".join(self.serf_lines[-12:]))
+        return "\n\n".join(lines)
+
+    async def run(self, hours: float) -> dict:
+        from jev.actor import Actor
+        from strategist import Strategist
+        camp = self.camp
+        self.inst = Instance(camp.k, self.stage)
+        os.environ["JEV_LIBRARY"] = str(camp.dir / "library")
+        pids = subprocess.run(["pgrep", "-f", f"bin/x64/[f]actorio -c {self.inst.dir}/config/"],
+                              capture_output=True, text=True).stdout.split()
+        for pid in pids:
+            subprocess.run(["kill", pid], check=False)
+        for attempt in range(5):
+            try:
+                await asyncio.to_thread(self.inst.start, 300)
+                break
+            except RuntimeError as e:
+                if attempt == 4:
+                    raise
+                say(f"start retry: {str(e)[:200]}")
+                await asyncio.sleep(8)
+        jev = reader(log_path=self.dir / "jev.jsonl")
+        g = await Game.connect(self.inst.host, self.inst.rcon_port, self.inst.password, "serf")
+        pg = await Game.connect(self.inst.host, self.inst.rcon_port, self.inst.password, "serf")  # probes, saves
+        await g.start()
+        actor = Actor(g, jev, self.dir, "serf", think=True, thinker_effort=camp.effort)
+        await actor.start()
+        orig_say = actor.say
+
+        async def say_hook(text):
+            await orig_say(text)
+            self.serf_lines.append(time.strftime("%H:%M ") + text[:200])
+            if text.rstrip().endswith("?"):  # the player answers a question with a shrug, as in the bench
+                await g.call("chat", player="boss", message="@serf your call")
+        actor.say = say_hook
+        strat = Strategist(GOAL, actor._thinker_tools(), camp.dir / "strategist", effort=camp.strategist_effort)
+        t0 = time.time()
+        deadline = t0 + hours * 3600
+        stop = asyncio.Event()
+
+        async def keeper():
+            next_save = time.time() + 1800
+            while not stop.is_set():
+                p = await self.probe(pg)
+                if p:
+                    say(f"{camp.name} g{self.n}: milestone {p['level']} ({', '.join(p['milestones'][-2:])}), "
+                        f"{p['techs']} techs, research {p.get('research')}")
+                if time.time() >= next_save:
+                    await self.save(pg, f"t{int((time.time() - t0) / 60):03d}")
+                    next_save += 1800
+                try:
+                    await asyncio.wait_for(stop.wait(), 300)
+                except asyncio.TimeoutError:
+                    pass
+        ktask = asyncio.create_task(keeper())
+        last = None
+        try:
+            while time.time() < deadline:
+                when = f"g{self.n} +{int((time.time() - t0) / 60)}m"
+                try:
+                    d = await strat.decide(self.report(last, deadline - time.time()), when)
+                except Exception as e:  # noqa: BLE001
+                    say(f"strategist error: {e!r}")
+                    jsonl(self.dir / "campaign.jsonl", {"kind": "strategist_error", "error": repr(e)})
+                    await asyncio.sleep(60)
+                    continue
+                jsonl(self.dir / "campaign.jsonl", {"kind": "decision", **d})
+                if d.get("order"):
+                    text = d["order"] if d["order"].lower().startswith("@serf") else "@serf " + d["order"]
+                    say(f"{camp.name} g{self.n} order: {text[:160]}")
+                    n_before = len(actor.orders)
+                    ts = time.time()
+                    await g.call("chat", player="boss", message=text)
+                    self.orders_sent += 1
+                    outcome = await self.wait_done(actor, g, n_before, ts, min(40 * 60, deadline - time.time()))
+                    last = {"text": text, "outcome": outcome, "mins": (time.time() - ts) / 60}
+                    jsonl(self.dir / "campaign.jsonl", {"kind": "order_done", **last})
+                else:
+                    mins = max(1.0, min(30.0, float(d.get("wait") or 5)))
+                    say(f"{camp.name} g{self.n} waits {mins:.0f} min: {str(d.get('why'))[:120]}")
+                    await asyncio.sleep(min(mins * 60, max(0, deadline - time.time())))
+                    last = {"text": f"(you waited {mins:.0f} min)", "outcome": "waited", "mins": mins}
+        finally:
+            stop.set()
+            try:
+                await asyncio.wait_for(ktask, 120)
+            except Exception:  # noqa: BLE001
+                pass
+            p = await self.probe(pg)
+            final = await self.save(pg, "final")
+            summ = self.summary(actor, strat, p, time.time() - t0, final)
+            (self.dir / "summary.json").write_text(json.dumps(summ, indent=1, default=str))
+            try:
+                await actor.stop()
+            except Exception:  # noqa: BLE001
+                pass
+            await jev.close()
+            await asyncio.to_thread(self.inst.stop)
+        return summ
+
+    async def wait_done(self, actor, g, n_before: int, ts: float, limit: float) -> str:
+        """Until the order the message made has ended (done/failed), or the limit (then the serf is told to stop)."""
+        await asyncio.sleep(8)
+        while time.time() - ts < limit:
+            new = actor.orders[n_before:]
+            busy = [o for o in actor.orders if o.status in ("new", "working", "thinking")]
+            if not busy and (new or time.time() - ts > 30):
+                if not new:
+                    return "the serf didn't take it as an order (it may have answered instead)"
+                st = [o.status for o in new]
+                return ", ".join(sorted(set(st)))
+            await asyncio.sleep(5)
+        try:
+            await g.call("chat", player="boss", message="@serf let's leave that one for now")
+        except GameError:
+            pass
+        await asyncio.sleep(10)
+        return f"not finished after {limit / 60:.0f} min (stopped)"
+
+    def summary(self, actor, strat, p, secs: float, final: Path | None) -> dict:
+        lv0 = self.probes[0]["level"] if self.probes else 0
+        orders = actor.orders
+        fixes = [o for o in orders if o.playbook == "fix" or o.text.startswith("(noticed)")]
+        return {"gen": self.n, "stage": self.stage, "hours": round(secs / 3600, 2), "level_start": lv0,
+                "level_end": p["level"] if p else None, "milestones": p["milestones"] if p else None,
+                "techs": p["techs"] if p else None, "orders_sent": self.orders_sent, "orders": len(orders),
+                "done": sum(o.status == "done" for o in orders), "failed": sum(o.status == "failed" for o in orders),
+                "fix_share": round(len(fixes) / max(1, len(orders)), 2), "strategist_turns": strat.turns,
+                "strategist_usd": round(strat.usd, 2),
+                "thinker_usd": round(actor.thinker.stats.cost_usd, 2) if actor.thinker else 0,
+                "final_save": str(final) if final else None}
+
+
+class Campaign:
+    def __init__(self, a):
+        self.name, self.k, self.effort, self.strategist_effort = a.name, a.instance, a.effort, a.strategist_effort
+        self.dir = ROOT / "bench" / "campaigns" / a.name
+        self.dir.mkdir(parents=True, exist_ok=True)
+        self.state_path = self.dir / "campaign.json"
+        self.state = json.loads(self.state_path.read_text()) if self.state_path.exists() else {
+            "name": a.name, "stage": a.world, "gen": 0, "gens": [], "worlds": [a.world]}
+
+    def save_state(self) -> None:
+        self.state_path.write_text(json.dumps(self.state, indent=1, default=str))
+
+    def next_stage(self, summ: dict) -> str:
+        """Carry on from the last save, unless the generation mostly fixed things and got nowhere: then a new world."""
+        stuck = (summ.get("level_end") or 0) <= (summ.get("level_start") or 0) and summ.get("fix_share", 0) >= 0.5
+        if stuck or not summ.get("final_save"):
+            n = len(self.state["worlds"]) + 1
+            name = f"campaign-{self.name}-w{n}"
+            subprocess.run([str(ROOT / ".venv/bin/python"), str(ROOT / "scripts/new_world.py"), name,
+                            str(1000 + 97 * n)], check=True)
+            self.state["worlds"].append(name)
+            say(f"{self.name}: generation {summ['gen']} stuck (fix share {summ.get('fix_share')}); new world {name}")
+            return name
+        stage = f"campaign-{self.name}-g{summ['gen']:02d}"
+        dst = INSTALL / "saves" / f"{stage}.zip"
+        if not dst.exists():
+            shutil.copy2(summ["final_save"], dst)
+        return stage
+
+    async def run(self, gens: int, hours: float) -> None:
+        for _ in range(gens):
+            self.state["gen"] += 1
+            n = self.state["gen"]
+            say(f"{self.name}: generation {n} from {self.state['stage']} for {hours} h")
+            gen = Generation(self, n, self.state["stage"])
+            try:
+                summ = await gen.run(hours)
+            except Exception as e:  # noqa: BLE001
+                say(f"{self.name}: generation {n} crashed: {e!r}")
+                summ = {"gen": n, "stage": self.state["stage"], "error": repr(e), "final_save": None,
+                        "level_start": 0, "level_end": 0, "fix_share": 0}
+            self.state["gens"].append(summ)
+            say(f"{self.name}: generation {n} ended at milestone {summ.get('level_end')} "
+                f"(from {summ.get('level_start')}), {summ.get('orders_sent')} orders, fix share {summ.get('fix_share')}")
+            if summ.get("error") and self.state["gens"][-2:] and all(g.get("error") for g in self.state["gens"][-2:]):
+                say(f"{self.name}: two crashed generations in a row, stopping")
+                self.save_state()
+                return
+            if not summ.get("error"):
+                self.state["stage"] = self.next_stage(summ)
+            self.save_state()
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--name", required=True)
+    p.add_argument("--world", default="campaign-w1", help="the first generation's save (in server/factorio/saves)")
+    p.add_argument("--gen-hours", type=float, default=3.0)
+    p.add_argument("--gens", type=int, default=8)
+    p.add_argument("--instance", type=int, default=75)
+    p.add_argument("--reader", choices=["jev", "sonnet", "hybrid"], default="hybrid")
+    p.add_argument("--effort", default=None, help="the serf's planner effort")
+    p.add_argument("--strategist-effort", default=None)
+    a = p.parse_args()
+    os.environ["JEV_READER"] = a.reader
+    asyncio.run(Campaign(a).run(a.gens, a.gen_hours))
+
+
+if __name__ == "__main__":
+    main()

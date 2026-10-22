@@ -378,8 +378,11 @@ class Runner:
         return await self._act({"op": "fetch", "item": item, "count": inv.get(item, 0) + n}, timeout=400)
 
     async def _do_mine(self, s):
-        a = {"op": "mine", "name": s.get("name") or s.get("item"), "count": int(s.get("count", 10))}
-        return await self._act(a, timeout=400)
+        # by the item it gives ("wood" is mined from trees, "raw-wood" too) or by the entity's name
+        name = s.get("name") or s.get("item")
+        name = {"raw-wood": "tree"}.get(name, MINEABLE.get(name, name))
+        n = int(s.get("count", 10))
+        return await self._act({"op": "mine", "name": name, "count": n}, timeout=max(400, 6 * n + 60))
 
     async def _do_mine_at(self, s):
         p = _xy(s)
