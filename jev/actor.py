@@ -1314,6 +1314,8 @@ class Actor(FastPaths):
                 self.log({"kind": "fix", "order": o.id, "fault": f["text"], "fix": fx, "ok": r.get("ok"),
                           "msg": r.get("msg")})
                 (fixed if r.get("ok") else failed).append(fx.get("done") or fx.get("text"))
+                if r.get("ok") and fx.get("do") == "refuel":
+                    self._remember_fuelled(float(fx["x"]), float(fx["y"]))
                 pos = tuple(f.get("at") or pos)
                 self.metrics["fast_path"] += 1
             await asyncio.sleep(10)

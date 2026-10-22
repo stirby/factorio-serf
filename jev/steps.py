@@ -410,9 +410,9 @@ class Runner:
         return await self._act(a)
 
     async def _do_empty_chest(self, s):
-        """Make room in a full chest: take part of it (enough to unblock what feeds it, without filling the pocket
-        with junk like stone)."""
-        return await self._do_take({"x": s["x"], "y": s["y"], "count": int(s.get("count", 100))})
+        """Make room in a full chest: take part of it, enough that it doesn't fill again within minutes (100 of each
+        item was gone in 3 minutes in x-sweep), without filling the pocket with junk like stone."""
+        return await self._do_take({"x": s["x"], "y": s["y"], "count": int(s.get("count", 400))})
 
     async def _do_refuel(self, s):
         p = _xy(s)
