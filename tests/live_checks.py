@@ -489,8 +489,28 @@ return {{ manual = okM }}""")
     await L.ev("storage.agents['serf'].char.get_main_inventory().clear() return true")
 
 
+async def chk_tree_clear(L: Live, state: dict):
+    g = L.g
+    x0, y0 = await L.site(6, 4)
+    await L.ev(f"""
+local s, f = game.surfaces.nauvis, game.forces.player
+s.create_entity {{ name = 'transport-belt', position = {{ {x0} + 2.5, {y0} + 1.5 }}, direction = defines.direction.east, force = f }}
+s.create_entity {{ name = 'tree-01', position = {{ {x0} + 3.2, {y0} + 1.6 }} }}
+local c = storage.agents['serf'].char
+c.teleport({{ {x0} + 3.5, {y0} + 3.5 }})
+c.get_main_inventory().clear()
+return true""")
+    r = await Runner(g)._act({"op": "mine", "x": x0 + 3.2, "y": y0 + 1.6, "name": "tree-01"}, timeout=30)
+    r2 = await Runner(g)._act({"op": "mine", "x": x0 + 3.2, "y": y0 + 1.6, "name": "tree-01"}, timeout=30)
+    belt = await L.ev(f"return game.surfaces.nauvis.count_entities_filtered{{name='transport-belt', position={{{x0} + 2.5, {y0} + 1.5}}, radius=0.5}}")
+    check("tree clear: the tree goes, and mining it again when it's gone leaves the belt beside it (p2)",
+          r.get("ok") and not r2.get("ok") and belt == 1, (r.get("msg"), r2.get("msg"), belt))
+    r3 = await Runner(g)._do_clear({"x": x0 + 3, "y": y0 + 2, "radius": 3, "trees": True})
+    check("tree clear: clearing an area with no trees left is fine", r3.get("ok"), r3.get("msg"))
+
+
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear}
 
 
 async def main() -> int:

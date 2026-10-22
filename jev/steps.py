@@ -299,7 +299,7 @@ class Runner:
                     and abs(e["x"] - x) <= 2.6 and abs(e["y"] - y) <= 2.6]
             near.sort(key=lambda e: (e["x"] - x) ** 2 + (e["y"] - y) ** 2)
             for e in near[:4]:
-                took = await self.g.run({"op": "mine", "x": e["x"], "y": e["y"]}, timeout=30)
+                took = await self.g.run({"op": "mine", "x": e["x"], "y": e["y"], "name": e["n"]}, timeout=30)
                 if not took.get("ok"):
                     continue
                 vx, vy = e["x"] - x, e["y"] - y
@@ -580,6 +580,8 @@ class Runner:
     async def _do_mine_at(self, s):
         p = _xy(s)
         a = {"op": "mine", "x": p[0], "y": p[1]}
+        if s.get("name"):
+            a["name"] = s["name"]  # only that, not a neighbour when the coordinates are a tile off
         if s.get("force_pickup"):
             a["force_pickup"] = True
         return await self._act(a)
@@ -915,7 +917,12 @@ class Runner:
         while ents:
             k = min(range(len(ents)), key=lambda i: (ents[i]["x"] - pos[0]) ** 2 + (ents[i]["y"] - pos[1]) ** 2)
             e = ents.pop(k)
-            r = await self._act({"op": "mine", "x": e["x"], "y": e["y"]}, timeout=60)
+            # by name: with only a position, a tree already gone (the ghost builder clears trees in its way) left
+            # whatever stood next to it to be picked up instead, belts included (p2: "picked up belts during tree
+            # clear", orphaned undergrounds all over its base)
+            r = await self._act({"op": "mine", "x": e["x"], "y": e["y"], "name": e["n"]}, timeout=60)
+            if not r.get("ok") and "nothing minable" in str(r.get("msg")):
+                r = {"ok": True}  # already gone
             if r.get("ok"):
                 done += 1
             else:
@@ -1188,10 +1195,10 @@ class Runner:
                 mine.sort(key=lambda e: (e["x"] - pos[0]) ** 2 + (e["y"] - pos[1]) ** 2)
                 got = 0
                 for e in mine:
-                    r = await self._act({"op": "mine", "x": e["x"], "y": e["y"]}, timeout=60)
+                    r = await self._act({"op": "mine", "x": e["x"], "y": e["y"], "name": e["n"]}, timeout=60)
                     if not r.get("ok") and "inventory full" in str(r.get("msg")):
                         await self.tidy(low=4, want=12)
-                        r = await self._act({"op": "mine", "x": e["x"], "y": e["y"]}, timeout=60)
+                        r = await self._act({"op": "mine", "x": e["x"], "y": e["y"], "name": e["n"]}, timeout=60)
                         if not r.get("ok"):
                             break  # pockets stay full: route around what's left
                     got += bool(r.get("ok"))
