@@ -18,6 +18,7 @@ IRON_COAL = IRON + ["steel-plate"]
 ORE = ["iron-plate"]
 COPPER = ["copper-cable"]
 COPPER_ORE = ["copper-plate"]
+STONE = ["stone-brick", "stone-furnace"]
 IRON_COPPER = IRON + COPPER + ["automation-science-pack", "electronic-circuit"]  # (two-stage: feeders)
 MALL = IRON + ["inserter"]
 CARRY.update({id(IRON): ["iron-plate"], id(IRON_COAL): ["coal", "iron-plate"], id(ORE): ["coal", "iron-ore"],
@@ -47,6 +48,7 @@ CASES = [
     ("@serf yellow ammo please, off that belt [gps=5,5]", IRON, True, "firearm-magazine", "not_said", "chest"),
     ("@serf copper please, off that belt [gps=5,5]", COPPER_ORE, True, "copper-plate", "not_said", "chest"),
     ("@serf plates please, off that belt [gps=97,-32]", ORE, True, "iron-plate", "not_said", "chest"),
+    ("@serf bricks please, off that belt [gps=112,-47], 3 furnaces", STONE, True, "stone-brick", "3", "chest"),
     ("@serf build 6 furnaces off the ore belt at [gps=5,5], plates into chests", ORE, True, "iron-plate", "6", "chest"),
     ("@serf make me a smelter column: 8 stone furnaces off the ore belt at [gps=12,8] (iron ore and coal on it), "
      "plates on a belt into the chest at [gps=16,30]. Materials are in the supply chest at [gps=0,8], grid pole at "

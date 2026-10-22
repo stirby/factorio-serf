@@ -251,7 +251,10 @@ def only_word(order: str, products: list[str], every: list[str] | None = None) -
              "wooden-chest"}  # what orders talk about building with ("off this belt", "2 furnaces", "into chests")
     if products_named(order, [p for p in (every or SAY) if p not in products and p not in infra]):
         return None
-    words = {w[:-1] if w.endswith("s") and len(w) > 3 else w for w in re.findall(r"[a-z]+", order.lower())}
+    # "3 furnaces", "a couple of assemblers": how many machines, not a product named
+    plain = re.sub(r"\b\d+\s+(?:more\s+)?(?:stone\s+|steel\s+)?(?:furnaces?|assemblers?|assembling machines?|machines?)\b",
+                   " ", plain_counts(order.lower()))
+    words = {w[:-1] if w.endswith("s") and len(w) > 3 else w for w in re.findall(r"[a-z]+", plain)}
     def names(p):  # the product's own words and its chat names ("ammo" for firearm-magazine, "wire" for cable)
         out = set(p.split("-")) | set(SAY.get(p, "").split()) | set(OTHER_NAMES.get(p, "").split())
         return {w[:-1] if w.endswith("s") and len(w) > 3 else w for w in out}
