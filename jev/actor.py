@@ -394,6 +394,7 @@ class Actor(FastPaths):
             self._set_busy(True)
             t0 = time.time()
             pre = await self._mine_near(o)  # what the character had already built there
+            self.runner.abort = lambda o=o: o.status == "cancelled"
             try:
                 ok = await self._do_order(o)
                 if o.status != "cancelled":
@@ -404,6 +405,8 @@ class Actor(FastPaths):
                 log.exception("order failed")
                 self.log({"kind": "error", "where": "order", "error": repr(e)})
                 o.status = "failed"
+            finally:
+                self.runner.abort = None
             self.log({"kind": "order_end", "order": o.id, "status": o.status, "secs": round(time.time() - t0, 1),
                       "plans": o.plans})
             if o.status == "done" and pre is not None:  # exactly what this order built, for "two more like it"
@@ -1086,6 +1089,8 @@ class Actor(FastPaths):
                 self.metrics["recoveries"][choice_] = self.metrics["recoveries"].get(choice_, 0) + 1
                 self.log({"kind": "recovery", "order": o.id, "i": i, "choice": choice_, "conf": round(conf, 3),
                           "msg": msg})
+                if o.status == "cancelled":
+                    return False, "cancelled"
                 if choice_ == "retry" and tries < 3:
                     await asyncio.sleep(1)
                     continue

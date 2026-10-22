@@ -159,6 +159,7 @@ class Runner:
         self.recipes: dict = {}
         self.fuel_ahead = 0  # fuel the running plan's remaining refuel steps will use (set by the actor)
         self.no_path_streak = 0  # actions in a row that found no path: the character may have walled itself in
+        self.abort = None  # set while an order runs: true once that order is cancelled, so its remaining actions stop
         self._escaping = False
 
     async def refresh_inventory(self) -> dict:
@@ -170,6 +171,10 @@ class Runner:
         return self.inventory
 
     async def _act(self, action: dict, timeout: float = 240) -> dict:
+        if self.abort and self.abort():
+            # the order was cancelled (a player's stop, a project moving on): one step can be dozens of actions
+            # (every ghost of a layout), so stop here rather than at the next step
+            return {"ok": False, "msg": "cancelled", "cancelled": True}
         t0 = time.time()
         r = await self.g.run(action, timeout=timeout)
         self.log_fn({"t": t0, "kind": "act", "action": action, "ok": r.get("ok"), "msg": r.get("msg"),
