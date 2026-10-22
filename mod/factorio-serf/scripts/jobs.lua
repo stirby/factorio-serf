@@ -268,7 +268,9 @@ H.mine = {
     if c.selected ~= e then c.selected = e end
     c.mining_state = { mining = true, position = e.position }
     local prog = c.character_mining_progress
-    if job.last_progress and prog + 0.05 < job.last_progress then
+    -- (ore, trees and rocks start over after every unit: only a building's mining starting over means trouble)
+    if not job.resource and e.type ~= "tree" and e.type ~= "simple-entity" and job.last_progress
+        and prog + 0.05 < job.last_progress then
       job.resets = (job.resets or 0) + 1
       if job.resets >= 3 then
         return fail("mining " .. e.name .. " at " .. xystr(e.position) .. " keeps starting over (is the inventory full?)",
