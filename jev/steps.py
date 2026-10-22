@@ -158,6 +158,8 @@ class Runner:
         self.inventory: dict = {}
         self.recipes: dict = {}
         self.fuel_ahead = 0  # fuel the running plan's remaining refuel steps will use (set by the actor)
+        self.no_path_streak = 0  # actions in a row that found no path: the character may have walled itself in
+        self._escaping = False
 
     async def refresh_inventory(self) -> dict:
         try:
@@ -172,7 +174,61 @@ class Runner:
         r = await self.g.run(action, timeout=timeout)
         self.log_fn({"t": t0, "kind": "act", "action": action, "ok": r.get("ok"), "msg": r.get("msg"),
                      "secs": round(time.time() - t0, 1)})
+        if str(r.get("msg") or "").startswith("no path to") and not self._escaping:
+            self.no_path_streak += 1
+            if self.no_path_streak >= 3:
+                self.no_path_streak = 0
+                if await self.escape():
+                    return await self._act(action, timeout)
+        elif r.get("ok"):
+            self.no_path_streak = 0
         return r
+
+    ESCAPE_THROUGH = ("transport-belt", "underground-belt", "splitter", "pipe", "pipe-to-ground", "electric-pole",
+                      "inserter", "container", "wall")
+
+    async def escape(self) -> bool:
+        """Several places in a row have no path: if the character can't walk anywhere, it has walled itself in
+        (belts, pipes, machines round it). Do what a player does: pick up the nearest belt, pipe, pole or chest beside
+        it, step out through the gap, and put the piece back from outside. True when it got out."""
+        self._escaping = True
+        try:
+            me = await self.g.me()
+            x, y = me["position"]
+            for dx, dy in ((14, 0), (-14, 0), (0, 14), (0, -14)):
+                r = await self.g.run({"op": "move", "x": x + dx, "y": y + dy, "radius": 6}, timeout=60)
+                if r.get("ok"):
+                    self.log_fn({"t": time.time(), "kind": "escape", "trapped": False})
+                    return False  # it can walk: the places it wanted are unreachable, not the character stuck
+            sc = await self.g.scan(center=(x, y), radius=4)
+            near = [e for e in (sc.get("ents") or []) if not e.get("ghost") and e.get("t") in self.ESCAPE_THROUGH
+                    and abs(e["x"] - x) <= 2.6 and abs(e["y"] - y) <= 2.6]
+            near.sort(key=lambda e: (e["x"] - x) ** 2 + (e["y"] - y) ** 2)
+            for e in near[:4]:
+                took = await self.g.run({"op": "mine", "x": e["x"], "y": e["y"]}, timeout=30)
+                if not took.get("ok"):
+                    continue
+                vx, vy = e["x"] - x, e["y"] - y
+                n = max(abs(vx), abs(vy), 0.5)
+                out = await self.g.run({"op": "move", "x": x + vx / n * 8, "y": y + vy / n * 8, "radius": 3},
+                                       timeout=60)
+                back = {"op": "place", "name": e["n"], "x": e["x"], "y": e["y"]}
+                if e.get("d"):
+                    back["direction"] = e["d"]
+                if e.get("ug"):
+                    back["type"] = e["ug"]
+                put = await self.g.run(back, timeout=60)
+                self.log_fn({"t": time.time(), "kind": "escape", "trapped": True, "through": e["n"],
+                             "at": [e["x"], e["y"]], "out": out.get("ok"), "put_back": put.get("ok")})
+                if out.get("ok"):
+                    return True
+            self.log_fn({"t": time.time(), "kind": "escape", "trapped": True, "out": False})
+            return False
+        except Exception as ex:  # noqa: BLE001
+            self.log_fn({"t": time.time(), "kind": "error", "where": "escape", "error": repr(ex)})
+            return False
+        finally:
+            self._escaping = False
 
     async def stock(self, need: dict) -> dict:
         """Get everything in `need` ({item: count}) in one trip: fetches queued back to back, so the character walks
