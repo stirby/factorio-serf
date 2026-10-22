@@ -474,8 +474,12 @@ class Actor(FastPaths):
             if o.speaker != self.name:
                 await self.say("on it, taking a look")
             wide = await decide.scope(self.jev, o.text)
-            self.log({"kind": "scope", "order": o.id, "wide": round(wide, 3)})
-            r = await (self._fix_wide(o) if wide >= 0.6 else self._fix(o))
+            detailed = self._detailed(o.text)
+            self.log({"kind": "scope", "order": o.id, "wide": round(wide, 3), "detailed": detailed})
+            # an order that says what to do ("1) the coal belt at ... 2) ...") is the planner's after the point fix:
+            # the wide sweep fixes whatever it finds and ignores what was asked (in the campaigns, 18 of 33 detailed
+            # orders it closed came straight back as "still broken"; 1 of 23 that went point fix -> planner did)
+            r = await (self._fix_wide(o) if wide >= 0.6 and not detailed else self._fix(o))
             if r is True:
                 return True
             if o.speaker == self.name:  # a watch found it: don't spend a plan on it, stop watching that spot
@@ -635,7 +639,7 @@ class Actor(FastPaths):
                     fl = [f for f in w.faults() if f["kind"] in self.WATCH_KINDS and f.get("fixes") and f.get("u")
                           and abs(f["at"][0] - wt["at"][0]) <= wt["radius"] and abs(f["at"][1] - wt["at"][1]) <= wt["radius"]
                           and not (f["kind"] == "output_full" and f["fixes"][0].get("do") == "take")
-                          and not (f["kind"] == "chest_full" and self._raw_buffer(w, f))]
+                          and not self._buffer(w, f)]
                     # the grid powering what it built running out of boiler fuel: keep the lights on (wherever the
                     # boilers are)
                     dark = [f for f in w.faults() if f["kind"] == "boiler_fuel" and f.get("boilers")]
@@ -1463,7 +1467,7 @@ class Actor(FastPaths):
                 w = await self.world((center[0] + dx, center[1] + dy), 64)
                 for f in w.faults():
                     key = (f["kind"], f.get("u"), tuple(f.get("at") or ()))
-                    if key in seen or not f.get("fixes"):
+                    if key in seen or not f.get("fixes") or self._buffer(w, f):
                         continue
                     seen.add(key)
                     out.append((f, w))
@@ -1514,6 +1518,12 @@ class Actor(FastPaths):
                 f"Still broken: " + "; ".join(f["text"] for f, _ in left[:10]))
 
     @staticmethod
+    def _detailed(text: str) -> bool:
+        """An order that spells out what to do: a numbered list, or more than 40 words besides gps tags."""
+        text = GPS.sub("", text)
+        return bool(re.search(r"(^|\s)\(?[1-9]\)\s", text)) or len(re.findall(r"[a-zA-Z']+", text)) > 40
+
+    @staticmethod
     def _says_what_is_wrong(note: str) -> bool:
         """'not done yet' says only that; 'not done yet: drills on grid is 0, needs 2' says what's wrong, and the
         order's own checks passing again doesn't answer it (the regression check's x-outpost: "it's running", twice)."""
@@ -1525,11 +1535,20 @@ class Actor(FastPaths):
         return any(x.status in ("new", "working", "thinking") for x in self.orders)
 
     @staticmethod
-    def _raw_buffer(w: World, f: dict) -> bool:
-        """A full chest of ore, coal or stone at a mine: a buffer doing its job (the drills just pause), not a fault."""
-        e = w.ents.get(f.get("u")) or {}
+    def _buffer(w: World, f: dict) -> bool:
+        """A full chest that's a store doing its job, not a fault: ore, coal or stone at a mine (the drills just pause),
+        or products at the end of a line that no inserter takes from (the machines pause until someone uses them).
+        Emptying either only fills the serf's pockets: in the campaigns 489 of 791 'empty the full chest' fixes
+        failed on full pockets, and the rest bought a few minutes of plates nobody used. A player can still ask for
+        it at a spot (the point fix), and the planner has the step."""
+        if f["kind"] == "chest_full":
+            e = w.ents.get(f.get("u")) or {}
+        elif f["kind"] == "output_full" and f.get("fixes") and f["fixes"][0].get("do") == "empty_chest":
+            e = w.at(f["fixes"][0]["x"], f["fixes"][0]["y"]) or {}
+        else:
+            return False
         inv = e.get("inv") or {}
-        return bool(inv) and all(k in RAW for k in inv)
+        return bool(inv) and (all(k in RAW for k in inv) or not w.takers.get(e.get("u")))
 
     def _remember_fuelled(self, x: float, y: float) -> None:
         """A burner the actor fuelled by hand: it will run dry again, so it's kept topped up (_top_up_burners)."""

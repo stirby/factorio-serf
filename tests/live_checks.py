@@ -266,8 +266,34 @@ return {{ silo.position.x, silo.position.y }}"""
     check("launch: force.rockets_launched counts it once it has left", counted == 1, counted)
 
 
+async def chk_full_pocket(L: Live, state: dict):
+    g = L.g
+    x0, y0 = await L.site(6, 4)
+    cx, cy = x0 + 1.5, y0 + 1.5
+    await L.ev(f"""
+local a = storage.agents['serf']
+a.char.teleport({{{cx + 2}, {cy}}})
+local s, f = game.surfaces.nauvis, game.forces.player
+local ch = s.create_entity {{ name = 'iron-chest', position = {{{cx}, {cy}}}, force = f }}
+ch.insert {{ name = 'iron-plate', count = 3200 }}
+local inv = a.char.get_main_inventory()
+inv.clear()
+inv.insert {{ name = 'iron-chest', count = 5 }}
+inv.insert {{ name = 'stone', count = inv.get_insertable_count('stone') }}
+return inv.count_empty_stacks()""")
+    r = await g.run({"op": "take", "x": cx, "y": cy, "count": 400}, timeout=30)
+    check("full pocket: take says the inventory is full, not 'nothing to take'",
+          not r.get("ok") and "inventory is full" in str(r.get("msg")), r.get("msg"))
+    logs: list = []
+    runner = Runner(g, logs.append)
+    r = await runner.run({"do": "empty_chest", "x": cx, "y": cy})
+    left = await L.ev(f"return game.surfaces.nauvis.find_entity('iron-chest', {{{cx}, {cy}}}).get_item_count('iron-plate')")
+    check("full pocket: empty_chest makes room first, then takes", r.get("ok") and left < 3200, (r.get("msg"), left))
+    await L.ev("storage.agents['serf'].char.get_main_inventory().clear() return true")
+
+
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket}
 
 
 async def main() -> int:

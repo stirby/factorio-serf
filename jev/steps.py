@@ -161,6 +161,7 @@ class Runner:
         self.no_path_streak = 0  # actions in a row that found no path: the character may have walled itself in
         self.abort = None  # set while an order runs: true once that order is cancelled, so its remaining actions stop
         self._escaping = False
+        self.routed: list[dict] = []  # what each route step laid: {"ends": endpoint tiles, "tiles": belt tiles}
 
     async def refresh_inventory(self) -> dict:
         try:
@@ -230,7 +231,9 @@ class Runner:
                           and not e.get("ghost") and (e.get("free") or 0) >= 4),
                          key=lambda q: (q[0] - x) ** 2 + (q[1] - y) ** 2)[:6]
         made, moved = 0, {}
-        can_make = free >= 1  # crafting a chest needs a slot for it; with none, only existing chests will do
+        carried = next((c for c in ("steel-chest", "iron-chest", "wooden-chest") if inv.get(c)), None)
+        # crafting a chest needs a slot for it; with none, only chests in the pocket or already built will do
+        can_make = free >= 1 or carried is not None
         for item, n in dump:
             while n > 0:
                 if not targets:
@@ -238,7 +241,7 @@ class Runner:
                         break
                     fs = await self.g.call("find_space", agent=self.g.name, w=1, h=1, x=x, y=y, radius=24)
                     cands = fs.get("candidates") or []
-                    name = "steel-chest" if inv.get("steel-chest") else "iron-chest"
+                    name = carried or "iron-chest"
                     if not cands or not (await self.ensure(name, 1, grab=False)).get("ok"):
                         can_make = False
                         break
@@ -594,6 +597,7 @@ class Runner:
     async def _do_empty_chest(self, s):
         """Make room in a full chest: take part of it, enough that it doesn't fill again within minutes (100 of each
         item was gone in 3 minutes in x-sweep), without filling the pocket with junk like stone."""
+        await self.tidy(low=8, want=12)  # 400 plates is 4 slots: a full pocket can't take any (489 failed fixes)
         return await self._do_take({"x": s["x"], "y": s["y"], "count": int(s.get("count", 400))})
 
     async def _do_refuel(self, s):
@@ -1156,20 +1160,33 @@ class Runner:
         self.log_fn({"t": t0, "kind": "route", "nets": len(nets), "ok": bool(ents), "info": info, "kit": kit,
                      "secs": round(time.time() - t0, 2)})
         if not ents and not s.get("_cleared"):
-            # our own earlier belts in the way (a failed or reset attempt): pick them up and route on a clean area.
-            # Never touches what players built.
+            # an earlier attempt at these same lines in the way (it failed, or the order was reset): pick those belts
+            # up and route on a clean area. Only belts an earlier route step laid between any of these endpoints:
+            # "every belt the serf built" here was a working base by a campaign's fifth generation (p2 mined 335
+            # pieces of its own plastic and circuit lines, and was stopped with 1,660 to go). Never what players built.
+            ends = {p for _, a, b in nets for p in (a, b)}
+            old = set().union(*[r["tiles"] for r in self.routed if r["ends"] & ends]) if self.routed else set()
             mine = [e for e in w.ents.values() if e.get("t") in ("transport-belt", "underground-belt", "splitter")
-                    and e.get("by") == self.g.name]
+                    and e.get("by") == self.g.name and (_m.floor(e["x"]), _m.floor(e["y"])) in old]
             if mine:
                 me = await self.g.me()
                 pos = me.get("position") or (cx, cy)
                 mine.sort(key=lambda e: (e["x"] - pos[0]) ** 2 + (e["y"] - pos[1]) ** 2)
+                got = 0
                 for e in mine:
-                    await self._act({"op": "mine", "x": e["x"], "y": e["y"]}, timeout=60)
-                self.log_fn({"t": time.time(), "kind": "route_cleared", "n": len(mine)})
+                    r = await self._act({"op": "mine", "x": e["x"], "y": e["y"]}, timeout=60)
+                    if not r.get("ok") and "inventory full" in str(r.get("msg")):
+                        await self.tidy(low=4, want=12)
+                        r = await self._act({"op": "mine", "x": e["x"], "y": e["y"]}, timeout=60)
+                        if not r.get("ok"):
+                            break  # pockets stay full: route around what's left
+                    got += bool(r.get("ok"))
+                self.log_fn({"t": time.time(), "kind": "route_cleared", "n": len(mine), "mined": got})
                 return await self._do_route({**s, "_cleared": True})
         if not ents:
             return {"ok": False, "msg": f"router: {info}"}
+        self.routed = (self.routed + [{"ends": {p for _, a, b in nets for p in (a, b)},
+                                       "tiles": {(_m.floor(e["x"]), _m.floor(e["y"])) for e in ents}}])[-20:]
         r = await self._do_ghosts({"entities": ents})
         r["msg"] = f"routed {len(nets)} lines ({len(ents)} pieces); " + str(r.get("msg"))
         return r

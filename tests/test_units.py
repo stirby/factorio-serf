@@ -672,14 +672,76 @@ def test_raw_buffer():
     ents = [{"u": 1, "n": "iron-chest", "t": "container", "x": 0.5, "y": 0.5, "inv": {"iron-ore": 3200}},
             {"u": 2, "n": "iron-chest", "t": "container", "x": 4.5, "y": 0.5, "inv": {"iron-plate": 3200}},
             {"u": 3, "n": "iron-chest", "t": "container", "x": 8.5, "y": 0.5, "inv": {"coal": 50, "stone": 3150}},
-            {"u": 4, "n": "iron-chest", "t": "container", "x": 12.5, "y": 0.5, "inv": {"coal": 9, "iron-plate": 1}}]
+            {"u": 4, "n": "iron-chest", "t": "container", "x": 12.5, "y": 0.5, "inv": {"coal": 9, "iron-plate": 1}},
+            {"u": 5, "n": "inserter", "t": "inserter", "x": 12.5, "y": 1.5, "pku": 4, "dpu": 6},
+            {"u": 6, "n": "assembling-machine-1", "t": "assembling-machine", "x": 12.5, "y": 3.5},
+            {"u": 7, "n": "stone-furnace", "t": "furnace", "x": 4, "y": 3, "s": "full_output"}]
     w = World({"ents": ents, "center": [0, 0]})
-    rb = Actor._raw_buffer
-    check("watch: a full chest of ore at a mine is a buffer (oil-r2)", rb(w, {"u": 1}))
-    check("watch: coal and stone together too", rb(w, {"u": 3}))
-    check("watch: a full chest of plates is a fault", not rb(w, {"u": 2}))
-    check("watch: ore mixed with plates is a fault", not rb(w, {"u": 4}))
-    check("watch: an unknown entity is a fault", not rb(w, {"u": 99}))
+    rb = Actor._buffer
+    check("watch: a full chest of ore at a mine is a buffer (oil-r2)", rb(w, {"kind": "chest_full", "u": 1}))
+    check("watch: coal and stone together too", rb(w, {"kind": "chest_full", "u": 3}))
+    check("watch: a full chest of plates nothing takes from is a store (yellow-blk-r5)",
+          rb(w, {"kind": "chest_full", "u": 2}))
+    check("watch: a furnace stopped on that store is too",
+          rb(w, {"kind": "output_full", "u": 7, "fixes": [{"do": "empty_chest", "x": 4.5, "y": 0.5}]}))
+    check("watch: a full chest an inserter takes from is a fault", not rb(w, {"kind": "chest_full", "u": 4}))
+    check("watch: an unknown entity is a fault", not rb(w, {"kind": "chest_full", "u": 99}))
+    check("watch: other faults aren't stores", not rb(w, {"kind": "no_fuel", "u": 7}))
+
+
+def test_detailed_order():
+    from jev.actor import Actor
+    d = Actor._detailed
+    check("fix order: a short one is the code fixer's", not d("@serf something's wrong with the iron line at "
+                                                             "[gps=10,4], fix it please"))
+    check("fix order: 'refuel everything' is too", not d("@serf all the furnaces are out of fuel, get them going"))
+    check("fix order: a numbered list says what to do", d("@serf Two fixes. 1) The red science assembler at "
+                                                          "[gps=-20.5,-33.5] has no copper. 2) Labs are idle."))
+    check("fix order: so does a long description (yellow-blk-r5)", d(
+        "@serf The furnaces are out of fuel: the stone furnaces in the column at [gps=74,6] to [gps=74,26] and the "
+        "steel furnaces at [gps=84,14] to [gps=84,26]. Give them a permanent coal feed by belt and inserter so "
+        "nobody has to fuel them by hand. There's a coal belt full of coal right next to them at [gps=69.5,15] "
+        "(and another at [gps=67.5,15]). Use long-handed inserters."))
+    check("fix order: gps numbers aren't a list", not d("@serf fix the belt at [gps=1,2] and [gps=3,4]"))
+
+
+def test_route_clears_only_its_own_attempt():
+    import asyncio
+    import jev.router
+    from jev.steps import Runner
+
+    class G:
+        name = "serf"
+        def __init__(self):
+            self.mined = []
+        async def scan(self, center=None, radius=None, tiles=False):
+            belt = lambda u, x, y: {"u": u, "n": "transport-belt", "t": "transport-belt", "x": x, "y": y, "by": "serf"}
+            return {"ents": [belt(1, 5.5, 0.5), belt(2, 6.5, 0.5),  # an earlier try at these lines
+                             belt(3, 5.5, 8.5), belt(4, 6.5, 8.5)],  # a working line the serf built long ago
+                    "center": [5, 4]}
+        async def call(self, op, **k):
+            return {"materials": {}}
+        async def me(self):
+            return {"position": [0, 0], "inventory": {"transport-belt": 50}}
+        async def run(self, a, timeout=None):
+            if a["op"] == "mine":
+                self.mined.append((a["x"], a["y"]))
+            return {"ok": True, "msg": "ok"}
+
+    real = jev.router.solve
+    jev.router.solve = lambda *a, **k: (None, "no clean layout")
+    try:
+        g = G()
+        r = Runner(g)
+        step = {"do": "route", "pairs": [{"from": [0, 0], "to": [12, 0]}]}
+        asyncio.run(r._do_route(step))
+        check("route: with no earlier try, a failed layout mines nothing (p2 g5)", g.mined == [], g.mined)
+        r.routed = [{"ends": {(0, 0), (12, 0)}, "tiles": {(5, 0), (6, 0)}}]
+        asyncio.run(r._do_route(step))
+        check("route: it picks up only its earlier try at the same lines", sorted(g.mined) == [(5.5, 0.5), (6.5, 0.5)],
+              g.mined)
+    finally:
+        jev.router.solve = real
 
 
 def test_keeper_state():

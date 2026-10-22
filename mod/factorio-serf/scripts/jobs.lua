@@ -737,11 +737,18 @@ H.take = {
           hint = "; no chest or machine output within 300 tiles has any"
         end
       end
-      local holds = {}
+      local holds, room = {}, false
       for i = 1, e.get_max_inventory_index() do
         for name, n in pairs(util.contents(e.get_inventory(i))) do
           if #holds < 6 then holds[#holds + 1] = n .. " " .. name end
+          if not name:find("@") and c.can_insert { name = name, count = 1 } then room = true end
         end
+      end
+      if #holds > 0 and not room then
+        -- the chest has it but the pocket can't take any: say so ("nothing to take from a chest of 3200 plates"
+        -- read as an empty chest, and the actor tried again 489 times)
+        return fail("my inventory is full: can't take from " .. e.name .. " (it holds " .. table.concat(holds, ", ")
+          .. ")", { inventory_full = true })
       end
       hint = " (it holds " .. (#holds > 0 and table.concat(holds, ", ") or "nothing") .. ")" .. hint
       return fail("nothing to take from " .. e.name .. (args.item and (" (" .. args.item .. ")") or "") .. hint)
