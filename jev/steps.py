@@ -467,7 +467,11 @@ class Runner:
         have = (await self.refresh_inventory()).get(fuel, 0)
         if fuel == "wood" and not s.get("count"):
             n = 50  # wood holds half what coal does: 20 keeps a stone furnace going only ~7 minutes
-        return await self._act({"op": "insert", "x": p[0], "y": p[1], "item": fuel, "count": max(1, min(n, have))})
+        r = await self._act({"op": "insert", "x": p[0], "y": p[1], "item": fuel, "count": max(1, min(n, have))})
+        if not r.get("ok") and "fuel slot already holds" in str(r.get("msg")):
+            # full of fuel already: that's what refuelling is for
+            return {"ok": True, "msg": "its fuel slot is already full (" + str(r.get("msg")).split("already holds ")[-1]}
+        return r
 
     async def _do_power(self, s):
         """Make sure every electric machine within `radius` (default 6) of x,y is on a grid that has generators:

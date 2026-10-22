@@ -530,6 +530,12 @@ def test_lint_rules():
     probs = lint([{"do": "place", "name": "burner-mining-drill", "x": 40, "y": -100, "direction": "north"},
                   {"do": "place", "name": "stone-furnace", "x": 40, "y": -98}], w2, None, {})
     check("lint: a drill facing away doesn't", any("nothing feeds" in p for p in probs), probs)
+    probs = lint([{"do": "place", "name": "burner-mining-drill", "x": -38, "y": -25, "direction": "south"},
+                  {"do": "place", "name": "iron-chest", "x": -38.5, "y": -23.5}], w2, None, {})
+    check("lint: a chest one tile off the drill's output is flagged", any("drops its ore" in p for p in probs), probs)
+    probs = lint([{"do": "place", "name": "burner-mining-drill", "x": -38, "y": -25, "direction": "south"},
+                  {"do": "place", "name": "iron-chest", "x": -37.5, "y": -23.5}], w2, None, {})
+    check("lint: a chest on the drill's output is fine", not any("drops its ore" in p for p in probs), probs)
 
 
 def test_failure_facts():

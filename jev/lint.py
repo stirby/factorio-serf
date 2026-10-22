@@ -244,6 +244,11 @@ def lint(steps: list[dict], w: World, available: set[str] | None = None, recipes
         if available is not None and n not in available and recipes is not None and n not in recipes:
             # only when there's no recipe at all: craftable items can come from plates on belts or elsewhere
             out.append(f"{n} is not available: none in storage or inventory, and it has no recipe you can use")
+        if n in DRILL_DROP:
+            dt = drill_drop(e)
+            if thing_at(dt) is None and dt not in maybe_belt:
+                out.append(f"{n} at {fmt_xy((e['x'], e['y']))} drops its ore on tile {dt[0]},{dt[1]} where there is "
+                           "nothing: it stops after one item. Put the chest, furnace or belt on that tile, or turn it")
         if n in INSERTERS:
             reach = 2 if n == "long-handed-inserter" else 1
             if e["pickup"]:
