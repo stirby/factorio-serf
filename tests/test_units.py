@@ -273,6 +273,10 @@ def test_inserter_backwards():
     f = [x for x in w.faults() if x["kind"] == "inserter_backwards"]
     check("world: an inserter taking from an unfed furnace onto its ore belt is turned around (and only that one)",
           len(f) == 1 and f[0]["u"] == 31 and f[0]["fixes"][0]["direction"] == "north", f)
+    fresh = dict(fur, r=None)
+    w = World({"ents": line + [fresh, back, out, chest], "center": [3, 3]}, {"iron-plate": {"ingredients": {"iron-ore": 1}}})
+    check("world: also when the furnace never smelted (no recipe yet)",
+          [x["u"] for x in w.faults() if x["kind"] == "inserter_backwards"] == [31])
 
 
 def test_options_nearest_line():

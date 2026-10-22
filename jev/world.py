@@ -699,9 +699,11 @@ class World:
         # 4b. an inserter facing backwards: it takes from a machine that nothing feeds and drops onto a belt carrying
         # that machine's ingredients (its input belt)
         for e in self.ents.values():
-            if e["t"] not in ("furnace", "assembling-machine") or self.feeders.get(e["u"]) or not e.get("r"):
+            # (a furnace that never smelted has no recipe yet)
+            if e["t"] not in ("furnace", "assembling-machine") or self.feeders.get(e["u"]) or \
+                    (not e.get("r") and e["t"] != "furnace"):
                 continue
-            need = set((self.recipes.get(e["r"]) or {}).get("ingredients") or {})
+            need = set((self.recipes.get(e.get("r")) or {}).get("ingredients") or {})
             if e["t"] == "furnace" and not need:
                 need = {"iron-ore", "copper-ore", "stone", "iron-plate"}
             for i in self.takers.get(e["u"], []):
