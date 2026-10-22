@@ -461,6 +461,43 @@ end
 -- Polling is also the heartbeat: the panel shows an agent "offline" when its orchestrator stops.
 API.poll = function(req, ctx) return link.poll(ctx, req) end
 
+-- How far into the game the force is (read-only): research, totals made, machines standing, rockets. The names to
+-- count come with the request (jev/progress.py), so the list can grow without a mod release.
+API.progress = function(req)
+  local f, s = game.forces.player, game.surfaces.nauvis
+  local out = { tick = game.tick, techs = 0, items = {}, fluids = {}, ents = {}, by_recipe = {}, rockets = 0,
+    labs_working = 0 }
+  for _, t in pairs(f.technologies) do if t.researched then out.techs = out.techs + 1 end end
+  if f.current_research then out.research = f.current_research.name end
+  pcall(function() out.rockets = f.rockets_launched end)
+  local ist = f.get_item_production_statistics(s)
+  for _, n in pairs(req.items or {}) do
+    if prototypes.item[n] then out.items[n] = ist.get_input_count(n) end
+  end
+  pcall(function()
+    local fst = f.get_fluid_production_statistics(s)
+    for _, n in pairs(req.fluids or {}) do
+      if prototypes.fluid[n] then out.fluids[n] = fst.get_input_count(n) end
+    end
+  end)
+  for _, n in pairs(req.entities or {}) do
+    if prototypes.entity[n] then out.ents[n] = s.count_entities_filtered { name = n, force = f } end
+  end
+  for _, m in pairs(s.find_entities_filtered { type = { "assembling-machine", "furnace" }, force = f }) do
+    local name
+    pcall(function()
+      local r = m.get_recipe()
+      if not r and m.type == "furnace" and m.previous_recipe then r = m.previous_recipe.name end
+      name = type(r) == "string" and r or (r and r.name)
+    end)
+    if name then out.by_recipe[name] = (out.by_recipe[name] or 0) + 1 end
+  end
+  for _, l in pairs(s.find_entities_filtered { type = "lab", force = f }) do
+    if l.status == defines.entity_status.working then out.labs_working = out.labs_working + 1 end
+  end
+  return out
+end
+
 -- Dev helper: run Lua in mod context (RCON only). Returns whatever the chunk returns.
 API.eval = function(req)
   local fn, err = load(req.code, "crew-eval", "t", setmetatable({ storage = storage, util = util }, { __index = _G }))

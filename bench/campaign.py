@@ -31,6 +31,7 @@ from jev.typesafe import reader  # noqa: E402
 
 GOAL = ("launch a rocket from Nauvis. On the way: automate red, green, blue, purple and yellow science, research "
         "the rocket silo, build it and feed it.")
+PROJECT_ORDER = "@serf project: beat the game. Launch a rocket from Nauvis; automate each science pack on the way."
 
 
 def jsonl(p: Path, rec: dict) -> None:
@@ -53,12 +54,10 @@ class Generation:
 
     async def probe(self, g: Game) -> dict | None:
         try:
-            p = (await g.call("eval", code=progress.probe_lua(), timeout=60)).get("result")
+            p = await progress.probe(g)
         except Exception as e:  # noqa: BLE001
             jsonl(self.dir / "progress.jsonl", {"error": repr(e)})
             return None
-        lv, got = progress.level(p)
-        p["level"], p["milestones"] = lv, got
         self.probes.append(p)
         jsonl(self.dir / "progress.jsonl", p)
         return p
@@ -115,11 +114,14 @@ class Generation:
                     raise
                 say(f"start retry: {str(e)[:200]}")
                 await asyncio.sleep(8)
+        if camp.mode == "project":
+            os.environ["JEV_PROJECT_DIR"] = str(camp.dir / "project")
         jev = reader(log_path=self.dir / "jev.jsonl")
         g = await Game.connect(self.inst.host, self.inst.rcon_port, self.inst.password, "serf")
         pg = await Game.connect(self.inst.host, self.inst.rcon_port, self.inst.password, "serf")  # probes, saves
         await g.start()
         actor = Actor(g, jev, self.dir, "serf", think=True, thinker_effort=camp.effort)
+        actor.project_effort = camp.strategist_effort
         await actor.start()
         orig_say = actor.say
 
@@ -132,6 +134,7 @@ class Generation:
         strat = Strategist(GOAL, actor._thinker_tools(), camp.dir / "strategist", effort=camp.strategist_effort)
         t0 = time.time()
         deadline = t0 + hours * 3600
+        actor.project_deadline = deadline - 120
         stop = asyncio.Event()
 
         async def keeper():
@@ -151,7 +154,29 @@ class Generation:
         ktask = asyncio.create_task(keeper())
         last = None
         try:
-            while time.time() < deadline:
+            while camp.mode == "project" and time.time() < deadline - 150:
+                # one order starts the serf's own project; when a project ends before the time is up (it gave up or
+                # crashed), it's started again: its journal carries on
+                pr = actor.project
+                if pr is None or not pr.active:
+                    if pr is not None:
+                        say(f"{camp.name} g{self.n}: project ended {pr.status}: {pr.summary[:160]}")
+                        jsonl(self.dir / "campaign.jsonl", {"kind": "project_end", "status": pr.status,
+                                                             "summary": pr.summary, "turns": pr.turns,
+                                                             "usd": pr.usd})
+                        if pr.status == "done" and (self.probes and self.probes[-1].get("rockets")):
+                            break
+                    text = camp.order if pr is None else "@serf carry on with the project: " + camp.goal
+                    say(f"{camp.name} g{self.n} order: {text}")
+                    await g.call("chat", player="boss", message=text)
+                    self.orders_sent += 1
+                    await asyncio.sleep(90)
+                    if actor.project is pr:  # the order didn't start one (taken some other way): start it directly
+                        actor.start_project(camp.goal, "boss")
+                        say(f"{camp.name} g{self.n}: started the project directly")
+                    continue
+                await asyncio.sleep(20)
+            while camp.mode == "strategist" and time.time() < deadline:
                 when = f"g{self.n} +{int((time.time() - t0) / 60)}m"
                 try:
                     d = await strat.decide(self.report(last, deadline - time.time()), when)
@@ -177,6 +202,12 @@ class Generation:
                     await asyncio.sleep(min(mins * 60, max(0, deadline - time.time())))
                     last = {"text": f"(you waited {mins:.0f} min)", "outcome": "waited", "mins": mins}
         finally:
+            if actor.project and actor.project.active:
+                actor.project.stop("the generation ended")
+                try:
+                    await asyncio.wait_for(actor.project.task, 60)
+                except Exception:  # noqa: BLE001
+                    pass
             stop.set()
             try:
                 await asyncio.wait_for(ktask, 120)
@@ -222,7 +253,10 @@ class Generation:
                 "techs": p["techs"] if p else None, "orders_sent": self.orders_sent, "orders": len(orders),
                 "done": sum(o.status == "done" for o in orders), "failed": sum(o.status == "failed" for o in orders),
                 "fix_share": round(len(fixes) / max(1, len(orders)), 2), "strategist_turns": strat.turns,
-                "strategist_usd": round(strat.usd, 2),
+                "strategist_usd": round(strat.usd + sum(pr.usd for pr in actor.projects), 2),
+                "projects": [{"status": pr.status, "summary": pr.summary, "turns": pr.turns, "orders": len(pr.orders)}
+                             for pr in actor.projects],
+                "mode": self.camp.mode,
                 "thinker_usd": round(actor.thinker.stats.cost_usd, 2) if actor.thinker else 0,
                 "final_save": str(final) if final else None}
 
@@ -230,6 +264,9 @@ class Generation:
 class Campaign:
     def __init__(self, a):
         self.name, self.k, self.effort, self.strategist_effort = a.name, a.instance, a.effort, a.strategist_effort
+        self.mode = a.mode
+        self.order = a.order or PROJECT_ORDER
+        self.goal = a.order.replace("@serf", "").replace("project:", "").strip() if a.order else GOAL
         self.dir = ROOT / "bench" / "campaigns" / a.name
         self.dir.mkdir(parents=True, exist_ok=True)
         self.state_path = self.dir / "campaign.json"
@@ -298,6 +335,10 @@ def main() -> None:
     p.add_argument("--reader", choices=["jev", "sonnet", "hybrid"], default="hybrid")
     p.add_argument("--effort", default=None, help="the serf's planner effort")
     p.add_argument("--strategist-effort", default=None)
+    p.add_argument("--mode", choices=["strategist", "project"], default="strategist",
+                   help="strategist: an outside Opus player gives every order; project: one order, the serf's own "
+                        "project manager (jev/project.py) does the rest")
+    p.add_argument("--order", default=None, help="project mode: the order that starts it (default: beat the game)")
     a = p.parse_args()
     os.environ["JEV_READER"] = a.reader
     asyncio.run(Campaign(a).run(a.gens, a.gen_hours))

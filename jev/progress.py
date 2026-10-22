@@ -40,6 +40,22 @@ return out
 """
 
 
+async def probe(g) -> dict:
+    """One probe of the world, with its milestone level: the mod's progress op, or the same read by eval on a server
+    whose mod predates it."""
+    try:
+        p = await g.call("progress", items=ITEMS, fluids=FLUIDS, entities=ENTITIES, timeout=60)
+    except Exception as e:  # noqa: BLE001
+        if "unknown op" not in str(e):
+            raise
+        p = (await g.call("eval", code=probe_lua(), timeout=60)).get("result")
+    for k in ("items", "fluids", "ents", "by_recipe"):  # an empty Lua table comes back as [] in JSON
+        if not isinstance(p.get(k), dict):
+            p[k] = {}
+    p["level"], p["milestones"] = level(p)
+    return p
+
+
 def probe_lua() -> str:
     def lua_list(xs):
         return "{" + ", ".join(f'"{x}"' for x in xs) + "}"

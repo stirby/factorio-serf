@@ -14,6 +14,7 @@ import asyncio
 import json
 import logging
 import math
+import os
 import re
 import time
 from collections import Counter
@@ -21,6 +22,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import craft, decide, quickbuild
+from .project import OBVIOUS, Project
 from .fastpaths import FastPaths
 from .game import Game
 from .lint import lint, plan_points
@@ -62,6 +64,7 @@ class Order:
     multi: bool = False  # several jobs in one message: the planner sorts them out, not the quick paths
     reopened: int = 0  # times a player said it isn't done after it finished
     quick_plan: dict | None = None  # the plan a fast path ran (re-checked when it's reopened)
+    project: "Project | None" = None  # the project that gave this order (jev/project.py)
 
     @property
     def focus(self):
@@ -111,6 +114,11 @@ class Actor(FastPaths):
         self.busy_since: float | None = None
         self.idle_secs = 0.0
         self._idle_mark = time.time()
+        self.project: Project | None = None
+        self.projects: list[Project] = []
+        self.project_dir = Path(os.environ.get("JEV_PROJECT_DIR") or workdir / "project")
+        self.project_effort: str | None = None
+        self.project_deadline: float | None = None  # a bench run's end: projects stop there
 
     # ------------------------------------------------------------------ logging / chat
     def log(self, rec: dict) -> None:
@@ -122,7 +130,51 @@ class Actor(FastPaths):
     async def say(self, text: str) -> None:
         self.last_said = text
         self.log({"kind": "say", "text": text})
+        if self.project and self.project.active:
+            self.project.hear(self.name, text)
         await self.g.say(text)
+
+    # ------------------------------------------------------------------ orders and projects
+    async def add_order(self, msg: str, speaker: str) -> Order:
+        """An order that didn't come through chat (a project's): triaged for its playbook the same way."""
+        try:
+            call = await decide.chat(self.jev, self.name, speaker, msg, None, self.last_said)
+            playbook = call.playbook if call.playbook_conf >= 0.6 else "plan"
+            multi = call.multi >= 0.75
+        except JevError:
+            playbook, multi = "plan", True
+        o = Order(self.next_id, msg, speaker, playbook, [(float(a), float(b)) for a, b in GPS.findall(msg)])
+        o.multi = multi
+        self.next_id += 1
+        self.orders.append(o)
+        self.metrics["orders"] += 1
+        self.log({"kind": "chat", "speaker": speaker, "msg": msg, "addressed": 1.0, "kind_": "new_job",
+                  "kind_conf": 1.0, "playbook": playbook, "playbook_conf": 1.0, "multi": float(multi)})
+        self.wake.set()
+        return o
+
+    def start_project(self, goal: str, speaker: str) -> str:
+        if self.project and self.project.active:
+            return f"a project is already running ({self.project.goal[:120]}); it carries on"
+        if not self.thinker:
+            return "no planner, so no projects"
+        self.project = Project(self, goal, speaker, self.project_dir, effort=self.project_effort,
+                               deadline=self.project_deadline)
+        self.projects.append(self.project)
+        self.project.task = asyncio.create_task(self._run_project(self.project))
+        self.log({"kind": "project_start", "goal": goal, "speaker": speaker})
+        return "project started: it runs as a series of orders from now on"
+
+    async def _run_project(self, pr: Project) -> None:
+        try:
+            st = await pr.run()
+        except Exception as e:  # noqa: BLE001
+            log.exception("project failed")
+            self.log({"kind": "error", "where": "project", "error": repr(e)})
+            pr.status = "given_up"
+            st = "crashed"
+        self.log({"kind": "project_end", "goal": pr.goal, "status": st, "summary": pr.summary, "turns": pr.turns,
+                  "usd": round(pr.usd, 3), "orders": len(pr.orders)})
 
     # ------------------------------------------------------------------ lifecycle
     async def start(self) -> None:
@@ -171,6 +223,8 @@ class Actor(FastPaths):
         if speaker == self.name or not msg.strip():
             return
         self.metrics["chat_lines"] += 1
+        if self.project and self.project.active:
+            self.project.hear(speaker, msg)
         explicit = f"@{self.name}".lower() in msg.lower() or "@all" in msg.lower()
         doing = self.current.text if self.current and self.current.status in ("working", "thinking") else None
         try:
@@ -249,7 +303,11 @@ class Actor(FastPaths):
             if self.current and self.current.status in ("working", "thinking"):
                 self.current.status = "cancelled"
             await self.g.cancel("player said stop")
-            await self.say("ok, stopped")
+            if self.project and self.project.active:
+                self.project.stop(f"stopped by {speaker}")
+                await self.say("ok, stopped (the project too; its notes are kept)")
+            else:
+                await self.say("ok, stopped")
         elif kind == "question" and await self._quick_answer(msg):
             pass
         elif kind == "question" and self.thinker:
@@ -359,6 +417,12 @@ class Actor(FastPaths):
             except Exception:  # noqa: BLE001
                 pass
         await self.g.status(text=o.text[:100])
+        if o.project is None and o.speaker != self.name and self.thinker and OBVIOUS.search(o.text):
+            goal = re.sub(r"@\S+\s*", "", o.text).strip()
+            r = self.start_project(goal, o.speaker)
+            await self.say("on it, as a project: I'll break it into jobs and keep you posted" if r.startswith("project")
+                           else r)
+            return True
         if o.playbook == "fix" and o.focus:
             if o.speaker != self.name:
                 await self.say("on it, taking a look")
@@ -601,8 +665,14 @@ class Actor(FastPaths):
         async def diagnose(a):
             return json.dumps(await self.g.call("diagnose", item=a.get("item", "iron-plate"), surface="nauvis"),
                               separators=(",", ":"))[:8000]
+        async def start_project(a):
+            cur = self.thinker.current if self.thinker else None
+            o = next((x for x in self.orders if cur and x.id == cur.order_id), None)
+            if o and o.project:
+                return "refused: this order already comes from a project; plan it as an order (smaller, if need be)"
+            return self.start_project(str(a.get("goal") or (o.text if o else "")), o.speaker if o else "a player")
         return {"area": area, "find": find, "recipe": recipe, "free_space": free_space, "me": me, "say": say,
-                "techs": techs, "production": production, "diagnose": diagnose}
+                "techs": techs, "production": production, "diagnose": diagnose, "start_project": start_project}
 
     async def _lint(self, plan: dict) -> list[str]:
         pts = plan_points(plan.get("steps") or [])
@@ -752,6 +822,9 @@ class Actor(FastPaths):
             parts.append(f"{o.speaker} is standing at {fmt_xy(o.speaker_at)}.")
         if o.notes:
             parts.append("The player also said: " + " | ".join(o.notes))
+        if o.project:
+            parts.append(f"This order comes from your own project (goal: {o.project.goal[:200]}). Nobody will answer "
+                         "questions about it: decide yourself. Don't start another project for it.")
         return " ".join(parts)
 
     async def _planned(self, o: Order, intro: str) -> bool:
