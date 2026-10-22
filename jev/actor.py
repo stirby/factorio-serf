@@ -549,10 +549,12 @@ class Actor(FastPaths):
         the planner asked to watch for (Jev judges those)."""
         while True:
             await asyncio.sleep(self.watch_every)
-            if any(x.status in ("new", "working", "thinking") for x in self.orders):
+            if self._busy():
                 continue
             # chests a plan stocked by hand (e.g. coal for a boiler or plastic plant): top them up before they run dry
             for c in list(self.stocked):
+                if self._busy():  # an order came in: it goes first (a round of restocks can take minutes)
+                    break
                 try:
                     w = await self.world((c["x"], c["y"]), 2)
                     e = w.at(c["x"], c["y"])
@@ -561,17 +563,28 @@ class Actor(FastPaths):
                         continue
                     have = (e.get("inv") or {}).get(c["item"], 0)
                     if have < c["count"] * 0.2:
-                        self.log({"kind": "restock", "chest": [c["x"], c["y"]], "item": c["item"], "have": have})
+                        # only what storage and pockets hold: not grabbed off the base's own belts, not crafted
+                        st = await self.g.call("stored", agent=self.name, item=c["item"])
+                        pocket = (await self.runner.refresh_inventory()).get(c["item"], 0)
+                        n = min(c["count"] - have, int(st.get("in_storage_total") or 0) + pocket)
+                        self.log({"kind": "restock", "chest": [c["x"], c["y"]], "item": c["item"], "have": have,
+                                  "n": n})
+                        if n < max(5, c["count"] * 0.1):
+                            continue
                         await self.say(f"topping up {c['item']} in the chest at [gps={c['x']:.0f},{c['y']:.0f}]")
                         await self.runner.run({"do": "insert", "x": c["x"], "y": c["y"], "item": c["item"],
-                                               "count": c["count"] - have})
+                                               "count": n, "no_grab": True})
                 except Exception as ex:  # noqa: BLE001
                     self.log({"kind": "error", "where": "restock", "error": repr(ex)})
+            if self._busy():
+                continue
             await self._top_up_burners()
-            if not self.watches:
+            if not self.watches or self._busy():
                 continue
             try:
                 for wt in list(self.watches):
+                    if self._busy():
+                        break
                     w = await self.world(wt["at"], wt["radius"])
                     # a machine whose output nothing takes is full by design (no output inserter): not a fault here
                     fl = [f for f in w.faults() if f["kind"] in self.WATCH_KINDS and f.get("fixes") and f.get("u")
@@ -1453,6 +1466,9 @@ class Actor(FastPaths):
         return (f"I fixed {len(fixed)} things ({'; '.join(fixed[:8])}); failed: {'; '.join(failed[:5]) or 'none'}. "
                 f"Still broken: " + "; ".join(f["text"] for f, _ in left[:10]))
 
+    def _busy(self) -> bool:
+        return any(x.status in ("new", "working", "thinking") for x in self.orders)
+
     @staticmethod
     def _raw_buffer(w: World, f: dict) -> bool:
         """A full chest of ore, coal or stone at a mine: a buffer doing its job (the drills just pause), not a fault."""
@@ -1498,6 +1514,8 @@ class Actor(FastPaths):
             at = (q[0], q[1])
         self.log({"kind": "top_up", "n": len(route), "at": [[q[0], q[1]] for q in route]})
         for i, (x, y, _, name) in enumerate(route):
+            if self._busy():
+                break
             try:
                 step = {"do": "refuel", "x": x, "y": y}
                 if i == 0:

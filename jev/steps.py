@@ -225,7 +225,7 @@ class Runner:
         self.log_fn({"t": t0, "kind": "stock", "need": short, "fails": fails, "secs": round(time.time() - t0, 1)})
         return fails
 
-    async def ensure(self, item: str, count: int, depth: int = 0) -> dict:
+    async def ensure(self, item: str, count: int, depth: int = 0, grab: bool = True) -> dict:
         """Have at least count of item: storage first, then hand-crafting (the mod's fetch does both, fetching
         ingredients from storage too). If that fails: grab it, or its ingredients, off belts, then craft. An
         ingredient that can't be had is made the same way, a few levels down to mining the raw resource (a boiler
@@ -235,6 +235,8 @@ class Runner:
             return {"ok": True, "msg": f"have {inv[item]} {item}"}
         r = await self._act({"op": "fetch", "item": item, "count": count}, timeout=300)
         if r.get("ok"):
+            return r
+        if not grab:
             return r
         inv = await self.refresh_inventory()
         short = count - inv.get(item, 0)
@@ -420,7 +422,7 @@ class Runner:
     async def _do_insert(self, s):
         p = _xy(s)
         n = int(s.get("count", 0) or 0)
-        r = await self.ensure(s["item"], max(1, n))
+        r = await self.ensure(s["item"], max(1, n), grab=not s.get("no_grab"))
         if not r.get("ok"):
             return {"ok": False, "msg": f"couldn't get {s['item']}: {r.get('msg')}", "missing": {s["item"]: max(1, n)},
                     "unobtainable": True}
