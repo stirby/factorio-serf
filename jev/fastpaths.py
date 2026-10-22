@@ -224,6 +224,8 @@ class FastPaths:
             prev = prev.copy_of
         if not prev:
             return None
+        if not quickcopy.COPY_WORDS.search(o.text):
+            return None
         unit = prev.built  # exactly what that order built
         pts = [(e["x"], e["y"]) for e in unit] or prev.built_pts + [prev.focus]
         xs, ys = [q[0] for q in pts], [q[1] for q in pts]

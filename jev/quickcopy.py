@@ -4,8 +4,17 @@ whether the order asks for more of the same; code matches the new order's points
 built there, shifted, as one ghost layout per copy."""
 from __future__ import annotations
 
+import re
+
 from .typesafe import Jev, noul
 from .world import World
+
+# an order for more of the same says so in words ("two more like that", "do that again", "dupe that", "x3"); without
+# one, the reader's guess alone isn't enough (r3: "the sulfur plant gets no petroleum gas" was read at 0.75 and two
+# copies of an engine block went up)
+COPY_WORDS = re.compile(r"\b(cop(y|ies)|clone|dupe|duplicate|same|again|another|replicate|repeat|more (like|of)|"
+                        r"like (that|it|this|those|the last)|(one|two|three|four|five|six|\d+|a pair|a couple|couple|"
+                        r"few) more|x ?\d|\d+ ?x)\b", re.I)
 
 
 def offsets(orig: list, new: list, tol: float = 1.5, spacing: float = 0) -> list[tuple[float, float]]:
