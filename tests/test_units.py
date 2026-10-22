@@ -744,6 +744,23 @@ def test_route_clears_only_its_own_attempt():
         jev.router.solve = real
 
 
+def test_fluid_backup():
+    from jev.world import fluid_backup
+    fb = [{"have": "heavy-oil", "amt": 1000, "cap": 1000, "linked": 1},
+          {"have": "light-oil", "amt": 120, "cap": 1000, "linked": 1},
+          {"have": "petroleum-gas", "amt": 1000, "cap": 1000, "linked": 0}]
+    t = fluid_backup(fb)
+    check("fluid backup: names the full outputs and how to drain them (yellow stage oil deadlock)",
+          "heavy-oil is backed up" in t and "heavy-oil-cracking" in t and "petroleum-gas is backed up" in t
+          and "no pipe takes it away" in t and "light-oil" not in t, t)
+    check("fluid backup: nothing full, nothing said", fluid_backup([{"have": "water", "amt": 5, "cap": 100}]) == "")
+    w = World({"ents": [{"u": 1, "n": "oil-refinery", "t": "assembling-machine", "x": 0.5, "y": 0.5, "w": 5, "h": 5,
+                         "s": "full_output", "r": "advanced-oil-processing", "fout": fb}], "center": [0, 0]})
+    f = [x for x in w.faults() if x["kind"] == "output_full"]
+    check("fluid backup: the refinery's output-full fault says which", f and "heavy-oil is backed up" in f[0]["text"],
+          [x["text"] for x in w.faults()])
+
+
 def test_keeper_state():
     import tempfile
     from types import SimpleNamespace

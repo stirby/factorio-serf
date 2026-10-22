@@ -68,6 +68,26 @@ local function fluid_inputs(e)
   return #out > 0 and out or nil
 end
 
+-- A machine stopped with its output full: what each fluid output holds and whether pipes lead away from it. A
+-- refinery stops when any one of heavy oil, light oil or petroleum backs up (the yellow-science stage started
+-- with both refineries deadlocked, and tries spent hours on it); this says which one.
+local function fluid_outputs(e)
+  local okF, fb = pcall(function() return e.fluidbox end)
+  if not okF or not fb or #fb == 0 then return nil end
+  local out = {}
+  for i = 1, #fb do
+    pcall(function()
+      local pr = fb.get_prototype(i)
+      if pr and pr.object_name ~= "LuaFluidBoxPrototype" and pr[1] then pr = pr[1] end
+      if not (pr and pr.production_type == "output") then return end
+      local here = fb[i]
+      out[#out + 1] = { have = here and here.name or nil, amt = here and math.floor(here.amount) or 0,
+        cap = math.floor(fb.get_capacity(i)), linked = #(fb.get_connections(i) or {}) }
+    end)
+  end
+  return #out > 0 and out or nil
+end
+
 local function contents(inv)
   local out = util.contents(inv)
   return next(out) and out or nil
@@ -100,7 +120,10 @@ local function entry(e)
     end
     d.inp = contents(e.get_inventory(defines.inventory.crafter_input))
     d.out = contents(e.get_output_inventory())
-    if t == "assembling-machine" then d.fin = fluid_inputs(e) end
+    if t == "assembling-machine" then
+      d.fin = fluid_inputs(e)
+      if d.s == "full_output" then d.fout = fluid_outputs(e) end
+    end
     pcall(function() d.prog = math.floor(e.crafting_progress * 100) end)
   elseif t == "container" or t == "logistic-container" or t == "infinity-container" then
     local inv = e.get_inventory(defines.inventory.chest)

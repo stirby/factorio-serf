@@ -19,6 +19,25 @@ BELT_T = {"transport-belt", "underground-belt", "splitter"}
 CRAFTERS = {"assembling-machine", "furnace", "lab", "mining-drill", "boiler", "rocket-silo", "reactor",
             "generator", "burner-generator"}
 CHESTS = {"container", "logistic-container", "infinity-container"}
+
+# what drains each oil product when it backs up (a refinery stops when any one of its outputs is full)
+DRAIN = {"heavy-oil": "crack it into light oil (chemical plant, heavy-oil-cracking) or make lubricant",
+         "light-oil": "crack it into petroleum (chemical plant, light-oil-cracking) or make solid fuel",
+         "petroleum-gas": "use it: plastic, sulfur, or more of whatever consumes it"}
+
+
+def fluid_backup(fout) -> str:
+    """' (heavy-oil is backed up: 1000 of 1000, and no pipe takes it away; ...)' for a machine stopped on a full
+    fluid output; '' when no fluid output is full."""
+    parts = []
+    for b in fout or []:
+        # "output full" means the next craft won't fit, often well short of the brim (acid: 150 of 200)
+        if b.get("have") and b.get("cap") and b.get("amt", 0) >= 0.5 * b["cap"]:
+            way = "no pipe takes it away" if not b.get("linked") else "nothing downstream uses it fast enough"
+            hint = DRAIN.get(b["have"])
+            parts.append(f"{b['have']} is backed up ({b['amt']} of {b['cap']}; {way}" + (f": {hint}" if hint else "")
+                         + ")")
+    return (": " + "; ".join(parts)) if parts else ""
 FUELS = ["coal", "wood", "solid-fuel", "rocket-fuel", "nuclear-fuel"]
 
 STATUS_WORDS = {
@@ -555,7 +574,8 @@ class World:
                 # no full chest behind it: a machine whose output nothing takes away is usually full on purpose
                 # (a mall, a buffer). Don't offer to take a player's products; the planner can decide.
                 out.append({"kind": "output_full", "u": e["u"], "at": pos,
-                            "text": f"{self.name(e['u'])} at {fmt_xy(pos)} stopped: its output is full", "fixes": fx})
+                            "text": f"{self.name(e['u'])} at {fmt_xy(pos)} stopped: its output is full"
+                                    + fluid_backup(e.get("fout")), "fixes": fx})
             elif st in ("no_power", "not_plugged_in_electric_network") or (e.get("pw") or "").startswith("no power"):
                 out.append({"kind": "no_power", "u": e["u"], "at": pos,
                             "text": f"{self.name(e['u'])} at {fmt_xy(pos)} has no power ({e.get('pw') or st})",
