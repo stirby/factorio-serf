@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
+import os
 import signal
 import time
 from pathlib import Path
@@ -71,7 +72,11 @@ def main() -> None:
     pl.add_argument("--name", default="serf")
     pl.add_argument("--no-think", action="store_true")
     pl.add_argument("--effort")
+    pl.add_argument("--reader", choices=["jev", "sonnet"], help="who reads orders and makes quick decisions "
+                    "(default jev; sonnet = Claude Sonnet in its place)")
     a = p.parse_args()
+    if getattr(a, "reader", None):
+        os.environ["JEV_READER"] = a.reader
     logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(name)s %(levelname)s %(message)s")
     asyncio.run(play(a))
 

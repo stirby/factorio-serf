@@ -8,7 +8,6 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-import re
 import time
 from pathlib import Path
 
@@ -63,13 +62,13 @@ class SonnetJev:
                   long_context: bool = False) -> dict[str, Answer]:
         prompt = json.dumps({"state": state, "questions": questions}, default=str)
         t0 = time.time()
-        err, out, usage, usd = None, None, {}, 0.0
+        err, out, usage, usd, text = None, None, {}, 0.0, ""
         async with self._sem:
             for attempt in range(3):
                 try:
                     text, usage, usd = await asyncio.wait_for(self._query(prompt), self.timeout)
-                    m = re.search(r"\{.*\}", text, re.S)
-                    out = json.loads(m.group(0)) if m else None
+                    i = text.find("{")
+                    out = json.JSONDecoder().raw_decode(text[i:])[0] if i >= 0 else None  # (first object only)
                     if isinstance(out, dict):
                         break
                     err = f"no JSON in reply: {text[:200]!r}"
@@ -93,12 +92,20 @@ class SonnetJev:
         answers = {}
         for qid, q in questions.items():
             a = out.get(qid) if isinstance(out.get(qid), dict) else {}
+            if not a and len(questions) == 1 and any(k in out for k in ("noul", "choice", "score")):
+                a = out  # one question, answered without its id
             raw = {"type": q.get("type")}
             if q.get("type") == "noul":
                 raw["noul"] = min(1.0, max(0.0, float(a.get("noul", 0.5) or 0)))
             elif q.get("type") == "choice":
                 names = list((q.get("criteria") or {}).keys())
-                probs = {n: float(v) for n, v in (a.get("probabilities") or {}).items() if n in names}
+                canon = {n.lower(): n for n in names}  # option names matched regardless of case
+                probs = {}
+                for n, v in (a.get("probabilities") or {}).items():
+                    if str(n).lower() in canon:
+                        probs[canon[str(n).lower()]] = float(v)
+                if isinstance(a.get("choice"), str) and a["choice"].lower() in canon:
+                    a = {**a, "choice": canon[a["choice"].lower()]}
                 tot = sum(probs.values())
                 probs = {n: v / tot for n, v in probs.items()} if tot > 0 else {}
                 pick = a.get("choice") if a.get("choice") in names else (max(probs, key=probs.get) if probs else None)
@@ -110,7 +117,7 @@ class SonnetJev:
             answers[qid] = Answer(raw["type"] or "", raw)
         self._log({"t": t0, "kind": kind, "ms": round(ms), "model": self.model, "tokens": tokens, "usd": usd,
                    "state": state, "questions": questions, "answers": {q: a.raw for q, a in answers.items()},
-                   "meta": meta})
+                   "reply": text[:2000], "meta": meta})
         return answers
 
     def _log(self, rec: dict) -> None:

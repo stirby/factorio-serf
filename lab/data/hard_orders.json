@@ -1,0 +1,987 @@
+{
+ "quick": [
+  {
+   "order": "@serf can u put 3 assemblers on gears at [gps=12,-30] pls",
+   "scene": "IRON",
+   "accept": true,
+   "product": "iron-gear-wheel",
+   "count": "3",
+   "output": "chest",
+   "why": "Gears off an iron belt, 3 machines, no belt output asked."
+  },
+  {
+   "order": "we're kinda short on gears over at [gps=-44,18], could you set up four assemblers off that iron belt",
+   "scene": "IRON",
+   "accept": true,
+   "product": "iron-gear-wheel",
+   "count": "4",
+   "output": "chest",
+   "why": "Indirect request: shortage plus 'set up four assemblers' for gears at the point."
+  },
+  {
+   "order": "the gear belt is fine, I need pipes. two assemblers at [gps=8,52] into a chest",
+   "scene": "IRON",
+   "accept": true,
+   "product": "pipe",
+   "count": "2",
+   "output": "chest",
+   "why": "Gears are a distractor; the ask is pipes, two machines, chest."
+  },
+  {
+   "order": "turrets r gonna run dry soon, get a pair of assemblers on yellow ammo at [gps=103,-7]",
+   "scene": "IRON",
+   "accept": true,
+   "product": "firearm-magazine",
+   "count": "2",
+   "output": "chest",
+   "why": "Yellow ammo = firearm magazine; 'a pair' = 2; turrets are the motive, not a delivery request."
+  },
+  {
+   "order": "half a dozen assemblers making iron sticks at [gps=-5,77], output on a belt pls",
+   "scene": "IRON",
+   "accept": true,
+   "product": "iron-stick",
+   "count": "6",
+   "output": "belt",
+   "why": "Half a dozen = 6; explicitly wants output on a belt."
+  },
+  {
+   "order": "make iron chests here [gps=31,4]",
+   "scene": "IRON",
+   "accept": true,
+   "product": "iron-chest",
+   "count": "not_said",
+   "output": "chest",
+   "why": "One product from the list, no machine count given."
+  },
+  {
+   "order": "one assembler cranking out light armor at [gps=60,-61] is plenty, just chest it",
+   "scene": "IRON",
+   "accept": true,
+   "product": "light-armor",
+   "count": "1",
+   "output": "chest",
+   "why": "Light armor is iron-only; 'one assembler' = 1; chest output."
+  },
+  {
+   "order": "Hello serf, please you make the gear wheel at [gps=-120,33] with 5 machine and put in box",
+   "scene": "IRON",
+   "accept": true,
+   "product": "iron-gear-wheel",
+   "count": "5",
+   "output": "chest",
+   "why": "Non-native English; gears, 5 machines, box = chest."
+  },
+  {
+   "order": "gears plz [gps=14,-2] 3 asemblers",
+   "scene": "IRON",
+   "accept": true,
+   "product": "iron-gear-wheel",
+   "count": "3",
+   "output": "chest",
+   "why": "Terse with a typo; gears, 3 assemblers."
+  },
+  {
+   "order": "build pipes at [gps=40,-12]... wait no not pipes, gears. three of em",
+   "scene": "IRON",
+   "accept": true,
+   "product": "iron-gear-wheel",
+   "count": "3",
+   "output": "chest",
+   "why": "Self-correction: final request is gears, three machines."
+  },
+  {
+   "order": "ok so i was gonna start oil tonight but the base is a mess lol. anyway if ur free stick 4 assemblers on pipe at [gps=19,23], we'll need tons for the pumpjacks later. then i'll sort the rest",
+   "scene": "IRON",
+   "accept": true,
+   "product": "pipe",
+   "count": "4",
+   "output": "chest",
+   "why": "Rambling; the real ask in the middle is 4 assemblers on pipe at the point."
+  },
+  {
+   "order": "mags at [gps=-7,-7]. a dozen assemblers. dont need a belt, chests r fine",
+   "scene": "IRON",
+   "accept": true,
+   "product": "firearm-magazine",
+   "count": "12",
+   "output": "chest",
+   "why": "Mags = firearm magazines; a dozen = 12; belt explicitly declined."
+  },
+  {
+   "order": "can i get iron rods made off the belt at [gps=27,-15]? 2 assemblers, put them on a belt going north",
+   "scene": "IRON",
+   "accept": true,
+   "product": "iron-stick",
+   "count": "2",
+   "output": "belt",
+   "why": "Request phrased as a question; rods = iron sticks; explicit belt output."
+  },
+  {
+   "order": "steel at [gps=-70,15] rn, 8 furnaces ty",
+   "scene": "IRON_COAL",
+   "accept": true,
+   "product": "steel-plate",
+   "count": "8",
+   "output": "chest",
+   "why": "Plates + coal belt supports steel furnaces; 8 machines."
+  },
+  {
+   "order": "can we get some steel going off the mixed belt at [gps=22,90]? output onto a belt pls",
+   "scene": "IRON_COAL",
+   "accept": true,
+   "product": "steel-plate",
+   "count": "not_said",
+   "output": "belt",
+   "why": "Steel from the iron+coal belt, no count, explicit belt output."
+  },
+  {
+   "order": "the coal on that belt is just fuel, ignore it. i want gears from the plates, 2 assemblers [gps=5,5]",
+   "scene": "IRON_COAL",
+   "accept": true,
+   "product": "iron-gear-wheel",
+   "count": "2",
+   "output": "chest",
+   "why": "Coal is a distractor; IRON list still applies on a mixed belt; gears, 2."
+  },
+  {
+   "order": "smelt the ore at [gps=200,-18] into iron plates, a row of 12 stone furnaces",
+   "scene": "ORE",
+   "accept": true,
+   "product": "iron-plate",
+   "count": "12",
+   "output": "chest",
+   "why": "'stone furnaces' is the machine, not the product; 12 furnaces smelting iron plates."
+  },
+  {
+   "order": "the new drills are dumping ore onto the belt at [gps=88,41] and its just sitting there. need furnaces on it, like 6",
+   "scene": "ORE",
+   "accept": true,
+   "product": "iron-plate",
+   "count": "6",
+   "output": "chest",
+   "why": "Indirect: wants furnaces on the iron-ore belt, i.e. iron plates; 'like 6' still states 6."
+  },
+  {
+   "order": "smelting column at [gps=-15,230] pls, plates out onto a belt",
+   "scene": "ORE",
+   "accept": true,
+   "product": "iron-plate",
+   "count": "not_said",
+   "output": "belt",
+   "why": "Smelting the iron-ore belt; no count; explicit belt output."
+  },
+  {
+   "order": "serf please make iron plate from this ore [gps=-140,-6], use 10 furnace, put in chest",
+   "scene": "ORE",
+   "accept": true,
+   "product": "iron-plate",
+   "count": "10",
+   "output": "chest",
+   "why": "Non-native but clear: iron plates, 10 furnaces, chest."
+  },
+  {
+   "order": "we never have enough copper wire lol, can u make some off the copper line at [gps=-61,-2]",
+   "scene": "COPPER",
+   "accept": true,
+   "product": "copper-cable",
+   "count": "not_said",
+   "output": "chest",
+   "why": "Copper wire = copper cable; no count."
+  },
+  {
+   "order": "not the iron one, the copper. cable machines at [gps=71,14], three",
+   "scene": "COPPER",
+   "accept": true,
+   "product": "copper-cable",
+   "count": "3",
+   "output": "chest",
+   "why": "Negation picks the copper belt; cable, three machines."
+  },
+  {
+   "order": "yo cable pls [gps=48,-71] gonna need a ton for green circuits later",
+   "scene": "COPPER",
+   "accept": true,
+   "product": "copper-cable",
+   "count": "not_said",
+   "output": "chest",
+   "why": "Circuits are only the future use; the ask is cable."
+  },
+  {
+   "order": "Could you build 7 assemblers for copper cable at [gps=-90,-90] and put the cable on a belt",
+   "scene": "COPPER",
+   "accept": true,
+   "product": "copper-cable",
+   "count": "7",
+   "output": "belt",
+   "why": "Cable, 7 machines, explicit belt output."
+  },
+  {
+   "order": "furnaces on the copper ore at [gps=-33,61] pls, 8, belt the plates out",
+   "scene": "COPPER_ORE",
+   "accept": true,
+   "product": "copper-plate",
+   "count": "8",
+   "output": "belt",
+   "why": "Smelt copper ore, 8 furnaces, 'belt the plates out' = belt output."
+  },
+  {
+   "order": "we need way more copper plates, can u smelt what's on the belt at [gps=-2,37]? idk like five furnaces",
+   "scene": "COPPER_ORE",
+   "accept": true,
+   "product": "copper-plate",
+   "count": "5",
+   "output": "chest",
+   "why": "Copper plates from the ore belt; 'like five' = 5."
+  },
+  {
+   "order": "bricks at [gps=-8,12], a pair of furnaces",
+   "scene": "STONE",
+   "accept": true,
+   "product": "stone-brick",
+   "count": "2",
+   "output": "chest",
+   "why": "Stone bricks in furnaces; 'a pair' = 2."
+  },
+  {
+   "order": "can i get stone furnaces made at [gps=17,-44]? 2 assemblers is fine",
+   "scene": "STONE",
+   "accept": true,
+   "product": "stone-furnace",
+   "count": "2",
+   "output": "chest",
+   "why": "Product is the stone furnace item, made in 2 assemblers."
+  },
+  {
+   "order": "make bricks at [gps=46,-90], we'll need them for walls later. dont need many furnaces, just 3",
+   "scene": "STONE",
+   "accept": true,
+   "product": "stone-brick",
+   "count": "3",
+   "output": "chest",
+   "why": "Walls are a later use, not the ask; bricks, 3 furnaces."
+  },
+  {
+   "order": "red science at [gps=0,40] pls, 5 assemblers",
+   "scene": "TWO",
+   "accept": true,
+   "product": "automation-science-pack",
+   "count": "5",
+   "output": "chest",
+   "why": "Red science on the iron+copper pair, 5 machines."
+  },
+  {
+   "order": "green circs off the two belts at [gps=-25,-25], six assemblers, output on a belt",
+   "scene": "TWO",
+   "accept": true,
+   "product": "electronic-circuit",
+   "count": "6",
+   "output": "belt",
+   "why": "Green circuits; six; explicit belt output."
+  },
+  {
+   "order": "i know the copper belt is right there but i only want gears from the iron side. 2 machines [gps=63,0]",
+   "scene": "TWO",
+   "accept": true,
+   "product": "iron-gear-wheel",
+   "count": "2",
+   "output": "chest",
+   "why": "Copper is a distractor; gears only, 2 machines."
+  },
+  {
+   "order": "labs are starving, make red sci right here [gps=-90,12]",
+   "scene": "TWO",
+   "accept": true,
+   "product": "automation-science-pack",
+   "count": "not_said",
+   "output": "chest",
+   "why": "Labs are the motive; 'right here' means build at the point; no count."
+  },
+  {
+   "order": "one assembler on copper cable from the copper side at [gps=-2,-88]",
+   "scene": "TWO",
+   "accept": true,
+   "product": "copper-cable",
+   "count": "1",
+   "output": "chest",
+   "why": "Cable from the copper belt of the pair; one machine."
+  },
+  {
+   "order": "we're short on red science. throw a few assemblers on it at [gps=12,12]",
+   "scene": "TWO",
+   "accept": true,
+   "product": "automation-science-pack",
+   "count": "not_said",
+   "output": "chest",
+   "why": "'a few' is not a number, so count is not_said."
+  },
+  {
+   "order": "make green circuits at [gps=10,-5] pls, 4 assemblers",
+   "scene": "IRON",
+   "accept": false,
+   "product": null,
+   "count": "4",
+   "output": "chest",
+   "why": "Circuits need copper; an iron-only belt can't make them."
+  },
+  {
+   "order": "gears at [gps=-30,8], 2 assemblers",
+   "scene": "COPPER",
+   "accept": false,
+   "product": null,
+   "count": "2",
+   "output": "chest",
+   "why": "Gears need iron; the belt there is copper."
+  },
+  {
+   "order": "need gears and pipes at [gps=5,-60]",
+   "scene": "IRON",
+   "accept": false,
+   "product": null,
+   "count": "not_said",
+   "output": "chest",
+   "why": "Two different products in one order."
+  },
+  {
+   "order": "set up red science at [gps=0,0] and belt it all the way to the labs at [gps=310,-220]",
+   "scene": "TWO",
+   "accept": false,
+   "product": null,
+   "count": "not_said",
+   "output": "belt",
+   "why": "Asks to send the product to a far-away second point."
+  },
+  {
+   "order": "can u bring me 50 gears? im at [gps=12,4]",
+   "scene": "IRON",
+   "accept": false,
+   "product": null,
+   "count": "not_said",
+   "output": "chest",
+   "why": "Hand delivery of items, not building machines; 50 is an item count."
+  },
+  {
+   "order": "how many gears per minute would we get from the belt at [gps=33,-1]?",
+   "scene": "IRON",
+   "accept": false,
+   "product": null,
+   "count": "not_said",
+   "output": "chest",
+   "why": "A real question, no build requested."
+  },
+  {
+   "order": "why is nothing coming out of the gear assemblers at [gps=-17,40]??",
+   "scene": "IRON",
+   "accept": false,
+   "product": null,
+   "count": "not_said",
+   "output": "chest",
+   "why": "Complaint about an existing build (a fix), not a new build."
+  },
+  {
+   "order": "we need more ore on this belt at [gps=40,40], can u put more drills on the patch",
+   "scene": "ORE",
+   "accept": false,
+   "product": null,
+   "count": "not_said",
+   "output": "chest",
+   "why": "Mining request (more drills), not machines making a product."
+  },
+  {
+   "order": "lol the gear line at [gps=1,1] looks so clean now",
+   "scene": "IRON",
+   "accept": false,
+   "product": null,
+   "count": "not_said",
+   "output": "chest",
+   "why": "Chatter that mentions gears; nothing is asked."
+  },
+  {
+   "order": "steel at [gps=70,-2] pls, 6 furnaces",
+   "scene": "ORE",
+   "accept": false,
+   "product": null,
+   "count": "6",
+   "output": "chest",
+   "why": "Belt carries iron ore, not plates; steel isn't makeable there."
+  },
+  {
+   "order": "concrete at [gps=-3,8], 4 assemblers",
+   "scene": "STONE",
+   "accept": false,
+   "product": null,
+   "count": "4",
+   "output": "chest",
+   "why": "Concrete needs iron ore, bricks and water; not in the stone list."
+  },
+  {
+   "order": "iron plates at [gps=8,-8], 4 furnaces",
+   "scene": "COPPER_ORE",
+   "accept": false,
+   "product": null,
+   "count": "4",
+   "output": "chest",
+   "why": "The belt carries copper ore; iron plates can't be made from it."
+  },
+  {
+   "order": "make me a few gears and hand them over, im at [gps=-4,3]",
+   "scene": "IRON_COAL",
+   "accept": false,
+   "product": null,
+   "count": "not_said",
+   "output": "chest",
+   "why": "Hand delivery of items, not a production build."
+  },
+  {
+   "order": "circuits and red science both at [gps=20,-20] pls",
+   "scene": "TWO",
+   "accept": false,
+   "product": null,
+   "count": "not_said",
+   "output": "chest",
+   "why": "Two different products in one order."
+  },
+  {
+   "order": "fix the pipe assemblers at [gps=-50,9], one of them has no power",
+   "scene": "IRON",
+   "accept": false,
+   "product": null,
+   "count": "not_said",
+   "output": "chest",
+   "why": "Fixing an existing build."
+  },
+  {
+   "order": "piercing rounds at [gps=44,-12], 3 assemblers",
+   "scene": "IRON",
+   "accept": false,
+   "product": null,
+   "count": "3",
+   "output": "chest",
+   "why": "Piercing ammo needs copper and steel; not makeable from iron plates (only yellow ammo is)."
+  },
+  {
+   "order": "gg the circuit build at [gps=-31,58] finally works, nice job serf",
+   "scene": "TWO",
+   "accept": false,
+   "product": null,
+   "count": "not_said",
+   "output": "chest",
+   "why": "Praise mentioning circuits; no request."
+  },
+  {
+   "order": "build 4 gear assemblers at [gps=12,-30] and send the gears to the mall at [gps=-200,90]",
+   "scene": "IRON",
+   "accept": false,
+   "product": null,
+   "count": "4",
+   "output": "chest",
+   "why": "Asks to send the product far away to the mall, not keep it here."
+  },
+  {
+   "order": "dont build gears at [gps=9,9], we have like 4 boxes full already",
+   "scene": "IRON",
+   "accept": false,
+   "product": null,
+   "count": "not_said",
+   "output": "chest",
+   "why": "Negation: explicitly says not to build."
+  },
+  {
+   "order": "should we make more ammo at [gps=-12,66] or are we good?",
+   "scene": "IRON",
+   "accept": false,
+   "product": null,
+   "count": "not_said",
+   "output": "chest",
+   "why": "Asks for an opinion, not a build."
+  }
+ ],
+ "belt": [
+  {
+   "order": "run a belt from the iron smelting at [gps=10,20] to the mall at [gps=-80,15]",
+   "move": true,
+   "why": "Plain belt from a source to a destination."
+  },
+  {
+   "order": "hook up the copper plates at [gps=50,-3] to the circuit build at [gps=120,-40] pls",
+   "move": true,
+   "why": "'Hook up' = connect by belt, plates from A to B."
+  },
+  {
+   "order": "bring me 100 iron plates from [gps=10,20], im at [gps=0,0]",
+   "move": false,
+   "why": "Hand delivery of a number of items."
+  },
+  {
+   "order": "the drills at [gps=-60,88] are just filling up their own chests lol, connect them to the furnaces at [gps=-20,70]",
+   "move": true,
+   "why": "Drill output carried to furnaces by a new belt."
+  },
+  {
+   "order": "belt's broken somewhere between [gps=5,5] and [gps=40,5], can u fix it",
+   "move": false,
+   "why": "Fixing an existing belt, not laying a new one."
+  },
+  {
+   "order": "run power poles from the steam engines at [gps=-100,0] to [gps=-20,30]",
+   "move": false,
+   "why": "Power, not items; 'run' is a distractor."
+  },
+  {
+   "order": "gears from the assemblers at [gps=4,4] need to get to the red sci build at [gps=30,4], belt em over",
+   "move": true,
+   "why": "Machine output moved by belt to another point."
+  },
+  {
+   "order": "is there already a belt going from [gps=1,1] to [gps=60,-20]?",
+   "move": false,
+   "why": "A question."
+  },
+  {
+   "order": "build 6 furnaces at [gps=33,70] fed off the ore belt at [gps=33,50]",
+   "move": false,
+   "why": "Asks for machines to be built, not a belt connection."
+  },
+  {
+   "order": "coal from [gps=-12,40] needs to go to the boilers at [gps=-60,44]. belt pls",
+   "move": true,
+   "why": "Coal moved by belt from A to B."
+  },
+  {
+   "order": "throw like 50 coal into the boilers at [gps=-60,44], they're running low",
+   "move": false,
+   "why": "Refuelling by hand with a number of items."
+  },
+  {
+   "order": "please make transport belt from stone at [gps=70,12] go to the furnace at [gps=92,30]",
+   "move": true,
+   "why": "Non-native: a belt carrying stone from A to the furnaces at B."
+  },
+  {
+   "order": "nah not the copper line, the iron one at [gps=-8,0]. extend it down to [gps=-8,45] where the new assemblers are",
+   "move": true,
+   "why": "Correction; extending the iron belt carries plates to a new point."
+  },
+  {
+   "order": "copper smelter [gps=200,10] -> science [gps=150,-5], belt it",
+   "move": true,
+   "why": "Terse: copper plates from smelter to science by belt."
+  },
+  {
+   "order": "toss me 2 stacks of transport belts, im at [gps=14,-9]",
+   "move": false,
+   "why": "Hand delivery of belt items; 'belts' is a distractor."
+  },
+  {
+   "order": "we need a steady supply of iron plates at the mall [gps=-80,15]. the smelters spit them out at [gps=10,20]",
+   "move": true,
+   "why": "Indirect: a steady supply from A to B means a belt, not a one-off delivery."
+  },
+  {
+   "order": "move the chest at [gps=3,3] over to [gps=9,3], its in the way",
+   "move": false,
+   "why": "Relocating an entity, not carrying items by belt."
+  },
+  {
+   "order": "put down a belt from the ammo assembler at [gps=88,-120] to the turret line at [gps=88,-180]",
+   "move": true,
+   "why": "Machine output belted to another point."
+  }
+ ],
+ "mine": [
+  {
+   "order": "put drills on the copper patch at [gps=140,-30] and belt it to the smelters at [gps=90,-10]",
+   "mine": true,
+   "ore": "copper-ore",
+   "why": "Drills on a copper patch plus belting."
+  },
+  {
+   "order": "set up mining on the iron at [gps=-210,44], 8 drills",
+   "mine": true,
+   "ore": "iron-ore",
+   "why": "Drills on an iron patch."
+  },
+  {
+   "order": "mine me 20 stone real quick, im at [gps=4,4]",
+   "mine": false,
+   "ore": null,
+   "why": "Hand-mining a few items for the player."
+  },
+  {
+   "order": "drills at [gps=-15,60] stopped, prolly out of fuel",
+   "mine": false,
+   "ore": null,
+   "why": "Fixing/refuelling existing drills."
+  },
+  {
+   "order": "theres an untapped coal field at [gps=66,-120], can u get it going and send the coal to the boilers at [gps=20,-100]",
+   "mine": true,
+   "ore": "coal",
+   "why": "Indirect: 'get it going' on an untapped field = set up drills, then belt."
+  },
+  {
+   "order": "how big is the iron patch at [gps=300,12]? worth tapping?",
+   "mine": false,
+   "ore": null,
+   "why": "Question about ore."
+  },
+  {
+   "order": "build furnaces next to the iron drills at [gps=-30,90]",
+   "mine": false,
+   "ore": null,
+   "why": "Building furnaces, not drills."
+  },
+  {
+   "order": "please you put mining drill on the stone at [gps=-77,-3], 4 drill, into chest",
+   "mine": true,
+   "ore": "stone",
+   "why": "Non-native: drills on a stone patch."
+  },
+  {
+   "order": "not the copper, the iron patch at [gps=12,180]. drill it and belt to the smelters at [gps=12,120]",
+   "mine": true,
+   "ore": "iron-ore",
+   "why": "Negation picks iron; drills plus belt."
+  },
+  {
+   "order": "can u grab like 50 coal by hand from the patch at [gps=66,-120]? need it for my car",
+   "mine": false,
+   "ore": null,
+   "why": "Explicit hand-mining of a few items."
+  },
+  {
+   "order": "electric drills on the copper at [gps=-160,-160] pls",
+   "mine": true,
+   "ore": "copper-ore",
+   "why": "Drills on a copper patch."
+  },
+  {
+   "order": "where's the nearest stone patch from [gps=25,-75]?",
+   "mine": false,
+   "ore": null,
+   "why": "Question about ore."
+  },
+  {
+   "order": "go start on the new iron field at [gps=400,-60], like 20 drills, belt it back to the smelters at [gps=150,-40]",
+   "mine": true,
+   "ore": "iron-ore",
+   "why": "Drills on a new iron field plus belting."
+  },
+  {
+   "order": "mine out the rocks at [gps=-12,-34] for stone",
+   "mine": false,
+   "ore": null,
+   "why": "Rocks are mined by hand; no drills on an ore patch."
+  },
+  {
+   "order": "stone patch at [gps=19,55] needs drills, three is plenty, straight into a chest",
+   "mine": true,
+   "ore": "stone",
+   "why": "Drills on a stone patch into a chest."
+  }
+ ],
+ "copy": [
+  {
+   "order": "nice, two more like that at [gps=40,10] and [gps=40,30]",
+   "copy": true,
+   "why": "Same build again at two points."
+  },
+  {
+   "order": "dupe that at [gps=-60,5] pls",
+   "copy": true,
+   "why": "'Dupe' = build the same again at the point."
+  },
+  {
+   "order": "perfect. now do that again over at [gps=12,90]",
+   "copy": true,
+   "why": "Praise, then the same build again."
+  },
+  {
+   "order": "great job!! thats exactly what i wanted",
+   "copy": false,
+   "why": "Praise only."
+  },
+  {
+   "order": "ok cool, now red science at [gps=33,-8]",
+   "copy": false,
+   "why": "A new kind of build."
+  },
+  {
+   "order": "move it to [gps=-4,22], its blocking the rail",
+   "copy": false,
+   "why": "Moving the build, not copying it."
+  },
+  {
+   "order": "build the smelter blueprint from the book in the chest at [gps=0,-12]",
+   "copy": false,
+   "why": "A blueprint from a book, not a copy of what was just built."
+  },
+  {
+   "order": "how many plates a sec does that make?",
+   "copy": false,
+   "why": "A question."
+  },
+  {
+   "order": "copy paste that x3: [gps=10,0] [gps=20,0] [gps=30,0]",
+   "copy": true,
+   "why": "Explicit copy to three points."
+  },
+  {
+   "order": "is good. please make same one also at [gps=-88,14]",
+   "copy": true,
+   "why": "Non-native: same build again at the point."
+  },
+  {
+   "order": "do another one of those at [gps=7,7], and another at [gps=7,27]",
+   "copy": true,
+   "why": "Same build at two more points."
+  },
+  {
+   "order": "love it. can i get a pair more, [gps=100,4] and [gps=100,24]",
+   "copy": true,
+   "why": "'a pair more' copies to two points."
+  }
+ ],
+ "chat": [
+  {
+   "message": "@serf put 4 assemblers on gears at [gps=12,-30]",
+   "addressed": true,
+   "kind": "new_job",
+   "why": "Direct work order."
+  },
+  {
+   "message": "serf when ur done with that, belt the coal from [gps=-12,40] to the boilers at [gps=-60,44]",
+   "addressed": true,
+   "kind": "new_job",
+   "why": "A separate job queued after the current one."
+  },
+  {
+   "message": "ok so the oil is a mess and jake's off doing trains, serf u free? copper smelting at [gps=150,150] needs doing",
+   "addressed": true,
+   "kind": "new_job",
+   "why": "Rambling; ends with work for the serf."
+  },
+  {
+   "message": "mine the stone patch at [gps=19,55] pls serf",
+   "addressed": true,
+   "kind": "new_job",
+   "why": "Work order; name at the end."
+  },
+  {
+   "message": "serf, please you build red science at [gps=0,40]",
+   "addressed": true,
+   "kind": "new_job",
+   "why": "Non-native work order."
+  },
+  {
+   "message": "jake ill do the oil. serf you take copper smelting at [gps=-33,61]",
+   "addressed": true,
+   "kind": "new_job",
+   "why": "Starts to the human, but gives the serf a job."
+  },
+  {
+   "message": "after this can u refuel the furnaces at [gps=-70,15] serf, theyre almost out",
+   "addressed": true,
+   "kind": "new_job",
+   "why": "New refuelling job queued."
+  },
+  {
+   "message": "@serf we're kinda short on gears over at [gps=-44,18]",
+   "addressed": true,
+   "kind": "new_job",
+   "why": "Indirect: a shortage told to the serf asks it to make gears."
+  },
+  {
+   "message": "serf can u hook up the iron at [gps=10,20] to the mall [gps=-80,15]",
+   "addressed": true,
+   "kind": "new_job",
+   "why": "New belt job."
+  },
+  {
+   "message": "@serf make it 6 not 4",
+   "addressed": true,
+   "kind": "more_info",
+   "why": "Corrects the count of the current job."
+  },
+  {
+   "message": "serf the gears should go on a belt, not chests",
+   "addressed": true,
+   "kind": "more_info",
+   "why": "Corrects the output of the job."
+  },
+  {
+   "message": "no wait serf wrong spot, i meant [gps=40,-12]",
+   "addressed": true,
+   "kind": "more_info",
+   "why": "Corrects the location."
+  },
+  {
+   "message": "serf not the iron one, the copper",
+   "addressed": true,
+   "kind": "more_info",
+   "why": "Corrects which belt/resource."
+  },
+  {
+   "message": "oh and put the output on the east side pls serf",
+   "addressed": true,
+   "kind": "more_info",
+   "why": "Adds a detail with 'oh and'."
+  },
+  {
+   "message": "serf the patch goes further south than u think, cover all of it",
+   "addressed": true,
+   "kind": "more_info",
+   "why": "Adds scope to the mining job."
+  },
+  {
+   "message": "serf use electric drills for that, not burner ones",
+   "addressed": true,
+   "kind": "more_info",
+   "why": "Adds a detail to 'that' job."
+  },
+  {
+   "message": "@serf add one more furnace at the end of the row u just built",
+   "addressed": true,
+   "kind": "more_info",
+   "why": "Extends the job it just did."
+  },
+  {
+   "message": "serf how many furnaces do we have?",
+   "addressed": true,
+   "kind": "question",
+   "why": "Wants a number in words."
+  },
+  {
+   "message": "@serf what are you doing rn",
+   "addressed": true,
+   "kind": "question",
+   "why": "Asks for status."
+  },
+  {
+   "message": "serf how long till the smelter's done",
+   "addressed": true,
+   "kind": "question",
+   "why": "Asks for an estimate."
+  },
+  {
+   "message": "serf is the copper patch at [gps=140,-30] big enough for 10 drills?",
+   "addressed": true,
+   "kind": "question",
+   "why": "Asks a fact, not for drills."
+  },
+  {
+   "message": "serf where'd you put the extra coal",
+   "addressed": true,
+   "kind": "question",
+   "why": "Asks for a location."
+  },
+  {
+   "message": "serf whats the recipe for red science again",
+   "addressed": true,
+   "kind": "question",
+   "why": "Asks for info."
+  },
+  {
+   "message": "@serf do u know how to make circuits or should i do it myself",
+   "addressed": true,
+   "kind": "question",
+   "why": "Asks about ability; the player may do it himself."
+  },
+  {
+   "message": "serf could we even fit 10 more furnaces at [gps=-15,230]?",
+   "addressed": true,
+   "kind": "question",
+   "why": "'could we even fit' asks about space, not for a build."
+  },
+  {
+   "message": "@serf stop",
+   "addressed": true,
+   "kind": "stop",
+   "why": "Plain stop."
+  },
+  {
+   "message": "serf cancel that, we dont need it anymore",
+   "addressed": true,
+   "kind": "stop",
+   "why": "Cancel."
+  },
+  {
+   "message": "serf nvm, forget the copper",
+   "addressed": true,
+   "kind": "stop",
+   "why": "Cancels the copper job."
+  },
+  {
+   "message": "STOP serf ur belting straight into the lake",
+   "addressed": true,
+   "kind": "stop",
+   "why": "Urgent stop."
+  },
+  {
+   "message": "serf hold up dont build that",
+   "addressed": true,
+   "kind": "stop",
+   "why": "Stop before building."
+  },
+  {
+   "message": "serf no more please, is enough furnace already",
+   "addressed": true,
+   "kind": "stop",
+   "why": "Non-native: stop building more furnaces."
+  },
+  {
+   "message": "ty serf",
+   "addressed": true,
+   "kind": "chatter",
+   "why": "Thanks to the serf."
+  },
+  {
+   "message": "jake u wanna do trains or oil",
+   "addressed": false,
+   "kind": "chatter",
+   "why": "Talking to the other human."
+  },
+  {
+   "message": "lmao jake look, serf built the furnaces sideways again",
+   "addressed": false,
+   "kind": "chatter",
+   "why": "About the serf, said to jake."
+  },
+  {
+   "message": "gg serf, good work",
+   "addressed": true,
+   "kind": "chatter",
+   "why": "Praise to the serf."
+  },
+  {
+   "message": "jake can u build furnaces at [gps=-15,230]? im stuck on oil",
+   "addressed": false,
+   "kind": "chatter",
+   "why": "A work request to the other human, not the serf."
+  },
+  {
+   "message": "jake brb dinner",
+   "addressed": false,
+   "kind": "chatter",
+   "why": "To the other human."
+  },
+  {
+   "message": "mira did serf finish the red science thing?",
+   "addressed": false,
+   "kind": "chatter",
+   "why": "A question to the other human about the serf."
+  },
+  {
+   "message": "jake STOP touching my belts lol",
+   "addressed": false,
+   "kind": "chatter",
+   "why": "'stop' said to the human."
+  },
+  {
+   "message": "serf those gear assemblers look so neat lol",
+   "addressed": true,
+   "kind": "chatter",
+   "why": "Compliment to the serf mentioning gears; no request."
+  }
+ ]
+}

@@ -356,6 +356,11 @@ async def read_order(jev: Jev, order: str, products: list[str], carried: list[st
     prod = a["product"].choice
     prod_p = float(a["product"].probs.get(prod) or 0)
     own = only_word(order, products, carried=carried)
+    # (only for a build: "dont build gears", "the gear line looks clean" name a product too; the blind hard set had
+    # the override turning those into builds)
+    if a["build"].p < 0.5 or re.search(r"\b(?:don'?t|do not|no more|stop|never)\s+(?:\w+\s+){0,2}" + r"(?:build|make|"
+                                       r"set up|put|need|want)\b", order, re.I):
+        own = None
     if prod == "none_of_these" and prod_p < 0.9 and own:
         prod, prod_p = own, 0.6
     elif own and prod != own and prod_p < 0.6:
@@ -381,6 +386,9 @@ async def read_order(jev: Jev, order: str, products: list[str], carried: list[st
     several = a["several"].p if named_products(order, products) >= 2 else min(a["several"].p, 0.3)
     return {"build": a["build"].p, "chain": max(several, a["onward"].p), "elsewhere": a["elsewhere"].p,
             "onto_belt": onto, "product": prod, "product_p": prod_p,
+            # the reader's own answers before code's checks (logged; for comparing readers)
+            "product_raw": a["product"].choice, "product_p_raw": float(a["product"].probs.get(a["product"].choice) or 0),
+            "count_raw": a["count"].choice,
             "count": cnt, "count_p": cnt_p,
             "output": "belt" if onto >= 0.75 else "chest"}
 
