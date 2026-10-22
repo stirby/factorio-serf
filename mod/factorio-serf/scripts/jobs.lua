@@ -1728,10 +1728,25 @@ end
 
 -- Build ghosts (a human's plan, a blueprint, or an architect layout) with items from inventory.
 H.build_ghosts = {
-  start = function(a, job) job.built, job.skip = 0, {} end,
+  start = function(a, job) job.built, job.skip, job.last_event = 0, {}, game.tick end,
   tick = function(a, job)
     local c, args = a.char, job.args
     local g = job.target
+    if game.tick - job.last_event > 7200 then
+      -- two minutes with nothing built or skipped: give up on this ghost and say which (small builds ran into
+      -- the 600 s timeout twice in a row, with nothing to show what they were stuck on)
+      job.stalls = (job.stalls or 0) + 1
+      local what = (g and g.valid) and (g.ghost_name .. " at " .. xystr(g.position)) or "the next ghost"
+      job.stuck_on = what
+      if g and g.valid then job.skip[g.unit_number] = true end
+      job.target, job.move, job.side, job.clearing, job.stepped = nil, nil, nil, nil, nil
+      job.last_event = game.tick
+      if job.stalls >= 3 then
+        return fail("built " .. job.built .. " ghosts, then got nowhere for 2 minutes three times (last on " .. what
+          .. ")", { built = job.built })
+      end
+      g = nil
+    end
     if not (g and g.valid) then
       job.target, job.move = nil, nil
       local missing = {}
@@ -1751,8 +1766,9 @@ H.build_ghosts = {
         local left = 0
         for _, cand in ipairs(list) do if not job.skip[cand.unit_number] then left = left + 1 end end
         local trees = job.cleared and (" (cleared " .. job.cleared .. " trees/rocks in the way)") or ""
-        if left == 0 then return ok("built " .. job.built .. " ghosts" .. trees .. "; none left here", { built = job.built }) end
-        return ok("built " .. job.built .. " ghosts; " .. left .. " left need items you don't have",
+        local stuck = job.stuck_on and ("; gave up on " .. job.stuck_on .. " after 2 minutes stuck") or ""
+        if left == 0 then return ok("built " .. job.built .. " ghosts" .. trees .. "; none left here" .. stuck, { built = job.built }) end
+        return ok("built " .. job.built .. " ghosts; " .. left .. " left need items you don't have" .. stuck,
           { built = job.built, left = left, missing = missing })
       end
       if args.limit and job.built >= args.limit then return ok("built " .. job.built .. " ghosts", { built = job.built }) end
@@ -1763,6 +1779,7 @@ H.build_ghosts = {
     if type(near) == "table" then
       job.skip[g.unit_number] = true
       job.target = nil
+      job.last_event = game.tick
       return nil
     end
     if job.clearing then
@@ -1771,6 +1788,7 @@ H.build_ghosts = {
       job.clearing = nil
       if not cleared then return fail(why .. " to build ghosts", { built = job.built }) end
       job.cleared = (job.cleared or 0) + cleared
+      job.last_event = game.tick
     end
     local item, n = ghost_item(g)
     local name, pos = g.ghost_name, g.position
@@ -1796,9 +1814,11 @@ H.build_ghosts = {
       end
       job.skip[g.unit_number] = true
       job.target, job.stepped = nil, nil
+      job.last_event = game.tick
       return nil
     end
     job.stepped = nil
+    job.last_event = game.tick
     if not util.cheat() and item then c.remove_item { name = item, count = n } end
     if ent.unit_number then storage.built_by[ent.unit_number] = a.name end
     triggers.note(c.force, c.surface, "build-entity", name, 1)
