@@ -68,8 +68,10 @@ def carried(w: World, points: list) -> list[str]:
 def options(w: World, recipes: dict, points: list) -> dict:
     """{product: {"machine", "lines", "ingredients"}} for each product a row off the straight belt lines near the
     order's points could make: lines that carry all its ingredients (one line, or two parallel at row spacing)."""
-    near = [ln for ln in w.lines if ln.items and _straight(w, ln)
-            and any(min(abs(t[0] - p[0]) + abs(t[1] - p[1]) for t in _tiles(w, ln)) <= 12 for p in points)]
+    def dist(ln):
+        return min(abs(t[0] - p[0]) + abs(t[1] - p[1]) for t in _tiles(w, ln) for p in points)
+    # nearest first: with parallel belts carrying the same items, the row goes on the one the order points at
+    near = sorted((ln for ln in w.lines if ln.items and _straight(w, ln) and dist(ln) <= 12), key=dist)
     out: dict = {}
     for ln in near:
         items = set(ln.items)

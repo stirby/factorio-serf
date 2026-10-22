@@ -275,6 +275,18 @@ def test_inserter_backwards():
           len(f) == 1 and f[0]["u"] == 31 and f[0]["fixes"][0]["direction"] == "north", f)
 
 
+def test_options_nearest_line():
+    a = _line(1, 0.5, 30, {"iron-plate": 5})
+    b = _line(101, 12.5, 30, {"iron-plate": 5})
+    w = World({"ents": a + b, "center": [10, 6], "radius": 32})
+    rec = {"pipe": {"ingredients": {"iron-plate": 1}, "category": "crafting"}}
+    o1 = quickbuild.options(w, rec, [(2, 12)]).get("pipe") or {}
+    o2 = quickbuild.options(w, rec, [(2, 0)]).get("pipe") or {}
+    check("quickbuild: of two parallel iron belts, the row goes on the one the order points at",
+          o1.get("lines") and o1["lines"][0].start[1] == 12.5 and o2["lines"][0].start[1] == 0.5,
+          (o1.get("lines") and o1["lines"][0].start, o2.get("lines") and o2["lines"][0].start))
+
+
 def test_engine_slot():
     ents = [{"u": 1, "n": "boiler", "t": "boiler", "x": 0.5, "y": 5.0, "d": "north", "w": 3, "h": 2},
             {"u": 2, "n": "steam-engine", "t": "generator", "x": 0.5, "y": 1.5, "d": "north", "w": 3, "h": 5, "net": 7}]
