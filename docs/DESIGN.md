@@ -82,11 +82,27 @@ Tried in this order; any of them can hand the order to Opus with what it tried.
 A message with several jobs in it skips the fast paths. After a fast path succeeds, the planner reviews the result when
 it has nothing else queued (asynchronous guidance); a plan it sends back becomes a follow-up order.
 
+## Projects: goals bigger than one plan
+
+Above the planner sits a third layer for goals that take many builds in a row ("automate green science", "beat the
+game"). `jev/project.py` runs an Opus manager, one short session per turn, with no memory but a journal it writes
+itself. Each turn it reads a report and ends with exactly one of `give_order`, `wait` or `finish`. The report holds
+the progress probe (`jev/progress.py`: what's been made, machines by recipe, research), how the last order went and
+why, and what was said in chat. It can look with the planner's read tools before deciding.
+
+Its orders go through the same pipeline as a player's: triage, fast paths, planner, verification. So the layers below
+don't know or care who gave the order, except that the planner is told nobody will answer its questions.
+
+The planner starts a project with `start_project` when an order is too big for one plan. An order that says so
+starts one directly ("project: ...", "beat the game"). Players' orders go first, and "stop" ends the project.
+
 ## The agent layer
 
 `jev/library.py` holds what Opus writes for itself:
 - **Lessons:** a general rule after an order that needed more than one plan.
 - **Designs:** layouts saved with `save_design` and reused with a `design` step.
+- **Playbooks:** order sequences the project manager saves with `save_playbook` after they worked; later projects see
+  them in their prompt.
 
 The test loop gives each run its own library under `bench/libraries/<tag>`. Lessons go stale when the code changes, so they need the daily review.
 
@@ -96,3 +112,6 @@ The test loop gives each run its own library under `bench/libraries/<tag>`. Less
 - `bench/report_rows.py` compares runs with the serf.
 - `bench/digest.py` is the daily review: pass rate, time per order, Jev's decisions with their confidence (low-confidence ones listed for labelling), recovery choices, what the checker caught, and new lessons.
 - `lab/eval_*.py` replays Jev on labelled cases, without starting the game.
+- `bench/campaign.py` measures how far into the game it gets: a world played for hours in generations, each from the
+  last one's save, probed against the milestone ladder. `bench/ladder.sh` gives one project order per rung on a stage
+  save and records whether it gets there alone; that's the measure of how big a task it can take.
