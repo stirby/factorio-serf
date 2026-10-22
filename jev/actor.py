@@ -1458,25 +1458,41 @@ class Actor(FastPaths):
             self.fuelled = (self.fuelled + [(x, y)])[-40:]
 
     async def _top_up_burners(self, limit: int = 8) -> None:
-        """Refuel the burners it fuelled before that are nearly out (under 5), before they stop. At most once a
-        minute."""
+        """Refuel the burners it fuelled before once one is nearly out (under 5), before they stop. At most once a
+        minute. Every burner under 15 goes in the same round, with coal for all of them fetched in one trip and
+        visited nearest first (on a fresh map the coal and the iron drills are often 100+ tiles apart)."""
         if time.time() - getattr(self, "_topup_t", 0) < 55:
             return
         self._topup_t = time.time()
+        levels = []
         for x, y in list(getattr(self, "fuelled", []))[:40]:
-            if limit <= 0:
-                break
             try:
                 w = await self.world((x, y), 2)
                 e = w.at(x, y)
                 if not e or "fuel" not in e:
                     self.fuelled.remove((x, y))
                     continue
-                if sum((e.get("fuel") or {}).values()) >= 5:
-                    continue
-                limit -= 1
-                self.log({"kind": "top_up", "at": [x, y], "what": e.get("n")})
-                await self.runner.run({"do": "refuel", "x": x, "y": y})
+                levels.append((x, y, sum((e.get("fuel") or {}).values()), e.get("n")))
+            except Exception as ex:  # noqa: BLE001
+                self.log({"kind": "error", "where": "top_up", "error": repr(ex)})
+        if not any(n < 5 for _, _, n, _ in levels):
+            return
+        batch = [q for q in levels if q[2] < 15]
+        me = await self.g.me()
+        at = tuple(me.get("position") or (0, 0))
+        route = []
+        while batch and len(route) < limit:
+            q = min(batch, key=lambda q: math.hypot(q[0] - at[0], q[1] - at[1]))
+            batch.remove(q)
+            route.append(q)
+            at = (q[0], q[1])
+        self.log({"kind": "top_up", "n": len(route), "at": [[q[0], q[1]] for q in route]})
+        for i, (x, y, _, name) in enumerate(route):
+            try:
+                step = {"do": "refuel", "x": x, "y": y}
+                if i == 0:
+                    step["stock"] = min(200, 20 * len(route))
+                await self.runner.run(step)
             except Exception as ex:  # noqa: BLE001
                 self.log({"kind": "error", "where": "top_up", "error": repr(ex)})
 

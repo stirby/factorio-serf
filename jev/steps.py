@@ -451,7 +451,7 @@ class Runner:
         inv = await self.refresh_inventory()
         n = int(s.get("count", 20))
         fuel = s.get("fuel") or next((f for f in FUELS if inv.get(f, 0) >= 5), None) or "coal"
-        if inv.get(fuel, 0) < min(n, 5):
+        if inv.get(fuel, 0) < min(n, 5) or (s.get("stock") and inv.get(fuel, 0) < int(s["stock"]) // 2):
             # stock fuel for several machines at once (the plan's remaining refuels, within reason): storage, then
             # mining coal, then wood from trees
             want = max(n, int(s.get("stock") or min(max(40, self.fuel_ahead), 120)))
