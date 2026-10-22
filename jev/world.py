@@ -663,6 +663,39 @@ class World:
                 out.append({"kind": "fluid_input", "u": e["u"], "at": (e["x"], e["y"]),
                             "text": f"{self.name(e['u'])} at {fmt_xy((e['x'], e['y']))} is short of fluid: "
                                     + "; ".join(why), "fixes": []})
+        # 4c. a machine nothing feeds, with a belt carrying what it needs two tiles out: its inserter is missing
+        for e in self.ents.values():
+            if e["t"] not in ("furnace", "assembling-machine") or self.feeders.get(e["u"]) or \
+                    e.get("s") in ("working", "full_output", "no_recipe"):
+                continue
+            need = set((self.recipes.get(e.get("r")) or {}).get("ingredients") or {})
+            if e["t"] == "furnace" and not need:
+                need = {"iron-ore", "copper-ore", "stone", "iron-plate"}
+            if not need:
+                continue
+            wd, ht = e.get("w", 1), e.get("h", 1)
+            x0, y0 = e["x"] - wd / 2, e["y"] - ht / 2
+            sides = [((x0 + i + 0.5, y0 - 0.5), (x0 + i + 0.5, y0 - 1.5)) for i in range(wd)] + \
+                [((x0 + i + 0.5, y0 + ht + 0.5), (x0 + i + 0.5, y0 + ht + 1.5)) for i in range(wd)] + \
+                [((x0 - 0.5, y0 + j + 0.5), (x0 - 1.5, y0 + j + 0.5)) for j in range(ht)] + \
+                [((x0 + wd + 0.5, y0 + j + 0.5), (x0 + wd + 1.5, y0 + j + 0.5)) for j in range(ht)]
+            for ins, belt in sides:
+                b = self.at(*belt)
+                ln = self.line_of.get(b["u"]) if b else None
+                if not ln or not (need & set(ln.items)) or self.at(*ins) is not None or self.off_view(*ins):
+                    continue
+                powered = any(p.get("t") == "electric-pole" and abs(p["x"] - ins[0]) <= 2.5 and abs(p["y"] - ins[1]) <= 2.5
+                              and grid_live(self.grids.get(p.get("net")) or {}) for p in self.ents.values())
+                name = "inserter" if powered and e["t"] != "furnace" else "burner-inserter"
+                fix = {"do": "place", "name": name, "x": ins[0], "y": ins[1], "pickup": [belt[0], belt[1]],
+                       "text": f"put a {name.replace('-', ' ')} between {self.name(e['u'])} and the belt",
+                       "done": f"added the missing inserter feeding the {e['n']} at {fmt_xy((e['x'], e['y']))}"}
+                fix["then_power" if name == "inserter" else "then_refuel"] = True
+                out.append({"kind": "unfed", "u": e["u"], "at": (e["x"], e["y"]),
+                            "text": f"{self.name(e['u'])} at {fmt_xy((e['x'], e['y']))} has nothing feeding it, though "
+                                    f"belt line {ln.id} ({items_words(ln.items, 2)}) runs right by it",
+                            "fixes": [fix]})
+                break
         # 4b. an inserter facing backwards: it takes from a machine that nothing feeds and drops onto a belt carrying
         # that machine's ingredients (its input belt)
         for e in self.ents.values():

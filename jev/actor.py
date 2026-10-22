@@ -1208,6 +1208,8 @@ class Actor(FastPaths):
                         r = await self.runner.run({"do": "power", "x": fx["x"], "y": fx["y"], "radius": 3})
                     if r.get("ok") and fx.get("then_purge"):  # the old product left on its belt
                         r = await self.runner.run({"do": "purge", **fx["then_purge"]})
+                    if r.get("ok") and fx.get("then_refuel"):  # a new burner inserter needs a few coal to start
+                        r = await self.runner.run({"do": "refuel", "x": fx["x"], "y": fx["y"], "count": 5})
                 self.log({"kind": "fix", "order": o.id, "fault": f["text"], "fix": fx, "ok": r.get("ok"),
                           "msg": r.get("msg")})
                 if not r.get("ok") and main:
@@ -1307,6 +1309,8 @@ class Actor(FastPaths):
                         r = await self.runner.run({"do": "power", "x": fx["x"], "y": fx["y"], "radius": 3})
                     if r.get("ok") and fx.get("then_purge"):  # the old product left on its belt
                         r = await self.runner.run({"do": "purge", **fx["then_purge"]})
+                    if r.get("ok") and fx.get("then_refuel"):  # a new burner inserter needs a few coal to start
+                        r = await self.runner.run({"do": "refuel", "x": fx["x"], "y": fx["y"], "count": 5})
                 self.log({"kind": "fix", "order": o.id, "fault": f["text"], "fix": fx, "ok": r.get("ok"),
                           "msg": r.get("msg")})
                 (fixed if r.get("ok") else failed).append(fx.get("done") or fx.get("text"))

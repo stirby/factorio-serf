@@ -306,6 +306,19 @@ def test_fluid_input():
           "no pipe" in f[0]["text"], f)
 
 
+def test_unfed():
+    line = _line(1, 0.5, 6, {"iron-ore": 3, "coal": 2})
+    fur = {"u": 30, "n": "stone-furnace", "t": "furnace", "x": 3.0, "y": 3.0, "w": 2, "h": 2, "s": "no_ingredients"}
+    f = [x for x in World({"ents": line + [fur], "center": [3, 3], "radius": 12}).faults() if x["kind"] == "unfed"]
+    fx = f and f[0]["fixes"][0]
+    check("world: a furnace two tiles from its ore belt with no inserter gets a burner inserter picking off the belt",
+          fx and fx["name"] == "burner-inserter" and fx["y"] == 1.5 and fx["pickup"][1] == 0.5 and fx.get("then_refuel"),
+          f)
+    ins = {"u": 31, "n": "inserter", "t": "inserter", "x": 2.5, "y": 1.5, "d": "north", "pku": 3, "dpu": 30}
+    check("world: not when an inserter feeds it", not [x for x in World({"ents": line + [fur, ins], "center": [3, 3],
+          "radius": 12}).faults() if x["kind"] == "unfed"])
+
+
 def test_engine_slot():
     ents = [{"u": 1, "n": "boiler", "t": "boiler", "x": 0.5, "y": 5.0, "d": "north", "w": 3, "h": 2},
             {"u": 2, "n": "steam-engine", "t": "generator", "x": 0.5, "y": 1.5, "d": "north", "w": 3, "h": 5, "net": 7}]
