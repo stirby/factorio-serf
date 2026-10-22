@@ -84,3 +84,27 @@ def place_design(name: str, x: float, y: float) -> list[dict] | None:
         return None
     ax, ay = round(float(x)), round(float(y))
     return [{**e, "x": e["x"] + ax, "y": e["y"] + ay} for e in ds[name]["entities"]]
+
+
+def playbooks() -> dict[str, dict]:
+    """Sequences of orders a project manager saved after they worked, for later projects."""
+    p = lib_dir() / "playbooks.json"
+    try:
+        return json.loads(p.read_text()) if p.exists() else {}
+    except json.JSONDecodeError:
+        return {}
+
+
+def save_playbook(name: str, when: str, orders: list[str], result: str = "") -> str:
+    import re
+    slug = re.sub(r"[^a-z0-9-]+", "-", str(name).lower()).strip("-")[:40]
+    orders = [" ".join(str(o).split())[:500] for o in (orders or []) if str(o).strip()][:12]
+    if not slug or not orders:
+        return "needs a name and the orders"
+    d = lib_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    books = playbooks()
+    books[slug] = {"when": " ".join(str(when).split())[:300], "orders": orders, "result": str(result)[:300],
+                   "t": time.time()}
+    (d / "playbooks.json").write_text(json.dumps(books, indent=1))
+    return f"saved playbook {slug} ({len(orders)} orders)"

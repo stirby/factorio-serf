@@ -55,6 +55,7 @@ are, what failed and why), then end with exactly one of give_order, wait or fini
 it's done or failed; then you get the next turn.
 - Players may also give {name} orders or say things; they're in the report. Players come first: fit your plan \
 around what they ask.
+- When a run of orders got a sub-goal done cleanly, save it with save_playbook so later projects can reuse it.
 - finish when the goal is met (done=true), or when you've tried the ways you can think of and it can't be done from \
 here (done=false, say what's in the way).
 
@@ -74,6 +75,13 @@ OWN_TOOLS = [
      {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}),
     ("say", "Say a short line in game chat (progress for the players). Use it sparingly.",
      {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}),
+    ("save_playbook", "Save a sequence of orders that worked for a sub-goal (e.g. 'bootstrap a fresh map', 'copper "
+                      "smelting column'), written so it fits another world: places as descriptions, not coordinates. "
+                      "Later projects see your playbooks. Only after the orders succeeded.",
+     {"type": "object", "properties": {"name": {"type": "string"}, "when": {"type": "string", "description": "when "
+                                       "to use it"}, "orders": {"type": "array", "items": {"type": "string"}},
+                                       "result": {"type": "string", "description": "what it got you, how long"}},
+      "required": ["name", "when", "orders"]}),
     ("finish", "End the project (ends your turn): done=true when the goal is met, false when it can't be done from "
                "here. summary: one or two lines for the player.",
      {"type": "object", "properties": {"done": {"type": "boolean"}, "summary": {"type": "string"}},
@@ -262,6 +270,10 @@ class Project:
                     elif n == "say":
                         await self.actor.say(str(args.get("text", ""))[:300])
                         out = "said"
+                    elif n == "save_playbook":
+                        from .library import save_playbook
+                        out = save_playbook(args.get("name", ""), args.get("when", ""), args.get("orders") or [],
+                                            args.get("result", ""))
                     else:
                         out = await look[n](args)
                 except Exception as e:  # noqa: BLE001
@@ -276,6 +288,12 @@ class Project:
         server = create_sdk_mcp_server("world", tools=sdk_tools)
         system = SYSTEM.format(name=self.actor.name, goal=self.goal, speaker=self.speaker,
                                milestones="; ".join(f"{lv} {nm}" for lv, nm, _ in progress.MILESTONES))
+        from .library import playbooks
+        books = playbooks()
+        if books:
+            system += "\nPlaybooks saved by earlier projects (orders that worked; adapt places to this world):\n" + \
+                "\n".join(f"- {n} (when: {b.get('when')}; got: {b.get('result') or '?'}): " + " | ".join(b["orders"])
+                          for n, b in list(books.items())[-12:])
         kw = dict(system_prompt=system, mcp_servers={"world": server}, tools=[],
                   allowed_tools=[f"mcp__world__{t.name}" for t in sdk_tools], setting_sources=[], model=self.model,
                   cwd=str(self.workdir), max_turns=24)
