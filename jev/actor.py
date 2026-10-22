@@ -1145,7 +1145,9 @@ class Actor(FastPaths):
         w = await self.world(o.focus, 18)
         watch = self._stopped(w)
         # products the order names ("no gears coming out"): a machine there set to something else is a fault too
-        wanted = quickbuild.products_named(o.text, [r for r in self.recipes if not r.endswith("-barrel")])
+        # (and in what the player said after: "still no gears" names the product the order didn't)
+        wanted = quickbuild.products_named(" ".join([o.text] + o.notes),
+                                           [r for r in self.recipes if not r.endswith("-barrel")])
         for rnd in range(6):
             if rnd:
                 w = await self.world(o.focus, 18)
