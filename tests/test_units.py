@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Offline unit tests (no game, no network): router, row layouts, compact layout notation, plan checker rules, world
 model belt lines and faults, failure facts.  Run: .venv/bin/python tests/test_units.py"""
+import json
 import math
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -799,6 +801,20 @@ def test_question_marks_order():
     asyncio.run(Actor.say(a, "acid plant has sulfur now. Want me to divert adv circuits to the PU build?"))
     asyncio.run(Actor.say(a, "on it"))
     check("question: a question while on an order is kept on it (c1 PU order)", o.asked and "divert" in o.asked, o.asked)
+
+
+def test_project_stuck():
+    import tempfile
+    from types import SimpleNamespace
+    from jev.project import Project
+    with tempfile.TemporaryDirectory() as d:
+        pr = SimpleNamespace(workdir=Path(d), STUCK_H=2.0)
+        check("stuck: a new level says nothing", Project._stuck(pr, {"level": 7}) == "")
+        (Path(d) / "level.json").write_text(json.dumps({"level": 7, "since": time.time() - 3 * 3600}))
+        t = Project._stuck(pr, {"level": 7})
+        check("stuck: 3 hours at one milestone gets the nudge", "milestone 7 for 3.0 hours" in t, t)
+        check("stuck: a level change resets it", Project._stuck(pr, {"level": 8}) == ""
+              and json.loads((Path(d) / "level.json").read_text())["level"] == 8)
 
 
 def test_keeper_state():

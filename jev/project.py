@@ -228,6 +228,32 @@ class Project:
                      "history": [h[:400] for h in o.history[-2:]]}
         self._log({"kind": "order_end", "order": o.id, **self.last})
 
+    STUCK_H = 2.0
+
+    def _stuck(self, p: dict) -> str:
+        """How long the world has been at its current milestone, across sessions (kept in the project's folder).
+        After STUCK_H hours, a nudge: c1 spent 5 h at purple and p2 hours at blue patching the same blockers, while
+        block builds on clean ground succeeded 28 times in 38."""
+        path = self.workdir / "level.json"
+        try:
+            st = json.loads(path.read_text())
+        except (OSError, ValueError):
+            st = {}
+        lv = p.get("level")
+        if st.get("level") != lv:
+            st = {"level": lv, "since": time.time()}
+            try:
+                path.write_text(json.dumps(st))
+            except OSError:
+                pass
+            return ""
+        hours = (time.time() - float(st.get("since") or time.time())) / 3600
+        if hours < self.STUCK_H:
+            return ""
+        return (f"The world has been at milestone {lv} for {hours:.1f} hours. If the same blockers keep coming back, "
+                "stop patching them: build the missing chain fresh on clean ground from the library blocks, fed by "
+                "its own belts (fresh blocks have worked far more often than repairs of tangled old lines).")
+
     def _by_hand(self) -> str:
         """What the serf keeps running by hand: chests it tops up and burners it refuels. Each is a line that isn't
         automated yet, which the probe can't tell from one that is (p2 hand-filled a brick chest 4 times in an hour)."""
@@ -255,6 +281,9 @@ class Project:
         if p:
             r = progress.rates(self.probes[-2], p) if len(self.probes) >= 2 else None
             lines.append("State of the world:\n" + progress.summary(p, r))
+            stuck = self._stuck(p)
+            if stuck:
+                lines.append(stuck)
         if self.last:
             s = f"Your last order: \"{self.last['text']}\" -> {self.last['outcome']} after {self.last['mins']:.0f} min."
             if self.last.get("history") and self.last["outcome"] != "done":
