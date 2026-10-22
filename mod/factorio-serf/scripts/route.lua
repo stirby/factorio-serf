@@ -4,13 +4,17 @@ local route = {}
 local function key(x, y) return x * 65536 + y end
 route.key = key -- for opts.allow
 
--- Minimal binary heap on f-score.
+-- Minimal binary heap on f-score; ties go to the node nearer the goal (on an open diagonal, every staircase has the
+-- same f, and without this A* fills the whole rectangle and runs out of its node budget).
+local function before(a, b)
+  return a.f < b.f or (a.f == b.f and (a.h or 0) < (b.h or 0))
+end
 local function push(h, node)
   h[#h + 1] = node
   local i = #h
   while i > 1 do
     local p = math.floor(i / 2)
-    if h[p].f <= h[i].f then break end
+    if not before(h[i], h[p]) then break end
     h[p], h[i] = h[i], h[p]
     i = p
   end
@@ -23,8 +27,8 @@ local function pop(h)
     local i = 1
     while true do
       local l, r, s = i * 2, i * 2 + 1, i
-      if h[l] and h[l].f < h[s].f then s = l end
-      if h[r] and h[r].f < h[s].f then s = r end
+      if h[l] and before(h[l], h[s]) then s = l end
+      if h[r] and before(h[r], h[s]) then s = r end
       if s == i then break end
       h[s], h[i] = h[i], h[s]
       i = s
@@ -44,7 +48,7 @@ local DIRS = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }
 function route.find(surface, from, to, opts)
   local sx, sy = math.floor(from.x), math.floor(from.y)
   local gx, gy = math.floor(to.x), math.floor(to.y)
-  local max_nodes = opts.max_nodes or 6000
+  local max_nodes = opts.max_nodes or math.max(6000, math.min(40000, 60 * (math.abs(gx - sx) + math.abs(gy - sy))))
   local cache = {}
   local function free(x, y)
     local k = key(x, y)
@@ -117,7 +121,8 @@ function route.find(surface, from, to, opts)
         if g[k] == nil or cost < g[k] then
           g[k] = cost
           came[k] = { prev = nk, pos = { x = x, y = y } }
-          push(h, { x = x, y = y, dir = d, f = cost + math.abs(gx - x) + math.abs(gy - y) })
+          local hh = math.abs(gx - x) + math.abs(gy - y)
+          push(h, { x = x, y = y, dir = d, f = cost + hh, h = hh })
         end
       elseif hop and straight and not is_exit then
         -- Blocked ahead: go under, to the nearest free tile within reach.
@@ -129,7 +134,8 @@ function route.find(surface, from, to, opts)
             if (g[ek] == nil or cost < g[ek]) and tunnel_ok(n.x, n.y, d, j) then
               g[ek] = cost
               came[ek] = { prev = nk, pos = { x = ex, y = ey }, hop = true, d = d }
-              push(h, { x = ex, y = ey, dir = d, exit = true, f = cost + math.abs(gx - ex) + math.abs(gy - ey) })
+              local hh = math.abs(gx - ex) + math.abs(gy - ey)
+              push(h, { x = ex, y = ey, dir = d, exit = true, f = cost + hh, h = hh })
             end
             break
           end
