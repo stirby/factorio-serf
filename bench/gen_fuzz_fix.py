@@ -115,8 +115,11 @@ def main(n: int, seed: int):
                         "lua": "local c=storage.bench_fix.gears return c.valid and c.get_item_count('iron-gear-wheel') "
                                "or 0"},
                        {"name": "furnaces_working", "target": 4,
-                        "lua": "local n=0 for _,f in pairs(storage.bench_fix.furnaces) do if f.valid and f.status=="
-                               "defines.entity_status.working then n=n+1 end end return n"}]}],
+                        # (full output is fine: 4 furnaces make more plates than one gear assembler uses, so in a
+                        # while they back up; a broken one shows no input, no fuel or no power)
+                        "lua": "local n=0 for _,f in pairs(storage.bench_fix.furnaces) do if f.valid and (f.status=="
+                               "defines.entity_status.working or f.status==defines.entity_status.full_output) then "
+                               "n=n+1 end end return n"}]}],
                "score": []}
         (ROOT / "bench" / "scenarios" / f"{name}.json").write_text(json.dumps(scn, indent=1) + "\n")
         names.append(name)
