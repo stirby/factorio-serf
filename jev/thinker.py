@@ -304,6 +304,11 @@ class Thinker:
                 self.stats.errors += 1
                 log.exception("thinker turn failed")
                 self.log_fn({"t": time.time(), "kind": "thinker_error", "error": repr(e)})
+                if "session limit" in repr(e).lower() or "usage limit" in repr(e).lower():
+                    # the subscription's limit arrives as an error result, not as text: mark it, so orders wait for
+                    # the retry instead of each burning its replans in seconds (11:20 limit: orders failed in bursts)
+                    self.stats.usage_limited = True
+                    self.stats.limited_at = time.time()
                 await self._restart()
                 # whoever waits on this request gets a no-plan answer instead of waiting forever
                 try:
