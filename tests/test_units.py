@@ -287,6 +287,13 @@ def test_options_nearest_line():
           (o1.get("lines") and o1["lines"][0].start, o2.get("lines") and o2["lines"][0].start))
 
 
+def test_only_word():
+    check("quickbuild: 'I need copper made' off an ore belt means copper plates; 'copper cable' doesn't",
+          quickbuild.only_word("I need copper made from this belt, a couple of furnaces, into chests", ["copper-plate"])
+          == "copper-plate" and quickbuild.only_word("make copper cable off this belt", ["copper-plate"]) is None
+          and quickbuild.only_word("make iron stuff here", ["iron-chest", "iron-gear-wheel"]) is None)
+
+
 def test_engine_slot():
     ents = [{"u": 1, "n": "boiler", "t": "boiler", "x": 0.5, "y": 5.0, "d": "north", "w": 3, "h": 2},
             {"u": 2, "n": "steam-engine", "t": "generator", "x": 0.5, "y": 1.5, "d": "north", "w": 3, "h": 5, "net": 7}]

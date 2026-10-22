@@ -16,6 +16,7 @@ IRON = ["firearm-magazine", "iron-chest", "iron-gear-wheel", "iron-stick", "ligh
 IRON_COAL = IRON + ["steel-plate"]
 ORE = ["iron-plate"]
 COPPER = ["copper-cable"]
+COPPER_ORE = ["copper-plate"]
 IRON_COPPER = IRON + COPPER + ["automation-science-pack", "electronic-circuit"]  # (two-stage: feeders)
 MALL = IRON + ["inserter"]
 CARRY.update({id(IRON): ["iron-plate"], id(IRON_COAL): ["coal", "iron-plate"], id(ORE): ["coal", "iron-ore"],
@@ -34,6 +35,10 @@ CASES = [
      "circuits; both run east. Power pole at [gps=12,20]. Set up an assembler making inserters into a chest, fed from "
      "these belts.", MALL, True, "inserter", "1", "chest"),
     ("@serf make gears off this belt [gps=3,3]", IRON, True, "iron-gear-wheel", "not_said", "chest"),
+    # variants (bench/gen_fuzz.py seed 3): plates said as the metal alone
+    ("@serf I need copper made from this belt [gps=112,-47], a couple of furnaces, into chests", COPPER_ORE, True,
+     "copper-plate", "2", "chest"),
+    ("@serf iron plates please, off that belt [gps=1,1], a couple of furnaces", ORE, True, "iron-plate", "2", "chest"),
     ("@serf build 6 furnaces off the ore belt at [gps=5,5], plates into chests", ORE, True, "iron-plate", "6", "chest"),
     ("@serf make me a smelter column: 8 stone furnaces off the ore belt at [gps=12,8] (iron ore and coal on it), "
      "plates on a belt into the chest at [gps=16,30]. Materials are in the supply chest at [gps=0,8], grid pole at "

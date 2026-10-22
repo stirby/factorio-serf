@@ -240,6 +240,23 @@ def products_named(order: str, products) -> list[str]:
     return out
 
 
+def only_word(order: str, products: list[str], every: list[str] | None = None) -> str | None:
+    """The one option the order names by a word no other option has ("I need copper made" when the belt can only
+    make copper plates), provided it doesn't fully name some product that isn't an option ("copper cable" off an
+    ore belt). Jev hears "copper" alone as none of them."""
+    infra = {"transport-belt", "inserter", "stone-furnace", "assembling-machine-1", "small-electric-pole", "iron-chest",
+             "wooden-chest"}  # what orders talk about building with ("off this belt", "2 furnaces", "into chests")
+    if products_named(order, [p for p in (every or SAY) if p not in products and p not in infra]):
+        return None
+    words = {w[:-1] if w.endswith("s") and len(w) > 3 else w for w in re.findall(r"[a-z]+", order.lower())}
+    hits = []
+    for p in products:
+        mine = set(p.split("-")) - {w for q in products if q != p for w in q.split("-")}
+        if mine & words:
+            hits.append(p)
+    return hits[0] if len(hits) == 1 else None
+
+
 def named_products(order: str, products: list[str]) -> int:
     return len(products_named(order, products))
 
@@ -254,7 +271,8 @@ def plain_counts(order: str) -> str:
 async def read_order(jev: Jev, order: str, products: list[str], carried: list[str] | None = None) -> dict:
     alias = {"iron-gear-wheel": "gears", "firearm-magazine": "yellow ammo",
              "electronic-circuit": "green circuits", "automation-science-pack": "red science",
-             "iron-plate": "plates: furnaces smelting iron ore", "copper-plate": "plates: furnaces smelting copper ore",
+             "iron-plate": "iron, plates: furnaces smelting iron ore",
+             "copper-plate": "copper, plates: furnaces smelting copper ore",
              "stone-brick": "bricks: furnaces smelting stone", "steel-plate": "steel: furnaces on iron plates"}
     opts = {p: p.replace("-", " ") + (f" ({alias[p]})" if p in alias else "") for p in products[:200]}
     opts["none_of_these"] = "something not in this list, or two or more different products"
@@ -295,6 +313,11 @@ async def read_order(jev: Jev, order: str, products: list[str], carried: list[st
                         "-> 1, '3 cable assemblers to 2 circuit assemblers' -> 2), or not_said.", COUNTS),
     }, kind="quickbuild")
     prod = a["product"].choice
+    prod_p = float(a["product"].probs.get(prod) or 0)
+    if prod == "none_of_these" and prod_p < 0.7:
+        own = only_word(order, products)
+        if own:
+            prod, prod_p = own, 0.6
     cnt = a["count"].choice
     cnt_p = float(a["count"].probs.get(cnt) or 0)
     # "3 assemblers", "2 furnaces": an exact number next to a machine word is read by code
@@ -309,7 +332,7 @@ async def read_order(jev: Jev, order: str, products: list[str], carried: list[st
     # several
     several = a["several"].p if named_products(order, products) >= 2 else min(a["several"].p, 0.3)
     return {"build": a["build"].p, "chain": max(several, a["onward"].p), "elsewhere": a["elsewhere"].p,
-            "onto_belt": onto, "product": prod, "product_p": float(a["product"].probs.get(prod) or 0),
+            "onto_belt": onto, "product": prod, "product_p": prod_p,
             "count": cnt, "count_p": cnt_p,
             "output": "belt" if onto >= 0.75 else "chest"}
 
