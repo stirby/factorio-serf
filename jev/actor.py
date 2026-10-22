@@ -1182,6 +1182,14 @@ class Actor(FastPaths):
             # (a recipe change only when it's the one picked: it rests on reading the order, not on what's broken)
             extra = [g for i, g in enumerate(opts) if i != idx and g["members"][0]["kind"] != "wanted_recipe"] \
                 if p_all >= 0.7 else []
+            if opts[idx]["members"][0]["kind"] == "no_fuel" and not rnd:
+                # the same line's other burners are usually out too, past the edge of the view: fuel them in this round
+                _, traced = await self._traced_faults(o.focus)
+                have = {m.get("u") for m in opts[idx]["members"]}
+                more = [t for t in traced if t["kind"] == "no_fuel" and t.get("u") not in have]
+                if more:
+                    self.log({"kind": "fix_traced", "order": o.id, "faults": [t["text"] for t in more][:8]})
+                    opts[idx]["members"] = opts[idx]["members"] + more
             r, f, fx = {"ok": True}, None, None
             for f in opts[idx]["members"] + [m for g in extra for m in g["members"]]:
                 main = f in opts[idx]["members"]
