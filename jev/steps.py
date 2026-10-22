@@ -1059,6 +1059,7 @@ class Runner:
                 if remaining:
                     # still there: place each one directly (it walks its own way; dense underground layouts can
                     # wall a spot off from the ghost builder's approach)
+                    misses = 0
                     for e in [e for e in (sc.get("ents") or []) if e.get("ghost")]:
                         a = {"op": "place", "name": e["n"], "x": e["x"], "y": e["y"]}
                         if e.get("d"):
@@ -1068,6 +1069,11 @@ class Runner:
                         pr = await self._act(a, timeout=90)
                         if pr.get("ok"):
                             built_total += 1
+                            misses = 0
+                        else:
+                            misses += 1
+                            if misses >= 6:  # walled off or blocked: the planner hears about it, not 500 more tries
+                                break
                     sc = await self.g.scan(center=p, radius=int(float(s.get("radius", 32))) + 1)
                     remaining = sum(1 for e in (sc.get("ents") or []) if e.get("ghost"))
                 return {"ok": True, "msg": f"built {built_total} ghosts; none left"
