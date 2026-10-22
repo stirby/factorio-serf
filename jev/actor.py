@@ -60,6 +60,7 @@ class Order:
     built: list = field(default_factory=list)  # layout entries of what this order built (scans before and after)
     multi: bool = False  # several jobs in one message: the planner sorts them out, not the quick paths
     reopened: int = 0  # times a player said it isn't done after it finished
+    quick_plan: dict | None = None  # the plan a fast path ran (re-checked when it's reopened)
 
     @property
     def focus(self):
@@ -322,6 +323,15 @@ class Actor(FastPaths):
         self.log({"kind": "order", "order": o.id, "text": o.text, "playbook": o.playbook, "points": o.points})
         if o.next_plan and o.speaker == "planner":  # the planner's follow-up: run its plan
             return await self._planned(o, f"Your follow-up: {o.text}")
+        if o.reopened and o.quick and o.quick_plan and o.quick_plan.get("expect"):
+            # "not done yet" after a fast path: first look again. If its checks still pass, it's running (maybe
+            # just not for long yet), and the planner isn't needed.
+            ok, report = await self._verify(o, o.quick_plan)
+            self.log({"kind": "recheck", "order": o.id, "ok": ok, "report": str(report)[:300]})
+            if ok:
+                await self.say(f"it's running: {o.quick_plan.get('goal', 'the build')}. Give it a few minutes")
+                return True
+            o.notes.append(f"(the actor's checks now: {report})")
         if o.reopened and o.quick:
             # it isn't done after a fast path built it: running that path again builds a second copy beside the first,
             # so the planner changes or extends what's there

@@ -152,6 +152,7 @@ class FastPaths:
     async def _run_quick(self, o: Order, plan: dict, what: str) -> bool | str:
         """Run and check a plan the actor made itself; a string says what happened if it didn't work."""
         o.quick = True
+        o.quick_plan = plan
         self.log({"kind": "quick_plan", "order": o.id, "plan": plan})
         await self.say(f"on it: {what}")
         ok, report = await self._run_plan(o, plan)
