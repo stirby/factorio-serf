@@ -46,6 +46,16 @@ for _grp, _names in {
         REPLACE_GROUP[_n] = _grp
 
 
+# where a drill's output lands, facing north, from its center (the prototypes' vector_to_place_result)
+DRILL_DROP = {"burner-mining-drill": (-0.5, -1.3), "electric-mining-drill": (0.0, -1.85)}
+
+
+def drill_drop(e: dict) -> tuple[int, int]:
+    vx, vy = DRILL_DROP[e["name"]]
+    d = e.get("dir") if e.get("dir") in ("north", "east", "south", "west") else "north"
+    vx, vy = {"north": (vx, vy), "east": (-vy, vx), "south": (-vx, -vy), "west": (vy, -vx)}[d]
+    return math.floor(e["x"] + vx), math.floor(e["y"] + vy)
+
 def size_of(name: str, direction: str | None = None) -> tuple[int, int]:
     w, h = SIZE.get(name, (1, 1))
     if direction in ("east", "west") and name in ("steam-engine", "boiler", "offshore-pump", "splitter",
@@ -270,6 +280,10 @@ def lint(steps: list[dict], w: World, available: set[str] | None = None, recipes
             fed = any(x.get("dp") in tl for x in planned if x["name"] in INSERTERS)
             fed = fed or any(w.ents.get(u, {}).get("dpu") and (math.floor(w.ents[u]["dp"][0]), math.floor(w.ents[u]["dp"][1])) in tl
                              for u in [u for u, x in w.ents.items() if x["t"] == "inserter" and x.get("dp")])
+            # a mining drill dropping straight into it feeds it too (burner drills onto furnaces)
+            fed = fed or any(drill_drop(x) in tl for x in planned if x["name"] in DRILL_DROP)
+            fed = fed or any(x.get("dp") and (math.floor(x["dp"][0]), math.floor(x["dp"][1])) in tl
+                             for x in w.ents.values() if x.get("t") == "mining-drill")
             if not fed:
                 out.append(f"nothing feeds the {e['name']} at {fmt_xy((e['x'], e['y']))} (no inserter drops into it)")
     # ingredients: every planned assembler needs an inserter bringing each ingredient from somewhere that has it
