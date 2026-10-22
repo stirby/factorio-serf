@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import re
 import time
 from collections import Counter
@@ -192,6 +193,13 @@ class Actor(FastPaths):
             self.log({"kind": "question_as_job", "msg": msg})
             kind = "new_job"
         last = self.orders[-1] if self.orders else None
+        # "more about the last job" that points somewhere else entirely ("the gear chest at [gps] should be filling up"
+        # right after a mine was finished) is a new job there, not a reopened one
+        pts_here = [(float(a), float(b)) for a, b in GPS.findall(msg)]
+        if kind == "more_info" and last and pts_here and last.points and all(
+                math.hypot(p[0] - q[0], p[1] - q[1]) > 30 for p in pts_here for q in last.points):
+            self.log({"kind": "elsewhere_is_new", "msg": msg})
+            kind = "new_job"
         reopen = False
         if kind in ("more_info",) and not doing and last and last.status in ("done", "failed") \
                 and time.time() - last.t < 1800:
