@@ -770,7 +770,18 @@ class Actor(FastPaths):
         r = int(min(96, max(max(xs) - min(xs), max(ys) - min(ys)) / 2 + 8))
         w = await self.world((cx, cy), r)
         on_belts = {i for ln in w.lines for i in (ln.items or {})}
-        return lint(plan.get("steps") or [], w, await self.available(on_belts), self.recipes)
+        recipes = self.recipes
+        waits = [st.get("tech") for st in plan.get("steps") or [] if st.get("do") == "wait_research" and st.get("tech")]
+        if waits:
+            # what a tech the plan waits for unlocks is usable after that step (electric drills once researched)
+            recipes = dict(self.recipes)
+            for t in waits[:4]:
+                try:
+                    q = await self.g.call("query", what="tech", name=t)
+                    recipes.update(q.get("unlocks") or {})
+                except Exception:  # noqa: BLE001
+                    pass
+        return lint(plan.get("steps") or [], w, await self.available(on_belts), recipes)
 
     async def available(self, extra: set[str] | None = None) -> set[str]:
         """Items the character can get: in storage, inventory or on nearby belts, or hand-craftable from those."""

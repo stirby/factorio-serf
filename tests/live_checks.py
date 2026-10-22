@@ -509,8 +509,43 @@ return true""")
     check("tree clear: clearing an area with no trees left is fine", r3.get("ok"), r3.get("msg"))
 
 
+async def chk_wait_research(L: Live, state: dict):
+    g = L.g
+    pick = await L.ev("""
+local f = game.forces.player
+local out = {}
+for name, t in pairs(f.technologies) do
+  if not t.researched and t.enabled and t.research_unit_count and #t.research_unit_ingredients > 0 then
+    local ready = true
+    for _, pre in pairs(t.prerequisites) do if not pre.researched then ready = false break end end
+    local unlocks = false
+    for _, eff in pairs(t.prototype.effects or {}) do if eff.type == 'unlock-recipe' then unlocks = true end end
+    if ready and unlocks then out[#out + 1] = name end
+    if #out >= 2 then break end
+  end
+end
+return out""")
+    if not pick or len(pick) < 2:
+        check("wait_research: two researchable techs on the stage", False, pick)
+        return
+    a, b = pick[0], pick[1]
+    r = Runner(g)
+    await r._do_research({"tech": a, "first": True})
+    async def finish_soon():  # the labs finish it while the step waits (this stage has no working labs)
+        await asyncio.sleep(12)
+        await L.ev(f"game.forces.player.technologies['{a}'].researched = true return true")
+    done = asyncio.create_task(finish_soon())
+    res = await r._do_wait_research({"tech": a, "minutes": 2})
+    await done
+    check(f"wait_research: waits until {a} is researched", res.get("ok") and "researched" in str(res.get("msg")),
+          res.get("msg"))
+    res = await r._do_wait_research({"tech": b, "minutes": 0.2})
+    check(f"wait_research: a tech far from done times out and says how far it got",
+          not res.get("ok") and "still at" in str(res.get("msg")), res.get("msg"))
+
+
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research}
 
 
 async def main() -> int:

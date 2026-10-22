@@ -943,6 +943,36 @@ class Runner:
             return {"ok": True, "msg": f"no {s['item']} on the belts there"}
         return r
 
+    async def _do_wait_research(self, s):
+        """Wait until a tech is researched, so later steps can use what it unlocks (p3: "place electric drills once
+        their research is done" had no way to say it, so the order ended half done). Queues the tech if it isn't
+        researching or queued. It only waits: the labs need their packs. Up to `minutes` (default 15, at most 30)."""
+        tech = s.get("tech")
+        if not tech:
+            return {"ok": False, "msg": "wait_research needs tech"}
+        mins = min(float(s.get("minutes", 15)), 30)
+        t0 = time.time()
+        queued = False
+        while True:
+            q = await self.g.call("query", what="tech", name=tech)
+            if q.get("error"):
+                return {"ok": False, "msg": q["error"]}
+            if q.get("researched"):
+                if isinstance(self.recipes, dict):
+                    self.recipes.update(q.get("unlocks") or {})  # usable now: crafting checks see them
+                return {"ok": True, "msg": f"{tech} is researched (waited {time.time() - t0:.0f} s)"}
+            if not q.get("current") and not q.get("queued") and not queued:
+                queued = True
+                r = await self._do_research({"tech": tech})
+                if not r.get("ok"):
+                    return {"ok": False, "msg": f"{tech} isn't researching and couldn't be queued: {r.get('msg')}"}
+            if self.abort and self.abort():
+                return {"ok": False, "msg": "cancelled", "cancelled": True}
+            if time.time() - t0 > mins * 60:
+                return {"ok": False, "msg": f"{tech} still at {100 * float(q.get('progress') or 0):.0f}% after "
+                                           f"{mins:.0f} min: the labs need packs (or more labs)"}
+            await asyncio.sleep(10)
+
     async def _do_research(self, s):
         """Queue a tech. tech="cheapest" (or a trigger/finished tech that fails) picks the cheapest lab tech whose
         packs are all in `packs` (default red and green)."""

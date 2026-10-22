@@ -322,6 +322,7 @@ API.production = function(req) return observe.production(live(req), req) end
 --   clutter      trees and rocks within radius (default 8, max 32) of x,y: {name, x, y}
 --   ore          the tiles of resource `name` within radius (default 16, max 32) of x,y
 --   items_near   totals of the given items in containers near x,y (radius), e.g. a belt puzzle's kit
+--   tech         one technology `name`: researched, current, queued, progress (0..1), unlocks {recipe = detail}
 API.query = function(req)
   local s = game.surfaces[req.surface or "nauvis"] or game.surfaces.nauvis
   local w = req.what
@@ -366,6 +367,29 @@ API.query = function(req)
       out[#out + 1] = { math.floor(e.position.x), math.floor(e.position.y) }
     end
     return { tiles = out }
+  elseif w == "tech" then
+    local f = game.forces.player
+    local t = f.technologies[req.name or ""]
+    if not t then return { error = "no technology named " .. tostring(req.name) } end
+    local unlocks = {}
+    for _, eff in pairs(t.prototype.effects or {}) do
+      if eff.type == "unlock-recipe" and f.recipes[eff.recipe] then
+        local r = f.recipes[eff.recipe]
+        local ing = {}
+        for _, i in pairs(r.ingredients) do ing[i.name] = i.amount end
+        local first = r.products[1]
+        unlocks[eff.recipe] = { ingredients = ing, category = r.category, time = r.energy,
+          makes = first and (first.amount or first.amount_min) or 1 }
+      end
+    end
+    local cur = f.current_research
+    local current = cur ~= nil and cur.name == t.name
+    local queued = false
+    for _, q in pairs(f.research_queue or {}) do if q.name == t.name then queued = true end end
+    local progress = 0
+    pcall(function() progress = current and f.research_progress or (t.saved_progress or 0) end)
+    return { tech = t.name, researched = t.researched, current = current, queued = queued, progress = progress,
+      unlocks = unlocks }
   elseif w == "clutter" then
     -- trees and rocks in a square around x,y (what has to go before building there)
     local p = { x = tonumber(req.x) or 0, y = tonumber(req.y) or 0 }

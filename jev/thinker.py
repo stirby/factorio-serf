@@ -40,6 +40,7 @@ Step ops (each step is an object {{"do": op, ...}}):
   build_ghosts [x y radius]                 build planned ghosts (also the players' own)
   insert x y item [count] | take x y [item] [count] | empty_chest x y
   refuel x y [fuel]                         put fuel into a burner (fetches coal)
+  wait_research tech [minutes]              wait (default 15 min, max 30) until a tech is researched, queueing it if needed; steps after it can use what it unlocks (e.g. feed the labs, wait_research electric-mining-drill, then place the drills). It only waits: the labs need packs
   power x y [from=[x,y]] [item]             run poles from the nearest powered pole (or from) to x,y
   fetch item count | craft recipe count | mine name count | mine_at x y [name] (pick up one entity; with name, only that kind, never a neighbour when x,y is a tile off)
   research tech [first=true: to the front of the queue, with its unresearched prerequisites] [remove=true: take it out of the queue] (or tech="cheapest") | move x y | follow player [seconds] | wait seconds | say text
