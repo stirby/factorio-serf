@@ -664,13 +664,21 @@ class World:
                             "text": f"{self.name(e['u'])} at {fmt_xy((e['x'], e['y']))} is short of fluid: "
                                     + "; ".join(why), "fixes": []})
         # 4c. a machine nothing feeds, with a belt carrying what it needs two tiles out: its inserter is missing
+        # (also a chest that feeds a machine: what that machine needs)
         for e in self.ents.values():
-            if e["t"] not in ("furnace", "assembling-machine") or self.feeders.get(e["u"]) or \
-                    e.get("s") in ("working", "full_output", "no_recipe"):
+            if self.feeders.get(e["u"]) or e.get("s") in ("working", "full_output", "no_recipe"):
                 continue
-            need = set((self.recipes.get(e.get("r")) or {}).get("ingredients") or {})
-            if e["t"] == "furnace" and not need:
-                need = {"iron-ore", "copper-ore", "stone", "iron-plate"}
+            if e["t"] in ("furnace", "assembling-machine"):
+                need = set((self.recipes.get(e.get("r")) or {}).get("ingredients") or {})
+                if e["t"] == "furnace" and not need:
+                    need = {"iron-ore", "copper-ore", "stone", "iron-plate"}
+            elif e["t"] in ("container", "logistic-container") and not e.get("inv"):
+                need = set()
+                for i in self.takers.get(e["u"], []):
+                    m = self.ents.get((self.ents.get(i) or {}).get("dpu")) or {}
+                    need |= set((self.recipes.get(m.get("r")) or {}).get("ingredients") or {})
+            else:
+                continue
             if not need:
                 continue
             wd, ht = e.get("w", 1), e.get("h", 1)

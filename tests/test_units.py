@@ -321,6 +321,16 @@ def test_unfed():
     ins = {"u": 31, "n": "inserter", "t": "inserter", "x": 2.5, "y": 1.5, "d": "north", "pku": 3, "dpu": 30}
     check("world: not when an inserter feeds it", not [x for x in World({"ents": line + [fur, ins], "center": [3, 3],
           "radius": 12}).faults() if x["kind"] == "unfed"])
+    # an empty chest feeding a gear assembler, a plate belt ending two tiles from it, no inserter between
+    plates = _line(1, 0.5, 4, {"iron-plate": 6})  # x 0.5..3.5
+    chest = {"u": 40, "n": "iron-chest", "t": "container", "x": 5.5, "y": 0.5}
+    take = {"u": 41, "n": "inserter", "t": "inserter", "x": 6.5, "y": 0.5, "d": "west", "pku": 40, "dpu": 42}
+    asm = {"u": 42, "n": "assembling-machine-1", "t": "assembling-machine", "x": 8.5, "y": 0.5, "w": 3, "h": 3,
+           "r": "iron-gear-wheel", "s": "item_ingredient_shortage"}
+    f = [x for x in World({"ents": plates + [chest, take, asm], "center": [4, 0], "radius": 12},
+                          {"iron-gear-wheel": {"ingredients": {"iron-plate": 2}}}).faults() if x["kind"] == "unfed"]
+    check("world: an empty chest feeding a gear assembler gets the inserter from the plate belt that ends by it",
+          f and f[0]["u"] == 40 and f[0]["fixes"][0]["x"] == 4.5 and f[0]["fixes"][0]["pickup"] == [3.5, 0.5], f)
 
 
 def test_engine_slot():
