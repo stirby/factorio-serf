@@ -183,6 +183,9 @@ class Actor(FastPaths):
 
     # ------------------------------------------------------------------ lifecycle
     async def start(self) -> None:
+        # a save keeps the character's job queue: jobs a previous session queued (and nobody waits for) would hold up
+        # everything this one does (p1 after a resume: its first action waited 10 min behind an old fetch)
+        await self.g.cancel("a new session starts")
         rec = await self.g.call("recipes", agent=self.name, detail=True)
         self.recipes = rec.get("recipes") if isinstance(rec, dict) else {}
         self.runner.recipes = self.recipes
