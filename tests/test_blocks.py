@@ -30,7 +30,8 @@
      its direction (set_recipe afterwards would leave it facing north).
 3. Warm up, then measure for --measure seconds of game time (default: the longest `measure_s` of the designs on
    that instance, at least 90; slow recipes such as blue packs finish in batches, so they need longer windows): output items (or research units, or MW), and each
-   design entity's status every 10 s.
+   design entity's status every 10 s. Each case is judged on its own window (its `measure_s`, at least 90, from
+   the shared start), so a lab row whose test tech would run out isn't spoiled by a slower neighbour.
 PASS = measured >= 60% of the design's rated output, every entity placed where asked, and no entity in a bad
 status for most samples (any: no power/fuel/recipe/fluid; producers: also ingredient shortage, output full,
 missing packs).
@@ -396,6 +397,15 @@ class Case:
         self.rates = {out["item"]: self.rated, **out.get("also", {})} if out.get("item") else {}
         self.unit = {"items": "/s", "research": " units/s", "power": " MW"}.get(self.kind, "")
         self.error: str | None = None
+        self.window: float | None = None  # this case's own measuring time (s); the instance may measure longer
+
+    def measured_samples(self) -> list[dict]:
+        """Samples within this case's own window from the shared start: a short test (e.g. a lab row whose tech
+        runs out) isn't spoiled by a longer neighbour on the same instance."""
+        if not self.window or not self.samples:
+            return self.samples
+        lim = self.samples[0]["tick"] + self.window * 60 + 60
+        return [s for s in self.samples if s["tick"] <= lim]
 
     def place_lua(self, center) -> str:
         spec = {"case": self.key, "design": self.spec["design"], "harness": self.spec["harness"],
@@ -414,27 +424,28 @@ class Case:
         res = {"design": self.name, "rotation": self.rotation, "origin": self.origin, "rated": self.rated,
                "mode": "ghosts" if self.ghosts else "create_entity",
                "unit": self.unit, "problems": list(self.problems), "error": self.error}
-        if self.error or len(self.samples) < 2:
+        samples = self.measured_samples()
+        if self.error or len(samples) < 2:
             res.update(measured=None, ratio=0.0, ok=False)
             if not self.error:
                 res["error"] = "not enough samples"
             return res
-        a, b = self.samples[0], self.samples[-1]
+        a, b = samples[0], samples[-1]
         dt = (b["tick"] - a["tick"]) / 60
         if self.kind == "research":
             measured = (b.get("units", 0) - a.get("units", 0)) / dt
         elif self.kind == "power":
-            vals = [s.get("mw", 0) for s in self.samples]
+            vals = [s.get("mw", 0) for s in samples]
             measured = sum(vals) / len(vals)
         else:
             per = {it: ((b.get("out") or {}).get(it, 0) - (a.get("out") or {}).get(it, 0)) / dt for it in self.rates}
             measured = per[next(iter(self.rates))]
             res["per_item"] = {it: f"{v:.3g}/{self.rates[it]:g}" for it, v in per.items()}
         bad: dict[int, list[str]] = {}
-        n = len(self.samples)
+        n = len(samples)
         ents = self.spec["design"]
         for i, e in enumerate(ents, 1):
-            sts = [s["st"].get(f"e{i}") for s in self.samples if isinstance(s.get("st"), dict)]
+            sts = [s["st"].get(f"e{i}") for s in samples if isinstance(s.get("st"), dict)]
             sts = [x for x in sts if x]
             if not sts:
                 continue
@@ -457,7 +468,7 @@ class Case:
     def _status_counts(self) -> dict:
         out: dict[str, dict[str, int]] = {}
         for i, e in enumerate(self.spec["design"], 1):
-            for s in self.samples:
+            for s in self.measured_samples():
                 st = (s.get("st") or {}).get(f"e{i}") if isinstance(s.get("st"), dict) else None
                 if st:
                     k = e["name"] + (":" + e["recipe"] if e.get("recipe") else "")
@@ -494,6 +505,9 @@ async def run_group(k: int, cases: list[Case], args) -> None:
         warm = args.warmup if args.warmup is not None else max([c.test.get("warmup_s", 30) for c in live] or [0])
         measure = args.measure if args.measure is not None else max(
             [MEASURE_S] + [float(c.test.get("measure_s", MEASURE_S)) for c in live])
+        for c in live:
+            c.window = args.measure if args.measure is not None else max(
+                MEASURE_S, float(c.test.get("measure_s", MEASURE_S)))
         print(f"[i{k}] warming up {warm:.0f}s, then measuring {measure:.0f}s", flush=True)
         await asyncio.sleep(warm)
         end = time.time() + measure
