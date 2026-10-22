@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
 CAMPS = ROOT / "bench" / "campaigns"
 TOTALS = ["iron-plate", "copper-plate", "electronic-circuit", "automation-science-pack", "logistic-science-pack",
           "chemical-science-pack", "production-science-pack", "utility-science-pack", "plastic-bar", "rocket-part"]
@@ -30,7 +31,9 @@ def jsonl(p: Path) -> list[dict]:
 def generation(d: Path, mode: str) -> dict:
     probes = [p for p in jsonl(d / "progress.jsonl") if "level" in p]
     t0 = probes[0]["t"] if probes else None
+    from jev.progress import MILESTONES
     pts = [{"min": round((p["t"] - t0) / 60, 1), "level": p["level"], "techs": p.get("techs"),
+            "got": [lv for lv, nm, _ in MILESTONES if nm in (p.get("milestones") or [])],
             **{k: p.get("items", {}).get(k, 0) for k in TOTALS if p.get("items", {}).get(k)}} for p in probes]
     orders = []
     actor = jsonl(d / "actor.jsonl")
