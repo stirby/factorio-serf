@@ -215,7 +215,10 @@ class Instance:
     def wait_ready(self, timeout: float = 180) -> None:
         deadline = time.time() + timeout
         while True:
-            if self.proc and self.proc.poll() is not None or not self.running():
+            # with our own handle, trust it: right after the spawn /proc/<pid>/cmdline can still show the parent
+            # python (before exec), so running() said "exited" while the server was coming up, and it was left running
+            dead = self.proc.poll() is not None if self.proc else not self.running()
+            if dead:
                 raise RuntimeError(f"instance {self.k} exited during startup:\n" + self.tail(25))
             try:
                 if INGAME in self.log.read_text(errors="replace"):
@@ -259,7 +262,7 @@ class Instance:
 
     def stop(self, timeout: float = 30) -> bool:
         """SIGINT, then SIGTERM, then SIGKILL. Returns True if it was running."""
-        pid = self.pid()
+        pid = self.pid() or (self.proc.pid if self.proc and self.proc.poll() is None else None)
         if pid is None:
             self.pidfile.unlink(missing_ok=True)
             return False
