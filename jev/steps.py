@@ -225,9 +225,11 @@ class Runner:
         self.log_fn({"t": t0, "kind": "stock", "need": short, "fails": fails, "secs": round(time.time() - t0, 1)})
         return fails
 
-    async def ensure(self, item: str, count: int) -> dict:
+    async def ensure(self, item: str, count: int, depth: int = 0) -> dict:
         """Have at least count of item: storage first, then hand-crafting (the mod's fetch does both, fetching
-        ingredients from storage too). If that fails: grab it, or its ingredients, off belts, then craft."""
+        ingredients from storage too). If that fails: grab it, or its ingredients, off belts, then craft. An
+        ingredient that can't be had is made the same way, a few levels down to mining the raw resource (a boiler
+        needs a stone furnace, which needs stone that's in no chest)."""
         inv = await self.refresh_inventory()
         if inv.get(item, 0) >= count:
             return {"ok": True, "msg": f"have {inv[item]} {item}"}
@@ -254,9 +256,12 @@ class Runner:
                         if not fi.get("ok") and ing in MINEABLE:
                             # raw: mine it (wood from trees: 4 per tree)
                             short_ing = need - (await self.refresh_inventory()).get(ing, 0)
-                            await self._act({"op": "mine", "name": MINEABLE[ing],
-                                             "count": max(1, -(-short_ing // 4)) if ing == "wood" else short_ing},
-                                            timeout=600)
+                            if short_ing <= 300:
+                                await self._act({"op": "mine", "name": MINEABLE[ing],
+                                                 "count": max(1, -(-short_ing // 4)) if ing == "wood" else short_ing},
+                                                timeout=600)
+                        elif not fi.get("ok") and depth < 3:
+                            await self.ensure(ing, need, depth + 1)
             r2 = await self._act({"op": "fetch", "item": item, "count": count}, timeout=300)
             if r2.get("ok"):
                 return r2
@@ -422,7 +427,10 @@ class Runner:
         a = {"op": "insert", "x": p[0], "y": p[1], "item": s["item"]}
         if n:
             a["count"] = n
-        return await self._act(a)
+        r = await self._act(a)
+        if not r.get("ok") and "fuel slot already holds" in str(r.get("msg")):
+            return {"ok": True, "msg": "its fuel slot is already full (" + str(r.get("msg")).split("already holds ")[-1]}
+        return r
 
     async def _do_take(self, s):
         p = _xy(s)
