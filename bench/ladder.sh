@@ -12,6 +12,7 @@ log=${LADDER_LOG:-bench/runs/ladder.log}
 
 rung() {  # name -> world hours target order
   case $1 in
+    red)    echo "campaign-w1|3|3|@serf project: automate red science (automation science packs) on this fresh map, with research running in labs" ;;
     green)  echo "stage-s2-electric-midgame|1.5|4|@serf project: automate green science (logistic science packs) with what's here, and keep research going" ;;
     oil)    echo "stage-s3-steel-oil-ready|3|5|@serf project: set up oil processing (pumpjacks, a refinery, petroleum gas) and automate plastic from what's here, and keep research going" ;;
     blue)   echo "stage-s5-oil-plastics|3|6|@serf project: automate blue science (chemical science packs) from what's here, and keep research going" ;;
