@@ -475,7 +475,7 @@ class Runner:
 
     async def _do_connect(self, s):
         a = {"op": "connect", "item": s["item"], "from": list(s["from"]), "to": list(s["to"])}
-        for k in ("end_direction", "join"):
+        for k in ("end_direction", "join", "from_fluid", "to_fluid", "fluid"):
             if s.get(k) is not None:
                 a[k] = s[k]
         fr, to = [float(v) for v in s["from"]], [float(v) for v in s["to"]]
@@ -496,9 +496,14 @@ class Runner:
             end = to if k == n else await self._free_tile(fr[0] + (to[0] - fr[0]) * k / n,
                                                           fr[1] + (to[1] - fr[1]) * k / n)
             leg = {**a, "from": list(start), "to": list(end)}
+            if a.get("from_fluid") or a.get("to_fluid"):
+                leg["fluid"] = a.get("from_fluid") or a.get("to_fluid")  # every leg keeps clear of other fluids
+                if k > 1:
+                    leg.pop("from_fluid", None)  # only the first leg starts at the machine's port
             if k < n:
                 leg.pop("end_direction", None)
                 leg.pop("join", None)
+                leg.pop("to_fluid", None)
             r = await self._act(leg, timeout=420)
             if not r.get("ok") and "pole" in str(s["item"]) and "isn't wired" in str(r.get("msg")):
                 r = await self._bridge_line(start, end, s["item"], r)

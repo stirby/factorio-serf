@@ -1527,6 +1527,55 @@ local function pole_gap(surface, job)
 end
 
 -- Route a belt / pipe / pole line between two points around obstacles, then queue the placements.
+-- A machine's fluid port: the tile a pipe must take to join the machine's box for `fluid` (an output for a line's
+-- start, an input for its end). Which side each fluid is on depends on rotation, and planners got it wrong (p1:
+-- "refinery outlets mismatched with pipes (east=heavy, west=petroleum)", heavy oil never reaching the lube plant).
+local PORT_TYPES = { "assembling-machine", "furnace", "boiler", "generator", "offshore-pump", "pump", "storage-tank",
+  "mining-drill", "reactor", "heat-exchanger", "fluid-turret" }
+local function fluid_port(surface, p, fluid, want_out, force)
+  local best, bd
+  for _, e in pairs(surface.find_entities_filtered { position = p, radius = 4, type = PORT_TYPES, force = force }) do
+    local d = util.dist(e.position, p)
+    if not bd or d < bd then best, bd = e, d end
+  end
+  if not best then return nil, "no machine with fluid connections near " .. xystr(p) end
+  local fb = best.fluidbox
+  local cands, seen = {}, {}
+  for i = 1, #fb do
+    local okP, pr = pcall(fb.get_prototype, i)
+    if okP and pr and pr.object_name ~= "LuaFluidBoxPrototype" and pr[1] then pr = pr[1] end
+    local kind = (okP and pr and pr.production_type) or "none"
+    -- the fluid a recipe locked onto the box (empty until it flows), else its filter, else what it holds
+    local okL, locked = pcall(fb.get_locked_fluid, i)
+    local okF, flt = pcall(fb.get_filter, i)
+    local name = (okL and locked) or (okF and flt and flt.name) or (fb[i] and fb[i].name) or nil
+    if type(name) == "table" then name = name.name end
+    seen[#seen + 1] = (name or "empty") .. " " .. kind
+    local dir_ok = kind == "input-output" or kind == "none"
+      or (want_out and kind == "output") or (not want_out and kind == "input")
+    if dir_ok and (name == fluid or name == nil) then
+      local okC, pcs = pcall(fb.get_pipe_connections, i)
+      for _, pc in pairs(okC and pcs or {}) do
+        if pc.target_position then cands[#cands + 1] = { pos = pc.target_position, exact = name == fluid } end
+      end
+    end
+  end
+  table.sort(cands, function(x, y) return (x.exact and 1 or 0) > (y.exact and 1 or 0) end)
+  for _, cd in ipairs(cands) do
+    local t = { x = math.floor(cd.pos.x) + 0.5, y = math.floor(cd.pos.y) + 0.5 }
+    if surface.count_entities_filtered { area = { { t.x - 0.4, t.y - 0.4 }, { t.x + 0.4, t.y + 0.4 } }, limit = 1,
+        invert = true, type = { "resource", "character", "corpse", "item-entity" } } == 0 then
+      return t, best
+    end
+  end
+  if #cands > 0 then
+    return nil, best.name .. " at " .. xystr(best.position) .. ": its " .. fluid .. " connection"
+      .. (#cands > 1 and "s are" or " is") .. " already taken (a pipe or building is there): join that pipe instead"
+  end
+  return nil, best.name .. " at " .. xystr(best.position) .. " has no " .. (want_out and "output" or "input")
+    .. " for " .. fluid .. " (its boxes: " .. table.concat(seen, ", ") .. ")"
+end
+
 H.connect = {
   start = function(a, job)
     local args, c = job.args, a.char
@@ -1536,6 +1585,25 @@ H.connect = {
     local from = util.pos(args.from or { args.from_x, args.from_y })
     local to = util.pos(args.to or { args.to_x, args.to_y })
     if not (from and from.x and to and to.x) then return fail("connect needs from=[x,y] and to=[x,y]") end
+    local line_fluid = args.fluid or args.from_fluid or args.to_fluid
+    local port_keys, port_units = {}, {}
+    if args.from_fluid or args.to_fluid then
+      if ent.type ~= "pipe" then return fail("from_fluid / to_fluid are for pipe lines") end
+      if args.from_fluid then
+        local q, e = fluid_port(c.surface, from, args.from_fluid, true, c.force)
+        if not q then return fail(e) end
+        from = q
+        port_keys[route.key(math.floor(q.x), math.floor(q.y))] = true
+        if e.unit_number then port_units[e.unit_number] = true end
+      end
+      if args.to_fluid then
+        local q, e = fluid_port(c.surface, to, args.to_fluid, false, c.force)
+        if not q then return fail(e) end
+        to = q
+        port_keys[route.key(math.floor(q.x), math.floor(q.y))] = true
+        if e.unit_number then port_units[e.unit_number] = true end
+      end
+    end
     if util.dist(from, to) > 250 then return fail("too far to route in one go (max ~250 tiles); split it") end
     -- Endpoints often land on a machine edge; slide them to the nearest free tile.
     local function free_tile(p)
@@ -1567,8 +1635,9 @@ H.connect = {
       for _, p in ipairs(hops) do places[#places + 1] = { pos = p } end
       path = { hops.first, hops.last, n = math.floor(util.dist(hops.first, hops.last) + 0.5) }
     else
-      local ropts = { entity = ent.name, force = c.force, allow = {} }
+      local ropts = { entity = ent.name, force = c.force, allow = {}, fluid = line_fluid, fluid_ignore = port_units }
       local fk, tk = route.key(math.floor(from.x), math.floor(from.y)), route.key(math.floor(to.x), math.floor(to.y))
+      for k in pairs(port_keys) do ropts.allow[k] = true end -- a port tile is where the pipe must go: no sliding
       if ent.type == "transport-belt" then
         -- Endpoints name tiles: x,y and x.5,y.5 are the same tile (a bare corner would touch four belts).
         local function tile(p) return { x = math.floor(p.x) + 0.5, y = math.floor(p.y) + 0.5 } end

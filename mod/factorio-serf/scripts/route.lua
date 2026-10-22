@@ -50,6 +50,29 @@ function route.find(surface, from, to, opts)
   local gx, gy = math.floor(to.x), math.floor(to.y)
   local max_nodes = opts.max_nodes or math.max(6000, math.min(100000, 100 * (math.abs(gx - sx) + math.abs(gy - sy))))
   local cache = {}
+  -- a pipe line carrying opts.fluid: a tile beside another fluid would join the two (the game refuses that, or
+  -- the line ends up mixed), so it's a wall; the machines at the line's own ends don't count
+  local function other_fluid_near(x, y)
+    if not opts.fluid then return false end
+    for _, d in ipairs(DIRS) do
+      for _, n in pairs(surface.find_entities_filtered { position = { x + d[1] + 0.5, y + d[2] + 0.5 }, limit = 3 }) do
+        if not (opts.fluid_ignore and n.unit_number and opts.fluid_ignore[n.unit_number]) then
+          local okF, fb = pcall(function() return n.fluidbox end)
+          if okF and fb then
+            for i = 1, #fb do
+              local name = fb[i] and fb[i].name
+              if not name then
+                local okL, flt = pcall(fb.get_filter, i)
+                name = okL and flt and flt.name or nil
+              end
+              if name and name ~= opts.fluid then return true end
+            end
+          end
+        end
+      end
+    end
+    return false
+  end
   local function free(x, y)
     local k = key(x, y)
     if cache[k] == nil then
@@ -59,7 +82,7 @@ function route.find(surface, from, to, opts)
         build_check_type = defines.build_check_type.manual,
       } and surface.count_entities_filtered { area = { { x + 0.2, y + 0.2 }, { x + 0.8, y + 0.8 } },
         type = { "resource", "character", "corpse", "item-entity", "entity-ghost", "tile-ghost" }, invert = true,
-        limit = 1 } == 0)
+        limit = 1 } == 0 and not other_fluid_near(x, y))
     end
     return cache[k]
   end

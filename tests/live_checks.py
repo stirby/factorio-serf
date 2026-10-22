@@ -544,8 +544,58 @@ return out""")
           not res.get("ok") and "still at" in str(res.get("msg")), res.get("msg"))
 
 
+async def chk_fluid_ports(L: Live, state: dict):
+    g = L.g
+    x0, y0 = await L.site(20, 12)
+    setup = await L.ev(f"""
+local s, f = game.surfaces.nauvis, game.forces.player
+f.recipes['battery'].enabled = true
+f.recipes['sulfuric-acid'].enabled = true
+local a = s.create_entity {{ name = 'chemical-plant', position = {{ {x0} + 2.5, {y0} + 5.5 }}, force = f,
+  direction = defines.direction.east }}
+a.set_recipe('sulfuric-acid')
+local b = s.create_entity {{ name = 'chemical-plant', position = {{ {x0} + 16.5, {y0} + 5.5 }}, force = f,
+  direction = defines.direction.south }}
+b.set_recipe('battery')
+local w = s.create_entity {{ name = 'pipe', position = {{ {x0} + 9.5, {y0} + 5.5 }}, force = f }}
+w.insert_fluid {{ name = 'water', amount = 50 }}
+local c = storage.agents['serf'].char
+c.teleport({{ {x0} + 9.5, {y0} + 9.5 }})
+c.get_main_inventory().clear()
+c.insert {{ name = 'pipe', count = 60 }}
+c.insert {{ name = 'pipe-to-ground', count = 10 }}
+return {{ a = a.unit_number, b = b.unit_number }}""")
+    r = await Runner(g)._do_connect({"item": "pipe", "from": [x0 + 2.5, y0 + 5.5], "to": [x0 + 16.5, y0 + 5.5],
+                                     "from_fluid": "sulfuric-acid", "to_fluid": "sulfuric-acid"})
+    await L.ev(f"""
+local a = game.surfaces.nauvis.find_entity('chemical-plant', {{ {x0} + 2.5, {y0} + 5.5 }})
+local fb = a.fluidbox
+for i = 1, #fb do if fb.get_locked_fluid(i) == 'sulfuric-acid' then fb[i] = {{ name = 'sulfuric-acid', amount = 100 }} end end
+return true""")
+    await asyncio.sleep(4)
+    joined = await L.ev(f"""
+local s = game.surfaces.nauvis
+local b = s.find_entity('chemical-plant', {{ {x0} + 16.5, {y0} + 5.5 }})
+local got = 0
+for i = 1, #b.fluidbox do local fl = b.fluidbox[i] if fl and fl.name == 'sulfuric-acid' then got = got + fl.amount end end
+local w = s.find_entity('pipe', {{ {x0} + 9.5, {y0} + 5.5 }})
+local wf = w and w.fluidbox[1]
+return {{ acid_at_b = got, water_pipe = wf and wf.name or 'empty' }}""")
+    joined = joined if isinstance(joined, dict) else {}
+    joined["same"] = (joined.get("acid_at_b") or 0) > 0
+    joined["clean"] = joined.get("water_pipe") == "water"
+    check("fluid ports: acid output piped to the battery plant's acid input, clear of the water pipe in the way",
+          r.get("ok") and isinstance(joined, dict) and joined.get("same") and joined.get("clean"),
+          (r.get("msg"), joined))
+    r2 = await Runner(g)._do_connect({"item": "pipe", "from": [x0 + 2.5, y0 + 5.5], "to": [x0 + 16.5, y0 + 5.5],
+                                      "from_fluid": "crude-oil"})
+    check("fluid ports: a fluid the machine doesn't have says what its boxes are",
+          not r2.get("ok") and "has no output for crude-oil" in str(r2.get("msg")), r2.get("msg"))
+    await L.ev("storage.agents['serf'].char.get_main_inventory().clear() return true")
+
+
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports}
 
 
 async def main() -> int:
