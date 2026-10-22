@@ -45,11 +45,12 @@ class FastPaths:
             # belt fast path takes that belt on to the named place
             away = [q for q in o.points if math.hypot(q[0] - o.focus[0], q[1] - o.focus[1]) > 12]
             send_to = None
-            if (r["elsewhere"] >= 0.6 and away and r["chain"] < 0.7 and r["product_p"] >= 0.55 and r["build"] >= 0.5
-                    and r["product"] not in (None, "none_of_these")):
+            belt_to_place = bool(away and quickbuild.OUTPUT_BELT.search(o.text))
+            if ((r["elsewhere"] >= 0.6 or (belt_to_place and r["elsewhere"] >= 0.3)) and away and r["chain"] < 0.7
+                    and r["product_p"] >= 0.55 and r["build"] >= 0.5 and r["product"] not in (None, "none_of_these")):
                 send_to = away[0]  # the first other place named (later ones are often supplies or a grid pole)
                 r["output"] = "belt"
-            elif not quickbuild.accept(r, far, one_point=len(o.points) == 1):
+            elif not quickbuild.accept(r, far, one_point=len(o.points) == 1, belt_to_place=belt_to_place):
                 return None
             opt = opts[r["product"]]
             if r["output"] == "belt" and len(opt["lines"]) == 2:

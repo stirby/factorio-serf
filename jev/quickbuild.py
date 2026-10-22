@@ -271,17 +271,21 @@ def products_named(order: str, products) -> list[str]:
 OTHER_NAMES = {"copper-cable": "wire", "firearm-magazine": "magazine", "electronic-circuit": "circuit"}
 
 
-def only_word(order: str, products: list[str], every: list[str] | None = None) -> str | None:
+def only_word(order: str, products: list[str], every: list[str] | None = None, carried=None) -> str | None:
     """The one option the order names by a word no other option has ("I need copper made" when the belt can only
     make copper plates), provided it doesn't fully name some product that isn't an option ("copper cable" off an
     ore belt). Jev hears "copper" alone as none of them."""
     infra = {"transport-belt", "inserter", "stone-furnace", "assembling-machine-1", "small-electric-pole", "iron-chest",
              "wooden-chest"}  # what orders talk about building with ("off this belt", "2 furnaces", "into chests")
-    if products_named(order, [p for p in (every or SAY) if p not in products and p not in infra]):
+    # (what the belt carries is the input: "the belt carries iron plates ... make steel")
+    if products_named(order, [p for p in (every or SAY) if p not in products and p not in infra
+                              and p not in (carried or [])]):
         return None
     # "3 furnaces", "a couple of assemblers": how many machines, not a product named
     plain = re.sub(r"\b\d+\s+(?:more\s+)?(?:stone\s+|steel\s+)?(?:furnaces?|assemblers?|assembling machines?|machines?)\b",
                    " ", plain_counts(order.lower()))
+    # "into chests", "in a chest": where the product goes, not an iron chest to make
+    plain = re.sub(r"\b(?:into|in|to)\s+(?:a\s+|the\s+|some\s+)?(?:chests?|boxes?)\b", " ", plain)
     words = {w[:-1] if w.endswith("s") and len(w) > 3 else w for w in re.findall(r"[a-z]+", plain)}
     def names(p):  # the product's own words and its chat names ("ammo" for firearm-magazine, "wire" for cable)
         out = set(p.split("-")) | set(SAY.get(p, "").split()) | set(OTHER_NAMES.get(p, "").split())
@@ -351,8 +355,12 @@ async def read_order(jev: Jev, order: str, products: list[str], carried: list[st
     }, kind="quickbuild")
     prod = a["product"].choice
     prod_p = float(a["product"].probs.get(prod) or 0)
-    own = only_word(order, products)
+    own = only_word(order, products, carried=carried)
     if prod == "none_of_these" and prod_p < 0.9 and own:
+        prod, prod_p = own, 0.6
+    elif own and prod != own and prod_p < 0.6:
+        # Jev unsure, and the order names another option by its own word ("magazines ..., into chests": Jev wavered
+        # towards iron chests)
         prod, prod_p = own, 0.6
     elif own and prod == own:
         # Jev's pick is the one option the order names by its own word ("plates please, off that belt" with only
@@ -377,7 +385,7 @@ async def read_order(jev: Jev, order: str, products: list[str], carried: list[st
             "output": "belt" if onto >= 0.75 else "chest"}
 
 
-def accept(r: dict, far_point: bool = True, one_point: bool = False) -> bool:
+def accept(r: dict, far_point: bool = True, one_point: bool = False, belt_to_place: bool = False) -> bool:
     """far_point: the order names a place more than ~40 tiles from the first one (code measures that; Jev doesn't do
     distances). Without one, "elsewhere" can only be nearby ("into a chest around [gps]"), so Jev's doubt counts less.
     "build" is logged but not gated on: the chat playbook already sent only build jobs here, and in the lab it caught
@@ -385,6 +393,8 @@ def accept(r: dict, far_point: bool = True, one_point: bool = False) -> bool:
     # (chain = the larger of "several products?" and "feeds further machines?": both separate cleanly at 0.7)
     # one_point: the order names no other place at all, so "elsewhere" can only be a chest by the machines ("..., into
     # a chest") or the speaker ("bring them to me", which reads well above 0.85)
-    limit = 0.4 if far_point else (0.85 if one_point else 0.65)
+    # belt_to_place: words for an output belt and another place named ("plates on a belt into the chest at [gps]"):
+    # it's sent on, which the compose path does, whatever Jev's "elsewhere" says
+    limit = 0.4 if far_point or belt_to_place else (0.85 if one_point else 0.65)
     return (r["chain"] < 0.7 and r["elsewhere"] < limit
             and r["product"] not in (None, "none_of_these") and r["product_p"] >= 0.55)
