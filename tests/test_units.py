@@ -774,6 +774,19 @@ def test_project_by_hand():
           Project._by_hand(SimpleNamespace(actor=SimpleNamespace(stocked=[], fuelled=[]))) == "")
 
 
+def test_numbered_order():
+    from jev.actor import Actor
+    n = Actor._numbered
+    check("numbered: '1) ... 2) ...' (p2 copper)", n("@serf Copper is short. 1) Add 10 drills. 2) Swap the furnaces."))
+    check("numbered: '(1) ... (2) ...'", n("@serf Two things. (1) Research queue: lubricant. (2) Purple feeds."))
+    check("numbered: '1. ... 2. ...'", n("@serf do this: 1. lay the belt 2. place the chest"))
+    check("numbered: one item isn't a list", not n("@serf 1) build a steel column at [gps=10,4]"))
+    check("numbered: gps numbers aren't", not n("@serf belt from [gps=1,2] to [gps=2,1]"))
+    check("numbered: a long one-job order isn't (t-red-block stays a quick build)", not n(
+        "@serf Two belts start here: iron plates at [gps=1,2] and copper plates at [gps=1,4], both running east, and "
+        "there's a power pole at [gps=3,3]. Make red science from them automatically into a chest, 1 a minute."))
+
+
 def test_keeper_state():
     import tempfile
     from types import SimpleNamespace

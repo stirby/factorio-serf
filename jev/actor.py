@@ -506,6 +506,11 @@ class Actor(FastPaths):
                 return True
             return await self._planned(o, f"New order from {o.speaker}: \"{o.text}\"\n\nThe actor tried the belt "
                                           f"router itself: {r}")
+        # an order listing several jobs ("1) add 10 drills ... 2) swap the furnaces ...") is the planner's: a quick
+        # path does the one thing it recognises and calls the whole order done (p2: two furnaces upgraded at the
+        # first point, "done" in 28 s, the drills never added)
+        if self._numbered(o.text):
+            o.multi = True
         if (not o.multi and re.search(r"\b(upgrade|swap|replace|in place of|instead of)", o.text, re.I) and o.focus
                 and self.quick_build):
             r = await self._quick_upgrade(o)
@@ -1519,6 +1524,12 @@ class Actor(FastPaths):
             return True
         return (f"I fixed {len(fixed)} things ({'; '.join(fixed[:8])}); failed: {'; '.join(failed[:5]) or 'none'}. "
                 f"Still broken: " + "; ".join(f["text"] for f, _ in left[:10]))
+
+    @staticmethod
+    def _numbered(text: str) -> bool:
+        """A numbered list of at least two items: "1) ... 2) ..." or "(1) ... (2) ..." or "1. ... 2. ..."."""
+        text = GPS.sub("", text)
+        return bool(re.search(r"(^|\s)\(?1[).]\s", text) and re.search(r"(^|\s)\(?2[).]\s", text))
 
     @staticmethod
     def _detailed(text: str) -> bool:
