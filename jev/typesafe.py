@@ -160,3 +160,11 @@ class Jev:
 
 class JevError(Exception):
     pass
+
+
+def reader(log_path: Path | None = None):
+    """Jev, or Sonnet answering the same questions when JEV_READER=sonnet (jev/sonnet.py), to compare readers."""
+    if os.environ.get("JEV_READER") == "sonnet":
+        from .sonnet import SonnetJev
+        return SonnetJev(log_path=log_path)
+    return Jev(log_path=log_path)

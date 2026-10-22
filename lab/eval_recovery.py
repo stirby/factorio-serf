@@ -6,7 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from jev import decide  # noqa: E402
-from jev.typesafe import Jev, choice  # noqa: E402
+from jev.typesafe import reader, choice  # noqa: E402
 
 DATA = ROOT / "lab" / "data" / "recovery.jsonl"
 
@@ -53,7 +53,7 @@ VARIANTS = {"current": v_current, "facts": v_facts}  # "current" is now the fact
 
 async def main():
     rows = [json.loads(l) for l in DATA.read_text().splitlines() if l.strip()]
-    jev = Jev(log_path=ROOT / "lab" / "runs" / "recovery.jsonl")
+    jev = reader(log_path=ROOT / "lab" / "runs" / "recovery.jsonl")
     for name in sys.argv[1:] or list(VARIANTS):
         res = await asyncio.gather(*(VARIANTS[name](jev, r) for r in rows))
         ok = sum(1 for r, (c, _) in zip(rows, res) if c == r["gold"])

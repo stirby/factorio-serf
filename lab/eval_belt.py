@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from jev import quickbelt  # noqa: E402
-from jev.typesafe import Jev  # noqa: E402
+from jev.typesafe import reader  # noqa: E402
 
 CASES = [
     ("@serf the boiler at [gps=-8,64] keeps running out of coal. Belt coal to it from the drills at [gps=-40,64] so "
@@ -42,7 +42,7 @@ CASES = [
 
 
 async def main():
-    jev = Jev(log_path=ROOT / "lab" / "runs" / "belt.jsonl")
+    jev = reader(log_path=ROOT / "lab" / "runs" / "belt.jsonl")
     ps = await asyncio.gather(*(quickbelt.read_order(jev, o) for o, _ in CASES))
     ok = 0
     for (o, want), p in zip(CASES, ps):

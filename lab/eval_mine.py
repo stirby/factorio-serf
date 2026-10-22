@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from jev import quickmine  # noqa: E402
-from jev.typesafe import Jev  # noqa: E402
+from jev.typesafe import reader  # noqa: E402
 
 CASES = [("@serf set up an iron mine on the patch at [gps=119,5] and belt the ore back to the belt end at "
           "[gps=-136,-3], it feeds that chest. I want at least 60 ore a minute.", ["iron-ore"], "iron-ore"),
@@ -24,7 +24,7 @@ CASES = [("@serf set up an iron mine on the patch at [gps=119,5] and belt the or
 
 
 async def main():
-    jev = Jev(log_path=ROOT / "lab" / "runs" / "mine.jsonl")
+    jev = reader(log_path=ROOT / "lab" / "runs" / "mine.jsonl")
     rs = await asyncio.gather(*(quickmine.read_order(jev, o, ores) for o, ores, _ in CASES))
     ok = 0
     for (o, ores, want), (p, ore, op) in zip(CASES, rs):

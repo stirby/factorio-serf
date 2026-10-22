@@ -16,7 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from jev import decide  # noqa: E402
-from jev.typesafe import Jev, choice, noul  # noqa: E402
+from jev.typesafe import reader, choice, noul  # noqa: E402
 
 import os
 DATA = ROOT / "lab" / "data" / os.environ.get("CHAT_SET", "chat.jsonl")
@@ -149,7 +149,7 @@ async def run_variant(name, fn, rows, jev):
 async def main():
     rows = [json.loads(l) for l in DATA.read_text().splitlines() if l.strip()]
     names = sys.argv[1:] or list(VARIANTS)
-    jev = Jev(log_path=ROOT / "lab" / "runs" / "chat.jsonl")
+    jev = reader(log_path=ROOT / "lab" / "runs" / "chat.jsonl")
     out = []
     for n in names:
         out.append(await run_variant(n, VARIANTS[n], rows, jev))

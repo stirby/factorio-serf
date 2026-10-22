@@ -26,7 +26,7 @@ from instance import Instance  # noqa: E402
 from jev.actor import Actor  # noqa: E402
 from jev.game import Game  # noqa: E402
 from jev.rcon import GameError, RconError  # noqa: E402
-from jev.typesafe import Jev  # noqa: E402
+from jev.typesafe import reader  # noqa: E402
 
 PRELUDE = (ROOT / "bench" / "prelude.lua").read_text()
 RUNS = ROOT / "bench" / "runs"
@@ -126,6 +126,7 @@ async def run(a) -> dict:
     minutes = float(a.minutes or scn.get("minutes", 10))
     from jev.library import lessons
     res: dict = {"run_id": run_id, "scenario": scn["name"], "tag": a.tag, "think": not a.no_think,
+                 "reader": os.environ.get("JEV_READER", "jev"),
                  "lessons_at_start": len(lessons()),
                  "start": time.strftime("%Y-%m-%d %H:%M:%S"), "minutes_planned": minutes, "errors": [],
                  "objectives": []}
@@ -153,7 +154,7 @@ async def run(a) -> dict:
             res["errors"].append(f"start retry: {str(e)[:200]}")
             await asyncio.sleep(6)
     actor = None
-    jev = Jev(log_path=d / "jev.jsonl")
+    jev = reader(log_path=d / "jev.jsonl")
     try:
         g = await Game.connect(inst.host, inst.rcon_port, inst.password, "serf")
         sg = await Game.connect(inst.host, inst.rcon_port, inst.password, "serf")  # scorer's own connection

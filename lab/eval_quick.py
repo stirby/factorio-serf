@@ -10,7 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from jev import quickbuild  # noqa: E402
-from jev.typesafe import Jev  # noqa: E402
+from jev.typesafe import reader  # noqa: E402
 
 CARRY = {}  # options list id -> what the belts carry
 IRON = ["firearm-magazine", "iron-chest", "iron-gear-wheel", "iron-stick", "light-armor", "pipe"]
@@ -127,7 +127,7 @@ def far_points(order: str) -> bool:
 
 
 async def main():
-    jev = Jev(log_path=ROOT / "lab" / "runs" / "quick.jsonl")
+    jev = reader(log_path=ROOT / "lab" / "runs" / "quick.jsonl")
     res = await asyncio.gather(*(quickbuild.read_order(jev, o, opts, CARRY.get(id(opts))) for o, opts, *_ in CASES))
     ok = 0
     for (o, opts, acc, prod, cnt, out), r in zip(CASES, res):

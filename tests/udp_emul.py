@@ -8,7 +8,7 @@ from dev import connect  # noqa: E402
 from jev.actor import Actor  # noqa: E402
 from jev.game import Game  # noqa: E402
 from jev.rcon import GameError  # noqa: E402
-from jev.typesafe import Jev  # noqa: E402
+from jev.typesafe import reader  # noqa: E402
 
 
 class AsPlayer:
@@ -30,7 +30,7 @@ async def main(k):
     g = Game(AsPlayer(g0.crew), "serf2")
     await g.start()
     d = Path("/tmp/claude-1000/-home-stephen-ops/dca040bd-512a-4ed8-b7ff-9ffd9741ccde/scratchpad/udpemul")
-    a = Actor(g, Jev(log_path=d / "jev.jsonl"), d, "serf2", think=False)
+    a = Actor(g, reader(log_path=d / "jev.jsonl"), d, "serf2", think=False)
     await a.start()
     print("started; items", len(a.items), "recipes", len(a.recipes))
     w = await a.world((51, 5), 16)

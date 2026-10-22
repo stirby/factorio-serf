@@ -20,7 +20,7 @@ from pathlib import Path
 from .actor import Actor
 from .game import Game
 from .rcon import Crew, Rcon
-from .typesafe import Jev
+from .typesafe import reader
 
 
 async def play(a) -> None:
@@ -39,7 +39,7 @@ async def play(a) -> None:
         spawn = {}
     state = Path.home() / ".local" / "state" / "jev" / time.strftime("%Y%m%d-%H%M%S")
     state.mkdir(parents=True, exist_ok=True)
-    jev = Jev(log_path=state / "jev.jsonl")
+    jev = reader(log_path=state / "jev.jsonl")
     await g.start(**spawn)
     actor = Actor(g, jev, state, a.name, think=not a.no_think, thinker_effort=a.effort)
     await actor.start()

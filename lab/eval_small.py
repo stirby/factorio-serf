@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from jev import decide  # noqa: E402
-from jev.typesafe import Jev  # noqa: E402
+from jev.typesafe import reader  # noqa: E402
 
 QUESTIONS = [("what are you working on?", "status"), ("where are u", "where"), ("how's it going with the gears?", "status"),
              ("what have you got on you", "carrying"), ("are you done yet", "status"), ("do you have any belts?", "carrying"),
@@ -50,7 +50,7 @@ KITS = [("automate gears off this iron belt", "assembly"), ("build 8 stone furna
 
 
 async def main():
-    jev = Jev(log_path=ROOT / "lab" / "runs" / "small.jsonl")
+    jev = reader(log_path=ROOT / "lab" / "runs" / "small.jsonl")
     q = await asyncio.gather(*(decide.question_type(jev, m) for m, _ in QUESTIONS))
     ok = sum(1 for (m, g), (c, _) in zip(QUESTIONS, q) if c == g)
     print(f"question_type: {ok}/{len(QUESTIONS)}")

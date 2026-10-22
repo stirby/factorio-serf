@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from jev import decide  # noqa: E402
-from jev.typesafe import Jev  # noqa: E402
+from jev.typesafe import reader  # noqa: E402
 
 # what the s3 stage can research
 TECHS = ['automobilism', 'circuit-network', 'concrete', 'electric-energy-distribution-1', 'gate', 'heavy-armor',
@@ -32,7 +32,7 @@ CASES = [("@serf research oil processing next", "oil-processing"),
 
 
 async def main():
-    jev = Jev(log_path=ROOT / "lab" / "runs" / "research.jsonl")
+    jev = reader(log_path=ROOT / "lab" / "runs" / "research.jsonl")
     techs = [{"name": t, "unlocks": UNLOCKS.get(t, [])} for t in TECHS]
     res = await asyncio.gather(*(decide.research(jev, o, techs) for o, _ in CASES))
     ok = 0
