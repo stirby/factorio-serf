@@ -107,7 +107,12 @@ class Game:
             return {"ok": False, "msg": str(e), "op": action.get("op")}
         if not ids:
             return {"ok": False, "msg": "not queued", "op": action.get("op")}
-        return await self.wait_job(ids[0], timeout)
+        r = await self.wait_job(ids[0], timeout)
+        if r.get("timeout"):
+            # the job is still running in the mod, and whatever is queued next would wait behind it (one stuck
+            # insert held up p2 for 8 minutes): stop it
+            await self.cancel(f"{action.get('op')} timed out")
+        return r
 
     async def cancel(self, reason: str = "replanned") -> None:
         try:
