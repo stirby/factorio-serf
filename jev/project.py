@@ -290,6 +290,14 @@ class Project:
         server = create_sdk_mcp_server("world", tools=sdk_tools)
         system = SYSTEM.format(name=self.actor.name, goal=self.goal, speaker=self.speaker,
                                milestones="; ".join(f"{lv} {nm}" for lv, nm, _ in progress.MILESTONES))
+        try:
+            from . import blueprints as bp
+            names = sorted(bp.names()) if hasattr(bp, "names") else []
+        except Exception:  # noqa: BLE001
+            names = []
+        if names:
+            system += ("\nThe serf's planner has game-tested blocks it builds exactly (so an order that one of them covers, "
+                       "fed by belts or pipes, is a safe size): " + ", ".join(names) + ".\n")
         from .library import playbooks
         books = playbooks()
         if books:
