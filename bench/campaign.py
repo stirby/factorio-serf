@@ -277,6 +277,14 @@ class Campaign:
                 return
             if not summ.get("error"):
                 self.state["stage"] = self.next_stage(summ)
+            else:
+                # carry on from its last half-hourly save, if it made one
+                saves = sorted((self.dir / "saves").glob(f"{self.name}-g{n:02d}-*.zip"), key=lambda q: q.stat().st_mtime)
+                if saves:
+                    stage = f"campaign-{self.name}-g{n:02d}-recover"
+                    shutil.copy2(saves[-1], INSTALL / "saves" / f"{stage}.zip")
+                    self.state["stage"] = stage
+                    say(f"{self.name}: carrying on from {saves[-1].name}")
             self.save_state()
 
 
