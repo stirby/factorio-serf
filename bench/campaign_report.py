@@ -46,7 +46,8 @@ def generation(d: Path, mode: str) -> dict:
                            "plans": e.get("plans"), "min": round((r["t"] - t0) / 60, 1) if t0 else None})
     summ = json.loads((d / "summary.json").read_text()) if (d / "summary.json").exists() else None
     usd = {"thinker": round(sum(r.get("cost", 0) for r in actor if r.get("kind") == "thinker_turn"), 2)}
-    return {"gen": d.name, "probes": pts, "orders": orders, "summary": summ, "usd": usd,
+    restocks = sum(1 for r in actor if r.get("kind") == "restock")
+    return {"gen": d.name, "probes": pts, "orders": orders, "summary": summ, "usd": usd, "restocks": restocks,
             "level": probes[-1]["level"] if probes else None, "level_start": probes[0]["level"] if probes else None,
             "milestones": probes[-1].get("milestones") if probes else None,
             "techs": probes[-1].get("techs") if probes else None}
