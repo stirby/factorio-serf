@@ -469,6 +469,7 @@ class Actor(FastPaths):
                                                "count": c["count"] - have})
                 except Exception as ex:  # noqa: BLE001
                     self.log({"kind": "error", "where": "restock", "error": repr(ex)})
+            await self._top_up_burners()
             if not self.watches:
                 continue
             try:
@@ -914,6 +915,8 @@ class Actor(FastPaths):
                 if r.get("ok"):
                     self.metrics["steps_ok"] += 1
                     done.append(f"{i + 1}. {describe(st)}: ok ({str(r.get('msg'))[:120]})")
+                    if st.get("do") == "refuel" and st.get("x") is not None:
+                        self._remember_fuelled(float(st["x"]), float(st["y"]))
                     if st.get("do") == "insert" and "chest" in str(r.get("msg")) and int(st.get("count") or 0) >= 20:
                         key = (float(st["x"]), float(st["y"]), st["item"])
                         self.stocked = [c for c in self.stocked if (c["x"], c["y"], c["item"]) != key]
@@ -1211,6 +1214,8 @@ class Actor(FastPaths):
                     return f"tried to fix '{f['text']}' by '{fx.get('text')}' and it failed: {r.get('msg')}"
                 if r.get("ok"):
                     fixed.append(fx.get("done") or fx.get("text"))
+                    if fx.get("do") == "refuel":
+                        self._remember_fuelled(float(fx["x"]), float(fx["y"]))
             self.metrics["fast_path"] += 1
             # let it run: success when the machines that were stopped got going
             ok, w2 = await self._settled(o, watch or self._stopped(w))
@@ -1315,6 +1320,36 @@ class Actor(FastPaths):
         return (f"I fixed {len(fixed)} things ({'; '.join(fixed[:8])}); failed: {'; '.join(failed[:5]) or 'none'}. "
                 f"Still broken: " + "; ".join(f["text"] for f, _ in left[:10]))
 
+    def _remember_fuelled(self, x: float, y: float) -> None:
+        """A burner the actor fuelled by hand: it will run dry again, so it's kept topped up (_top_up_burners)."""
+        if not hasattr(self, "fuelled"):
+            self.fuelled = []
+        if not any(abs(x - a) < 1 and abs(y - b) < 1 for a, b in self.fuelled):
+            self.fuelled = (self.fuelled + [(x, y)])[-40:]
+
+    async def _top_up_burners(self, limit: int = 8) -> None:
+        """Refuel the burners it fuelled before that are nearly out (under 5), before they stop. At most once a
+        minute."""
+        if time.time() - getattr(self, "_topup_t", 0) < 55:
+            return
+        self._topup_t = time.time()
+        for x, y in list(getattr(self, "fuelled", []))[:40]:
+            if limit <= 0:
+                break
+            try:
+                w = await self.world((x, y), 2)
+                e = w.at(x, y)
+                if not e or "fuel" not in e:
+                    self.fuelled.remove((x, y))
+                    continue
+                if sum((e.get("fuel") or {}).values()) >= 5:
+                    continue
+                limit -= 1
+                self.log({"kind": "top_up", "at": [x, y], "what": e.get("n")})
+                await self.runner.run({"do": "refuel", "x": x, "y": y})
+            except Exception as ex:  # noqa: BLE001
+                self.log({"kind": "error", "where": "top_up", "error": repr(ex)})
+
     async def _keep_lights_on(self, o: Order) -> None:
         """Between the steps of a plan, once a minute: refuel the low boilers of the grid where the order is. A
         hand-fed base otherwise goes dark in the middle of a long order, and every blackout costs a replan."""
@@ -1327,6 +1362,7 @@ class Actor(FastPaths):
                 if g.get("boilers_low_fuel"):
                     self.log({"kind": "keep_power", "order": o.id, "grid": g["id"], "low": g["boilers_low_fuel"]})
                     await self._refuel_grid(w, g["id"])
+            await self._top_up_burners()
         except Exception as e:  # noqa: BLE001
             self.log({"kind": "error", "where": "keep_power", "error": repr(e)})
 
