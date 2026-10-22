@@ -51,6 +51,8 @@ class Generation:
         self.probes: list[dict] = []
         self.serf_lines: list[str] = []
         self.orders_sent = 0
+        self.reached: float | None = None  # seconds into the generation when the target level was first seen
+        self.t0 = time.time()
 
     async def probe(self, g: Game) -> dict | None:
         try:
@@ -60,6 +62,9 @@ class Generation:
             return None
         self.probes.append(p)
         jsonl(self.dir / "progress.jsonl", p)
+        if self.camp.target and p["level"] >= self.camp.target and self.reached is None:
+            self.reached = time.time() - self.t0
+            say(f"{self.camp.name} g{self.n}: reached milestone {self.camp.target} after {self.reached / 60:.0f} min")
         return p
 
     async def save(self, g: Game, tag: str) -> Path | None:
@@ -132,7 +137,7 @@ class Generation:
                 await g.call("chat", player="boss", message="@serf your call")
         actor.say = say_hook
         strat = Strategist(GOAL, actor._thinker_tools(), camp.dir / "strategist", effort=camp.strategist_effort)
-        t0 = time.time()
+        t0 = self.t0 = time.time()
         deadline = t0 + hours * 3600
         actor.project_deadline = deadline - 120
         stop = asyncio.Event()
@@ -148,13 +153,13 @@ class Generation:
                     await self.save(pg, f"t{int((time.time() - t0) / 60):03d}")
                     next_save += 1800
                 try:
-                    await asyncio.wait_for(stop.wait(), 300)
+                    await asyncio.wait_for(stop.wait(), 120 if camp.target else 300)
                 except asyncio.TimeoutError:
                     pass
         ktask = asyncio.create_task(keeper())
         last = None
         try:
-            while camp.mode == "project" and time.time() < deadline - 150:
+            while camp.mode == "project" and time.time() < deadline - 150 and self.reached is None:
                 # one order starts the serf's own project; when a project ends before the time is up (it gave up or
                 # crashed), it's started again: its journal carries on
                 pr = actor.project
@@ -176,7 +181,7 @@ class Generation:
                         say(f"{camp.name} g{self.n}: started the project directly")
                     continue
                 await asyncio.sleep(20)
-            while camp.mode == "strategist" and time.time() < deadline:
+            while camp.mode == "strategist" and time.time() < deadline and self.reached is None:
                 when = f"g{self.n} +{int((time.time() - t0) / 60)}m"
                 try:
                     d = await strat.decide(self.report(last, deadline - time.time()), when)
@@ -256,7 +261,8 @@ class Generation:
                 "strategist_usd": round(strat.usd + sum(pr.usd for pr in actor.projects), 2),
                 "projects": [{"status": pr.status, "summary": pr.summary, "turns": pr.turns, "orders": len(pr.orders)}
                              for pr in actor.projects],
-                "mode": self.camp.mode,
+                "mode": self.camp.mode, "target": self.camp.target,
+                "reached_min": round(self.reached / 60, 1) if self.reached is not None else None,
                 "thinker_usd": round(actor.thinker.stats.cost_usd, 2) if actor.thinker else 0,
                 "final_save": str(final) if final else None}
 
@@ -265,6 +271,7 @@ class Campaign:
     def __init__(self, a):
         self.name, self.k, self.effort, self.strategist_effort = a.name, a.instance, a.effort, a.strategist_effort
         self.mode = a.mode
+        self.target = a.target_level
         self.order = a.order or PROJECT_ORDER
         self.goal = a.order.replace("@serf", "").replace("project:", "").strip() if a.order else GOAL
         self.dir = ROOT / "bench" / "campaigns" / a.name
@@ -338,6 +345,8 @@ def main() -> None:
     p.add_argument("--mode", choices=["strategist", "project"], default="strategist",
                    help="strategist: an outside Opus player gives every order; project: one order, the serf's own "
                         "project manager (jev/project.py) does the rest")
+    p.add_argument("--target-level", type=int, default=None,
+                   help="end the generation as soon as the probe reaches this milestone (the task ladder)")
     p.add_argument("--order", default=None, help="project mode: the order that starts it (default: beat the game)")
     a = p.parse_args()
     os.environ["JEV_READER"] = a.reader

@@ -20,7 +20,7 @@ LOOK_TOOLS = ("area", "find", "recipe", "free_space", "me", "production", "diagn
 ORDER_LIMIT = 45 * 60  # one order that runs longer is stopped and reported as unfinished
 
 # an order that is a project on its face, no planner turn needed to see it
-OBVIOUS = re.compile(r"\b(beat the game|launch (a|the) rocket|win the game|project:|take charge of|run the (whole )?"
+OBVIOUS = re.compile(r"\bproject:|\b(beat the game|launch (a|the) rocket|win the game|take charge of|run the (whole )?"
                      r"base|build (up )?the (whole )?(base|factory))\b", re.I)
 
 SYSTEM = """You run projects for {name}, a character in a Factorio 2.0 (Space Age) world with no enemies. {name} \
