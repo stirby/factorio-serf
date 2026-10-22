@@ -240,6 +240,9 @@ def products_named(order: str, products) -> list[str]:
     return out
 
 
+OTHER_NAMES = {"copper-cable": "wire", "firearm-magazine": "magazine", "electronic-circuit": "circuit"}
+
+
 def only_word(order: str, products: list[str], every: list[str] | None = None) -> str | None:
     """The one option the order names by a word no other option has ("I need copper made" when the belt can only
     make copper plates), provided it doesn't fully name some product that isn't an option ("copper cable" off an
@@ -249,8 +252,8 @@ def only_word(order: str, products: list[str], every: list[str] | None = None) -
     if products_named(order, [p for p in (every or SAY) if p not in products and p not in infra]):
         return None
     words = {w[:-1] if w.endswith("s") and len(w) > 3 else w for w in re.findall(r"[a-z]+", order.lower())}
-    def names(p):  # the product's own words and its chat name ("ammo" for firearm-magazine)
-        out = set(p.split("-")) | set(SAY.get(p, "").split())
+    def names(p):  # the product's own words and its chat names ("ammo" for firearm-magazine, "wire" for cable)
+        out = set(p.split("-")) | set(SAY.get(p, "").split()) | set(OTHER_NAMES.get(p, "").split())
         return {w[:-1] if w.endswith("s") and len(w) > 3 else w for w in out}
     hits = []
     for p in products:
@@ -272,7 +275,7 @@ def plain_counts(order: str) -> str:
 
 
 async def read_order(jev: Jev, order: str, products: list[str], carried: list[str] | None = None) -> dict:
-    alias = {"iron-gear-wheel": "gears", "firearm-magazine": "ammo, yellow ammo",
+    alias = {"iron-gear-wheel": "gears", "firearm-magazine": "ammo, yellow ammo", "copper-cable": "wire",
              "electronic-circuit": "green circuits", "automation-science-pack": "red science",
              "iron-plate": "iron, plates: furnaces smelting iron ore",
              "copper-plate": "copper, plates: furnaces smelting copper ore",
@@ -287,7 +290,7 @@ async def read_order(jev: Jev, order: str, products: list[str], carried: list[st
                       "even if it doesn't say 'build' or name the machines?",
                       "yes: 'make gears off this belt', 'build 6 furnaces off the ore belt', 'set up an assembler "
                       "making inserters', 'pipes off the iron belt please', 'copper cable please, off the copper "
-                      "belt'",
+                      "belt', 'can you automate wire from the belt?, into a chest' (making the wire)",
                       "no: moving or belting items that already exist from one place to another, fixing or "
                       "refuelling, power, putting drills on ore, research, a question"),
         "several": noul("Does `order` ask for two or more DIFFERENT kinds of item to be made?",

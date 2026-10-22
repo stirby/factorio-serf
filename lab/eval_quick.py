@@ -41,6 +41,8 @@ CASES = [
     ("@serf iron plates please, off that belt [gps=1,1], a couple of furnaces", ORE, True, "iron-plate", "2", "chest"),
     ("@serf set up ammo production off [gps=141,-46]", IRON, True, "firearm-magazine", "not_said", "chest"),
     ("@serf can you automate wire from the belt at [gps=5,5]", COPPER, True, "copper-cable", "not_said", "chest"),
+    ("@serf can you automate wire from the belt at [gps=112,-47]?, into a chest", COPPER, True, "copper-cable",
+     "not_said", "chest"),
     ("@serf yellow ammo please, off that belt [gps=5,5]", IRON, True, "firearm-magazine", "not_said", "chest"),
     ("@serf copper please, off that belt [gps=5,5]", COPPER_ORE, True, "copper-plate", "not_said", "chest"),
     ("@serf build 6 furnaces off the ore belt at [gps=5,5], plates into chests", ORE, True, "iron-plate", "6", "chest"),
