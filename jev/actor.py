@@ -184,6 +184,12 @@ class Actor(FastPaths):
         if not explicit and call.addressed < 0.5:
             return
         kind = call.kind
+        # "no gears coming out of [gps], what's up with it?": a complaint put as a question, about a place. Jev isn't
+        # sure it's a question and is sure it's a fix: it's a job (answering it alone would leave it broken)
+        if kind == "question" and call.kind_conf < 0.7 and call.playbook == "fix" and call.playbook_conf >= 0.8 \
+                and GPS.search(msg):
+            self.log({"kind": "question_as_job", "msg": msg})
+            kind = "new_job"
         last = self.orders[-1] if self.orders else None
         reopen = False
         if kind in ("more_info",) and not doing and last and last.status in ("done", "failed") \
