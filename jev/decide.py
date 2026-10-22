@@ -68,7 +68,9 @@ async def chat(jev: Jev, me: str, speaker: str, message: str, doing: str | None,
         "playbook": choice("If `message` asks for a job, which kind of job is it?", PLAYBOOKS),
         "multi": noul("Does `message` ask for two or more separate jobs at once?",
                       "yes: 'make gears here and research solar', 'fix the boiler, then belt coal to it'",
-                      "no: one job, however many parts it has ('8 furnaces and a belt to the chest' is one build)"),
+                      "no: one job, however many parts it has ('8 furnaces and a belt to the chest' is one build; "
+                      "'plates please, off that belt, a couple of furnaces' and 'gears off the belt, 3 assemblers, into "
+                      "chests' are one build each: the machines make the product)"),
     }
     a = await jev.ask(state, qs, kind="chat", meta={"speaker": speaker})
     return ChatCall(a["addressed"].p, a["kind"].choice, a["kind"].confidence, a["playbook"].choice,

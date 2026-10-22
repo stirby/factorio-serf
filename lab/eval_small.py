@@ -34,6 +34,8 @@ FIX_ALL = [("@serf science is really slow at the little lab setup at [gps=57,9].
            ("@serf the gear assemblers at [gps=4,4] have no power. Hook them up to the grid", 0),
            ("@serf that belt at [gps=2,2] is facing the wrong way", 0)]
 MULTI = [("@serf make gears off this belt [gps=1,1] and research solar", 1),
+         ("@serf plates please, off that belt [gps=127,-32], a couple of furnaces", 0),
+         ("@serf magazines please, off that belt [gps=1,1], a couple of assemblers", 0),
          ("@serf fix the boiler at [gps=1,1], then belt coal to it from the drills at [gps=30,1]", 1),
          ("@serf research oil processing and swap the belts at [gps=4,4] for red ones", 1),
          ("@serf build 8 stone furnaces off the ore belt at [gps=4,4], and send the plates on a belt to the chest at "
