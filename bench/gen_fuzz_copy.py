@@ -125,7 +125,7 @@ def main(n: int, seed: int):
         first = rnd.choice(FIRST).format(what=what, count=count).replace("{{", "{").replace("}}", "}")
         second = rnd.choice(SECOND[copies]).replace("{{", "{").replace("}}", "}")
         target = 3 if prod == "steel-plate" else 5
-        name = f"f-copy-{i:02d}"
+        name = f"f-copy-{i:02d}" if seed == 1 else f"f-copy-s{seed}-{i:02d}"  # seeds don't overwrite each other
         scn = {"name": name, "stage": "stage-s3-steel-oil-ready", "minutes": 16, "agents": 1, "kind": "directive",
                "group": "fuzz",
                "note": f"Copy variant {i} (seed {seed}): {what} off belts running {direction}, {gap} tiles apart, then "
@@ -141,7 +141,8 @@ def main(n: int, seed: int):
         (ROOT / "bench" / "scenarios" / f"{name}.json").write_text(json.dumps(scn, indent=1) + "\n")
         names.append(name)
         print(f"{name}: {prod:18} {direction:5} gap={gap} copies={copies} | {first[9:70]} | {second[9:80]}")
-    (ROOT / "bench" / "suites" / "fuzz-copy.json").write_text(json.dumps(names, indent=1) + "\n")
+    suite = "fuzz-copy" if seed == 1 else f"fuzz-copy-s{seed}"
+    (ROOT / "bench" / "suites" / f"{suite}.json").write_text(json.dumps(names, indent=1) + "\n")
 
 
 if __name__ == "__main__":

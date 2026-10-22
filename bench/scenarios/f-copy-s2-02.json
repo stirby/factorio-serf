@@ -1,0 +1,46 @@
+{
+ "name": "f-copy-s2-02",
+ "stage": "stage-s3-steel-oil-ready",
+ "minutes": 16,
+ "agents": 1,
+ "kind": "directive",
+ "group": "fuzz",
+ "note": "Copy variant 2 (seed 2): steel off belts running east, 16 tiles apart, then 2 copies; orders: @{agent} set up steel production off [gps={b0x},{b0y}], 3 furnaces / @{agent} now the same on the belts at [gps={b1x},{b1y}] and [gps={b2x},{b2y}]",
+ "setup_lua": "local dx, dy, lx, ly = 1, 0, 0, -1\nlocal s, f = game.surfaces.nauvis, game.forces.player\nlocal function free(x, y, w, h)\n  local a = { { x, y }, { x + w, y + h } }\n  if s.count_tiles_filtered { area = a, collision_mask = \"water_tile\" } > 0 then return false end\n  return s.count_entities_filtered { area = a, type = { \"tree\", \"simple-entity\", \"resource\", \"corpse\", \"fish\" },\n    invert = true } == 0 and s.count_entities_filtered { area = a, type = \"resource\" } == 0\nend\nlocal fx, fy\nfor r = 60, 400, 4 do\n  for _, d in pairs { { 1, 0 }, { 0, 1 }, { -1, 0 }, { 0, -1 }, { 1, 1 }, { -1, 1 }, { 1, -1 }, { -1, -1 } } do\n    if not fx and free(d[1] * r, d[2] * r, 100, 100) then fx, fy = d[1] * r, d[2] * r end\n  end\nend\nif not fx then error(\"no free area\") end\nlocal cx, cy = math.floor(fx) + 50, math.floor(fy) + 50\nfor _, e in pairs(s.find_entities_filtered { area = { { cx - 48, cy - 48 }, { cx + 48, cy + 48 } },\n  type = { \"tree\", \"simple-entity\", \"corpse\", \"fish\", \"item-entity\" } }) do e.destroy() end\nlocal D = defines.direction\nlocal dirname = dx == 1 and \"east\" or dx == -1 and \"west\" or dy == 1 and \"south\" or \"north\"\nlocal function at(along, across) return cx + dx * (along - 15) + lx * (across - 20) + 0.5,\n  cy + dy * (along - 15) + ly * (across - 20) + 0.5 end\nlocal function put(name, x, y, dir)\n  local e = s.create_entity { name = name, position = { x, y }, direction = dir, force = f }\n  if not e then error(\"could not place \" .. name .. \" at \" .. x .. \",\" .. y) end\n  return e\nend\nlocal out, areas = {}, {}\nfor a = 0, 29 do local x, y = at(a, 0) put('transport-belt', x, y, D[dirname]) end\ndo\n  local chx, chy = at(0, 0 + 2)\n  local c = put('infinity-chest', chx, chy)\n  c.set_infinity_container_filter(1, { name = 'iron-plate', count = 100, mode = 'exactly' })\n  local inx, iny = at(0, 0 + 1)\n  local dname = 1 == 1 and (lx == 1 and 'east' or lx == -1 and 'west' or ly == 1 and 'south' or 'north')\n    or (lx == 1 and 'west' or lx == -1 and 'east' or ly == 1 and 'north' or 'south')\n  put('fast-inserter', inx, iny, D[dname])\nend\ndo\n  local chx, chy = at(0, 0 + -2)\n  local c = put('infinity-chest', chx, chy)\n  c.set_infinity_container_filter(1, { name = 'coal', count = 100, mode = 'exactly' })\n  local inx, iny = at(0, 0 + -1)\n  local dname = -1 == 1 and (lx == 1 and 'east' or lx == -1 and 'west' or ly == 1 and 'south' or 'north')\n    or (lx == 1 and 'west' or lx == -1 and 'east' or ly == 1 and 'north' or 'south')\n  put('fast-inserter', inx, iny, D[dname])\nend\ndo local px, py = at(1, 0 - 1) put('small-electric-pole', px, py) end\ndo\n  local x1, y1 = at(-2, 0 - 8)\n  local x2, y2 = at(32, 0 + 8)\n  areas[1] = { { math.min(x1, x2), math.min(y1, y2) }, { math.max(x1, x2), math.max(y1, y2) } }\n  local bx, by = at(0, 0)\n  out['b0x'], out['b0y'] = math.floor(bx), math.floor(by)\nend\nfor a = 0, 29 do local x, y = at(a, 16) put('transport-belt', x, y, D[dirname]) end\ndo\n  local chx, chy = at(0, 16 + 2)\n  local c = put('infinity-chest', chx, chy)\n  c.set_infinity_container_filter(1, { name = 'iron-plate', count = 100, mode = 'exactly' })\n  local inx, iny = at(0, 16 + 1)\n  local dname = 1 == 1 and (lx == 1 and 'east' or lx == -1 and 'west' or ly == 1 and 'south' or 'north')\n    or (lx == 1 and 'west' or lx == -1 and 'east' or ly == 1 and 'north' or 'south')\n  put('fast-inserter', inx, iny, D[dname])\nend\ndo\n  local chx, chy = at(0, 16 + -2)\n  local c = put('infinity-chest', chx, chy)\n  c.set_infinity_container_filter(1, { name = 'coal', count = 100, mode = 'exactly' })\n  local inx, iny = at(0, 16 + -1)\n  local dname = -1 == 1 and (lx == 1 and 'east' or lx == -1 and 'west' or ly == 1 and 'south' or 'north')\n    or (lx == 1 and 'west' or lx == -1 and 'east' or ly == 1 and 'north' or 'south')\n  put('fast-inserter', inx, iny, D[dname])\nend\ndo local px, py = at(1, 16 - 1) put('small-electric-pole', px, py) end\ndo\n  local x1, y1 = at(-2, 16 - 8)\n  local x2, y2 = at(32, 16 + 8)\n  areas[2] = { { math.min(x1, x2), math.min(y1, y2) }, { math.max(x1, x2), math.max(y1, y2) } }\n  local bx, by = at(0, 16)\n  out['b1x'], out['b1y'] = math.floor(bx), math.floor(by)\nend\nfor a = 0, 29 do local x, y = at(a, 32) put('transport-belt', x, y, D[dirname]) end\ndo\n  local chx, chy = at(0, 32 + 2)\n  local c = put('infinity-chest', chx, chy)\n  c.set_infinity_container_filter(1, { name = 'iron-plate', count = 100, mode = 'exactly' })\n  local inx, iny = at(0, 32 + 1)\n  local dname = 1 == 1 and (lx == 1 and 'east' or lx == -1 and 'west' or ly == 1 and 'south' or 'north')\n    or (lx == 1 and 'west' or lx == -1 and 'east' or ly == 1 and 'north' or 'south')\n  put('fast-inserter', inx, iny, D[dname])\nend\ndo\n  local chx, chy = at(0, 32 + -2)\n  local c = put('infinity-chest', chx, chy)\n  c.set_infinity_container_filter(1, { name = 'coal', count = 100, mode = 'exactly' })\n  local inx, iny = at(0, 32 + -1)\n  local dname = -1 == 1 and (lx == 1 and 'east' or lx == -1 and 'west' or ly == 1 and 'south' or 'north')\n    or (lx == 1 and 'west' or lx == -1 and 'east' or ly == 1 and 'north' or 'south')\n  put('fast-inserter', inx, iny, D[dname])\nend\ndo local px, py = at(1, 32 - 1) put('small-electric-pole', px, py) end\ndo\n  local x1, y1 = at(-2, 32 - 8)\n  local x2, y2 = at(32, 32 + 8)\n  areas[3] = { { math.min(x1, x2), math.min(y1, y2) }, { math.max(x1, x2), math.max(y1, y2) } }\n  local bx, by = at(0, 32)\n  out['b2x'], out['b2y'] = math.floor(bx), math.floor(by)\nend\ndo\n  local ex, ey = at(-3, -3)\n  local e = put('electric-energy-interface', ex, ey)\n  e.power_production, e.electric_buffer_size = 600000, 60000000\n  for k = 0, 2 do local px, py = at(-1, 16 * k - 1) put('small-electric-pole', px, py) end\n  for k = 0, 1 do for t = 1, 2 do local px, py = at(-1, 16 * k - 1 + 6 * t)\n    pcall(function() put('small-electric-pole', px, py) end) end end\nend\nstorage.bench_copy = { areas = areas }\nreturn out",
+ "objectives": [
+  {
+   "name": "first",
+   "minutes": 5,
+   "hold_samples": 1,
+   "goal": "@{agent} set up steel production off [gps={b0x},{b0y}], 3 furnaces",
+   "answer": "Your call.",
+   "score": [
+    {
+     "name": "made",
+     "lua": "local A=storage.bench_copy.areas[1] local function fedok(m) local n=0 for _,i in pairs(s.find_entities_filtered{type='inserter',force=f,area={{m.position.x-3,m.position.y-3},{m.position.x+3,m.position.y+3}}}) do if i.drop_target==m then local p=i.pickup_target if p then if p.type=='infinity-container' or p.type=='container' then return false end n=n+1 end end end return n>0 end local t=0 for _,m in pairs(s.find_entities_filtered{area=A,force=f,type={'assembling-machine','furnace'}}) do local r=m.get_recipe() if (m.type=='furnace' or (r and r.name=='steel-plate')) and fedok(m) then t=t+m.products_finished end end return t",
+     "target": 3
+    }
+   ]
+  },
+  {
+   "name": "copies",
+   "minutes": 10,
+   "hold_samples": 1,
+   "goal": "@{agent} now the same on the belts at [gps={b1x},{b1y}] and [gps={b2x},{b2y}]",
+   "answer": "Your call.",
+   "score": [
+    {
+     "name": "made_1",
+     "lua": "local A=storage.bench_copy.areas[2] local function fedok(m) local n=0 for _,i in pairs(s.find_entities_filtered{type='inserter',force=f,area={{m.position.x-3,m.position.y-3},{m.position.x+3,m.position.y+3}}}) do if i.drop_target==m then local p=i.pickup_target if p then if p.type=='infinity-container' or p.type=='container' then return false end n=n+1 end end end return n>0 end local t=0 for _,m in pairs(s.find_entities_filtered{area=A,force=f,type={'assembling-machine','furnace'}}) do local r=m.get_recipe() if (m.type=='furnace' or (r and r.name=='steel-plate')) and fedok(m) then t=t+m.products_finished end end return t",
+     "target": 3
+    },
+    {
+     "name": "made_2",
+     "lua": "local A=storage.bench_copy.areas[3] local function fedok(m) local n=0 for _,i in pairs(s.find_entities_filtered{type='inserter',force=f,area={{m.position.x-3,m.position.y-3},{m.position.x+3,m.position.y+3}}}) do if i.drop_target==m then local p=i.pickup_target if p then if p.type=='infinity-container' or p.type=='container' then return false end n=n+1 end end end return n>0 end local t=0 for _,m in pairs(s.find_entities_filtered{area=A,force=f,type={'assembling-machine','furnace'}}) do local r=m.get_recipe() if (m.type=='furnace' or (r and r.name=='steel-plate')) and fedok(m) then t=t+m.products_finished end end return t",
+     "target": 3
+    }
+   ]
+  }
+ ],
+ "score": []
+}

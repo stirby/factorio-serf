@@ -102,7 +102,7 @@ def main(n: int, seed: int):
         lua = (COMMON + LINE + "\n".join(FAULTS[f][0] for f in faults) +
                "\nreturn { fx = math.floor(X + 9), fy = math.floor(Y + 3), gx = math.floor(X + 28), "
                "gy = math.floor(Y + 5) }")
-        name = f"f-fix-{i:02d}"
+        name = f"f-fix-{i:02d}" if seed == 1 else f"f-fix-s{seed}-{i:02d}"  # seeds don't overwrite each other
         what = "; ".join(FAULTS[f][1] for f in faults)
         scn = {"name": name, "stage": stage, "minutes": 12, "agents": 1, "kind": "directive", "group": "fuzz",
                "note": f"Fix variant {i} (seed {seed}): {what}; order: {goal}",
@@ -121,7 +121,8 @@ def main(n: int, seed: int):
         (ROOT / "bench" / "scenarios" / f"{name}.json").write_text(json.dumps(scn, indent=1) + "\n")
         names.append(name)
         print(f"{name}: {', '.join(faults):40} {stage[6:9]} {goal[9:80]}")
-    (ROOT / "bench" / "suites" / "fuzz-fix.json").write_text(json.dumps(names, indent=1) + "\n")
+    suite = "fuzz-fix" if seed == 1 else f"fuzz-fix-s{seed}"
+    (ROOT / "bench" / "suites" / f"{suite}.json").write_text(json.dumps(names, indent=1) + "\n")
 
 
 if __name__ == "__main__":

@@ -181,7 +181,7 @@ def main(n: int, seed: int):
         goal = rnd.choice(WORDING).format(item=ITEM_WORDS[item], sink=sink)
         if goal.startswith("@{agent} the") or goal.startswith("@{agent} that"):
             goal = goal.replace("@{agent} t", "@{agent} T", 1)
-        name = f"f-belt-{i:02d}"
+        name = f"f-belt-{i:02d}" if seed == 1 else f"f-belt-s{seed}-{i:02d}"  # seeds don't overwrite each other
         scn = {"name": name, "stage": rnd.choice(["stage-lab", "stage-s3-steel-oil-ready"]), "minutes": 10,
                "agents": 1, "kind": "directive", "group": "fuzz",
                "note": f"Belt variant {i} (seed {seed}): {item} from a {src_len}-tile belt running {src_dir} to a "
@@ -195,7 +195,8 @@ def main(n: int, seed: int):
         names.append(name)
         print(f"{name}: {kind:9} src {src_dir:5} len {src_len} dist {dist:2} angle {math.degrees(angle):4.0f} "
               f"{obstacle:5} {goal[9:90]}")
-    (ROOT / "bench" / "suites" / "fuzz-belt.json").write_text(json.dumps(names, indent=1) + "\n")
+    suite = "fuzz-belt" if seed == 1 else f"fuzz-belt-s{seed}"
+    (ROOT / "bench" / "suites" / f"{suite}.json").write_text(json.dumps(names, indent=1) + "\n")
 
 
 if __name__ == "__main__":

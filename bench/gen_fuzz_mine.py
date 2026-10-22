@@ -101,7 +101,7 @@ def main(n: int, seed: int):
             a="an" if ore[0] in "aeiou" or ore.startswith("iron") else "a", ore=rnd.choice(ORES[ore]),
             dest=dest, want=wtext, power=rnd.choice(["", ". Power it from the grid there"]),
             supply=rnd.choice(["", ". Drills, belts and poles are in the chest at [gps={supply}]"]))
-        name = f"f-mine-{i:02d}"
+        name = f"f-mine-{i:02d}" if seed == 1 else f"f-mine-s{seed}-{i:02d}"  # seeds don't overwrite each other
         scn = {"name": name, "stage": stage, "minutes": 14 + dist // 20, "agents": 1, "kind": "directive",
                "group": "fuzz",
                "note": f"Mine variant {i} (seed {seed}): {w}x{h} {'round' if ellipse else 'square'} {ore} patch "
@@ -123,7 +123,8 @@ def main(n: int, seed: int):
         names.append(name)
         print(f"{name}: {ore:10} {w:2}x{h:<2} {'round ' if ellipse else 'square'} {dist:3} {str(d):12} "
               f"{'stub' if stub else 'chest'} {pole[:5]} {stage[6:9]} {goal[9:100]}")
-    (ROOT / "bench" / "suites" / "fuzz-mine.json").write_text(json.dumps(names, indent=1) + "\n")
+    suite = "fuzz-mine" if seed == 1 else f"fuzz-mine-s{seed}"
+    (ROOT / "bench" / "suites" / f"{suite}.json").write_text(json.dumps(names, indent=1) + "\n")
 
 
 if __name__ == "__main__":
