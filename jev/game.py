@@ -118,6 +118,18 @@ class Game:
         if not ids:
             return {"ok": False, "msg": "not queued", "op": op}
         jid = ids[0]
+        try:
+            return await self._wait_run(jid, op, timeout, queue_timeout)
+        except asyncio.CancelledError:
+            # our caller was stopped (an order cancelled, a task torn down): withdraw the job, or it runs on in the
+            # mod with nobody waiting and everything queued behind it times out
+            try:
+                await asyncio.shield(self.cancel(f"{op}: its caller stopped", job=jid))
+            except Exception:  # noqa: BLE001
+                pass
+            raise
+
+    async def _wait_run(self, jid: int, op, timeout: float, queue_timeout: float | None) -> dict:
         qcap = queue_timeout if queue_timeout is not None else max(timeout, self.QUEUE_WAIT)
         t0 = time.monotonic()
         ran = None  # how long the mod says our job has been running

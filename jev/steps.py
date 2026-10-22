@@ -171,7 +171,7 @@ class Runner:
             log.warning("inventory read failed: %r", e)
         return self.inventory
 
-    async def _act(self, action: dict, timeout: float = 240) -> dict:
+    async def _act(self, action: dict, timeout: float = 240, retry: bool = True) -> dict:
         if self.abort and self.abort():
             # the order was cancelled (a player's stop, a project moving on): one step can be dozens of actions
             # (every ghost of a layout), so stop here rather than at the next step
@@ -180,6 +180,17 @@ class Runner:
         r = await self.g.run(action, timeout=timeout)
         self.log_fn({"t": t0, "kind": "act", "action": action, "ok": r.get("ok"), "msg": r.get("msg"),
                      "secs": round(time.time() - t0, 1)})
+        if not r.get("ok") and "inventory" in str(r.get("msg")) and "full" in str(r.get("msg")) \
+                and retry and not getattr(self, "_tidying", False):
+            # a full pocket breaks mining, taking and crafting (883 "inventory full" mines in an afternoon): make
+            # room once and try again
+            self._tidying = True
+            try:
+                t = await self.tidy(low=12, want=16)
+            finally:
+                self._tidying = False
+            if t and t.get("ok"):
+                return await self._act(action, timeout, retry=False)
         if str(r.get("msg") or "").startswith("no path to") and not self._escaping:
             self.no_path_streak += 1
             if self.no_path_streak >= 3:
@@ -354,6 +365,9 @@ class Runner:
         fails = {}
         for i, jid in zip(short, ids):
             r = await self.g.wait_job(jid, 400)
+            if r.get("timeout"):
+                # stop waiting = stop the job: left running it blocked the queue for 41 minutes (yellow-blk-r4)
+                await self.g.cancel(f"stocking {i} took too long", job=jid)
             if not r.get("ok"):
                 fails[i] = r.get("msg")
         for i in list(fails):  # storage couldn't: try belts and crafting from belt items

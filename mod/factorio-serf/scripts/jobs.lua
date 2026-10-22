@@ -269,6 +269,26 @@ local function missing_for(a, recipe, count)
   return out
 end
 
+-- Hand-crafting with no room for what it makes (an intermediate gear, or the product) stops without a word and
+-- the job waited forever (yellow-blk-r4: a fetch of 4 assemblers ran 41 minutes). True once the crafting queue
+-- hasn't moved for 5 s; the queue stays, and finishes on its own once there's room.
+local function craft_stalled(c, job)
+  local key = c.crafting_queue_size .. ":" .. string.format("%.4f", c.crafting_queue_progress or 0)
+  if job.craft_key ~= key then
+    job.craft_key, job.craft_since = key, game.tick
+    return false
+  end
+  return game.tick - job.craft_since > 300
+end
+
+local function stalled_msg(c, what)
+  if c.get_main_inventory().count_empty_stacks() == 0 then
+    return fail("my inventory is full: crafting " .. what .. " is stuck (it carries on once there's room)",
+      { inventory_full = true })
+  end
+  return fail("crafting " .. what .. " stopped and isn't moving")
+end
+
 H.craft = {
   start = function(a, job)
     local args, c = job.args, a.char
@@ -312,6 +332,7 @@ H.craft = {
       account_crafts(a) -- credit stats/triggers now, not on the next 30-tick sweep
       return ok("crafted " .. job.made .. " " .. job.item .. job.short, { have = c.get_item_count(job.item) })
     end
+    if craft_stalled(c, job) then return stalled_msg(c, job.item) end
     return nil
   end,
 }
@@ -1143,6 +1164,8 @@ local function supply_tick(a, job)
         st.crafting, st.k, st.srcs = nil, st.k + 1, nil
       elseif c.crafting_queue_size == 0 then
         return fail("needs " .. n .. " " .. name .. " but crafting fell short (have " .. have .. ")")
+      elseif craft_stalled(c, job) then
+        return stalled_msg(c, name)
       else
         return nil
       end
@@ -2112,6 +2135,8 @@ function jobs.cancel(a, why, only)
   end
 end
 
+local MAX_JOB_TICKS = 20 * 60 * 60  -- 20 minutes: the longest a caller waits is the plan's 15-minute builds
+
 local function run(fn, a, job)
   local okk, res = pcall(fn, a, job)
   if not okk then return fail("error: " .. tostring(res)) end
@@ -2163,7 +2188,11 @@ function jobs.tick()
         elseif not h.tick then finish(a, job, ok("done")) end
       end
       local job = a.job
-      if job then
+      if job and game.tick - (job.started_tick or game.tick) > MAX_JOB_TICKS then
+        -- nobody is waiting on a job this old: its caller gave up without cancelling it, and every action queued
+        -- behind it times out (yellow-blk-r4: a fetch of 4 assemblers ran 41 minutes; ~9 h of queue timeouts in all)
+        jobs.cancel(a, "ran " .. math.floor(MAX_JOB_TICKS / 3600) .. " minutes without finishing", job.id)
+      elseif job then
         local res = run(H[job.op].tick, a, job)
         if res then finish(a, job, res) end
       end

@@ -292,8 +292,60 @@ return inv.count_empty_stacks()""")
     await L.ev("storage.agents['serf'].char.get_main_inventory().clear() return true")
 
 
+async def chk_orphan(L: Live, state: dict):
+    g = L.g
+    task = asyncio.create_task(g.run({"op": "wait", "seconds": 90}, timeout=120))
+    await asyncio.sleep(3)
+    before = (await g.call("self", agent="serf")).get("job") or {}
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+    await asyncio.sleep(1)
+    after = (await g.call("self", agent="serf")).get("job")
+    check("orphan: a job whose caller is cancelled is withdrawn in the mod",
+          before.get("op") == "wait" and not after, (before, after))
+    # stock() giving up on a fetch cancels it too: a fetch that can't finish soon (hand-crafting 400 assemblers)
+    r = Runner(g)
+    jid = (await g.act([{"op": "wait", "seconds": 90}]))[0]
+    w = await g.wait_job(jid, 2)
+    if w.get("timeout"):
+        await g.cancel("test", job=jid)
+    after = (await g.call("self", agent="serf")).get("job")
+    check("orphan: cancel by job id after a wait times out leaves nothing running", not after, after)
+
+
+async def chk_craft_stall(L: Live, state: dict):
+    g = L.g
+    await L.ev("""
+local a = storage.agents['serf']
+local inv = a.char.get_main_inventory()
+inv.clear()
+inv.insert { name = 'iron-plate', count = 222 }
+inv.insert { name = 'electronic-circuit', count = 103 }
+inv.insert { name = 'iron-chest', count = 5 }
+inv.insert { name = 'stone', count = inv.get_insertable_count('stone') }
+return inv.count_empty_stacks()""")
+    t0 = time.monotonic()
+    r = await g.run({"op": "craft", "recipe": "inserter", "count": 1}, timeout=90)
+    secs = time.monotonic() - t0
+    check("craft stall: crafting with full pockets fails fast and says why",
+          not r.get("ok") and secs < 60 and "inventory is full" in str(r.get("msg")), (round(secs), r.get("msg")))
+    # the runner makes room (it carries 5 chests) and the crafting that was stuck finishes
+    logs: list = []
+    r = await Runner(g, logs.append)._act({"op": "craft", "recipe": "inserter", "count": 1}, timeout=90)
+    have = await L.ev("return storage.agents['serf'].char.get_item_count('inserter')")
+    check("craft stall: the runner tidies on a full pocket and the craft goes through",
+          r.get("ok") and have >= 1 and any(x.get("kind") == "tidy" for x in logs),
+          (r.get("msg"), have, [x for x in logs if x.get("kind") != "act" or not x.get("ok")][:6]))
+    await L.ev("local c = storage.agents['serf'].char c.get_main_inventory().clear() "
+               "while c.crafting_queue_size > 0 do c.cancel_crafting{index = 1, count = c.crafting_queue[1].count} end "
+               "c.get_main_inventory().clear() return true")
+
+
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall}
 
 
 async def main() -> int:
