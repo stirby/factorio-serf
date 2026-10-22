@@ -576,7 +576,8 @@ class Actor(FastPaths):
                     # a machine whose output nothing takes is full by design (no output inserter): not a fault here
                     fl = [f for f in w.faults() if f["kind"] in self.WATCH_KINDS and f.get("fixes") and f.get("u")
                           and abs(f["at"][0] - wt["at"][0]) <= wt["radius"] and abs(f["at"][1] - wt["at"][1]) <= wt["radius"]
-                          and not (f["kind"] == "output_full" and f["fixes"][0].get("do") == "take")]
+                          and not (f["kind"] == "output_full" and f["fixes"][0].get("do") == "take")
+                          and not (f["kind"] == "chest_full" and self._raw_buffer(w, f))]
                     # the grid powering what it built running out of boiler fuel: keep the lights on (wherever the
                     # boilers are)
                     dark = [f for f in w.faults() if f["kind"] == "boiler_fuel" and f.get("boilers")]
@@ -1451,6 +1452,13 @@ class Actor(FastPaths):
             return True
         return (f"I fixed {len(fixed)} things ({'; '.join(fixed[:8])}); failed: {'; '.join(failed[:5]) or 'none'}. "
                 f"Still broken: " + "; ".join(f["text"] for f, _ in left[:10]))
+
+    @staticmethod
+    def _raw_buffer(w: World, f: dict) -> bool:
+        """A full chest of ore, coal or stone at a mine: a buffer doing its job (the drills just pause), not a fault."""
+        e = w.ents.get(f.get("u")) or {}
+        inv = e.get("inv") or {}
+        return bool(inv) and all(k in RAW for k in inv)
 
     def _remember_fuelled(self, x: float, y: float) -> None:
         """A burner the actor fuelled by hand: it will run dry again, so it's kept topped up (_top_up_burners)."""
