@@ -41,6 +41,15 @@ Add `--no-think` to run with Jev and code only (also what happens when Opus hits
 
 The Jev key is read from `~/dev/jev.env`. Opus runs through the local Claude Code login (the Agent SDK).
 
+### Projects
+
+A goal bigger than one plan runs as a project: `@serf project: automate green science`, `@serf beat the game`, or
+any big order the planner decides needs several builds in a row. An Opus manager inside the serf then gives it one
+order at a time, checks progress between them (research, machines by recipe, what's been made), keeps a journal,
+and says when it's done or stuck. Your own orders go first; `@serf stop` ends the project, and its notes are kept, so
+`@serf carry on with the project: ...` picks it up. The manager can save order sequences that worked as playbooks
+(`library/playbooks.json`) for later projects.
+
 ## Test
 
 ```
@@ -52,6 +61,20 @@ The Jev key is read from `~/dev/jev.env`. Opus runs through the local Claude Cod
 ```
 
 The scenarios, scoring and scripted player are the same as factorio-serf's. Biters are always off in test worlds.
+
+How far it gets into the game:
+
+```
+.venv/bin/python scripts/new_world.py campaign-w3 3003                  # a fresh peaceful Space Age world
+.venv/bin/python bench/campaign.py --name p1 --world campaign-w3 --mode project --gen-hours 4 --gens 12 --instance 85
+.venv/bin/python bench/campaign.py --name c1 --world campaign-w3 --mode strategist ...   # an outside Opus player instead
+bench/ladder.sh 83 1 3 green oil blue purple                             # one order per rung, 3 rounds
+.venv/bin/python bench/campaign_report.py                                # everything so far, as JSON
+```
+
+A campaign plays a world in generations (4 h each by default), each from the last one's save, or a new world when it
+got nowhere; progress is probed every few minutes against a 0-10 milestone ladder (`jev/progress.py`: smelting,
+power, red, green, oil, blue, purple, yellow, silo, rocket). Files go to `bench/campaigns/<name>/`.
 
 ## Encoding lab
 
@@ -84,6 +107,8 @@ and the lessons Opus wrote.
 | `jev/lint.py` | the plan checker |
 | `jev/router.py` | multi-belt router (undergrounds, tiers, kits) |
 | `jev/blueprints.py`, `jev/blueprints/` | built-in, game-tested blocks |
-| `jev/library.py` | the agent layer: lessons and designs Opus writes |
+| `jev/library.py` | the agent layer: lessons and designs Opus writes, playbooks the project manager writes |
+| `jev/project.py` | projects: the Opus manager that turns a big goal into orders |
+| `jev/progress.py` | how far into the game a world is (probe, milestones, rates) |
 | `mod/factorio-serf/` | the mod (forked), plus `scan`, `grab`, `query`, ingredient fetching and pole wiring |
 | `bench/`, `lab/`, `tests/` | testing |
