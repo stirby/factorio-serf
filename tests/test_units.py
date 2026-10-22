@@ -549,6 +549,203 @@ def test_failure_facts():
     check("facts: already done", failure_facts("automation-2 is already researched")["already_done"])
 
 
+# ---------------------------------------------------------------------------- tonight's core changes (2026-10-22)
+def test_copy_words_heldout():
+    import json
+    held = json.loads((ROOT / "lab/data/hard_orders.json").read_text())["copy"]
+    wrong = [c["order"] for c in held if bool(quickcopy.COPY_WORDS.search(c["order"])) != bool(c["copy"])]
+    check(f"quick copy: copy words agree with the held-out copy set ({len(held)} orders)", not wrong, wrong)
+    check("quick copy: 'two more like that' / 'x3' / 'same one' are copies",
+          all(quickcopy.COPY_WORDS.search(t) for t in ("two more like that at [gps=1,2]", "copy paste that x3",
+                                                        "make same one also at [gps=3,4]")))
+    check("quick copy: a sulfur-plant complaint with a number isn't a copy (r3)",
+          not quickcopy.COPY_WORDS.search("the sulfur plant gets no petroleum gas, only 0.75 a second"))
+
+
+def test_research_queue_guards():
+    import asyncio
+    from types import SimpleNamespace
+    from jev import fastpaths
+    from jev.fastpaths import QUEUE_WORDS, FastPaths
+    check("research: queue words caught", all(QUEUE_WORDS.search(t) for t in (
+        "research automation then logistics", "queue steel processing after electronics",
+        "remove military from the research queue", "research fluid handling and its prerequisites")))
+    check("research: a single tech has no queue words", not any(QUEUE_WORDS.search(t) for t in (
+        "research automation 2", "can you research steel axe please", "get logistics researched")))
+    techs = [{"name": "automation-2"}, {"name": "logistics-2"}, {"name": "steel-axe"}]
+
+    async def call(op, **kw):
+        return {"available": techs}
+
+    async def run(step):
+        ran.append(step)
+        return {"ok": True}
+
+    async def say(text):
+        said.append(text)
+
+    async def research(jev, text, ts):
+        return "steel-axe", 0.95
+
+    def fake():
+        return SimpleNamespace(g=SimpleNamespace(call=call), log=logs.append, name="serf", jev=None,
+                               metrics={"fast_path": 0}, runner=SimpleNamespace(run=run), say=say)
+    old = fastpaths.decide.research
+    fastpaths.decide.research = research
+    try:
+        for text, want, why in (("research automation 2 and logistics 2", False, "names"),
+                                ("research automation-2, then logistics-2", False, "queue"),
+                                ("research steel axe", True, None)):
+            ran, said, logs = [], [], []
+            got = asyncio.run(FastPaths._quick_research(fake(), SimpleNamespace(id=1, text=text)))
+            skip = next((r.get("why", "") for r in logs if r.get("kind") == "quick_research_skip"), "")
+            check(f"research: {text!r} -> {'quick path' if want else 'the planner'}",
+                  got is want and (want or why in skip) and (not want or ran[0].get("tech") == "steel-axe"),
+                  (got, skip, ran))
+    finally:
+        fastpaths.decide.research = old
+
+
+def test_quickbelt_item_guard():
+    items = ["advanced-circuit", "electronic-circuit", "sulfur", "coal", "iron-plate", "copper-plate",
+             "transport-belt", "inserter", "iron-chest"]
+    infra = {"transport-belt", "inserter", "iron-chest"}
+
+    def guard(order, belt_item):  # the check in FastPaths._quick_belt: skip when the order names other items
+        named = [x for x in quickbuild.products_named(order, items) if x not in infra]
+        return bool(named) and belt_item not in named
+    order = "get the advanced circuits from [gps=10,0] over to [gps=60,0]"
+    check("quick belt: 'advanced circuits' named", quickbuild.products_named(order, items) == ["advanced-circuit"],
+          quickbuild.products_named(order, items))
+    check("quick belt: a sulfur belt end isn't the job for advanced circuits (r5)", guard(order, "sulfur"))
+    check("quick belt: an advanced-circuit belt is", not guard(order, "advanced-circuit"))
+    check("quick belt: an order naming no item doesn't block it",
+          not guard("belt that from [gps=0,0] to the chest at [gps=50,0]", "coal"))
+    check("quick belt: 'with belts and inserters' names no cargo",
+          not guard("move the coal to the boilers with belts and inserters", "coal"))
+
+
+def test_quickmine_guard():
+    import re
+    rec = {"iron-gear-wheel": {"ingredients": {"iron-plate": 2}},
+           "copper-cable": {"ingredients": {"copper-plate": 1}, "makes": 2},
+           "electronic-circuit": {"ingredients": {"iron-plate": 1, "copper-cable": 3}},
+           "electric-mining-drill": {"ingredients": {"electronic-circuit": 3, "iron-gear-wheel": 5, "iron-plate": 10}}}
+
+    def skips(text, stock):  # the guard in FastPaths._quick_mine
+        return bool(re.search(r"\bburner", text, re.I)) or craft.most("electric-mining-drill", stock, rec, 2) < 2
+    check("quick mine: a fresh map with nothing to make drills from goes to the planner (c1)",
+          skips("mine iron at [gps=10,10]", {}))
+    check("quick mine: burner drills go to the planner", skips("put 2 burner drills on the coal", {"iron-plate": 999,
+                                                                                                 "copper-plate": 999}))
+    check("quick mine: plates for two drills are enough", not skips("mine iron at [gps=10,10]",
+                                                                    {"iron-plate": 100, "copper-plate": 20}))
+
+
+def test_says_what_is_wrong():
+    from jev.actor import Actor
+    s = Actor._says_what_is_wrong
+    check("reopen: 'not done yet' alone says nothing new", not s("ops: @serf not done yet, keep going"))
+    check("reopen: a number says what's wrong (x-outpost)",
+          s("ops: @serf not done yet: drills on grid is 0, needs 2. Keep going on it."))
+    check("reopen: a place says what's wrong", s("ops: the belt at [gps=10,-4] is still empty"))
+    check("reopen: a sentence says what's wrong", s("ops: the drills are on their own grid and never get any power"))
+    check("reopen: a short nudge doesn't", not s("ops: nope, not yet"))
+
+
+def test_raw_buffer():
+    from jev.actor import Actor
+    ents = [{"u": 1, "n": "iron-chest", "t": "container", "x": 0.5, "y": 0.5, "inv": {"iron-ore": 3200}},
+            {"u": 2, "n": "iron-chest", "t": "container", "x": 4.5, "y": 0.5, "inv": {"iron-plate": 3200}},
+            {"u": 3, "n": "iron-chest", "t": "container", "x": 8.5, "y": 0.5, "inv": {"coal": 50, "stone": 3150}},
+            {"u": 4, "n": "iron-chest", "t": "container", "x": 12.5, "y": 0.5, "inv": {"coal": 9, "iron-plate": 1}}]
+    w = World({"ents": ents, "center": [0, 0]})
+    rb = Actor._raw_buffer
+    check("watch: a full chest of ore at a mine is a buffer (oil-r2)", rb(w, {"u": 1}))
+    check("watch: coal and stone together too", rb(w, {"u": 3}))
+    check("watch: a full chest of plates is a fault", not rb(w, {"u": 2}))
+    check("watch: ore mixed with plates is a fault", not rb(w, {"u": 4}))
+    check("watch: an unknown entity is a fault", not rb(w, {"u": 99}))
+
+
+def test_keeper_state():
+    import tempfile
+    from types import SimpleNamespace
+    from jev.actor import Actor
+    with tempfile.TemporaryDirectory() as d:
+        p = Path(d) / "keepers.json"
+        a = SimpleNamespace(state_path=p, fuelled=[(1.5, 2.5)], stocked=[{"at": [3, 4], "item": "coal"}],
+                            watches=[{"at": (5.0, 6.0), "what": "mine"}], log=lambda r: None)
+        Actor.save_state(a)
+        b = SimpleNamespace(state_path=p, fuelled=[], stocked=[], watches=[], log=lambda r: None)
+        b.save_state = lambda: Actor.save_state(b)
+        Actor.load_state(b)
+        check("keepers: lists survive a new session", b.fuelled == [(1.5, 2.5)] and b.stocked == a.stocked
+              and b.watches[0]["at"] == (5.0, 6.0), (b.fuelled, b.stocked, b.watches))
+        p.write_text("{not json")
+        c = SimpleNamespace(state_path=p, fuelled=[], stocked=[], watches=[], logs=[])
+        c.log, c.save_state = c.logs.append, lambda: None
+        Actor.load_state(c)
+        check("keepers: a corrupt file is logged, not fatal", c.fuelled == [] and c.logs and c.logs[0]["where"] ==
+              "load_state", c.logs)
+    f = SimpleNamespace(fuelled=[])
+    for xy in [(1.0, 1.0), (1.4, 1.2)] + [(float(i * 3), 0.0) for i in range(1, 50)]:
+        Actor._remember_fuelled(f, *xy)
+    check("keepers: a burner within a tile is remembered once, at most 40", len(f.fuelled) == 40
+          and sum(1 for x in f.fuelled if x == (1.0, 1.0)) <= 1, len(f.fuelled))
+
+
+def test_project_obvious():
+    from jev.project import OBVIOUS
+    check("project: big goals are projects", all(OBVIOUS.search(t) for t in (
+        "@serf project: beat the game", "launch a rocket", "can you take charge of the base", "build the whole factory",
+        "run the base for me")))
+    check("project: everyday orders aren't", not any(OBVIOUS.search(t) for t in (
+        "build a red science block at [gps=1,2]", "launch the drills on the iron patch", "build the smelter",
+        "fix the base's power")))
+
+
+def test_campaign_targets():
+    from types import SimpleNamespace
+    sys.path.insert(0, str(ROOT / "bench"))
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import campaign
+    from jev import progress
+    names = {lv: name for lv, name, _ in progress.MILESTONES}
+    met = campaign.Campaign.target_met
+    check("campaign: target 5 met by oil alone (no green science needed)",
+          met(SimpleNamespace(target="5"), {"milestones": [names[5]]}))
+    check("campaign: target '7,8' needs both", not met(SimpleNamespace(target="7,8"), {"milestones": [names[7]]})
+          and met(SimpleNamespace(target="7,8"), {"milestones": [names[7], names[8], names[1]]}))
+    grow = campaign.Campaign.target_growth(SimpleNamespace(target="3,5"),
+                                           {"items": {"automation-science-pack": 100}, "fluids": {"petroleum-gas": 50}},
+                                           {"items": {"automation-science-pack": 117}, "fluids": {"petroleum-gas": 140}})
+    check("campaign: growth per target product (fluids for petroleum)",
+          grow == {"automation-science-pack": 17, "petroleum-gas": 90}, grow)
+
+    def sustained(more):  # the rule in the campaign's sustain check
+        return all(v >= campaign.CONFIRM_NEED.get(k, campaign.CONFIRM_MIN) for k, v in more.items())
+    check("campaign: 90 petroleum in 15 min isn't sustained (oil-r3)", not sustained({"petroleum-gas": 90}))
+    check("campaign: 17 red packs in 15 min is", sustained({"automation-science-pack": 17}))
+
+
+def test_lint_drill_outputs():
+    w = World({"ents": [{"u": 1, "n": "iron-chest", "t": "container", "x": 10.5, "y": 2.5}], "center": [0, 0]})
+    probs = lint([{"do": "place", "name": "electric-mining-drill", "x": 0.5, "y": 0.5, "direction": "north"}], w, None, {})
+    check("lint: an electric drill dropping on nothing is flagged", any("drops its ore" in p for p in probs), probs)
+    probs = lint([{"do": "place", "name": "electric-mining-drill", "x": 0.5, "y": 0.5, "direction": "north"},
+                  {"do": "place", "name": "transport-belt", "x": 0.5, "y": -1.5, "direction": "east"}], w, None, {})
+    check("lint: an electric drill dropping on a planned belt is fine", not any("drops its ore" in p for p in probs), probs)
+    probs = lint([{"do": "place", "name": "electric-mining-drill", "x": 10.5, "y": 0.5, "direction": "south"}], w, None,
+                 {})
+    check("lint: a drill dropping into a chest already built is fine", not any("drops its ore" in p for p in probs),
+          probs)
+    probs = lint([{"do": "place", "name": "electric-mining-drill", "x": 20.5, "y": 0.5, "direction": "north"},
+                  {"do": "connect", "item": "transport-belt", "from": [15, -1], "to": [30, -1]}], w, None, {})
+    check("lint: a drill over a belt the plan routes later isn't flagged", not any("drops its ore" in p for p in probs),
+          probs)
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):
