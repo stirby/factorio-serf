@@ -139,6 +139,23 @@ local function find_mine_target(a, args)
   return nil
 end
 
+-- Mining a building also puts what it holds in the pocket (a furnace's ore, plates and coal; a chest's contents).
+-- With no room the mining starts over and over until the caller's timeout (clear: 14 stone furnaces at 60 s each).
+-- Returns false and what doesn't fit.
+local function contents_fit(c, e)
+  local inv = c.get_main_inventory()
+  local okN, max = pcall(function() return e.get_max_inventory_index() end)
+  for i = 1, (okN and max or 0) do
+    local okI, ei = pcall(e.get_inventory, i)
+    if okI and ei and ei.valid then
+      for name, n in pairs(util.contents(ei)) do
+        if not name:find("@") and inv.get_insertable_count(name) < n then return false, n .. " " .. name end
+      end
+    end
+  end
+  return true
+end
+
 local function first_product(e)
   for _, p in pairs(e.prototype.mineable_properties.products or {}) do
     if p.type == "item" then return p.name end
@@ -238,11 +255,26 @@ H.mine = {
     if prod and not c.can_insert { name = prod, count = 1 } then
       return fail("inventory full", { mined = job.got })
     end
+    if not job.resource and job.fit_checked ~= e then
+      job.fit_checked = e
+      local fits, what = contents_fit(c, e)
+      if not fits then
+        return fail("inventory full: no room for the " .. what .. " in the " .. e.name .. " at " .. xystr(e.position),
+          { mined = job.got, inventory_full = true })
+      end
+    end
 
     c.update_selected_entity(e.position)
     if c.selected ~= e then c.selected = e end
     c.mining_state = { mining = true, position = e.position }
     local prog = c.character_mining_progress
+    if job.last_progress and prog + 0.05 < job.last_progress then
+      job.resets = (job.resets or 0) + 1
+      if job.resets >= 3 then
+        return fail("mining " .. e.name .. " at " .. xystr(e.position) .. " keeps starting over (is the inventory full?)",
+          { mined = job.got })
+      end
+    end
     if prog == job.last_progress then
       job.no_progress = job.no_progress + 1
       if job.no_progress > 180 then

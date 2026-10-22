@@ -380,8 +380,33 @@ return true""")
     await L.ev("storage.agents['serf'].char.get_main_inventory().clear() return true")
 
 
+async def chk_mine_contents(L: Live, state: dict):
+    g = L.g
+    x0, y0 = await L.site(6, 4)
+    await L.ev(f"""
+local s, f, c = game.surfaces.nauvis, game.forces.player, storage.agents['serf'].char
+local fu = s.create_entity {{ name = 'stone-furnace', position = {{ {x0} + 1, {y0} + 1 }}, force = f }}
+fu.insert {{ name = 'coal', count = 40 }}
+fu.get_inventory(defines.inventory.furnace_source).insert {{ name = 'iron-ore', count = 40 }}
+c.teleport({{ {x0} + 3.5, {y0} + 1.5 }})
+local inv = c.get_main_inventory()
+inv.clear()
+inv.insert {{ name = 'stone-furnace', count = 1 }}
+inv.insert {{ name = 'stone', count = inv.get_insertable_count('stone') }}
+return true""")
+    t0 = time.monotonic()
+    r = await g.run({"op": "mine", "x": x0 + 1, "y": y0 + 1}, timeout=60)
+    check("mine: a furnace whose contents don't fit fails at once and says so",
+          not r.get("ok") and "inventory full" in str(r.get("msg")) and time.monotonic() - t0 < 10,
+          (r.get("msg"), round(time.monotonic() - t0)))
+    await L.ev("storage.agents['serf'].char.get_main_inventory().clear() return true")
+    r = await g.run({"op": "mine", "x": x0 + 1, "y": y0 + 1}, timeout=60)
+    have = await L.ev("return storage.agents['serf'].char.get_item_count('iron-ore')")
+    check("mine: with room it picks the furnace up, contents and all", r.get("ok") and have == 40, (r.get("msg"), have))
+
+
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents}
 
 
 async def main() -> int:
