@@ -18,7 +18,12 @@ See [docs/DESIGN.md](docs/DESIGN.md) for how the parts fit together.
 ```
 .venv/bin/python -m jev.cli play --udp 27200            # single player, or a client in multiplayer
 .venv/bin/python -m jev.cli play --rcon 127.0.0.1:27015 --password-file <file>   # a server you run
+.venv/bin/python -m jev.cli play --udp 27200 --reader sonnet   # Claude Sonnet reads orders instead of Jev
 ```
+
+`--reader sonnet` puts Claude Sonnet in Jev's place: the same questions, through the Claude Agent SDK on the
+subscription. It takes about 6 s and $0.01 a decision, against Jev's 0.2 s and $0.00004. The bench takes the same flag,
+and `lab/eval_hard.py` compares the two readers on held-out player messages.
 
 Talk to it with `@serf`, for example:
 - `@serf red science stopped at [gps=..]`
