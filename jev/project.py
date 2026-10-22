@@ -222,6 +222,8 @@ class Project:
                        else "stopped by a player")
         else:
             outcome = o.status
+            if getattr(o, "asked", None):
+                outcome += f", but {a.name} asked: \"{o.asked[:400]}\" (answer it in your next order)"
         self.last = {"text": text, "outcome": outcome, "mins": (time.time() - ts) / 60,
                      "history": [h[:400] for h in o.history[-2:]]}
         self._log({"kind": "order_end", "order": o.id, **self.last})

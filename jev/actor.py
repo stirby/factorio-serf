@@ -65,6 +65,7 @@ class Order:
     reopened: int = 0  # times a player said it isn't done after it finished
     quick_plan: dict | None = None  # the plan a fast path ran (re-checked when it's reopened)
     project: "Project | None" = None  # the project that gave this order (jev/project.py)
+    asked: str | None = None  # a question the serf asked while on it: the order is done only in part
 
     @property
     def focus(self):
@@ -133,6 +134,10 @@ class Actor(FastPaths):
     async def say(self, text: str) -> None:
         self.last_said = text
         self.log({"kind": "say", "text": text})
+        if "?" in text and self.current and self.current.status in ("working", "thinking"):
+            # a question while on an order: the order is done only in part, whatever its checks say (c1: "Want me to
+            # divert adv circuits to the PU build?" ended a three-part order as "done", and the player saw nothing)
+            self.current.asked = text
         if self.project and self.project.active:
             self.project.hear(self.name, text)
         await self.g.say(text)

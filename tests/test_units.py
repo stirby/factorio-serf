@@ -787,6 +787,20 @@ def test_numbered_order():
         "there's a power pole at [gps=3,3]. Make red science from them automatically into a chest, 1 a minute."))
 
 
+def test_question_marks_order():
+    import asyncio
+    from types import SimpleNamespace
+    from jev.actor import Actor, Order
+    o = Order(1, "@serf build PU", "boss", "plan", [])
+    o.status = "working"
+    said = []
+    a = SimpleNamespace(current=o, project=None, log=lambda r: None, last_said=None,
+                        g=SimpleNamespace(say=lambda t: asyncio.sleep(0, said.append(t))))
+    asyncio.run(Actor.say(a, "acid plant has sulfur now. Want me to divert adv circuits to the PU build?"))
+    asyncio.run(Actor.say(a, "on it"))
+    check("question: a question while on an order is kept on it (c1 PU order)", o.asked and "divert" in o.asked, o.asked)
+
+
 def test_keeper_state():
     import tempfile
     from types import SimpleNamespace

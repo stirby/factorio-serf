@@ -155,7 +155,7 @@ class Generation:
 
         async def say_hook(text):
             await orig_say(text)
-            self.serf_lines.append(time.strftime("%H:%M ") + text[:200])
+            self.serf_lines.append(time.strftime("%H:%M ") + text[:400])
             if text.rstrip().endswith("?"):  # the player answers a question with a shrug, as in the bench
                 await g.call("chat", player="boss", message="@serf your call")
         actor.say = say_hook
@@ -266,7 +266,11 @@ class Generation:
                 if not new:
                     return "the serf didn't take it as an order (it may have answered instead)"
                 st = [o.status for o in new]
-                return ", ".join(sorted(set(st)))
+                out = ", ".join(sorted(set(st)))
+                asked = [getattr(o, "asked", None) for o in new if getattr(o, "asked", None)]
+                if asked:
+                    out += f", but the serf asked: \"{asked[-1][:400]}\" (answer it in your next order)"
+                return out
             await asyncio.sleep(5)
         try:
             await g.call("chat", player="boss", message="@serf let's leave that one for now")
