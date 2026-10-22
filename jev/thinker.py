@@ -132,6 +132,7 @@ class ThinkStats:
     tool_calls: int = 0
     errors: int = 0
     usage_limited: bool = False
+    limited_at: float = 0.0  # when the limit was last hit (it lifts after a while: tried again after RETRY_LIMIT)
 
 
 @dataclass
@@ -332,6 +333,7 @@ class Thinker:
                                 pass
                         if "usage limit" in b.text.lower() or "hit your session limit" in b.text:
                             self.stats.usage_limited = True
+                            self.stats.limited_at = time.time()
             elif isinstance(msg, ResultMessage):
                 total = msg.total_cost_usd or 0.0
                 cost = max(0.0, total - self._session_cost)

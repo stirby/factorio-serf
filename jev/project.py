@@ -151,9 +151,11 @@ class Project:
                     d = await self._decide(self._report(p), when)
                 except Exception as e:  # noqa: BLE001
                     self._log({"kind": "error", "error": repr(e)})
-                    if "usage limit" in repr(e).lower():
-                        self.status, self.summary = "stopped", "out of planner capacity (usage limit)"
-                        break
+                    if "usage limit" in repr(e).lower() or "session limit" in repr(e).lower():
+                        # it lifts after a while: wait and try again rather than ending the project
+                        self._log({"kind": "usage_limit"})
+                        await self._sleep(600)
+                        continue
                     await self._sleep(60)
                     continue
                 self._log({"kind": "decision", **d})

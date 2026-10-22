@@ -789,6 +789,9 @@ class Actor(FastPaths):
     async def _ask_plan(self, o: Order, text: str, timeout: float = 600) -> dict | None:
         if not self.thinker:
             return None
+        if self.thinker.stats.usage_limited and time.time() - self.thinker.stats.limited_at > 600:
+            self.thinker.stats.usage_limited = False  # usage limits lift: try again every 10 minutes
+            self._told_limit = False
         if self.thinker.stats.usage_limited:
             if not getattr(self, "_told_limit", False):
                 self._told_limit = True
