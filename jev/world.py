@@ -687,10 +687,13 @@ class World:
                 [((x0 + i + 0.5, y0 + ht + 0.5), (x0 + i + 0.5, y0 + ht + 1.5)) for i in range(wd)] + \
                 [((x0 - 0.5, y0 + j + 0.5), (x0 - 1.5, y0 + j + 0.5)) for j in range(ht)] + \
                 [((x0 + wd + 0.5, y0 + j + 0.5), (x0 + wd + 1.5, y0 + j + 0.5)) for j in range(ht)]
+            # at the edge of the view its real feeder may be just out of sight: no judgement there
+            if any(self.off_view(*ins) or self.off_view(*belt) for ins, belt in sides):
+                continue
             for ins, belt in sides:
                 b = self.at(*belt)
                 ln = self.line_of.get(b["u"]) if b else None
-                if not ln or not (need & set(ln.items)) or self.at(*ins) is not None or self.off_view(*ins):
+                if not ln or not (need & set(ln.items)) or self.at(*ins) is not None:
                     continue
                 powered = any(p.get("t") == "electric-pole" and abs(p["x"] - ins[0]) <= 2.5 and abs(p["y"] - ins[1]) <= 2.5
                               and grid_live(self.grids.get(p.get("net")) or {}) for p in self.ents.values())
