@@ -147,6 +147,7 @@ class Generation:
         actor = Actor(g, jev, self.dir, "serf", think=True, thinker_effort=camp.effort)
         actor.project_effort = camp.strategist_effort
         actor.allow_projects = camp.mode == "project"  # the strategist is the project manager in its mode
+        actor.state_path = camp.dir / "actor_state.json"  # the keepers' lists carry over to the next generation
         await actor.start()
         orig_say = actor.say
 

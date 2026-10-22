@@ -120,6 +120,8 @@ class Actor(FastPaths):
         self.project_effort: str | None = None
         self.project_deadline: float | None = None  # a bench run's end: projects stop there
         self.allow_projects = True  # off when someone else already runs the big picture (a bench strategist)
+        self.fuelled: list = []
+        self.state_path: Path | None = None  # where the keepers' lists are kept between sessions (a bench campaign)
 
     # ------------------------------------------------------------------ logging / chat
     def log(self, rec: dict) -> None:
@@ -187,11 +189,36 @@ class Actor(FastPaths):
         self.items = (await self.g.call("query", what="items")).get("items") or []
         if self.thinker:
             await self.thinker.start()
+        self.load_state()
         self._tasks = [asyncio.create_task(self._chat_loop()), asyncio.create_task(self._work_loop()),
                        asyncio.create_task(self._watch_loop())]
-        self.log({"kind": "start", "recipes": len(self.recipes), "items": len(self.items)})
+        self.log({"kind": "start", "recipes": len(self.recipes), "items": len(self.items),
+                  "kept": {"fuelled": len(self.fuelled), "stocked": len(self.stocked), "watches": len(self.watches)}})
+
+    def save_state(self) -> None:
+        """What the keepers look after (burners it fuels, chests it restocks, areas it watches), for the next session
+        in the same world: without it a new session's keepers know nothing about the base."""
+        if not self.state_path:
+            return
+        try:
+            self.state_path.write_text(json.dumps({"fuelled": [list(x) for x in self.fuelled], "stocked": self.stocked,
+                                                   "watches": self.watches}, default=str))
+        except OSError as e:
+            self.log({"kind": "error", "where": "save_state", "error": repr(e)})
+
+    def load_state(self) -> None:
+        if not self.state_path or not self.state_path.exists():
+            return
+        try:
+            d = json.loads(self.state_path.read_text())
+            self.fuelled = [tuple(x) for x in d.get("fuelled") or []][-40:]
+            self.stocked = list(d.get("stocked") or [])[-10:]
+            self.watches = [dict(w, at=tuple(w["at"])) for w in d.get("watches") or []][-12:]
+        except (OSError, ValueError, KeyError, TypeError) as e:
+            self.log({"kind": "error", "where": "load_state", "error": repr(e)})
 
     async def stop(self) -> None:
+        self.save_state()
         for t in self._tasks:
             t.cancel()
         for t in self._tasks:
@@ -549,6 +576,7 @@ class Actor(FastPaths):
         the planner asked to watch for (Jev judges those)."""
         while True:
             await asyncio.sleep(self.watch_every)
+            self.save_state()
             if self._busy():
                 continue
             # chests a plan stocked by hand (e.g. coal for a boiler or plastic plant): top them up before they run dry
@@ -1478,8 +1506,6 @@ class Actor(FastPaths):
 
     def _remember_fuelled(self, x: float, y: float) -> None:
         """A burner the actor fuelled by hand: it will run dry again, so it's kept topped up (_top_up_burners)."""
-        if not hasattr(self, "fuelled"):
-            self.fuelled = []
         if not any(abs(x - a) < 1 and abs(y - b) < 1 for a, b in self.fuelled):
             self.fuelled = (self.fuelled + [(x, y)])[-40:]
 
