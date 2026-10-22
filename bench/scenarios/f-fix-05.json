@@ -27,7 +27,7 @@
     },
     {
      "name": "furnaces_working",
-     "target": 3,
+     "target": 4,
      "lua": "local n=0 for _,f in pairs(storage.bench_fix.furnaces) do if f.valid and f.status==defines.entity_status.working then n=n+1 end end return n"
     }
    ]

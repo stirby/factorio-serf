@@ -114,7 +114,7 @@ def main(n: int, seed: int):
                        {"name": "gears_per_min", "target": 10, "rate": True,
                         "lua": "local c=storage.bench_fix.gears return c.valid and c.get_item_count('iron-gear-wheel') "
                                "or 0"},
-                       {"name": "furnaces_working", "target": 3,
+                       {"name": "furnaces_working", "target": 4,
                         "lua": "local n=0 for _,f in pairs(storage.bench_fix.furnaces) do if f.valid and f.status=="
                                "defines.entity_status.working then n=n+1 end end return n"}]}],
                "score": []}
