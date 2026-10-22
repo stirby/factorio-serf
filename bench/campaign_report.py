@@ -55,7 +55,7 @@ def generation(d: Path, mode: str) -> dict:
 
 def campaign(c: Path) -> dict:
     state = json.loads((c / "campaign.json").read_text()) if (c / "campaign.json").exists() else {}
-    gens = [generation(d, "") for d in sorted(c.glob("gen-*"))]
+    gens = [generation(d, "") for d in sorted(c.glob("gen-*")) if d.name[4:].isdigit()]  # not set-aside ones
     manager = []
     for f in (c / "project" / "project.jsonl", c / "strategist" / "strategist.jsonl"):
         manager += [r for r in jsonl(f) if r.get("kind") == "turn"]
