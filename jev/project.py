@@ -227,7 +227,9 @@ class Project:
         mins = (time.time() - self.t0) / 60
         lines = [f"The project has run {mins:.0f} min; orders given: {len(self.orders)}."]
         if self.deadline:
-            lines[0] += f" Time left: {(self.deadline - time.time()) / 60:.0f} min."
+            lines[0] += (f" This session ends in {(self.deadline - time.time()) / 60:.0f} min; the world is saved then "
+                         "and you carry on in the next one with your journal, so don't finish the project because "
+                         "time is short.")
         if p:
             r = progress.rates(self.probes[-2], p) if len(self.probes) >= 2 else None
             lines.append("State of the world:\n" + progress.summary(p, r))
