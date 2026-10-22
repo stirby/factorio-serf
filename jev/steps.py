@@ -380,8 +380,29 @@ class Runner:
     async def _do_mine(self, s):
         # by the item it gives ("wood" is mined from trees, "raw-wood" too) or by the entity's name
         name = s.get("name") or s.get("item")
+        item = name if name in MINEABLE else None
         name = {"raw-wood": "tree"}.get(name, MINEABLE.get(name, name))
         n = int(s.get("count", 10))
+        if item and item != "wood" and not s.get("by_hand"):
+            # what a drill already dropped into a chest nearby is quicker to pick up than to mine (a bootstrap's coal
+            # drill fills its chest while the character mines by hand)
+            try:
+                st = await self.g.call("stored", agent=self.g.name, item=item, radius=120)
+                tot = int(st.get("in_storage_total") or 0)
+                if tot >= 5:
+                    have0 = (await self.refresh_inventory()).get(item, 0)
+                    await self._act({"op": "fetch", "item": item, "count": have0 + min(n, tot)}, timeout=180)
+                    got = (await self.refresh_inventory()).get(item, 0) - have0
+                    if got >= n:
+                        return {"ok": True, "msg": f"took {got} {item} from storage nearby (no mining needed)"}
+                    if got > 0:
+                        r = await self._act({"op": "mine", "name": name, "count": n - got},
+                                            timeout=max(400, 6 * (n - got) + 60))
+                        if r.get("ok"):
+                            r["msg"] = f"took {got} {item} from storage nearby; " + str(r.get("msg"))
+                        return r
+            except Exception:  # noqa: BLE001
+                pass
         return await self._act({"op": "mine", "name": name, "count": n}, timeout=max(400, 6 * n + 60))
 
     async def _do_mine_at(self, s):

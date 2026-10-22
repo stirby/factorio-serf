@@ -22,3 +22,6 @@
 {"task": "chat", "variant": "current", "addressed": 1.0, "kind": 0.9607843137254902, "playbook": 1.0, "kind_conf_cov": 0.9411764705882353}
 {"task": "chat", "variant": "split", "addressed": 1.0, "kind": 0.9411764705882353, "playbook": 1.0, "kind_conf_cov": 0.8823529411764706}
 {"task": "chat", "variant": "split2", "addressed": 1.0, "kind": 0.9607843137254902, "playbook": 1.0, "kind_conf_cov": 0.9607843137254902}
+{"task": "chat", "variant": "current", "addressed": 0.9491525423728814, "kind": 0.9607843137254902, "playbook": 1.0, "kind_conf_cov": 0.9411764705882353}
+{"task": "chat", "variant": "split", "addressed": 0.9830508474576272, "kind": 0.9607843137254902, "playbook": 1.0, "kind_conf_cov": 0.9607843137254902}
+{"task": "chat", "variant": "split2", "addressed": 0.9491525423728814, "kind": 0.9607843137254902, "playbook": 1.0, "kind_conf_cov": 0.9411764705882353}
