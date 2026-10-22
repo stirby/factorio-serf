@@ -46,6 +46,7 @@ SIZES: dict[str, tuple[int, int]] = {
     "substation": (2, 2), "assembling-machine-1": (3, 3), "assembling-machine-2": (3, 3),
     "assembling-machine-3": (3, 3), "electric-mining-drill": (3, 3), "lab": (3, 3), "electric-furnace": (3, 3),
     "chemical-plant": (3, 3), "boiler": (3, 2), "steam-engine": (3, 5), "oil-refinery": (5, 5),
+    "rocket-silo": (9, 9),
 }
 # Placeable entity -> the item that builds it, where the names differ.
 ITEM_FOR = {"straight-rail": "rail", "curved-rail-a": "rail", "curved-rail-b": "rail", "half-diagonal-rail": "rail"}
@@ -350,7 +351,7 @@ POLES = {"small-electric-pole": (2.5, 7.5), "medium-electric-pole": (3.5, 9), "s
          "big-electric-pole": (2, 30)}  # supply half-width, wire reach
 ELECTRIC = {"inserter", "fast-inserter", "long-handed-inserter", "bulk-inserter", "assembling-machine-1",
             "assembling-machine-2", "assembling-machine-3", "lab", "electric-mining-drill", "electric-furnace",
-            "chemical-plant", "oil-refinery", "pump", "radar", "beacon"}
+            "chemical-plant", "oil-refinery", "pump", "radar", "beacon", "rocket-silo"}
 
 
 def check_power(entities: list[dict]) -> list[str]:
