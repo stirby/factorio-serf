@@ -75,6 +75,7 @@ function observe.self(a)
     position = util.xy(c.position),
     health = math.floor(c.health),
     inventory = util.contents(c.get_main_inventory()),
+    free_slots = c.get_main_inventory().count_empty_stacks(),
     crafting = #q > 0 and q or nil,
     job = jobs.describe(a.job),
     queued = #a.queue,

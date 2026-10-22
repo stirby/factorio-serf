@@ -189,6 +189,81 @@ class Runner:
             self.no_path_streak = 0
         return r
 
+    # what may go into a dump chest when the pockets fill up, and how much of it to keep (buildings always stay)
+    KEEP = {"coal": 100, "wood": 50, "solid-fuel": 50, "iron-plate": 200, "copper-plate": 200, "steel-plate": 100,
+            "stone-brick": 100, "iron-ore": 0, "copper-ore": 0, "stone": 0, "uranium-ore": 0, "sulfur": 0,
+            "iron-gear-wheel": 100, "copper-cable": 100, "electronic-circuit": 100, "advanced-circuit": 100,
+            "processing-unit": 100, "engine-unit": 50, "electric-engine-unit": 50, "plastic-bar": 100,
+            "battery": 100, "low-density-structure": 50, "rocket-fuel": 50, "flying-robot-frame": 50,
+            "iron-stick": 100, "automation-science-pack": 0, "logistic-science-pack": 0, "chemical-science-pack": 0,
+            "production-science-pack": 0, "utility-science-pack": 0, "military-science-pack": 0}
+
+    async def free_slots(self) -> int | None:
+        try:
+            me = await self.g.me()
+            if "free_slots" in me:
+                return int(me["free_slots"])
+            r = await self.g.call("eval", code=f"local a = storage.agents['{self.g.name}'] "
+                                  "return a.char.get_main_inventory().count_empty_stacks()", timeout=15)
+            return int(r.get("result"))
+        except Exception:  # noqa: BLE001
+            return None
+
+    async def tidy(self, low: int = 10, want: int = 20) -> dict | None:
+        """Pockets nearly full (fewer than `low` free slots): drop raw resources and the surplus of plates and
+        intermediates into a chest placed beside the character, until `want` slots are free. Fetching takes from
+        chests, so nothing is lost. A full inventory quietly breaks mining, taking and hand-crafting: five of eight
+        serfs were at 0 free slots after a night of campaigns (3,952 iron plates, 1,700 coal...)."""
+        free = await self.free_slots()
+        if free is None or free >= low:
+            return None
+        inv = await self.refresh_inventory()
+        dump = sorted(((k, n - self.KEEP[k]) for k, n in inv.items() if k in self.KEEP and n > self.KEEP[k]),
+                      key=lambda t: -t[1])
+        if not dump:
+            return {"ok": False, "msg": f"{free} free slots and nothing to drop"}
+        me = await self.g.me()
+        x, y = me["position"]
+        # chests nearby with room first (a full pocket can't even craft a new chest); then new chests beside it
+        sc = await self.g.scan(center=(x, y), radius=32)
+        targets = sorted(([e["x"], e["y"]] for e in (sc.get("ents") or []) if e.get("t") == "container"
+                          and not e.get("ghost") and (e.get("free") or 0) >= 4),
+                         key=lambda q: (q[0] - x) ** 2 + (q[1] - y) ** 2)[:6]
+        made, moved = 0, {}
+        can_make = free >= 1  # crafting a chest needs a slot for it; with none, only existing chests will do
+        for item, n in dump:
+            while n > 0:
+                if not targets:
+                    if made >= 3 or not can_make:
+                        break
+                    fs = await self.g.call("find_space", agent=self.g.name, w=1, h=1, x=x, y=y, radius=24)
+                    cands = fs.get("candidates") or []
+                    name = "steel-chest" if inv.get("steel-chest") else "iron-chest"
+                    if not cands or not (await self.ensure(name, 1, grab=False)).get("ok"):
+                        can_make = False
+                        break
+                    spot = cands[0]["center"]
+                    if not (await self._act({"op": "place", "name": name, "x": spot[0], "y": spot[1]})).get("ok"):
+                        can_make = False
+                        break
+                    made += 1
+                    targets.append(spot)
+                have = (await self.refresh_inventory()).get(item, 0)
+                r = await self._act({"op": "insert", "x": targets[0][0], "y": targets[0][1], "item": item,
+                                     "count": n})
+                put = have - (await self.refresh_inventory()).get(item, 0)
+                if put > 0:
+                    moved[item] = moved.get(item, 0) + put
+                    n -= put
+                if not r.get("ok") or put <= 0 or n > 0:
+                    targets.pop(0)  # that chest is full
+            free = await self.free_slots()
+            if free is not None and free >= want:
+                break
+        chests = made
+        self.log_fn({"t": time.time(), "kind": "tidy", "moved": moved, "chests": chests, "free_after": free})
+        return {"ok": True, "msg": f"put {sum(moved.values())} items in {chests} chest(s); {free} slots free"}
+
     ESCAPE_THROUGH = ("transport-belt", "underground-belt", "splitter", "pipe", "pipe-to-ground", "electric-pole",
                       "inserter", "container", "wall")
 

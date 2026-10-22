@@ -393,6 +393,10 @@ class Actor(FastPaths):
             o.status = "working"
             self._set_busy(True)
             t0 = time.time()
+            try:
+                await self.runner.tidy()  # full pockets quietly break mining, taking and crafting
+            except Exception as e:  # noqa: BLE001
+                self.log({"kind": "error", "where": "tidy", "error": repr(e)})
             pre = await self._mine_near(o)  # what the character had already built there
             self.runner.abort = lambda o=o: o.status == "cancelled"
             try:
@@ -608,6 +612,12 @@ class Actor(FastPaths):
                                                "count": n, "no_grab": True})
                 except Exception as ex:  # noqa: BLE001
                     self.log({"kind": "error", "where": "restock", "error": repr(ex)})
+            if self._busy():
+                continue
+            try:
+                await self.runner.tidy()
+            except Exception as e:  # noqa: BLE001
+                self.log({"kind": "error", "where": "tidy", "error": repr(e)})
             if self._busy():
                 continue
             await self._top_up_burners()
