@@ -24,6 +24,50 @@ local function footprint(e)
     math.max(1, math.ceil(bb.right_bottom.y - bb.left_top.y - 0.05))
 end
 
+-- A machine's fluid inputs: for each input box, the fluid it wants (its filter), what it holds, what the pipes
+-- joined to it carry, how many boxes it's joined to and where its pipe should be. Answers "why is it starved of
+-- water": nothing there, the wrong fluid in those pipes (inlets swapped), or empty pipes.
+local function fluid_inputs(e)
+  local okF, fb = pcall(function() return e.fluidbox end)
+  if not okF or not fb or #fb == 0 then return nil end
+  local out = {}
+  for i = 1, #fb do
+    local ok, info = pcall(function()
+      local pr = fb.get_prototype(i)
+      if pr and pr.object_name ~= "LuaFluidBoxPrototype" and pr[1] then pr = pr[1] end
+      local kind = pr and pr.production_type
+      if kind ~= "input" and kind ~= "input-output" then return nil end
+      local f = fb.get_filter(i)
+      local here = fb[i]
+      local r = { want = f and f.name or nil, have = here and here.name or nil,
+        amt = here and math.floor(here.amount) or 0, linked = #(fb.get_connections(i) or {}) }
+      pcall(function()
+        local seg = {}
+        for name in pairs(fb.get_fluid_segment_contents(i) or {}) do seg[#seg + 1] = name end
+        if #seg > 0 then r.pipes = seg end
+      end)
+      pcall(function()
+        local pc = fb.get_pipe_connections(i)
+        if pc and pc[1] and pc[1].target_position then
+          r.at = util.xy(pc[1].target_position)
+          -- what the pipe at the inlet holds (a filtered inlet doesn't share a network with the wrong fluid)
+          for _, n in pairs(e.surface.find_entities_filtered { position = pc[1].target_position, limit = 3 }) do
+            local okN, nb = pcall(function() return n.fluidbox end)
+            if okN and nb then
+              for k = 1, #nb do if nb[k] then r.next = nb[k].name break end end
+              r.next_kind = n.type
+              if r.next then break end
+            end
+          end
+        end
+      end)
+      return r
+    end)
+    if ok and info then out[#out + 1] = info end
+  end
+  return #out > 0 and out or nil
+end
+
 local function contents(inv)
   local out = util.contents(inv)
   return next(out) and out or nil
@@ -56,6 +100,7 @@ local function entry(e)
     end
     d.inp = contents(e.get_inventory(defines.inventory.crafter_input))
     d.out = contents(e.get_output_inventory())
+    if t == "assembling-machine" then d.fin = fluid_inputs(e) end
     pcall(function() d.prog = math.floor(e.crafting_progress * 100) end)
   elseif t == "container" or t == "logistic-container" or t == "infinity-container" then
     local inv = e.get_inventory(defines.inventory.chest)

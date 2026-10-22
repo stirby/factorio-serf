@@ -638,6 +638,31 @@ class World:
                             "fixes": [{"do": "empty_chest", "x": e["x"], "y": e["y"],
                                        "text": f"empty {self.name(e['u'])}",
                                        "done": f"made room in the full chest at {fmt_xy((e['x'], e['y']))}"}]})
+        # 4a. a machine short of a fluid: say which inlet and why (nothing joined, the wrong fluid in its pipe, or
+        # empty pipes); fixing it is the planner's (pipes to lay or swap)
+        for e in self.ents.values():
+            if e.get("s") not in ("fluid_ingredient_shortage", "missing_required_fluid", "no_input_fluid"):
+                continue
+            why = []
+            for b in e.get("fin") or []:
+                want = b.get("want")
+                if not want or b.get("amt"):
+                    continue
+                at = f" at {fmt_xy(tuple(b['at']))}" if b.get("at") else ""
+                if b.get("next") and b["next"] != want:
+                    why.append(f"its {want} inlet{at} has {b['next']} in the pipe joined to it (inlets swapped?)")
+                elif not b.get("linked") and not b.get("next_kind"):
+                    why.append(f"its {want} inlet{at} has no pipe")
+                elif not b.get("linked"):
+                    why.append(f"its {want} inlet{at} has a {b['next_kind']} next to it that isn't joined to it")
+                elif b.get("pipes") and want not in b["pipes"]:
+                    why.append(f"its {want} inlet{at} is joined to pipes carrying {', '.join(b['pipes'])}")
+                else:
+                    why.append(f"its {want} inlet{at} is joined to pipes with no {want} in them")
+            if why:
+                out.append({"kind": "fluid_input", "u": e["u"], "at": (e["x"], e["y"]),
+                            "text": f"{self.name(e['u'])} at {fmt_xy((e['x'], e['y']))} is short of fluid: "
+                                    + "; ".join(why), "fixes": []})
         # 4b. an inserter facing backwards: it takes from a machine that nothing feeds and drops onto a belt carrying
         # that machine's ingredients (its input belt)
         for e in self.ents.values():

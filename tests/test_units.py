@@ -294,6 +294,18 @@ def test_only_word():
           and quickbuild.only_word("make iron stuff here", ["iron-chest", "iron-gear-wheel"]) is None)
 
 
+def test_fluid_input():
+    plant = {"u": 1, "n": "chemical-plant", "t": "assembling-machine", "x": 0.5, "y": 0.5, "w": 3, "h": 3, "r": "sulfur",
+             "s": "fluid_ingredient_shortage",
+             "fin": [{"want": "water", "amt": 0, "linked": 1, "at": [-0.5, -1.5], "next": "petroleum-gas",
+                      "next_kind": "pipe"},
+                     {"want": "petroleum-gas", "amt": 0, "linked": 0, "at": [1.5, -1.5]}]}
+    f = [x for x in World({"ents": [plant], "center": [0, 0]}).faults() if x["kind"] == "fluid_input"]
+    check("world: a chemical plant with petroleum on its water inlet says so, and that the other inlet has no pipe",
+          f and "has petroleum-gas in the pipe joined to it" in f[0]["text"] and "petroleum-gas inlet at 1.5,-1.5 has "
+          "no pipe" in f[0]["text"], f)
+
+
 def test_engine_slot():
     ents = [{"u": 1, "n": "boiler", "t": "boiler", "x": 0.5, "y": 5.0, "d": "north", "w": 3, "h": 2},
             {"u": 2, "n": "steam-engine", "t": "generator", "x": 0.5, "y": 1.5, "d": "north", "w": 3, "h": 5, "net": 7}]
