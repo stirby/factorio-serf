@@ -523,6 +523,13 @@ def test_lint_rules():
     probs = lint([{"do": "place", "name": "assembling-machine-1", "x": 10, "y": 10, "recipe": "iron-gear-wheel"}],
                  w, None, {"iron-gear-wheel": {"ingredients": {"iron-plate": 2}}})
     check("lint: 3x3 at integer corner flagged", any("should sit" in p for p in probs), probs)
+    w2 = World({"ents": [], "center": [0, 0]})
+    probs = lint([{"do": "place", "name": "burner-mining-drill", "x": 40, "y": -100, "direction": "south"},
+                  {"do": "place", "name": "stone-furnace", "x": 40, "y": -98}], w2, None, {})
+    check("lint: a burner drill dropping into a furnace feeds it", not any("nothing feeds" in p for p in probs), probs)
+    probs = lint([{"do": "place", "name": "burner-mining-drill", "x": 40, "y": -100, "direction": "north"},
+                  {"do": "place", "name": "stone-furnace", "x": 40, "y": -98}], w2, None, {})
+    check("lint: a drill facing away doesn't", any("nothing feeds" in p for p in probs), probs)
 
 
 def test_failure_facts():
