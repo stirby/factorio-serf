@@ -527,11 +527,31 @@ class Runner:
             if not r.get("ok") and "isn't wired" in str(r.get("msg")):
                 # the poles are down but a hop didn't wire (something stood where it would have gone): bridge the gap
                 r = await self._bridge_line(cur, tgt, item, r)
+            if not r.get("ok") and "no free spot" in str(r.get("msg")):
+                # water, cliffs or a base in the way: go round by a waypoint off to one side of the straight line
+                r = await self._pole_detour(cur, tgt, item, r)
             if not r.get("ok") and "already connected" not in str(r.get("msg")):
                 return {"ok": False, "msg": f"long power line leg {i}/{legs} failed: {r.get('msg')}"}
             cur = tgt
         return {"ok": True, "msg": f"ran {item} {dist:.0f} tiles from the grid pole at {src[0]:g},{src[1]:g} in "
                                    f"{legs} leg(s)"}
+
+    async def _pole_detour(self, a, b, item: str, first: dict) -> dict:
+        """A pole line from a to b blocked on the way: try a waypoint 16 or 32 tiles to either side of the midpoint,
+        a -> waypoint -> b (the poles of a failed try stay; the next try starts from a again)."""
+        dx, dy = b[0] - a[0], b[1] - a[1]
+        n = math.hypot(dx, dy) or 1
+        px, py = -dy / n, dx / n
+        mx, my = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
+        for off in (16, -16, 32, -32):
+            wp = [round(mx + px * off) + 0.5, round(my + py * off) + 0.5]
+            r1 = await self._act({"op": "connect", "item": item, "from": a, "to": wp}, timeout=600)
+            if not r1.get("ok"):
+                continue
+            r2 = await self._act({"op": "connect", "item": item, "from": wp, "to": b}, timeout=600)
+            if r2.get("ok") or "already connected" in str(r2.get("msg")):
+                return {"ok": True, "msg": f"went round by {wp[0]:g},{wp[1]:g}: {str(r2.get('msg'))[:100]}"}
+        return first
 
     async def _bridge_line(self, a, b, item: str, first: dict) -> dict:
         """A pole line from a (on a grid) toward b is laid but broken somewhere: join the pole nearest the break on
