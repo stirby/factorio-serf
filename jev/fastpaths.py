@@ -302,6 +302,11 @@ class FastPaths:
                 stock[k] = stock.get(k, 0) + v
             pole = ("small-electric-pole" if craft.most("small-electric-pole", stock, self.recipes, 12) >= 8
                     else "medium-electric-pole")
+            # the quick mine is electric drills on a belt: an order for burner drills, or a base that can't get
+            # electric drills or power them (a fresh map), is the planner's
+            if re.search(r"\bburner", o.text, re.I) or craft.most("electric-mining-drill", stock, self.recipes, 2) < 2:
+                self.log({"kind": "quickmine_skip", "order": o.id, "why": "burner drills, or no electric drills to be had"})
+                return None
             lay = quickmine.best_layout(tiles, quickmine.wanted_drills(o.text), dest or (at[0] + 100, at[1]), pole)
             if not lay:
                 return None
@@ -407,6 +412,14 @@ class FastPaths:
                     break
                 await asyncio.sleep(6)  # a source belt only just starting up may not carry anything yet
             if not ep:
+                return None
+            # the order names what to move ("get the advanced circuits from A to B") and the belt found carries
+            # something else (r5: a sulfur belt end near A): not this job
+            infra = {"transport-belt", "inserter", "iron-chest", "wooden-chest", "small-electric-pole",
+                     "assembling-machine-1", "stone-furnace", "pipe", "underground-belt", "splitter"}
+            named = [x for x in quickbuild.products_named(o.text, self.items or []) if x not in infra]
+            if named and ep["item"] not in named:
+                self.log({"kind": "quickbelt_skip", "order": o.id, "why": f"belt carries {ep['item']}, order names {named}"})
                 return None
         except Exception as e:  # noqa: BLE001
             self.log({"kind": "error", "where": "quickbelt", "error": repr(e)})

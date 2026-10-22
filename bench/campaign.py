@@ -127,6 +127,7 @@ class Generation:
         await g.start()
         actor = Actor(g, jev, self.dir, "serf", think=True, thinker_effort=camp.effort)
         actor.project_effort = camp.strategist_effort
+        actor.allow_projects = camp.mode == "project"  # the strategist is the project manager in its mode
         await actor.start()
         orig_say = actor.say
 

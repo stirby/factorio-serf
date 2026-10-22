@@ -119,6 +119,7 @@ class Actor(FastPaths):
         self.project_dir = Path(os.environ.get("JEV_PROJECT_DIR") or workdir / "project")
         self.project_effort: str | None = None
         self.project_deadline: float | None = None  # a bench run's end: projects stop there
+        self.allow_projects = True  # off when someone else already runs the big picture (a bench strategist)
 
     # ------------------------------------------------------------------ logging / chat
     def log(self, rec: dict) -> None:
@@ -158,6 +159,8 @@ class Actor(FastPaths):
             return f"a project is already running ({self.project.goal[:120]}); it carries on"
         if not self.thinker:
             return "no planner, so no projects"
+        if not self.allow_projects:
+            return "refused: projects are off here; plan it as an order (in parts with more=true if it's big)"
         self.project = Project(self, goal, speaker, self.project_dir, effort=self.project_effort,
                                deadline=self.project_deadline)
         self.projects.append(self.project)
@@ -422,7 +425,8 @@ class Actor(FastPaths):
             except Exception:  # noqa: BLE001
                 pass
         await self.g.status(text=o.text[:100])
-        if o.project is None and o.speaker != self.name and self.thinker and OBVIOUS.search(o.text):
+        if o.project is None and o.speaker != self.name and self.thinker and self.allow_projects \
+                and OBVIOUS.search(o.text):
             goal = re.sub(r"@\S+\s*", "", o.text).strip()
             r = self.start_project(goal, o.speaker)
             await self.say("on it, as a project: I'll break it into jobs and keep you posted" if r.startswith("project")
