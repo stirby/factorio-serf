@@ -29,6 +29,8 @@
      design's machines; infinity pipes don't count), so it equals what leaves through the port;
    - rocket parts (output kind "rocket-part"): counted from the force's item production; a finished rocket is
      launched at once so the silo keeps building;
+   - output chests that are part of the design (output kind "chest", e.g. a mall): the count of that item in
+     the design's own chest at the port tile;
    - research designs: the case force gets the test tech's prerequisites and that tech queued;
    - every case force gets the RECIPES below enabled (mid and late game: blue, purple and yellow science and
      everything they are made of). Recipes are given to create_entity, so an assembler with a fluid recipe keeps
@@ -63,7 +65,8 @@ SAMPLE_EVERY = 10.0
 
 ALWAYS_BAD = {"no_power", "low_power", "no_fuel", "no_recipe", "not_plugged_in_electric_network", "disabled",
               "disabled_by_script", "marked_for_deconstruction", "no_input_fluid", "missing_required_fluid",
-              "fluid_ingredient_shortage", "low_input_fluid", "low_temperature", "networks_disconnected"}
+              "fluid_ingredient_shortage", "low_input_fluid", "low_temperature", "networks_disconnected",
+              "recipe_not_researched"}
 FLUID_SHORT = {"fluid_ingredient_shortage", "no_input_fluid", "missing_required_fluid", "low_input_fluid"}
 PRODUCER_BAD = {"item_ingredient_shortage", "no_ingredients", "full_output", "waiting_for_space_in_destination",
                 "no_research_in_progress", "missing_science_packs", "waiting_for_source_items", "no_minable_resources"}
@@ -78,7 +81,10 @@ RECIPES = ["automation-science-pack", "logistic-science-pack", "inserter", "tran
            # oil, rocket fuel and the rocket
            "basic-oil-processing", "advanced-oil-processing", "heavy-oil-cracking", "light-oil-cracking",
            "solid-fuel-from-light-oil", "solid-fuel-from-petroleum-gas", "solid-fuel-from-heavy-oil", "rocket-fuel",
-           "rocket-part"]
+           "rocket-part",
+           # malls: the buildings the serf places
+           "underground-belt", "splitter", "assembling-machine-1", "electric-mining-drill", "small-electric-pole",
+           "stone-furnace", "pipe-to-ground", "iron-chest", "wooden-chest", "long-handed-inserter", "fast-inserter"]
 BLOCKED: set[str] = set()  # fluid outputs left without a drain (--blocked-outputs)
 MEASURE_S = 90.0
 INSTANCE_BLOCKS = ((60, 69),)  # ids this validator may start (campaigns and other experiments use the rest)
@@ -139,7 +145,7 @@ def harness_layout(design: dict) -> list[dict]:
             out.append(_ent("loader-1x1", _add(p, side, 2), toward, role="feed", loader_type="output"))
             out.append(_ent("infinity-chest", _add(p, side, 3), role="source", item=item))
     for port in design.get("outputs", []):
-        if "at" not in port or port.get("kind") in ("power", "research", "rocket-part"):
+        if "at" not in port or port.get("kind") in ("power", "research", "rocket-part", "chest"):
             continue
         if port.get("kind") == "fluid":  # a drain just outside, on the port's side
             if port["fluid"] not in BLOCKED:
@@ -289,7 +295,7 @@ local function fluid_recipe(r)
   for _, i in ipairs(p.products) do if i.type == "fluid" then return true end end
   return false
 end
-local reg = { force = fname, design = {}, engines = {}, silos = {}, stats = spec.stats or {} }
+local reg = { force = fname, design = {}, engines = {}, silos = {}, stats = spec.stats or {}, chests = spec.chests or {} }
 local bad = {}
 local function make(e, is_design)
   local want = { x = ox + e.x, y = oy + e.y }
@@ -388,6 +394,13 @@ for case, c in pairs(storage.bp_test) do
   for i, e in ipairs(c.design) do
     if e.valid and e.status then r.st["e" .. i] = util.STATUS_NAMES[e.status] or tostring(e.status) end
   end
+  if c.chests and #c.chests > 0 then
+    r.out = r.out or {}
+    for _, ch in ipairs(c.chests) do
+      local e = c.design[ch.i]
+      if e and e.valid then r.out[ch.item] = (r.out[ch.item] or 0) + e.get_item_count(ch.item) end
+    end
+  end
   if c.stats and #c.stats > 0 then
     r.stat = {}
     local fs = f.get_fluid_production_statistics(game.surfaces.nauvis)
@@ -437,7 +450,17 @@ class Case:
             elif o.get("kind") == "rocket-part":
                 self.stats.append({"name": "rocket-part", "kind": "item"})
                 self.rates["rocket-part"] = float(o["rate"])
-        if self.kind in ("fluid", "rocket-part"):
+        # design chests at output ports (kind "chest"): index into the design's entity list
+        self.chests = []
+        for o in self.spec["outputs"]:
+            if o.get("kind") == "chest":
+                at = tuple(o["at"])
+                idx = next((i for i, e in enumerate(self.spec["design"]) if at in bp.footprint_tiles(e)), None)
+                if idx is None:
+                    raise ValueError(f"{name}: no design chest at output tile {at}")
+                self.chests.append({"i": idx + 1, "item": o["item"]})
+                self.rates[o["item"]] = float(o["rate"])
+        if self.kind in ("fluid", "rocket-part", "chest"):
             self.kind = "items"
             first = next(iter(self.rates), None)
             self.rated = self.rates[first] if first else 0.0
@@ -457,7 +480,7 @@ class Case:
         spec = {"case": self.key, "design": self.spec["design"], "harness": self.spec["harness"],
                 "box": self.spec["box"], "center": center, "recipes": RECIPES,
                 "anchor": self.spec.get("anchor"), "research": self.test.get("research"), "ghosts": self.ghosts,
-                "stats": self.stats}
+                "stats": self.stats, "chests": self.chests}
         return PLACE % json.dumps(spec, separators=(",", ":"))
 
     def may_idle(self, e: dict) -> bool:
