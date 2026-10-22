@@ -427,7 +427,8 @@ class Actor(FastPaths):
         self.log({"kind": "order", "order": o.id, "text": o.text, "playbook": o.playbook, "points": o.points})
         if o.next_plan and o.speaker == "planner":  # the planner's follow-up: run its plan
             return await self._planned(o, f"Your follow-up: {o.text}")
-        if o.reopened == 1 and o.quick and o.quick_plan and o.quick_plan.get("expect"):
+        if o.reopened == 1 and o.quick and o.quick_plan and o.quick_plan.get("expect") \
+                and not self._says_what_is_wrong(o.notes[-1] if o.notes else ""):
             # "not done yet" after a fast path: first look again. If its checks still pass, it's running (maybe
             # just not for long yet), and the planner isn't needed. Said twice, it's something else the player
             # wants: the planner.
@@ -1498,6 +1499,14 @@ class Actor(FastPaths):
             return True
         return (f"I fixed {len(fixed)} things ({'; '.join(fixed[:8])}); failed: {'; '.join(failed[:5]) or 'none'}. "
                 f"Still broken: " + "; ".join(f["text"] for f, _ in left[:10]))
+
+    @staticmethod
+    def _says_what_is_wrong(note: str) -> bool:
+        """'not done yet' says only that; 'not done yet: drills on grid is 0, needs 2' says what's wrong, and the
+        order's own checks passing again doesn't answer it (the regression check's x-outpost: "it's running", twice)."""
+        text = re.sub(r"^[^:]*?:\s*", "", note, count=1) if ": " in note else note  # drop "speaker: "
+        text = re.sub(r"@\S+", "", text)
+        return bool(GPS.search(text) or re.search(r"\d", text) or len(re.findall(r"[a-zA-Z']+", text)) > 6)
 
     def _busy(self) -> bool:
         return any(x.status in ("new", "working", "thinking") for x in self.orders)
