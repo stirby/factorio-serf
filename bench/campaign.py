@@ -301,6 +301,7 @@ class Campaign:
         return stage
 
     async def run(self, gens: int, hours: float) -> None:
+        first = self.state["gen"] + 1
         for _ in range(gens):
             self.state["gen"] += 1
             n = self.state["gen"]
@@ -330,6 +331,18 @@ class Campaign:
                     self.state["stage"] = stage
                     say(f"{self.name}: carrying on from {saves[-1].name}")
             self.save_state()
+            left = gens - (n - first + 1)
+            if left > 0:
+                # the next generation runs in a fresh process, so it gets whatever was fixed in the meantime
+                argv = list(sys.argv)
+                i = argv.index("--gens") if "--gens" in argv else -1
+                if i >= 0:
+                    argv[i + 1] = str(left)
+                else:
+                    argv += ["--gens", str(left)]
+                say(f"{self.name}: restarting for generation {n + 1} with the current code ({left} to go)")
+                sys.stdout.flush()
+                os.execv(sys.executable, [sys.executable] + argv)
 
 
 def main() -> None:
