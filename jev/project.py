@@ -49,6 +49,9 @@ succeed. When one fails, look at why (area, diagnose) and break it down or chang
 order unchanged.
 - Build for throughput that lasts: mines belted to furnaces, fuel by belt or inserter rather than by hand, power that \
 scales with what's built, research running whenever labs and packs allow.
+- {name} hand-crafts every building it places unless chests hold them, and a big craft keeps it busy for minutes. \
+Once there's power and electronic circuits, have it build the two mall blocks (mall-logistics, mall-buildings) fed by \
+belts; it takes from their chests from then on.
 - Name places with [gps=x,y] tags; pick them with free_space and area. Keep the base compact enough to walk.
 - Each turn: look as much as you need (a few tool calls), note anything worth remembering (the plan, where things \
 are, what failed and why), then end with exactly one of give_order, wait or finish. {name} works on an order until \
