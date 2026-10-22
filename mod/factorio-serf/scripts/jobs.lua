@@ -417,6 +417,28 @@ local function finish_clearing(c, clearing)
   return n
 end
 
+-- An underground belt placed without saying entrance or exit: what a player gets. Just downstream of an unpaired
+-- entrance facing the same way (within reach), it's that entrance's exit; otherwise an entrance. (rocket-r3: a plan
+-- re-placed an exit and got a second entrance, "input, not paired yet", and the copper column stayed stopped.)
+local function auto_ug_type(surface, name, pos, dir)
+  local vecs = { [defines.direction.north] = { 0, -1 }, [defines.direction.east] = { 1, 0 },
+    [defines.direction.south] = { 0, 1 }, [defines.direction.west] = { -1, 0 } }
+  local v = vecs[dir]
+  local proto = prototypes.entity[name]
+  if not (v and proto) then return "input" end
+  for k = 1, (proto.max_underground_distance or 5) do
+    local u = surface.find_entities_filtered { position = { pos.x - v[1] * k, pos.y - v[2] * k }, radius = 0.3,
+      name = name, limit = 1 }[1]
+    if u then
+      local paired = false
+      pcall(function() paired = u.neighbours ~= nil end)
+      if u.direction == dir and u.belt_to_ground_type == "input" and not paired then return "output" end
+      return "input"
+    end
+  end
+  return "input"
+end
+
 H.place = {
   start = function(a, job)
     local args = job.args
@@ -604,6 +626,9 @@ H.place = {
     end
     ::place::
     local ptype = prototypes.entity[job.entity].type
+    if ptype == "underground-belt" and not args.type then
+      args.type = auto_ug_type(surface, job.entity, job.pos, job.dir)
+    end
     local created = surface.create_entity {
       name = job.entity, position = job.pos, direction = job.dir, force = c.force,
       raise_built = true, create_build_effect_smoke = false,

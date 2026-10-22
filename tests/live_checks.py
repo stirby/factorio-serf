@@ -444,8 +444,30 @@ return true""")
     await L.ev("storage.agents['serf'].char.get_main_inventory().clear() return true")
 
 
+async def chk_ug_pair(L: Live, state: dict):
+    g = L.g
+    x0, y0 = await L.site(10, 3)
+    await L.ev(f"""
+local c = storage.agents['serf'].char
+c.teleport({{ {x0} + 3.5, {y0} + 2.5 }})
+c.get_main_inventory().clear()
+c.insert {{ name = 'underground-belt', count = 4 }}
+return true""")
+    a = await g.run({"op": "place", "name": "underground-belt", "x": x0 + 0.5, "y": y0 + 0.5, "direction": "east"},
+                    timeout=30)
+    b = await g.run({"op": "place", "name": "underground-belt", "x": x0 + 4.5, "y": y0 + 0.5, "direction": "east"},
+                    timeout=30)
+    check("underground: the first is an entrance, the next one downstream its exit (rocket-r3)",
+          "input" in str(a.get("msg")) and "output" in str(b.get("msg")) and "paired with" in str(b.get("msg")),
+          (a.get("msg"), b.get("msg")))
+    c = await g.run({"op": "place", "name": "underground-belt", "x": x0 + 0.5, "y": y0 + 2.5, "direction": "west"},
+                    timeout=30)
+    check("underground: with nothing upstream it's an entrance", "input" in str(c.get("msg")), c.get("msg"))
+    await L.ev("storage.agents['serf'].char.get_main_inventory().clear() return true")
+
+
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair}
 
 
 async def main() -> int:
