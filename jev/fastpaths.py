@@ -47,7 +47,7 @@ class FastPaths:
             send_to = None
             if (r["elsewhere"] >= 0.6 and away and r["chain"] < 0.7 and r["product_p"] >= 0.55 and r["build"] >= 0.5
                     and r["product"] not in (None, "none_of_these")):
-                send_to = max(away, key=lambda q: math.hypot(q[0] - o.focus[0], q[1] - o.focus[1]))
+                send_to = away[0]  # the first other place named (later ones are often supplies or a grid pole)
                 r["output"] = "belt"
             elif not quickbuild.accept(r, far):
                 return None
@@ -283,7 +283,9 @@ class FastPaths:
             q = await self.g.call("query", what="ore", name=ore, x=at[0], y=at[1], radius=24)
             tiles = {tuple(t) for t in q.get("tiles") or []}
             away = [x for x in o.points if math.hypot(x[0] - at[0], x[1] - at[1]) > 12]
-            dest = max(away, key=lambda x: math.hypot(x[0] - at[0], x[1] - at[1])) if away else None
+            # the first other place it names: "...belt it to the chest at [A]. Drills are in the chest at [B]" (the
+            # farthest one was the supply chest in a mining variant)
+            dest = away[0] if away else None
             # small poles if they can be had (wood and copper), else medium ones from storage
             stock = dict((await self.g.call("query", what="materials", outputs=True)).get("materials") or {})
             for k, v in (await self.runner.refresh_inventory()).items():
