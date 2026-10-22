@@ -475,9 +475,12 @@ API.launch = function(req)
     pcall(function() parts = silo.rocket_parts end)
     error("the rocket isn't ready yet (" .. parts .. " parts built)", 0)
   end
+  local before = c.force.rockets_launched
   local okL, launched = pcall(function() return silo.launch_rocket() end)
   if not okL or not launched then error("the game refused the launch" .. (okL and "" or (": " .. tostring(launched))), 0) end
-  return { launched = true, rockets = c.force.rockets_launched }
+  -- The game counts a rocket in force.rockets_launched only when it has cleared the silo (about 25 s later, checked
+  -- in 2.0.77 with Space Age; no cargo destination needed), so report the count including this one.
+  return { launched = true, rockets = before + 1, rockets_counted_now = before }
 end
 
 -- How far into the game the force is (read-only): research, totals made, machines standing, rockets. The names to
