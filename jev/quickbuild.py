@@ -249,9 +249,12 @@ def only_word(order: str, products: list[str], every: list[str] | None = None) -
     if products_named(order, [p for p in (every or SAY) if p not in products and p not in infra]):
         return None
     words = {w[:-1] if w.endswith("s") and len(w) > 3 else w for w in re.findall(r"[a-z]+", order.lower())}
+    def names(p):  # the product's own words and its chat name ("ammo" for firearm-magazine)
+        out = set(p.split("-")) | set(SAY.get(p, "").split())
+        return {w[:-1] if w.endswith("s") and len(w) > 3 else w for w in out}
     hits = []
     for p in products:
-        mine = set(p.split("-")) - {w for q in products if q != p for w in q.split("-")}
+        mine = names(p) - {w for q in products if q != p for w in names(q)}
         if mine & words:
             hits.append(p)
     return hits[0] if len(hits) == 1 else None
@@ -269,7 +272,7 @@ def plain_counts(order: str) -> str:
 
 
 async def read_order(jev: Jev, order: str, products: list[str], carried: list[str] | None = None) -> dict:
-    alias = {"iron-gear-wheel": "gears", "firearm-magazine": "yellow ammo",
+    alias = {"iron-gear-wheel": "gears", "firearm-magazine": "ammo, yellow ammo",
              "electronic-circuit": "green circuits", "automation-science-pack": "red science",
              "iron-plate": "iron, plates: furnaces smelting iron ore",
              "copper-plate": "copper, plates: furnaces smelting copper ore",
@@ -314,7 +317,7 @@ async def read_order(jev: Jev, order: str, products: list[str], carried: list[st
     }, kind="quickbuild")
     prod = a["product"].choice
     prod_p = float(a["product"].probs.get(prod) or 0)
-    if prod == "none_of_these" and prod_p < 0.7:
+    if prod == "none_of_these" and prod_p < 0.9:
         own = only_word(order, products)
         if own:
             prod, prod_p = own, 0.6

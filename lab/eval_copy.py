@@ -19,7 +19,14 @@ CASES = [("@serf nice. Two more just like it: ore belts at [gps=28,8] and [gps=4
          ("@serf make gears off this belt [gps=1,1]", False),
          ("@serf the furnaces at [gps=1,1] stopped", False),
          ("@serf belt the coal from [gps=1,1] to the boiler at [gps=30,1]", False),
-         ("@serf build 8 stone furnaces off the ore belt at [gps=4,4]", False)]
+         ("@serf build 8 stone furnaces off the ore belt at [gps=4,4]", False),
+         # the copy variants' wordings (bench/gen_fuzz_copy.py)
+         ("@serf copy that to [gps=141,-30]", True),
+         ("@serf same again on the belt at [gps=141,-30]", True),
+         ("@serf three more of those: [gps=111,-18], [gps=111,-30], [gps=111,-42]", True),
+         ("@serf do the same thing at [gps=1,1], [gps=1,13] and [gps=1,25]", True),
+         ("@serf copy the blueprint in the chest at [gps=1,1]", False),
+         ("@serf move that chest to [gps=4,4]", False)]
 
 
 async def main():

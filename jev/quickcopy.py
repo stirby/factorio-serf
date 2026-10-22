@@ -77,7 +77,8 @@ async def read_order(jev: Jev, order: str) -> float:
         "copy": noul("Does `order` ask for more of something already built, the same again at the places it points "
                      "at?",
                      "yes: 'two more just like it at [gps] and [gps]', 'another one of those over here', 'same "
-                     "again at [gps]', 'now four more'",
-                     "no: a new kind of build, fixing, moving items, a question"),
+                     "again at [gps]', 'now four more', 'copy that to [gps]' (the build it just made)",
+                     "no: a new kind of build, fixing, moving items or buildings, a blueprint from a book or chest, a "
+                     "question"),
     }, kind="quickcopy")
     return a["copy"].p

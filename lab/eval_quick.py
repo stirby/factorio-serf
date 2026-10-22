@@ -39,6 +39,7 @@ CASES = [
     ("@serf I need copper made from this belt [gps=112,-47], a couple of furnaces, into chests", COPPER_ORE, True,
      "copper-plate", "2", "chest"),
     ("@serf iron plates please, off that belt [gps=1,1], a couple of furnaces", ORE, True, "iron-plate", "2", "chest"),
+    ("@serf set up ammo production off [gps=141,-46]", IRON, True, "firearm-magazine", "not_said", "chest"),
     ("@serf build 6 furnaces off the ore belt at [gps=5,5], plates into chests", ORE, True, "iron-plate", "6", "chest"),
     ("@serf make me a smelter column: 8 stone furnaces off the ore belt at [gps=12,8] (iron ore and coal on it), "
      "plates on a belt into the chest at [gps=16,30]. Materials are in the supply chest at [gps=0,8], grid pole at "
