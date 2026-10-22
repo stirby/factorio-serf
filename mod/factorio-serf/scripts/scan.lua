@@ -229,8 +229,18 @@ local function grid(pole)
             seen[b.unit_number] = true
             boilers = boilers + 1
             local fuel = b.get_fuel_inventory()
-            -- under 20 coal: a loaded boiler burns that in ~45 s, so "low" leaves time to get there
-            if not (fuel and fuel.get_item_count() >= 20) then
+            local n = fuel and fuel.get_item_count() or 0
+            -- under 20 coal: a hand-fed boiler burns that in ~45 s, so "low" leaves time to get there. An inserter
+            -- keeps only a few coal in it, so a fed boiler is low only when it's empty.
+            local fed = false
+            if n > 0 and n < 20 then
+              local bb = b.bounding_box
+              for _, ins in pairs(b.surface.find_entities_filtered { force = b.force, type = "inserter",
+                area = { { bb.left_top.x - 1.5, bb.left_top.y - 1.5 }, { bb.right_bottom.x + 1.5, bb.right_bottom.y + 1.5 } } }) do
+                if ins.drop_target == b then fed = true break end
+              end
+            end
+            if n < 20 and not fed then
               low = low + 1
               if #low_at < 12 then low_at[#low_at + 1] = { b.position.x, b.position.y } end
             end
