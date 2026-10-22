@@ -41,7 +41,7 @@ Step ops (each step is an object {{"do": op, ...}}):
   insert x y item [count] | take x y [item] [count] | empty_chest x y
   refuel x y [fuel]                         put fuel into a burner (fetches coal)
   power x y [from=[x,y]] [item]             run poles from the nearest powered pole (or from) to x,y
-  fetch item count | craft recipe count | mine name count | mine_at x y (pick up one entity)
+  fetch item count | craft recipe count | mine name count | mine_at x y [name] (pick up one entity; with name, only that kind, never a neighbour when x,y is a tile off)
   research tech [first=true: to the front of the queue, with its unresearched prerequisites] [remove=true: take it out of the queue] (or tech="cheapest") | move x y | follow player [seconds] | wait seconds | say text
   configure x y requests={{..}}|filter=item | limit x y slots
   launch x y                                launch the rocket in the silo at x,y once it holds a finished rocket (walks there)
