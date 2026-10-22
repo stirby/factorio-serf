@@ -282,7 +282,12 @@ class Actor(FastPaths):
             self.next_id += 1
             self.orders.append(o)
             self.metrics["orders"] += 1
-            if doing:
+            if doing and self.current and self.current.speaker == self.name and self.current.text.startswith("(noticed)"):
+                # something it noticed by itself waits for a player's order
+                self.current.status = "cancelled"
+                self.log({"kind": "preempt", "order": self.current.id, "by": o.id})
+                await self.g.cancel("a player's order comes first")
+            elif doing:
                 waiting = sum(1 for x in self.orders if x.status == "new")
                 await self.say("got it, I'll do that next" if waiting <= 1 else f"got it, that's #{waiting} in my queue")
             self.wake.set()
@@ -1246,7 +1251,10 @@ class Actor(FastPaths):
         # (and in what the player said after: "still no gears" names the product the order didn't)
         wanted = quickbuild.products_named(" ".join([o.text] + o.notes),
                                            [r for r in self.recipes if not r.endswith("-barrel")])
+        fixed_keys: set = set()
         for rnd in range(6):
+            if o.status == "cancelled":
+                return False
             if rnd:
                 w = await self.world(o.focus, 18)
             allf = w.wanted_faults(wanted) + w.faults()
@@ -1281,6 +1289,15 @@ class Actor(FastPaths):
                       "conf": round(conf, 3), "p_any": round(p_any, 3), "p_all": round(p_all, 3)})
             if idx is None or idx >= len(opts) or (conf < 0.4 and p_any < 0.5):
                 return "unsure which fault is meant: " + "; ".join(x["text"] for x in opts[:6])
+            m0 = opts[idx]["members"][0]
+            key = (m0["kind"], m0.get("grid") if m0["kind"] == "boiler_fuel" else (m0.get("u") or m0["text"]))
+            if key in fixed_keys:
+                # fixed once already and back within a minute: whatever supplies it doesn't keep up, and fixing it
+                # again by hand only loops
+                pre = f"I did: {fixed_words(fixed)}. " if fixed else ""
+                return (pre + f"'{m0['text']}' keeps coming back after I fix it by hand: its supply doesn't keep up "
+                        "and needs a lasting fix")
+            fixed_keys.add(key)
             # "get it all running": every fault code can fix there in this round, the one Jev picked first
             # (a recipe change only when it's the one picked: it rests on reading the order, not on what's broken)
             extra = [g for i, g in enumerate(opts) if i != idx and g["members"][0]["kind"] != "wanted_recipe"] \
