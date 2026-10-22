@@ -134,14 +134,17 @@ class FastPaths:
             what += f", belted to {dst['what']}"
         return await self._run_quick(o, plan, what)
 
-    def _delivery_steps(self, dst: dict, item: str) -> list[dict]:
+    def _delivery_steps(self, dst: dict, item: str, fast: bool = False) -> list[dict]:
         """What goes at a belt's far end (quickbelt.sink): an inserter into the machine or chest when there isn't one
-        (burner for fuel without power nearby, else electric and powered)."""
+        (burner for fuel without power nearby, else electric and powered). fast: the flow is more than a basic
+        inserter moves (~50 a minute), so a fast inserter."""
         if dst["kind"] != "new_inserter":
             return []
         ins = dict(dst["inserter"])
         if not dst.get("electric") and item not in ("coal", "wood", "solid-fuel"):
             ins["name"] = "inserter"  # a burner inserter moving non-fuel would starve: power it instead
+        if fast and ins["name"] != "burner-inserter":
+            ins["name"] = "fast-inserter"
         steps = [{"do": "place", **ins}]
         if ins["name"] == "burner-inserter":
             steps.append({"do": "refuel", "x": ins["x"], "y": ins["y"], "count": 5})
@@ -315,7 +318,9 @@ class FastPaths:
         what = f"{lay['drills']} drills on the {word}"
         if dst:
             steps.append({"do": "connect", "item": "transport-belt", "from": lay["belt_end"], "to": dst["to"]})
-            steps += self._delivery_steps(dst, ore)
+            # six drills make ~180 ore a minute; a basic inserter into a chest moves ~50 and the drills back up
+            fast = lay["drills"] * 30 > 45 and craft.most("fast-inserter", stock, self.recipes, 1) >= 1
+            steps += self._delivery_steps(dst, ore, fast=fast)
             expect += quickbelt.delivered(dst, ore)
             what += f", belted to {dst['what']}"
         else:
