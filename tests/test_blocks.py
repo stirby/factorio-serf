@@ -23,7 +23,12 @@
      an electric-energy-interface on its own pole at least 3 tiles away (so it can't power anything the design's
      poles miss), wired to a design pole; for power designs the interface is a 1.8 MW load instead;
    - fluid inputs (ports with kind "fluid", e.g. sulfuric acid or lubricant): an infinity pipe just outside the
-     port tile, on the port's side, full of that fluid;
+     port tile, on the port's side, full of that fluid; fluid outputs: an infinity pipe there that empties itself
+     (a drain), except for fluids named in --blocked-outputs (to check that an unused output doesn't stall the
+     block). Fluid output is measured as the case force's net production of that fluid (made minus used by the
+     design's machines; infinity pipes don't count), so it equals what leaves through the port;
+   - rocket parts (output kind "rocket-part"): counted from the force's item production; a finished rocket is
+     launched at once so the silo keeps building;
    - research designs: the case force gets the test tech's prerequisites and that tech queued;
    - every case force gets the RECIPES below enabled (mid and late game: blue, purple and yellow science and
      everything they are made of). Recipes are given to create_entity, so an assembler with a fluid recipe keeps
@@ -34,7 +39,7 @@
    the shared start), so a lab row whose test tech would run out isn't spoiled by a slower neighbour.
 PASS = measured >= 60% of the design's rated output, every entity placed where asked, and no entity in a bad
 status for most samples (any: no power/fuel/recipe/fluid; producers: also ingredient shortage, output full,
-missing packs).
+missing packs; machines in test.may_idle may run short of fluid).
 """
 from __future__ import annotations
 
@@ -59,6 +64,7 @@ SAMPLE_EVERY = 10.0
 ALWAYS_BAD = {"no_power", "low_power", "no_fuel", "no_recipe", "not_plugged_in_electric_network", "disabled",
               "disabled_by_script", "marked_for_deconstruction", "no_input_fluid", "missing_required_fluid",
               "fluid_ingredient_shortage", "low_input_fluid", "low_temperature", "networks_disconnected"}
+FLUID_SHORT = {"fluid_ingredient_shortage", "no_input_fluid", "missing_required_fluid", "low_input_fluid"}
 PRODUCER_BAD = {"item_ingredient_shortage", "no_ingredients", "full_output", "waiting_for_space_in_destination",
                 "no_research_in_progress", "missing_science_packs", "waiting_for_source_items", "no_minable_resources"}
 RECIPES = ["automation-science-pack", "logistic-science-pack", "inserter", "transport-belt", "iron-gear-wheel",
@@ -68,7 +74,12 @@ RECIPES = ["automation-science-pack", "logistic-science-pack", "inserter", "tran
            # late game: purple and yellow science and their parts
            "production-science-pack", "rail", "iron-stick", "electric-furnace", "productivity-module",
            "utility-science-pack", "processing-unit", "low-density-structure", "flying-robot-frame",
-           "electric-engine-unit", "battery", "lubricant", "sulfuric-acid"]
+           "electric-engine-unit", "battery", "lubricant", "sulfuric-acid",
+           # oil, rocket fuel and the rocket
+           "basic-oil-processing", "advanced-oil-processing", "heavy-oil-cracking", "light-oil-cracking",
+           "solid-fuel-from-light-oil", "solid-fuel-from-petroleum-gas", "solid-fuel-from-heavy-oil", "rocket-fuel",
+           "rocket-part"]
+BLOCKED: set[str] = set()  # fluid outputs left without a drain (--blocked-outputs)
 MEASURE_S = 90.0
 INSTANCE_BLOCKS = ((60, 69),)  # ids this validator may start (campaigns and other experiments use the rest)
 MAX_JOBS = 2  # the machine is shared: never more than 2 test servers at once
@@ -128,7 +139,12 @@ def harness_layout(design: dict) -> list[dict]:
             out.append(_ent("loader-1x1", _add(p, side, 2), toward, role="feed", loader_type="output"))
             out.append(_ent("infinity-chest", _add(p, side, 3), role="source", item=item))
     for port in design.get("outputs", []):
-        if "at" not in port or port.get("kind") in ("power", "research"):
+        if "at" not in port or port.get("kind") in ("power", "research", "rocket-part"):
+            continue
+        if port.get("kind") == "fluid":  # a drain just outside, on the port's side
+            if port["fluid"] not in BLOCKED:
+                out.append(_ent("infinity-pipe", _add(tuple(port["at"]), port["side"], 1), role="fluid_sink",
+                                fluid=port["fluid"]))
             continue
         d = port["side"]
         t = tuple(port["at"])
@@ -273,7 +289,7 @@ local function fluid_recipe(r)
   for _, i in ipairs(p.products) do if i.type == "fluid" then return true end end
   return false
 end
-local reg = { force = fname, design = {}, engines = {} }
+local reg = { force = fname, design = {}, engines = {}, silos = {}, stats = spec.stats or {} }
 local bad = {}
 local function make(e, is_design)
   local want = { x = ox + e.x, y = oy + e.y }
@@ -314,9 +330,11 @@ local function make(e, is_design)
     reg.design[#reg.design + 1] = ent
     if ent.type == "generator" then reg.engines[#reg.engines + 1] = ent end
     if ent.type == "electric-pole" then reg.pole = reg.pole or ent end
+    if ent.type == "rocket-silo" then reg.silos[#reg.silos + 1] = ent end
   end
   if e.role == "source" then ent.set_infinity_container_filter(1, { name = e.item, count = 100, mode = "exactly" }) end
   if e.role == "fluid_source" then ent.set_infinity_pipe_filter { name = e.fluid, percentage = 1, mode = "at-least" } end
+  if e.role == "fluid_sink" then ent.set_infinity_pipe_filter { name = e.fluid, percentage = 0, mode = "at-most" } end
   if e.role == "sink" then reg.sink, reg.items = ent, e.items end
   if e.role == "power_pole" then reg.hpole = ent end
   if e.role == "power" then
@@ -370,6 +388,21 @@ for case, c in pairs(storage.bp_test) do
   for i, e in ipairs(c.design) do
     if e.valid and e.status then r.st["e" .. i] = util.STATUS_NAMES[e.status] or tostring(e.status) end
   end
+  if c.stats and #c.stats > 0 then
+    r.stat = {}
+    local fs = f.get_fluid_production_statistics(game.surfaces.nauvis)
+    local is = f.get_item_production_statistics(game.surfaces.nauvis)
+    for _, m in ipairs(c.stats) do
+      if m.kind == "fluid" then r.stat[m.name] = fs.get_input_count(m.name) - fs.get_output_count(m.name)
+      else r.stat[m.name] = is.get_input_count(m.name) end
+    end
+  end
+  for _, sl in ipairs(c.silos or {}) do  -- keep the silo building: launch a finished rocket at once
+    if sl.valid and sl.rocket_silo_status == defines.rocket_silo_status.rocket_ready then
+      local ok = pcall(function() sl.launch_rocket() end)
+      r.launches = (r.launches or 0) + (ok and 1 or 0)
+    end
+  end
   out[case] = r
 end
 return out
@@ -395,6 +428,19 @@ class Case:
         self.kind = out.get("kind", "items")
         self.rated = float(out.get("rate", 0))
         self.rates = {out["item"]: self.rated, **out.get("also", {})} if out.get("item") else {}
+        # fluid outputs and rocket parts are counted from the force's production statistics
+        self.stats = []
+        for o in self.spec["outputs"]:
+            if o.get("kind") == "fluid" and o["fluid"] not in BLOCKED:
+                self.stats.append({"name": o["fluid"], "kind": "fluid"})
+                self.rates[o["fluid"]] = float(o["rate"])
+            elif o.get("kind") == "rocket-part":
+                self.stats.append({"name": "rocket-part", "kind": "item"})
+                self.rates["rocket-part"] = float(o["rate"])
+        if self.kind in ("fluid", "rocket-part"):
+            self.kind = "items"
+            first = next(iter(self.rates), None)
+            self.rated = self.rates[first] if first else 0.0
         self.unit = {"items": "/s", "research": " units/s", "power": " MW"}.get(self.kind, "")
         self.error: str | None = None
         self.window: float | None = None  # this case's own measuring time (s); the instance may measure longer
@@ -410,8 +456,18 @@ class Case:
     def place_lua(self, center) -> str:
         spec = {"case": self.key, "design": self.spec["design"], "harness": self.spec["harness"],
                 "box": self.spec["box"], "center": center, "recipes": RECIPES,
-                "anchor": self.spec.get("anchor"), "research": self.test.get("research"), "ghosts": self.ghosts}
+                "anchor": self.spec.get("anchor"), "research": self.test.get("research"), "ghosts": self.ghosts,
+                "stats": self.stats}
         return PLACE % json.dumps(spec, separators=(",", ":"))
+
+    def may_idle(self, e: dict) -> bool:
+        """test.may_idle: machines that only work on surplus (e.g. oil crackers while every output is drawn), so
+        running short of fluid is fine for them."""
+        for p in self.test.get("may_idle", []):
+            n, _, r = p.partition(":")
+            if e["name"] == n and (not r or e.get("recipe") == r):
+                return True
+        return False
 
     def producer(self, e: dict) -> bool:
         for p in self.test.get("producers", []):
@@ -438,7 +494,11 @@ class Case:
             vals = [s.get("mw", 0) for s in samples]
             measured = sum(vals) / len(vals)
         else:
-            per = {it: ((b.get("out") or {}).get(it, 0) - (a.get("out") or {}).get(it, 0)) / dt for it in self.rates}
+            def got(smp, it):
+                if it in (smp.get("stat") or {}):
+                    return smp["stat"][it]
+                return (smp.get("out") or {}).get(it, 0)
+            per = {it: (got(b, it) - got(a, it)) / dt for it in self.rates}
             measured = per[next(iter(self.rates))]
             res["per_item"] = {it: f"{v:.3g}/{self.rates[it]:g}" for it, v in per.items()}
         bad: dict[int, list[str]] = {}
@@ -450,6 +510,8 @@ class Case:
             if not sts:
                 continue
             badset = ALWAYS_BAD | (PRODUCER_BAD if self.producer(e) else set())
+            if self.may_idle(e):
+                badset = badset - FLUID_SHORT
             nb = sum(1 for x in sts if x in badset)
             if nb * 2 > len(sts):
                 worst = max(set(sts), key=sts.count)
@@ -475,6 +537,22 @@ class Case:
                     out.setdefault(k, {})
                     out[k][st] = out[k].get(st, 0) + 1
         return out
+
+
+def _reap(inst) -> None:
+    """If the server this run started is still alive after inst.stop() (seen once: a start judged failed while the
+    server came up anyway, so stop() found no pid and the server was left running), interrupt it directly."""
+    proc = getattr(inst, "proc", None)
+    if proc is None or proc.poll() is not None:
+        return
+    import signal
+    for sig, wait in ((signal.SIGINT, 30), (signal.SIGKILL, 5)):
+        try:
+            proc.send_signal(sig)
+            proc.wait(wait)
+            return
+        except Exception:  # noqa: BLE001
+            continue
 
 
 async def run_group(k: int, cases: list[Case], args) -> None:
@@ -527,6 +605,7 @@ async def run_group(k: int, cases: list[Case], args) -> None:
         if rcon:
             await rcon.close()
         await asyncio.to_thread(inst.stop)
+        await asyncio.to_thread(_reap, inst)
         print(f"[i{k}] stopped ({time.time() - t0:.0f}s)", flush=True)
 
 
@@ -571,6 +650,9 @@ def main() -> int:
     ap.add_argument("--first-instance", type=int, default=FIRST_INSTANCE,
                     help="first instance id: 60..69 (default 60)")
     ap.add_argument("--draft-dir", help="also look for designs here (draft blocks not yet in jev/blueprints/)")
+    ap.add_argument("--blocked-outputs", default="",
+                    help="comma list of fluids whose output ports get no drain (check that an unused output doesn't "
+                         "stall the block; those fluids aren't measured)")
     ap.add_argument("--warmup", type=float, default=None, help="seconds before measuring (default: per design)")
     ap.add_argument("--measure", type=float, default=None,
                     help=f"seconds of measurement (default: per design `measure_s`, at least {MEASURE_S:g})")
@@ -583,6 +665,7 @@ def main() -> int:
 
     if args.draft_dir:
         use_draft_dir(Path(args.draft_dir))
+    BLOCKED.update(f for f in args.blocked_outputs.split(",") if f)
     designs = args.designs.split(",") if args.designs else bp.names()
     probs = offline_checks(designs)
     print(f"static checks: {len(designs)} designs x 4 rotations: " + ("OK" if not probs else f"{len(probs)} problems"))
