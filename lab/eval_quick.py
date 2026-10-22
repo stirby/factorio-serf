@@ -3,6 +3,7 @@
 accept() matches the label and, for accepted ones, product/count/output match too.
     .venv/bin/python lab/eval_quick.py"""
 import asyncio
+import re
 import sys
 from pathlib import Path
 
@@ -45,6 +46,7 @@ CASES = [
      "not_said", "chest"),
     ("@serf yellow ammo please, off that belt [gps=5,5]", IRON, True, "firearm-magazine", "not_said", "chest"),
     ("@serf copper please, off that belt [gps=5,5]", COPPER_ORE, True, "copper-plate", "not_said", "chest"),
+    ("@serf plates please, off that belt [gps=97,-32]", ORE, True, "iron-plate", "not_said", "chest"),
     ("@serf build 6 furnaces off the ore belt at [gps=5,5], plates into chests", ORE, True, "iron-plate", "6", "chest"),
     ("@serf make me a smelter column: 8 stone furnaces off the ore belt at [gps=12,8] (iron ore and coal on it), "
      "plates on a belt into the chest at [gps=16,30]. Materials are in the supply chest at [gps=0,8], grid pole at "
@@ -123,7 +125,7 @@ async def main():
     res = await asyncio.gather(*(quickbuild.read_order(jev, o, opts, CARRY.get(id(opts))) for o, opts, *_ in CASES))
     ok = 0
     for (o, opts, acc, prod, cnt, out), r in zip(CASES, res):
-        a = quickbuild.accept(r, far_points(o))
+        a = quickbuild.accept(r, far_points(o), one_point=len(re.findall(r"\[gps=", o)) == 1)
         good = a == acc and (not acc or (r["product"] == prod and r["count"] == cnt and r["output"] == out))
         ok += good
         if not good:
@@ -135,11 +137,11 @@ async def main():
     for drop in ("build", "chain", "elsewhere"):
         neutral = {"build": 1.0, "chain": 0.0, "elsewhere": 0.0}[drop]
         n = sum(1 for (o, opts, acc, prod, cnt, out), r in zip(CASES, res)
-                if quickbuild.accept({**r, drop: neutral}, far_points(o)) == acc
+                if quickbuild.accept({**r, drop: neutral}, far_points(o), one_point=len(re.findall(r"\[gps=", o)) == 1) == acc
                 and (not acc or (r["product"] == prod and r["count"] == cnt and r["output"] == out)))
         print(f"  without {drop}: {n}/{len(CASES)}")
         for (o, opts, acc, *_), r in zip(CASES, res):
-            if not acc and quickbuild.accept({**r, drop: neutral}, far_points(o)):
+            if not acc and quickbuild.accept({**r, drop: neutral}, far_points(o), one_point=len(re.findall(r"\[gps=", o)) == 1):
                 print(f"      would accept: {o[:90]}")
     await jev.close()
 

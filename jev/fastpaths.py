@@ -49,7 +49,7 @@ class FastPaths:
                     and r["product"] not in (None, "none_of_these")):
                 send_to = away[0]  # the first other place named (later ones are often supplies or a grid pole)
                 r["output"] = "belt"
-            elif not quickbuild.accept(r, far):
+            elif not quickbuild.accept(r, far, one_point=len(o.points) == 1):
                 return None
             opt = opts[r["product"]]
             if r["output"] == "belt" and len(opt["lines"]) == 2:

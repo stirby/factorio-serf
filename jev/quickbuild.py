@@ -320,10 +320,13 @@ async def read_order(jev: Jev, order: str, products: list[str], carried: list[st
     }, kind="quickbuild")
     prod = a["product"].choice
     prod_p = float(a["product"].probs.get(prod) or 0)
-    if prod == "none_of_these" and prod_p < 0.9:
-        own = only_word(order, products)
-        if own:
-            prod, prod_p = own, 0.6
+    own = only_word(order, products)
+    if prod == "none_of_these" and prod_p < 0.9 and own:
+        prod, prod_p = own, 0.6
+    elif own and prod == own:
+        # Jev's pick is the one option the order names by its own word ("plates please, off that belt" with only
+        # iron plates to make there): its doubt is between that and nothing, not between products
+        prod_p = max(prod_p, 0.6)
     cnt = a["count"].choice
     cnt_p = float(a["count"].probs.get(cnt) or 0)
     # "3 assemblers", "2 furnaces": an exact number next to a machine word is read by code
@@ -343,11 +346,14 @@ async def read_order(jev: Jev, order: str, products: list[str], carried: list[st
             "output": "belt" if onto >= 0.75 else "chest"}
 
 
-def accept(r: dict, far_point: bool = True) -> bool:
+def accept(r: dict, far_point: bool = True, one_point: bool = False) -> bool:
     """far_point: the order names a place more than ~40 tiles from the first one (code measures that; Jev doesn't do
     distances). Without one, "elsewhere" can only be nearby ("into a chest around [gps]"), so Jev's doubt counts less.
     "build" is logged but not gated on: the chat playbook already sent only build jobs here, and in the lab it caught
     nothing the other questions didn't while turning down plain orders ("iron sticks off this belt")."""
     # (chain = the larger of "several products?" and "feeds further machines?": both separate cleanly at 0.7)
-    return (r["chain"] < 0.7 and r["elsewhere"] < (0.4 if far_point else 0.65)
+    # one_point: the order names no other place at all, so "elsewhere" can only be a chest by the machines ("..., into
+    # a chest") or the speaker ("bring them to me", which reads well above 0.85)
+    limit = 0.4 if far_point else (0.85 if one_point else 0.65)
+    return (r["chain"] < 0.7 and r["elsewhere"] < limit
             and r["product"] not in (None, "none_of_these") and r["product_p"] >= 0.55)
