@@ -9,6 +9,10 @@ cd "$(dirname "$0")/.."
 slot=$1; first=$2; rounds=$3; shift 3
 rungs=${*:-green oil blue purple}
 log=${LADDER_LOG:-bench/runs/ladder.log}
+# an experiment arm: LADDER_EFFORT=medium runs the planner at that effort, tries named <rung>-<arm>-r<round>
+arm=${LADDER_ARM:-}
+effort=()
+[ -n "$LADDER_EFFORT" ] && effort=(--effort "$LADDER_EFFORT")
 
 rung() {  # name -> world hours target order
   case $1 in
@@ -24,11 +28,11 @@ rung() {  # name -> world hours target order
 for ((r = first; r < first + rounds; r++)); do
   for name in $rungs; do
     IFS='|' read -r world hours target order <<< "$(rung "$name")"
-    camp="$name-r$r"
+    camp="$name${arm:+-$arm}-r$r"
     [ -d "bench/campaigns/$camp" ] && continue
     echo "$(date +%H:%M:%S) start $camp ($(git rev-parse --short HEAD))" >> "$log"
     .venv/bin/python bench/campaign.py --name "$camp" --world "$world" --gen-hours "$hours" --gens 1 \
-      --instance "$slot" --mode project --target "$target" --order "$order" >> "$log" 2>&1
+      --instance "$slot" --mode project --target "$target" --order "$order" "${effort[@]}" >> "$log" 2>&1
     echo "$(date +%H:%M:%S) end $camp" >> "$log"
   done
 done
