@@ -538,6 +538,20 @@ def test_lint_rules():
     check("lint: a chest on the drill's output is fine", not any("drops its ore" in p for p in probs), probs)
 
 
+def test_lint_connect_mixing():
+    # line A: coal belts running east ending at 5.5,0.5; line B: plastic belts running south through 10.5,y
+    ents = [{"u": i + 1, "n": "transport-belt", "t": "transport-belt", "x": 0.5 + i, "y": 0.5, "d": "east",
+             "lanes": [{"coal": 2}, {}]} for i in range(6)]
+    ents += [{"u": 100 + j, "n": "transport-belt", "t": "transport-belt", "x": 10.5, "y": -5.5 + j, "d": "south",
+              "lanes": [{"plastic-bar": 2}, {}]} for j in range(12)]
+    w = World({"ents": ents, "center": [5, 0]})
+    probs = lint([{"do": "connect", "item": "transport-belt", "from": [5.5, 0.5], "to": [10.5, 2.5]}], w, None, {})
+    check("lint: a connect that runs coal onto a plastic belt is flagged", any("would put coal" in p for p in probs),
+          probs)
+    probs = lint([{"do": "connect", "item": "transport-belt", "from": [5.5, 0.5], "to": [9.5, 8.5]}], w, None, {})
+    check("lint: a connect ending on empty ground isn't", not any("would put" in p for p in probs), probs)
+
+
 def test_failure_facts():
     f = failure_facts("cannot place assembling-machine-1 at 1.5,2.5: blocked by character@1.2,2.4")
     check("facts: blocked only by the character", f["blocked_only_by_the_character"], f)

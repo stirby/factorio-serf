@@ -227,6 +227,18 @@ def lint(steps: list[dict], w: World, available: set[str] | None = None, recipes
                                 out.append(f"connect from {fmt_xy(f)}: that's the middle of belt line {ln.id}, "
                                            "not its end; the new line won't be fed. Use an inserter or splitter "
                                            "to branch")
+                        # joining one line onto another mixes what they carry (p1: coal ended up on the plastic
+                        # belt, and a new outpost line ran into a base belt)
+                        src = w.line_of.get(b["u"]) if b and b.get("t") in BELT_T else None
+                        e = w.at(t[0], t[1])
+                        dst = w.line_of.get(e["u"]) if e and e.get("t") in BELT_T else None
+                        si = set((src.items or {}) if src else ())
+                        di = set((dst.items or {}) if dst else ())
+                        if src is not dst and si and di and not si <= di:
+                            out.append(f"connect from {fmt_xy(f)} to {fmt_xy(t)} would put "
+                                       f"{', '.join(sorted(si - di))} onto belt line {dst.id}, which carries "
+                                       f"{', '.join(sorted(di))}. End the new line beside it instead (or into a "
+                                       "chest or machine), unless mixing them is the point")
                 elif "pole" in item:
                     power_targets.append((float(t[0]), float(t[1])))
             elif d == "power":
