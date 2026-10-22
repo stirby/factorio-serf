@@ -599,9 +599,30 @@ H.place = {
       for _, e in pairs(found) do
         if e.type ~= "resource" then blockers[#blockers + 1] = e.name .. "@" .. xystr(e.position) end
       end
+      -- the game won't let a player join two different fluids: say which, not "water, cliff or wrong tile"
+      -- (a pipe line's last tile beside a machine inlet for another fluid: 9 failures in an afternoon)
+      local fluids, seenF = {}, {}
+      if proto.fluidbox_prototypes and #proto.fluidbox_prototypes > 0 then
+        for _, n in pairs(surface.find_entities_filtered { area = { { job.pos.x - 1.4, job.pos.y - 1.4 },
+          { job.pos.x + 1.4, job.pos.y + 1.4 } }, force = c.force }) do
+          local okF, fb = pcall(function() return n.fluidbox end)
+          if okF and fb then
+            for i = 1, #fb do
+              local fl = fb[i]
+              if fl and fl.name and not seenF[fl.name] then
+                seenF[fl.name] = true
+                fluids[#fluids + 1] = fl.name .. " (" .. n.name .. "@" .. xystr(n.position) .. ")"
+              end
+            end
+          end
+        end
+      end
       local why
       if #blockers > 0 then
         why = "blocked by " .. table.concat(blockers, ", ", 1, math.min(#blockers, 4))
+      elseif #fluids >= 2 then
+        why = "it would join " .. table.concat(fluids, " and ", 1, math.min(#fluids, 3))
+          .. ", and fluids can't mix: connect to the inlet for the right fluid, or pass under with pipe-to-ground"
       elseif proto.type == "mining-drill" then
         why = "a mining drill needs ore under it (check the map for the patch)"
       elseif proto.type == "offshore-pump" then

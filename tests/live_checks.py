@@ -466,8 +466,31 @@ return true""")
     await L.ev("storage.agents['serf'].char.get_main_inventory().clear() return true")
 
 
+async def chk_fluid_mix(L: Live, state: dict):
+    g = L.g
+    x0, y0 = await L.site(8, 4)
+    info = await L.ev(f"""
+local s, f = game.surfaces.nauvis, game.forces.player
+local a = s.create_entity {{ name = 'pipe', position = {{ {x0} + 0.5, {y0} + 1.5 }}, force = f }}
+a.insert_fluid {{ name = 'water', amount = 50 }}
+local b = s.create_entity {{ name = 'pipe', position = {{ {x0} + 2.5, {y0} + 1.5 }}, force = f }}
+b.insert_fluid {{ name = 'crude-oil', amount = 50 }}
+local c = storage.agents['serf'].char
+c.teleport({{ {x0} + 1.5, {y0} + 3.5 }})
+c.get_main_inventory().clear()
+c.insert {{ name = 'pipe', count = 5 }}
+local okM = s.can_place_entity {{ name = 'pipe', position = {{ {x0} + 1.5, {y0} + 1.5 }}, force = f,
+  build_check_type = defines.build_check_type.manual }}
+return {{ manual = okM }}""")
+    r = await g.run({"op": "place", "name": "pipe", "x": x0 + 1.5, "y": y0 + 1.5}, timeout=30)
+    print("   fluid mix: can_place(manual) =", info, "| place ->", r.get("msg"))
+    check("fluid mix: a pipe joining water and crude is refused and the message says the fluids would mix",
+          not r.get("ok") and "mix" in str(r.get("msg")), r.get("msg"))
+    await L.ev("storage.agents['serf'].char.get_main_inventory().clear() return true")
+
+
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix}
 
 
 async def main() -> int:
