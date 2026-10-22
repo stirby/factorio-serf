@@ -615,8 +615,11 @@ class Actor(FastPaths):
                         if n < max(5, c["count"] * 0.1):
                             continue
                         await self.say(f"topping up {c['item']} in the chest at [gps={c['x']:.0f},{c['y']:.0f}]")
-                        await self.runner.run({"do": "insert", "x": c["x"], "y": c["y"], "item": c["item"],
-                                               "count": n, "no_grab": True})
+                        r = await self.runner.run({"do": "insert", "x": c["x"], "y": c["y"], "item": c["item"],
+                                                   "count": n, "no_grab": True})
+                        if r.get("ok"):
+                            c["topped"] = c.get("topped", 0) + 1
+                            c["moved"] = c.get("moved", 0) + n
                 except Exception as ex:  # noqa: BLE001
                     self.log({"kind": "error", "where": "restock", "error": repr(ex)})
             if self._busy():

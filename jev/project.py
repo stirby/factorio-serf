@@ -226,6 +226,23 @@ class Project:
                      "history": [h[:400] for h in o.history[-2:]]}
         self._log({"kind": "order_end", "order": o.id, **self.last})
 
+    def _by_hand(self) -> str:
+        """What the serf keeps running by hand: chests it tops up and burners it refuels. Each is a line that isn't
+        automated yet, which the probe can't tell from one that is (p2 hand-filled a brick chest 4 times in an hour)."""
+        a = self.actor
+        out = []
+        for c in getattr(a, "stocked", [])[:10]:
+            if c.get("topped"):
+                out.append(f"- {c['item']} into the chest at [gps={c['x']:.0f},{c['y']:.0f}]: topped up {c['topped']} "
+                           f"times so far ({c.get('moved', 0)} {c['item']})")
+        nf = len(getattr(a, "fuelled", []))
+        if nf >= 3:
+            out.append(f"- {nf} burners (drills, furnaces, boilers) it refuels by hand when they run low")
+        if not out:
+            return ""
+        return ("Kept going by hand (the serf does these itself between orders; each is something not automated "
+                "yet, worth replacing with a belt or inserter feed when it matters):\n" + "\n".join(out))
+
     def _report(self, p: dict | None) -> str:
         mins = (time.time() - self.t0) / 60
         lines = [f"The project has run {mins:.0f} min; orders given: {len(self.orders)}."]
@@ -241,6 +258,9 @@ class Project:
             if self.last.get("history") and self.last["outcome"] != "done":
                 s += "\nWhat went wrong along the way: " + " | ".join(self.last["history"])
             lines.append(s)
+        hand = self._by_hand()
+        if hand:
+            lines.append(hand)
         if self.heard:
             lines.append("Said in chat lately:\n" + "\n".join(self.heard[-15:]))
             self.heard.clear()

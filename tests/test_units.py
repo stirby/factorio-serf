@@ -761,6 +761,19 @@ def test_fluid_backup():
           [x["text"] for x in w.faults()])
 
 
+def test_project_by_hand():
+    from types import SimpleNamespace
+    from jev.project import Project
+    actor = SimpleNamespace(stocked=[{"x": 129.5, "y": 14.5, "item": "stone", "count": 450, "topped": 4, "moved": 1700},
+                                     {"x": 1.5, "y": 2.5, "item": "coal", "count": 100}],
+                            fuelled=[(0, 0), (1, 1), (2, 2)])
+    t = Project._by_hand(SimpleNamespace(actor=actor))
+    check("project: the report says what the serf keeps going by hand", "stone into the chest at [gps=130,14]" in t
+          and "topped up 4 times" in t and "3 burners" in t and "coal" not in t, t)
+    check("project: nothing by hand, nothing said",
+          Project._by_hand(SimpleNamespace(actor=SimpleNamespace(stocked=[], fuelled=[]))) == "")
+
+
 def test_keeper_state():
     import tempfile
     from types import SimpleNamespace
