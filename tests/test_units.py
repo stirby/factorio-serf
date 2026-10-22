@@ -333,6 +333,23 @@ def test_unfed():
           f and f[0]["u"] == 40 and f[0]["fixes"][0]["x"] == 4.5 and f[0]["fixes"][0]["pickup"] == [3.5, 0.5], f)
 
 
+def test_options_bent_line():
+    # iron plates east along y=0.5 for 12 tiles, then turning south along x=12.5 for 12 tiles: one line
+    ents = []
+    pos = [(0.5 + k, 0.5, "east") for k in range(12)] + [(12.5, 0.5 + k, "south") for k in range(12)]
+    for k, (x, y, d) in enumerate(pos):
+        ents.append(belt(k + 1, x, y, d, o=[k + 2] if k < len(pos) - 1 else None, i=[k] if k else None,
+                         items={"iron-plate": 2}))
+    w = World({"ents": ents, "center": [10, 8], "radius": 32})
+    rec = {"pipe": {"ingredients": {"iron-plate": 1}, "category": "crafting"}}
+    o1 = quickbuild.options(w, rec, [(13, 9)]).get("pipe") or {}
+    o2 = quickbuild.options(w, rec, [(3, 0)]).get("pipe") or {}
+    check("quickbuild: a belt that turns offers its straight stretches; the row goes on the one pointed at",
+          len(w.lines) == 1 and o1.get("lines") and o1["lines"][0].direction == "south" and o2.get("lines")
+          and o2["lines"][0].direction == "east",
+          (len(w.lines), o1.get("lines") and o1["lines"][0].direction, o2.get("lines") and o2["lines"][0].direction))
+
+
 def test_engine_slot():
     ents = [{"u": 1, "n": "boiler", "t": "boiler", "x": 0.5, "y": 5.0, "d": "north", "w": 3, "h": 2},
             {"u": 2, "n": "steam-engine", "t": "generator", "x": 0.5, "y": 1.5, "d": "north", "w": 3, "h": 5, "net": 7}]

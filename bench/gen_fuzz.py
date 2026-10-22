@@ -37,7 +37,8 @@ WORDING = ["@{{agent}} make {what} off the belt at [gps={bx},{by}]{count}{chest}
            "@{{agent}} {what} from [gps={bx},{by}] pls{count}{chest}"]
 
 
-def setup_lua(direction: str, feeds: list[list[str]], clutter: bool, length: int = 30, decoy: bool = False) -> str:
+def setup_lua(direction: str, feeds: list[list[str]], clutter: bool, length: int = 30, decoy: bool = False,
+              bend: str | None = None) -> str:
     """A straight belt of `length` tiles (and a second one 6 tiles to its left for two-belt products) running
     `direction`, fed from infinity chests at its upstream end, an always-on power source, poles along the start. A
     decoy: another belt 9 tiles to the right carrying stone."""
@@ -75,6 +76,12 @@ end
 local out = {}''')
     for k, items in enumerate(feeds):
         lines.append(f"for a = 0, {length - 1} do local x, y = at(a, {6 * k}) put('transport-belt', x, y, D[dirname]) end")
+        if bend and k == 0:
+            # the belt turns at its end and runs on 12 tiles (sideways: across +1 is left of travel)
+            sgn = 1 if bend == "left" else -1
+            tdir = LEFT[direction] if bend == "left" else {v: k_ for k_, v in LEFT.items()}[direction]
+            lines.append(f"for b = 0, 11 do local x, y = at({length}, {sgn} * b) put('transport-belt', x, y, "
+                         f"D['{tdir}']) end")
         for j, item in enumerate(items):
             # which side its feeder sits on (the item lands on the far lane): with two belts the first belt's item
             # comes from the outer side, so the lane facing the second belt stays free for made-on-site items
@@ -138,6 +145,7 @@ def main(n: int, seed: int):
         what = rnd.choice(says)
         length = rnd.choice([20, 30, 30, 40])
         decoy = rnd.random() < 0.3
+        bend = rnd.choice([None, "left", "right"]) if len(feeds) == 1 and seed >= 6 else None
         mach = "furnaces" if kind == "furnace" else "assemblers"
         ctext = "" if count is None else (f", {count} {mach}" if isinstance(count, int) else f", {count} {mach}")
         goal = rnd.choice(WORDING).format(what=what, bx="{bx}", by="{by}", count=ctext,
@@ -150,9 +158,10 @@ def main(n: int, seed: int):
                "group": "fuzz",
                "note": f"Variant {i} (seed {seed}): {what} off a belt running {direction}"
                        f"{' (two belts)' if len(feeds) > 1 else ''}{', rocks nearby' if clutter else ''}, "
-                       f"{length} tiles{', a stone belt beside it' if decoy else ''}; order: "
+                       f"{length} tiles{', a stone belt beside it' if decoy else ''}"
+                       f"{', then turning ' + bend if bend else ''}; order: "
                        f"{goal}",
-               "setup_lua": setup_lua(direction, feeds, clutter, length, decoy),
+               "setup_lua": setup_lua(direction, feeds, clutter, length, decoy, bend),
                "objectives": [{"name": "made", "minutes": 10, "hold_samples": 1, "goal": goal, "answer": "Your call.",
                                "score": [{"name": "made", "lua": HELPERS + "return " + made, "target": target},
                                          {"name": "in_chest", "lua": HELPERS + f"return inchest('{prod}')",

@@ -11,7 +11,7 @@ import re
 
 from .rowgen import DIRS
 from .typesafe import Jev, choice, noul
-from .world import World
+from .world import Line, World
 
 ASSEMBLER_CATS = {"crafting", "basic-crafting", "advanced-crafting", "electronics", "pressing"}
 SMELT = {"iron-ore": "iron-plate", "copper-ore": "copper-plate", "stone": "stone-brick", "iron-plate": "steel-plate"}
@@ -36,6 +36,33 @@ def _along(d: str, p) -> float:
 
 def _across(d: str, p) -> float:
     return DIRS[d][1] * p[0] - DIRS[d][0] * p[1]
+
+
+def straight_runs(w: World, ln) -> list:
+    """The straight stretches of a belt line that turns (each its own Line with the line's items), or [ln] when it's
+    straight already. A row of machines goes along one stretch."""
+    if _straight(w, ln):
+        return [ln]
+    runs, cur = [], []
+    for u in ln.belts:
+        e = w.ents.get(u)
+        if not e:
+            continue
+        if cur and e.get("d") != w.ents[cur[-1]].get("d"):
+            runs.append(cur)
+            cur = []
+        cur.append(u)
+    if cur:
+        runs.append(cur)
+    out = []
+    for k, r in enumerate(runs):
+        a, b = w.ents[r[0]], w.ents[r[-1]]
+        seg = Line(f"{ln.id}.{k + 1}", r, a.get("d", ln.direction), ln.items, (a["x"], a["y"]), (b["x"], b["y"]),
+                   ln.start_reason if k == 0 else "turns here", ln.end_reason if k == len(runs) - 1 else "turns",
+                   ln.density, takers=ln.takers, putters=ln.putters)
+        if _straight(w, seg):
+            out.append(seg)
+    return out
 
 
 def _straight(w: World, ln) -> bool:
@@ -71,7 +98,8 @@ def options(w: World, recipes: dict, points: list) -> dict:
     def dist(ln):
         return min(abs(t[0] - p[0]) + abs(t[1] - p[1]) for t in _tiles(w, ln) for p in points)
     # nearest first: with parallel belts carrying the same items, the row goes on the one the order points at
-    near = sorted((ln for ln in w.lines if ln.items and _straight(w, ln) and dist(ln) <= 12), key=dist)
+    # (a line that turns counts as its straight stretches)
+    near = sorted((seg for ln in w.lines if ln.items for seg in straight_runs(w, ln) if dist(seg) <= 12), key=dist)
     out: dict = {}
     for ln in near:
         items = set(ln.items)
