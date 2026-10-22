@@ -1,0 +1,16 @@
+{
+ "name": "lubricant-plant",
+ "description": "Lubricant: 1 chemical plant (1 s: 10 heavy oil -> 10 lubricant at speed 1): up to 10 lubricant/s from 10 heavy oil/s. One flying-robot-frame-block uses 1.125/s, so this feeds 8 of them. Pipes in and out, no belts. Power 210 kW.",
+ "size": [4, 5],
+ "inputs": [{"what": "heavy oil 10/s at full speed (pipe)", "at": [0, 0], "side": "north", "kind": "fluid", "fluid": "heavy-oil"}],
+ "outputs": [{"what": "lubricant up to 10/s (pipe)", "at": [2, 4], "side": "south", "kind": "fluid", "fluid": "lubricant", "rate": 10.0}],
+ "power": "connect any of its small poles to your grid",
+ "test": {"producers": ["chemical-plant:lubricant"], "warmup_s": 15, "measure_s": 90},
+ "needs": {"chemical-plant": 1, "pipe": 2, "small-electric-pole": 1},
+ "entities": [
+  {"name": "pipe", "x": 0.5, "y": 0.5, "direction": "north"},
+  {"name": "chemical-plant", "x": 1.5, "y": 2.5, "direction": "north", "recipe": "lubricant"},
+  {"name": "pipe", "x": 2.5, "y": 4.5, "direction": "north"},
+  {"name": "small-electric-pole", "x": 3.5, "y": 2.5, "direction": "north"}
+ ]
+}
