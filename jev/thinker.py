@@ -58,7 +58,8 @@ Chat lines are short and plain, like a player in game chat.
 After submit_plan, end your turn immediately: no summary, no commentary (nobody reads it; the actor is already working).
 Only use items that exist: the order message lists what's in storage chests and what the character carries; anything else must be hand-craftable from those (wooden chests need wood; use iron chests when there's no wood).
 Routing puzzles (many belts between pairs of points, crossings): don't work out paths by hand; use one route step with all the pairs (from = where items are put on, to = where they're picked up). It returns quickly.
-Belts: to take items off an existing belt, put the inserter (and the machine) right next to that belt; don't extend a belt backwards from its end. A branch needs a splitter or a side-load. connect's `from` continues a line only from its last belt, in the direction it already runs."""
+Belts: to take items off an existing belt, put the inserter (and the machine) right next to that belt; don't extend a belt backwards from its end. A branch needs a splitter or a side-load. connect's `from` continues a line only from its last belt, in the direction it already runs.
+Fuel for a furnace column: ore on one lane, coal on the other. Make that belt with one merge_lanes step (left = the end of the ore line, right = the end of the coal line, to = where the furnace row starts) and run the row along it. Don't hand-place side-loads onto a belt that already carries ore on both lanes: the coal lands on an ore lane and jams the furnaces (purge cleans a belt of a wrong item)."""
 
 TOOLS = [
     ("area", "What's in an area: machines with state and why they're stopped, belt lines (direction, items, where "
