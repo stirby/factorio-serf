@@ -78,8 +78,40 @@ function route.find(surface, from, to, opts)
       name = hop.name, limit = 1 } == 0
   end
   local expanded = 0
+  local best = { x = sx, y = sy, h = math.abs(gx - sx) + math.abs(gy - sy) }
+  -- Why there's no route, in words the planner can act on: an end with no way in (planners pick the side of a
+  -- machine), else how close the search got. "no route found within search limit" for a 4-tile line said nothing.
+  local function what_at(x, y)
+    local es = surface.find_entities_filtered { area = { { x + 0.2, y + 0.2 }, { x + 0.8, y + 0.8 } }, limit = 1,
+      type = { "resource", "character", "corpse", "item-entity" }, invert = true }
+    if es[1] then return es[1].name end
+    local okT, t = pcall(surface.get_tile, x, y)
+    return (okT and t and t.valid) and t.name or "?"
+  end
+  local function no_way(x, y, skip)
+    local around = {}
+    for _, d in ipairs(DIRS) do
+      local nx, ny = x + d[1], y + d[2]
+      if not (skip and skip[1] == d[1] and skip[2] == d[2]) then
+        if free(nx, ny) then return nil end
+        around[#around + 1] = what_at(nx, ny) .. "@" .. nx .. "," .. ny
+      end
+    end
+    return table.concat(around, ", ")
+  end
+  local function why_not(reason)
+    -- the last step into the goal can't be in direction gf: from the tile at goal - gf
+    local gin = opts.goal_forbid and { -opts.goal_forbid[1], -opts.goal_forbid[2] } or nil
+    local gb = (not hop) and no_way(gx, gy, gin)
+    if gb then return "end tile " .. gx .. "," .. gy .. " has no free tile beside it to come in from (" .. gb .. ")" end
+    local sb = (not hop) and no_way(sx, sy, opts.start_forbid)
+    if sb then return "start tile " .. sx .. "," .. sy .. " has no free tile beside it to leave by (" .. sb .. ")" end
+    return reason .. " (searched " .. expanded .. " tiles; got as close as " .. best.x .. "," .. best.y .. ", "
+      .. best.h .. " tiles from the end)"
+  end
   while #h > 0 do
     local n = pop(h)
+    if n.h and n.h < best.h then best = { x = n.x, y = n.y, h = n.h } end
     local nk = key(n.x, n.y)
     local is_exit = came[nk] and came[nk].hop or false
     if (n.exit or false) ~= is_exit then goto continue end -- a stale heap entry for this tile
@@ -103,7 +135,7 @@ function route.find(surface, from, to, opts)
       return out
     end
     expanded = expanded + 1
-    if expanded > max_nodes then return nil, "no route found within search limit" end
+    if expanded > max_nodes then return nil, why_not("no route found within search limit") end
     for _, d in ipairs(DIRS) do
       local x, y = n.x + d[1], n.y + d[2]
       local k = key(x, y)
@@ -144,7 +176,7 @@ function route.find(surface, from, to, opts)
     end
     ::continue::
   end
-  return nil, "no route (blocked)"
+  return nil, why_not("no route (blocked)")
 end
 
 return route

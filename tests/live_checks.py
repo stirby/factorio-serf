@@ -405,8 +405,44 @@ return true""")
     check("mine: with room it picks the furnace up, contents and all", r.get("ok") and have == 40, (r.get("msg"), have))
 
 
+async def chk_route_why(L: Live, state: dict):
+    g = L.g
+    x0, y0 = await L.site(12, 7)
+    gx, gy = x0 + 9, y0 + 3
+    ring = f"""
+local s, f = game.surfaces.nauvis, game.forces.player
+for _, d in ipairs {{ {{1, 0}}, {{-1, 0}}, {{0, 1}}, {{0, -1}} }} do
+  s.create_entity {{ name = 'wooden-chest', position = {{ {gx} + d[1] + 0.5, {gy} + d[2] + 0.5 }}, force = f }}
+end"""
+    await L.ev(ring + f"""
+local c = storage.agents['serf'].char
+c.teleport({{ {x0} + 1.5, {y0} + 5.5 }})
+c.get_main_inventory().clear()
+c.insert {{ name = 'pipe', count = 50 }}
+return true""")
+    r = await g.run({"op": "connect", "item": "pipe", "from": [x0 + 1.5, y0 + 3.5], "to": [gx + 0.5, gy + 0.5]},
+                    timeout=60)
+    check("route: a boxed-in end is still reached by going under", r.get("ok"), r.get("msg"))
+    x1, y1 = await L.site(12, 7)
+    gx, gy = x1 + 9, y1 + 3
+    ring = ring.replace("{gx}", str(gx))
+    await L.ev(f"""
+local s, f = game.surfaces.nauvis, game.forces.player
+for _, d in ipairs {{ {{1, 0}}, {{-1, 0}}, {{0, 1}}, {{0, -1}} }} do
+  s.create_entity {{ name = 'wooden-chest', position = {{ {gx} + d[1] + 0.5, {gy} + d[2] + 0.5 }}, force = f }}
+end
+storage.agents['serf'].char.teleport({{ {x1} + 1.5, {y1} + 5.5 }})
+return true""")
+    r = await g.run({"op": "connect", "item": "pipe", "from": [x1 + 1.5, y1 + 3.5], "to": [gx + 0.5, gy + 0.5],
+                     "underground": False}, timeout=60)
+    why = r.get("msg")
+    check("route: with no way in (no undergrounds), it says what's around the end",
+          "no free tile beside it" in str(why) and "wooden-chest" in str(why), why)
+    await L.ev("storage.agents['serf'].char.get_main_inventory().clear() return true")
+
+
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why}
 
 
 async def main() -> int:
