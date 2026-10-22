@@ -48,7 +48,7 @@ local DIRS = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }
 function route.find(surface, from, to, opts)
   local sx, sy = math.floor(from.x), math.floor(from.y)
   local gx, gy = math.floor(to.x), math.floor(to.y)
-  local max_nodes = opts.max_nodes or math.max(6000, math.min(40000, 60 * (math.abs(gx - sx) + math.abs(gy - sy))))
+  local max_nodes = opts.max_nodes or math.max(6000, math.min(100000, 100 * (math.abs(gx - sx) + math.abs(gy - sy))))
   local cache = {}
   local function free(x, y)
     local k = key(x, y)
