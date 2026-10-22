@@ -361,6 +361,9 @@ return { r.position.x, r.position.y }""")
           time.monotonic() - t0 < 10, (r.get("msg"), round(time.monotonic() - t0)))
     r = await g.run({"op": "mine", "x": p[0], "y": p[1], "name": "iron-ore", "count": 2}, timeout=60)
     check("positional mine: ... unless the ore is named", r.get("ok"), r.get("msg"))
+    r = await g.run({"op": "mine", "name": "iron-ore", "count": 10}, timeout=90)
+    check("mine: 10 ore by name, one unit after another (96f9bf0 stopped after 3)",
+          r.get("ok") and "10" in str(r.get("msg")), r.get("msg"))
     x0, y0 = await L.site(8, 3)
     await L.ev(f"""
 local s, f, c = game.surfaces.nauvis, game.forces.player, storage.agents['serf'].char
