@@ -69,9 +69,12 @@ TOOLS = [
      {"type": "object", "properties": {"x": {"type": "number"}, "y": {"type": "number"},
                                        "radius": {"type": "integer", "description": "default 20, max 64"}},
       "required": ["x", "y"]}),
-    ("find", "Nearest entities or resources by name (iron-ore, coal, water, stone-furnace...) or where an item is "
-             "stored (chests and machine outputs) with counts.",
-     {"type": "object", "properties": {"name": {"type": "string"}, "limit": {"type": "integer"}}, "required": ["name"]}),
+    ("find", "Nearest entities or resources by name (iron-ore, coal, crude-oil, water, stone-furnace...) or where an "
+             "item is stored (chests and machine outputs) with counts. Searches out to `radius` tiles from the "
+             "character (default 256; 1024 for crude-oil and uranium-ore); only explored ground can be searched.",
+     {"type": "object", "properties": {"name": {"type": "string"}, "limit": {"type": "integer"},
+                                       "radius": {"type": "integer", "description": "max 1024"}},
+      "required": ["name"]}),
     ("recipe", "A recipe's ingredients, products, time and the machine category.",
      {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}),
     ("free_space", "Free ground for a w x h block near x,y (no buildings, water, cliffs, ore).",

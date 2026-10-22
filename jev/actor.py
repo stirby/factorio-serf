@@ -635,7 +635,9 @@ class Actor(FastPaths):
                     except Exception as e:  # noqa: BLE001
                         out["stored"] = repr(e)
                 try:
-                    out["world"] = await self.g.call("find", agent=self.name, name=name, limit=int(a.get("limit", 5)))
+                    far = 1024 if name in ("crude-oil", "uranium-ore") else 256  # oil is usually far out
+                    out["world"] = await self.g.call("find", agent=self.name, name=name, limit=int(a.get("limit", 5)),
+                                                     max_radius=int(min(1024, a.get("radius") or far)))
                 except Exception as e:  # noqa: BLE001
                     out["world"] = str(e)
             return json.dumps(out, separators=(",", ":"))
