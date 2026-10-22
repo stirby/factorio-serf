@@ -167,4 +167,7 @@ def reader(log_path: Path | None = None):
     if os.environ.get("JEV_READER") == "sonnet":
         from .sonnet import SonnetJev
         return SonnetJev(log_path=log_path)
+    if os.environ.get("JEV_READER") == "hybrid":  # Jev, with Sonnet asked again where Jev is unsure on build readings
+        from .sonnet import HybridReader
+        return HybridReader(log_path=log_path)
     return Jev(log_path=log_path)

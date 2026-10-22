@@ -126,3 +126,49 @@ class SonnetJev:
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
         with open(self.log_path, "a") as f:
             f.write(json.dumps(rec, default=str) + "\n")
+
+
+class HybridReader:
+    """Jev first; Sonnet answers again only where Jev is unsure on the readings Sonnet does better (what to build, belt
+    jobs, mines). Chat triage and everything else stays Jev's: on the held-out set Jev read the conversation better
+    (corrections, questions, stop) and Sonnet read terse build orders better."""
+    ESCALATE = {"quickbuild", "quickbelt", "quickmine", "quickcopy"}
+
+    def __init__(self, log_path: Path | None = None):
+        from .typesafe import Jev
+        self.jev = Jev(log_path=log_path)
+        self.sonnet = SonnetJev(log_path=log_path)
+        self.escalated = 0
+
+    @property
+    def stats(self):
+        j, s = self.jev.stats, self.sonnet.stats
+        out = Stats(calls=j.calls + s.calls, input_tokens=j.input_tokens + s.input_tokens, errors=j.errors + s.errors,
+                    ms_total=j.ms_total + s.ms_total, by_kind={**j.by_kind, **{f"sonnet:{k}": v for k, v in
+                                                                               s.by_kind.items()}})
+        cost = j.cost + s.cost
+        out.as_dict = lambda: {**Stats.as_dict(out), "cost_usd": round(cost, 6), "escalated": self.escalated}
+        return out
+
+    async def close(self) -> None:
+        await self.jev.close()
+
+    @staticmethod
+    def unsure(answers: dict) -> bool:
+        for a in answers.values():
+            if a.type == "noul" and 0.3 < a.p < 0.7:
+                return True
+            if a.type == "choice" and (a.confidence < 0.6 or a.choice == "none_of_these"):
+                return True
+        return False
+
+    async def ask(self, state, questions: dict, kind: str = "misc", meta: dict | None = None,
+                  long_context: bool = False) -> dict[str, Answer]:
+        a = await self.jev.ask(state, questions, kind=kind, meta=meta, long_context=long_context)
+        if kind in self.ESCALATE and self.unsure(a):
+            self.escalated += 1
+            try:
+                return await self.sonnet.ask(state, questions, kind=kind, meta={**(meta or {}), "escalated": True})
+            except JevError:
+                return a
+        return a

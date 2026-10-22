@@ -72,7 +72,7 @@ def main() -> None:
     pl.add_argument("--name", default="serf")
     pl.add_argument("--no-think", action="store_true")
     pl.add_argument("--effort")
-    pl.add_argument("--reader", choices=["jev", "sonnet"], help="who reads orders and makes quick decisions "
+    pl.add_argument("--reader", choices=["jev", "sonnet", "hybrid"], help="who reads orders and makes quick decisions "
                     "(default jev; sonnet = Claude Sonnet in its place)")
     a = p.parse_args()
     if getattr(a, "reader", None):

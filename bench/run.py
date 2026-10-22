@@ -304,7 +304,7 @@ def main() -> None:
     p.add_argument("--tag", default="duo")
     p.add_argument("--run-id")
     p.add_argument("--no-think", action="store_true", help="no Opus: Jev + code only")
-    p.add_argument("--reader", choices=["jev", "sonnet"], help="who reads orders (default: $JEV_READER, else jev)")
+    p.add_argument("--reader", choices=["jev", "sonnet", "hybrid"], help="who reads orders (default: $JEV_READER, else jev)")
     p.add_argument("--effort", default=None, help="thinker effort (low/medium/high)")
     p.add_argument("--no-record", action="store_true")
     a = p.parse_args()
