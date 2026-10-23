@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Every N minutes, the health of each comparison run's base (read-only, over RCON): machines working, starved and
 blocked shares, chests filled by hand, belt and pipe per machine, and the science the labs used per minute over
-the interval (from the game's own counters). Appends to bench/runs/ab_watch.jsonl.
+the interval (from the game's own counters). Appends to bench/runs/ab_watch.jsonl; a map of each base goes to
+bench/runs/maps/<run>-<mmdd-HHMM>.svg.
 
     .venv/bin/python bench/ab_watch.py p6:75 q6:77 p7:85 q7:87 [--every 30]
 """
@@ -16,8 +17,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "scripts"))
 from jev import audit as base_audit  # noqa: E402
 from jev.rcon import Crew, Rcon  # noqa: E402
+import map_svg  # noqa: E402
 
 SCIENCE = list(base_audit.SHORT)
 LUA_USED = ("local st = game.forces.player.get_item_production_statistics(game.surfaces.nauvis) "
@@ -35,6 +38,13 @@ async def look(name: str, k: int, last: dict) -> dict | None:
     try:
         a = await c.call("audit", timeout=90)
         used = json.loads((await c.call("eval", code=LUA_USED, timeout=60))["result"])
+        try:  # the base from above, for a timeline of how it grew (bench/runs/maps)
+            m = json.loads((await c.call("eval", code=map_svg.LUA, timeout=120))["result"])
+            d = ROOT / "bench" / "runs" / "maps"
+            d.mkdir(parents=True, exist_ok=True)
+            (d / f"{name}-{time.strftime('%m%d-%H%M')}.svg").write_text(map_svg.svg(m))
+        except Exception:  # noqa: BLE001
+            pass
     finally:
         await c.close()
     rec = {"run": name, "t": time.time(), **base_audit.numbers(a)}
