@@ -1105,7 +1105,11 @@ def test_research_keeper():
           g.queued == ["toward-goal"] and pr.kept_research == ["toward-goal"], (g.queued, pr.logs))
     g = G("automation")
     asyncio.run(go(g))
-    check("research keeper: leaves a running research alone", g.queued == [], g.queued)
+    check("research keeper: leaves a running research it can pay for alone", g.queued == [], g.queued)
+    g = G("chemical-thing")
+    asyncio.run(go(g))
+    check("research keeper: puts a payable tech ahead of one needing packs the base doesn't make",
+          g.queued == ["toward-goal"], g.queued)
 
 
 

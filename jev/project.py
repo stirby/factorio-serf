@@ -187,16 +187,24 @@ class Project:
                 break
             try:
                 p = await progress.probe(g)
-                if p.get("research") or not (p.get("ents") or {}).get("lab"):
+                if not (p.get("ents") or {}).get("lab"):
                     continue
                 packs = {k for k in progress.PACKS if (p.get("by_recipe") or {}).get(k)} or {"automation-science-pack"}
                 t = await g.call("techs", agent=g.name, toward=self.toward)
-                cands = [x for x in (t.get("available") or []) if x.get("units") and set(x.get("packs") or []) <= packs]
+                avail = t.get("available") or []
+                cur = p.get("research")
+                if cur:
+                    # researching something the base's packs can pay for: fine. One they can't (it needs blue, and
+                    # nothing makes blue) idles the labs as surely as an empty queue (p6, generation 2)
+                    now = next((x for x in avail if x.get("name") == cur), None)
+                    if not now or set(now.get("packs") or []) <= packs:
+                        continue
+                cands = [x for x in avail if x.get("units") and set(x.get("packs") or []) <= packs]
                 # toward the goal first (the rocket silo's prerequisites), then the cheapest: p7's keeper spent its
                 # packs on inserter capacity, lamps and explosives
                 cands.sort(key=lambda x: (not x.get("toward"), x["units"] * len(x.get("packs") or []), x["name"]))
                 for c in cands[:3]:
-                    r = await g.call("research", tech=c["name"])
+                    r = await g.call("research", tech=c["name"], **({"first": True} if cur else {}))
                     if r.get("ok", True) and not r.get("error"):
                         self.kept_research.append(c["name"])
                         self._log({"kind": "research_keeper", "tech": c["name"], "packs": sorted(packs)})
