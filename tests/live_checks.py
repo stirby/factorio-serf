@@ -507,6 +507,36 @@ return true""")
     await L.ev("storage.agents['serf'].char.get_main_inventory().clear() return true")
 
 
+async def chk_fetch_far(L: Live, state: dict):
+    """Pipes in a chest 600 tiles away and none nearer: fetch walks there (past the 400-tile search) instead of
+    failing on the iron ore it would take to craft them; an ingredient failure says what it was for."""
+    g = L.g
+    X0, Y0 = 3000, 4200
+    await L.ev(f"""local s, f = game.surfaces.nauvis, game.forces.player
+s.request_to_generate_chunks({{ {X0} + 300, {Y0} }}, 11)
+s.force_generate_chunk_requests()
+local tiles = {{}}
+for x = {X0} - 6, {X0} + 610 do for y = {Y0} - 4, {Y0} + 4 do tiles[#tiles + 1] = {{ name = 'refined-concrete', position = {{ x, y }} }} end end
+s.set_tiles(tiles)
+for _, e in pairs(s.find_entities_filtered {{ area = {{ {{ {X0} - 6, {Y0} - 4 }}, {{ {X0} + 610, {Y0} + 4 }} }} }}) do
+  if e.type ~= 'character' then e.destroy() end
+end
+local ch = s.create_entity {{ name = 'steel-chest', position = {{ {X0} + 600.5, {Y0} + 0.5 }}, force = f }}
+ch.insert {{ name = 'pipe', count = 100 }}
+local c = storage.agents['serf'].char
+c.teleport({{ {X0} + 0.5, {Y0} + 0.5 }})
+c.get_main_inventory().clear()
+return true""")
+    r = await g.run({"op": "fetch", "item": "pipe", "count": 60}, timeout=300)
+    have = await L.ev("return storage.agents['serf'].char.get_item_count('pipe')")
+    check("fetch: pipes in a chest 600 tiles away are fetched (no closer storage)", r.get("ok") and have >= 60,
+          (str(r.get("msg"))[:200], have))
+    r2 = await g.run({"op": "fetch", "item": "iron-chest", "count": 2}, timeout=120)
+    check("fetch: a failure on an ingredient says what it was for",
+          not r2.get("ok") and "(to craft" in str(r2.get("msg")), str(r2.get("msg"))[:240])
+    await L.ev("storage.agents['serf'].char.get_main_inventory().clear() return true")
+
+
 async def chk_ug_pair(L: Live, state: dict):
     g = L.g
     x0, y0 = await L.site(10, 3)
@@ -1387,7 +1417,7 @@ return out""") or {}
 
 
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "detour": chk_route_detour, "pocket": chk_route_pocket, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "clearworking": chk_clear_working, "pipegap": chk_pipe_gap, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "detour": chk_route_detour, "routepocket": chk_route_pocket, "fetchfar": chk_fetch_far, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "clearworking": chk_clear_working, "pipegap": chk_pipe_gap, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe}
 
 
 async def main() -> int:

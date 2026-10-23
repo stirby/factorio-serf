@@ -1230,6 +1230,9 @@ end
 -- and take what's needed, then hand-craft whatever storage couldn't cover. supply_start(job, {item = n}) sets it
 -- up; supply_tick returns nil while walking/crafting, true once the inventory holds every n, or a failure.
 local SUPPLY_RADIUS = 400
+-- when nothing within SUPPLY_RADIUS has it, look this far before crafting from scratch (b10: the pipes, pumps and
+-- poles were in a chest 450 tiles away; fetch fell back to crafting 470 pipes and failed on iron ore)
+local SUPPLY_FAR = 1500
 
 local function supply_start(job, need)
   local items = {}
@@ -1271,6 +1274,25 @@ local function supply_tick(a, job)
         st.srcs, st.j = okS and src.sources[name] or {}, 1
       end
       local s = st.srcs[st.j]
+      if not s and not (st.far and st.far[name]) then
+        -- nothing (left) within reach: look farther before crafting it from scratch; a walk beats mining the ore
+        st.far = st.far or {}
+        st.far[name] = true
+        local tried = {}
+        for _, x in pairs(st.srcs) do tried[#tried + 1] = x end
+        local okS, src = pcall(order_queries.sources, { items = { name }, x = c.position.x, y = c.position.y,
+          radius = SUPPLY_FAR, limit = 8, exclude = job.supply_exclude })
+        local more = {}
+        for _, x in pairs(okS and src.sources[name] or {}) do
+          local seen = false
+          for _, t in pairs(tried) do if t.p[1] == x.p[1] and t.p[2] == x.p[2] then seen = true end end
+          if not seen then more[#more + 1] = x end
+        end
+        if #more > 0 then
+          st.srcs, st.j = more, 1
+          s = more[1]
+        end
+      end
       if s then
         local e = c.surface.find_entities_filtered { position = s.p, radius = 0.6, type = { "container",
           "logistic-container", "infinity-container", "furnace", "assembling-machine" }, limit = 1 }[1]
@@ -1309,6 +1331,8 @@ local function supply_tick(a, job)
               local want = ing.amount * runs
               if c.get_item_count(ing.name) < want then
                 st.need[ing.name] = math.max(st.need[ing.name] or 0, want)
+                st.for_ = st.for_ or {}
+                st.for_[ing.name] = st.for_[ing.name] or name
                 table.insert(st.items, pos, ing.name)  -- a later duplicate is skipped once it's in inventory
                 pos = pos + 1
               end
@@ -1319,9 +1343,16 @@ local function supply_tick(a, job)
         end
         if not (runs and c.get_craftable_count(recipe) >= runs
               and c.begin_crafting { count = runs, recipe = recipe, silent = true } == runs) then
-          local found = #st.srcs == 0 and ("no chest or machine output within " .. SUPPLY_RADIUS .. " tiles has any")
-            or ("storage within " .. SUPPLY_RADIUS .. " tiles ran out")
-          return fail("needs " .. n .. " " .. name .. " but you have " .. have .. "; " .. found
+          local found = #st.srcs == 0 and ("no chest or machine output within " .. SUPPLY_FAR .. " tiles has any")
+            or ("storage within " .. SUPPLY_FAR .. " tiles ran out")
+          -- what it was for, when it's an ingredient of what the job asked for ("needs 461 iron-ore" hid "pipe")
+          local chain, x = {}, st.for_ and st.for_[name]
+          while x and #chain < 4 do
+            chain[#chain + 1] = x
+            x = st.for_[x]
+          end
+          local why = #chain > 0 and (" (to craft " .. table.concat(chain, ", then ") .. ")") or ""
+          return fail("needs " .. n .. " " .. name .. why .. " but you have " .. have .. "; " .. found
             .. ", and you can't hand-craft the other " .. (n - have) .. " from what you carry",
             { needed = n, have = have, item = name, took = st.took })
         end
