@@ -79,8 +79,10 @@ free.
 iron-plate, iron-plate, copper-plate, copper-plate, then 4 spare, 100 long" lays it (spare lanes are for steel, \
 circuits, plastic later); "feed bus lane 0 from the iron smelting line at [gps]" fills a lane; "tap the copper and \
 iron lanes at rows 10 and 14 and build green circuits for 30/min along them, then put the circuits onto the bus at \
-row 30" is a production row. The report shows the bus: its lanes, heads, taps and free rows. Everything takes from \
-the bus and gives back to it: no belt from one machine group straight across the base to another.
+row 30" is a production row. The report shows the bus: its lanes, heads, taps and free rows, and how full each \
+lane is along its length. Everything takes from the bus and gives back to it: no belt from one machine group \
+straight across the base to another. A base that already has straight plate lanes can make them its bus: lay the \
+bus over them (belts already there running its way are kept).
   - Build ahead of demand: smelting and mining at about 1.5 times what the chains need, power at 1.5 times the \
 load. Add mines before patches run dry (the audit shows drills on exhausted ore).
   - Feed everything by belt and pipe. No chest a person has to fill: if the audit lists chests filled by hand, \
