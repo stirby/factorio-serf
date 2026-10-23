@@ -846,8 +846,27 @@ return n""")
     check("row: every machine in the row gets plates (3 of 3)", got == 3, got)
 
 
+async def chk_bus_adopt(L: Live, state: dict):
+    g = L.g
+    x0, y0 = await L.site(14, 24)
+    await L.ev(f"""local s, f = game.surfaces.nauvis, game.forces.player
+for k = 0, 19 do for _, u in pairs {{ 2, 3 }} do
+  s.create_entity {{ name = 'transport-belt', position = {{ {x0} + u + 0.5, {y0} + k + 0.5 }}, direction = defines.direction.south, force = f }}
+end end
+local c = storage.agents['serf'].char
+c.insert {{ name = 'transport-belt', count = 100 }}
+c.teleport {{ {x0} + 8, {y0} + 4 }}
+return true""")
+    runner = Runner(g, lambda r: None)
+    r = await runner.run({"do": "bus", "name": "adopt", "x": x0 + 2.5, "y": y0 + 0.5, "direction": "south",
+                          "side": "east", "lanes": ["iron-plate", "copper-plate", "spare", "spare"], "length": 24})
+    n = await L.ev(f"return game.surfaces.nauvis.count_entities_filtered {{ area = {{ {{ {x0}, {y0} }}, {{ {x0} + 14, {y0} + 24 }} }}, name = 'transport-belt' }}")
+    check("bus: laid over two existing straight lanes, it adopts them and adds only the missing rows",
+          r.get("ok") and n == 48, (r.get("msg"), n))
+
+
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt}
 
 
 async def main() -> int:

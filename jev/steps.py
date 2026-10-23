@@ -1222,8 +1222,9 @@ class Runner:
     async def _save_bus(self, b) -> None:
         await self.g.call("layout", key=f"bus:{b.name}", value=b.to_dict())
 
-    async def _blocked(self, ents: list[dict], skip: set | None = None) -> list[str]:
-        """What already stands on the tiles these entities need (other than tiles in skip)."""
+    async def _blocked(self, ents: list[dict], skip: set | None = None, same_belts: bool = False) -> list[str]:
+        """What already stands on the tiles these entities need (other than tiles in skip). same_belts: a belt
+        already there running the way the planned one would is no obstacle (a bus laid over existing lanes)."""
         from .lint import size_of, tiles_of
         from .world import World
         xs, ys = [e["x"] for e in ents], [e["y"] for e in ents]
@@ -1236,6 +1237,9 @@ class Runner:
                 if skip and t in skip:
                     continue
                 o = w.at(t[0] + 0.5, t[1] + 0.5)
+                if same_belts and o and "belt" in str(e["name"]) and o.get("t") == "transport-belt" and \
+                        o.get("d") == e.get("direction"):
+                    continue
                 if o and o.get("t") not in ("resource",):
                     out.append(f"{o.get('n')} at {o['x']:g},{o['y']:g}")
         return sorted(set(out))
@@ -1276,7 +1280,7 @@ class Runner:
         ents = b.lay()
         if not ents:
             return {"ok": False, "msg": "every lane is spare: name at least one lane's item"}
-        bl = await self._blocked(ents)
+        bl = await self._blocked(ents, same_belts=True)
         if bl:
             return {"ok": False, "msg": f"the bus's lanes are blocked by {', '.join(bl[:6])}" +
                     (f" and {len(bl) - 6} more" if len(bl) > 6 else "") + ": clear them or lay it elsewhere"}
