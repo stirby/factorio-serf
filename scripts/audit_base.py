@@ -109,8 +109,14 @@ return helpers.table_to_json(out)
 # of pack first; report that it was idle.
 LUA_RESEARCH = """
 local f, s = game.forces.player, game.surfaces.nauvis
-if f.current_research then return helpers.table_to_json { idle = false } end
 local st = f.get_item_production_statistics(s)
+local function payable(t)
+  for _, ing in pairs(t.research_unit_ingredients) do if st.get_input_count(ing.name) == 0 then return false end end
+  return true
+end
+-- research going on that the base's packs can pay for: leave it (one it can't pay for idles the labs just the same)
+if f.current_research and payable(f.current_research) then return helpers.table_to_json { idle = false } end
+local stuck = f.current_research and f.current_research.name
 local cands = {}
 for _, t in pairs(f.technologies) do
   if t.enabled and not t.researched and t.research_unit_count and t.research_unit_count > 0
@@ -124,8 +130,17 @@ end
 -- techs using the most pack kinds first, so every science line the base has gets drawn on; then the cheapest
 table.sort(cands, function(a, b) if a[3] ~= b[3] then return a[3] > b[3] end return a[2] < b[2] end)
 local queued = {}
-for i = 1, math.min(5, #cands) do if f.add_research(cands[i][1]) then queued[#queued + 1] = cands[i][1] end end
-return helpers.table_to_json { idle = true, queued = queued }
+if stuck then
+  -- put payable techs in front of the one the labs can't pay for
+  local q = {}
+  for i = 1, math.min(5, #cands) do q[#q + 1] = cands[i][1] end
+  q[#q + 1] = stuck
+  pcall(function() f.research_queue = q end)
+  for _, t in pairs(f.research_queue or {}) do queued[#queued + 1] = t.name end
+else
+  for i = 1, math.min(5, #cands) do if f.add_research(cands[i][1]) then queued[#queued + 1] = cands[i][1] end end
+end
+return helpers.table_to_json { idle = true, unpayable = stuck, queued = queued }
 """
 
 
@@ -157,8 +172,11 @@ async def audit(save: str, minutes: float, k: int) -> dict:
     unpowered = sum(v for k2, v in st.items() if "power" in k2 or "no_fuel" in k2)
     bb = snap.get("bbox") or [0, 0, 0, 0]
     area = max(1.0, (bb[2] - bb[0]) * (bb[3] - bb[1]))
+    # sustained: per pack, the lower of made and used (a 5-minute window lets labs drain buffered packs, which counts
+    # as used without being made: p7 'used' 81 a minute while making 42)
+    sustained = round(sum(min(made.get(i, 0), used.get(i, 0)) for i in SCIENCE), 1)
     out = {
-        "save": save, "game_minutes": round(game_min, 2),
+        "save": save, "game_minutes": round(game_min, 2), "spm_sustained": sustained,
         "research_was_idle": bool(research.get("idle")), "research_queued": research.get("queued") or [],
         "science_used_per_min": {k2: round(v, 1) for k2, v in used.items() if v > 0},
         "science_made_per_min": {k2: round(v, 1) for k2, v in made.items() if v > 0},
