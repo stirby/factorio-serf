@@ -1,0 +1,385 @@
+{
+ "name": "plastic-sulfur-basic",
+ "description": "Early oil: plastic bars and sulfur from crude oil with BASIC oil processing (it can't deadlock: the refineries make only petroleum). 3 oil refineries on basic-oil-processing (5 s: 100 crude -> 45 petroleum, so 20 crude -> 9 petroleum per s each) feed two separate petroleum pipes: 2 refineries (18 petroleum/s) -> 1 chemical plant on plastic-bar (1 s: 20 petroleum + 1 coal -> 2 plastic; runs at 90%), 1 refinery (9/s) -> 1 chemical plant on sulfur (1 s: 30 petroleum + 30 water -> 2 sulfur; runs at 30%). Kept separate on purpose: on one shared pipe the game splits petroleum about evenly between the plants (tested: 1.2 plastic + 1.0 sulfur per s). Tested at all four rotations: 1.8 plastic bars/s (108/min) and 0.6 sulfur/s (36/min). That covers one advanced-circuit-block (1.5 plastic/s) + one chemical-science-block (0.25 sulfur/s), i.e. 30 chemical science/min, with plastic and sulfur to spare. Either output may back up without stopping the other (tested: plastic not taken, sulfur still 0.6/s; sulfur not taken, plastic still 1.8/s). Inputs: crude oil 60/s and water 9/s (pipes), coal 0.9/s (belt, either lane). Outputs: plastic and sulfur on separate belts. Never feed other fluids into its pipes. Power about 1.8 MW peak (3 x 420 kW + 2 x 210 kW + 3 fast inserters).",
+ "size": [
+  15,
+  15
+ ],
+ "inputs": [
+  {
+   "what": "coal 0.9/s (belt, either lane)",
+   "at": [
+    1,
+    0
+   ],
+   "side": "north",
+   "lanes": {
+    "right": "coal"
+   }
+  },
+  {
+   "what": "water 9/s (pipe)",
+   "at": [
+    14,
+    4
+   ],
+   "side": "east",
+   "kind": "fluid",
+   "fluid": "water"
+  },
+  {
+   "what": "crude oil 60/s (pipe)",
+   "at": [
+    8,
+    14
+   ],
+   "side": "south",
+   "kind": "fluid",
+   "fluid": "crude-oil"
+  }
+ ],
+ "outputs": [
+  {
+   "what": "plastic bars 1.8/s (belt)",
+   "at": [
+    3,
+    0
+   ],
+   "side": "north",
+   "item": "plastic-bar",
+   "rate": 1.8
+  },
+  {
+   "what": "sulfur 0.6/s (belt)",
+   "at": [
+    11,
+    0
+   ],
+   "side": "north",
+   "item": "sulfur",
+   "rate": 0.6
+  }
+ ],
+ "power": "connect any of its small poles to your grid",
+ "test": {
+  "producers": [
+   "oil-refinery",
+   "chemical-plant"
+  ],
+  "may_idle": [
+   "chemical-plant:sulfur"
+  ],
+  "warmup_s": 40,
+  "measure_s": 150
+ },
+ "needs": {
+  "chemical-plant": 2,
+  "fast-inserter": 3,
+  "oil-refinery": 3,
+  "pipe": 32,
+  "pipe-to-ground": 2,
+  "small-electric-pole": 4,
+  "transport-belt": 3
+ },
+ "entities": [
+  {
+   "name": "transport-belt",
+   "x": 1.5,
+   "y": 0.5,
+   "direction": "south"
+  },
+  {
+   "name": "transport-belt",
+   "x": 3.5,
+   "y": 0.5,
+   "direction": "north"
+  },
+  {
+   "name": "transport-belt",
+   "x": 11.5,
+   "y": 0.5,
+   "direction": "north"
+  },
+  {
+   "name": "fast-inserter",
+   "x": 1.5,
+   "y": 1.5,
+   "direction": "north"
+  },
+  {
+   "name": "fast-inserter",
+   "x": 3.5,
+   "y": 1.5,
+   "direction": "south"
+  },
+  {
+   "name": "fast-inserter",
+   "x": 11.5,
+   "y": 1.5,
+   "direction": "south"
+  },
+  {
+   "name": "small-electric-pole",
+   "x": 2.5,
+   "y": 1.5,
+   "direction": "north"
+  },
+  {
+   "name": "small-electric-pole",
+   "x": 12.5,
+   "y": 1.5,
+   "direction": "north"
+  },
+  {
+   "name": "chemical-plant",
+   "x": 2.5,
+   "y": 3.5,
+   "direction": "south",
+   "recipe": "plastic-bar"
+  },
+  {
+   "name": "chemical-plant",
+   "x": 11.5,
+   "y": 3.5,
+   "direction": "south",
+   "recipe": "sulfur"
+  },
+  {
+   "name": "pipe",
+   "x": 3.5,
+   "y": 5.5,
+   "direction": "north"
+  },
+  {
+   "name": "pipe",
+   "x": 10.5,
+   "y": 5.5,
+   "direction": "north"
+  },
+  {
+   "name": "pipe",
+   "x": 3.5,
+   "y": 6.5,
+   "direction": "north"
+  },
+  {
+   "name": "pipe",
+   "x": 4.5,
+   "y": 6.5,
+   "direction": "north"
+  },
+  {
+   "name": "pipe",
+   "x": 5.5,
+   "y": 6.5,
+   "direction": "north"
+  },
+  {
+   "name": "pipe",
+   "x": 6.5,
+   "y": 6.5,
+   "direction": "north"
+  },
+  {
+   "name": "pipe",
+   "x": 7.5,
+   "y": 6.5,
+   "direction": "north"
+  },
+  {
+   "name": "pipe",
+   "x": 8.5,
+   "y": 6.5,
+   "direction": "north"
+  },
+  {
+   "name": "pipe",
+   "x": 10.5,
+   "y": 6.5,
+   "direction": "north"
+  },
+  {
+   "name": "pipe",
+   "x": 8.5,
+   "y": 7.5,
+   "direction": "north"
+  },
+  {
+   "name": "pipe-to-ground",
+   "x": 11.5,
+   "y": 6.5,
+   "direction": "west"
+  },
+  {
+   "name": "pipe-to-ground",
+   "x": 13.5,
+   "y": 6.5,
+   "direction": "east"
+  },
+  {
+   "name": "pipe",
+   "x": 14.5,
+   "y": 6.5,
+   "direction": "north"
+  },
+  {
+   "name": "pipe",
+   "x": 4.5,
+   "y": 7.5,
+   "direction": "north"
+  },
+  {
+   "name": "pipe",
+   "x": 9.5,
+   "y": 7.5,
+   "direction": "north"
+  },
+  {
+   "name": "pipe",
+   "x": 14.5,
+   "y": 7.5,
+   "direction": "north"
+  },
+  {
+   "name": "pipe",
+   "x": 12.5,
+   "y": 5.5,
+   "direction": "north"
+  },
+  {
+   "name": "pipe",
+   "x": 13.5,
+   "y": 5.5,
+   "direction": "north"
+  },
+  {
+   "name": "pipe",
+   "x": 13.5,
+   "y": 4.5,
+   "direction": "north"
+  },
+  {
+   "name": "pipe",
+   "x": 14.5,
+   "y": 4.5,
+   "direction": "north"
+  },
+  {
+   "name": "small-electric-pole",
+   "x": 5.5,
+   "y": 7.5,
+   "direction": "north"
+  },
+  {
+   "name": "small-electric-pole",
+   "x": 10.5,
+   "y": 7.5,
+   "direction": "north"
+  },
+  {
+   "name": "oil-refinery",
+   "x": 2.5,
+   "y": 10.5,
+   "direction": "north",
+   "recipe": "basic-oil-processing"
+  },
+  {
+   "name": "oil-refinery",
+   "x": 7.5,
+   "y": 10.5,
+   "direction": "north",
+   "recipe": "basic-oil-processing"
+  },
+  {
+   "name": "oil-refinery",
+   "x": 12.5,
+   "y": 10.5,
+   "direction": "north",
+   "recipe": "basic-oil-processing"
+  },
+  {
+   "name": "pipe",
+   "x": 3.5,
+   "y": 13.5,
+   "direction": "north"
+  },
+  {
+   "name": "pipe",
+   "x": 8.5,
+   "y": 13.5,
+   "direction": "north"
+  },
+  {
+   "name": "pipe",
+   "x": 13.5,
+   "y": 13.5,
+   "direction": "north"
+  },
+  {
+   "name": "pipe",
+   "x": 3.5,
+   "y": 14.5,
+   "direction": "north"
+  },
+  {
+   "name": "pipe",
+   "x": 4.5,
+   "y": 14.5,
+   "direction": "north"
+  },
+  {
+   "name": "pipe",
+   "x": 5.5,
+   "y": 14.5,
+   "direction": "north"
+  },
+  {
+   "name": "pipe",
+   "x": 6.5,
+   "y": 14.5,
+   "direction": "north"
+  },
+  {
+   "name": "pipe",
+   "x": 7.5,
+   "y": 14.5,
+   "direction": "north"
+  },
+  {
+   "name": "pipe",
+   "x": 8.5,
+   "y": 14.5,
+   "direction": "north"
+  },
+  {
+   "name": "pipe",
+   "x": 9.5,
+   "y": 14.5,
+   "direction": "north"
+  },
+  {
+   "name": "pipe",
+   "x": 10.5,
+   "y": 14.5,
+   "direction": "north"
+  },
+  {
+   "name": "pipe",
+   "x": 11.5,
+   "y": 14.5,
+   "direction": "north"
+  },
+  {
+   "name": "pipe",
+   "x": 12.5,
+   "y": 14.5,
+   "direction": "north"
+  },
+  {
+   "name": "pipe",
+   "x": 13.5,
+   "y": 14.5,
+   "direction": "north"
+  }
+ ]
+}

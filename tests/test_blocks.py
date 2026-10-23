@@ -19,14 +19,16 @@
      position, direction and recipe), sets recipes; with --ghosts it instead lays entity-ghosts with recipes and
      revives them, which is what the mod's `blueprint` + `build_ghosts` ops do;
    - harness, all outside the design: per input belt lane an infinity chest -> loader -> belt that side-loads that
-     lane; per output belt a loader into a steel chest (the count); chest inputs get an infinity chest; power from
+     lane; per output belt a loader into a steel chest (the count; a block may have several output belts, each
+     item is judged on its own rate); chest inputs get an infinity chest; power from
      an electric-energy-interface on its own pole at least 3 tiles away (so it can't power anything the design's
      poles miss), wired to a design pole; for power designs the interface is a 1.8 MW load instead;
    - fluid inputs (ports with kind "fluid", e.g. sulfuric acid or lubricant): an infinity pipe just outside the
      port tile, on the port's side, full of that fluid; fluid outputs: an infinity pipe there that empties itself
      (a drain), except for fluids named in --blocked-outputs (to check that an unused output doesn't stall the
-     block). Fluid output is measured as the case force's net production of that fluid (made minus used by the
-     design's machines; infinity pipes don't count), so it equals what leaves through the port;
+     block; an item named there gets no loader, so its output belt backs up). Fluid output is measured as the
+     case force's net production of that fluid (made minus used by the design's machines; infinity pipes don't
+     count), so it equals what leaves through the port;
    - rocket parts (output kind "rocket-part"): counted from the force's item production; a finished rocket is
      launched at once so the silo keeps building;
    - output chests that are part of the design (output kind "chest", e.g. a mall): the count of that item in
@@ -151,6 +153,8 @@ def harness_layout(design: dict) -> list[dict]:
             if port["fluid"] not in BLOCKED:
                 out.append(_ent("infinity-pipe", _add(tuple(port["at"]), port["side"], 1), role="fluid_sink",
                                 fluid=port["fluid"]))
+            continue
+        if port.get("item") in BLOCKED:  # left unused: the belt backs up
             continue
         d = port["side"]
         t = tuple(port["at"])
@@ -295,7 +299,8 @@ local function fluid_recipe(r)
   for _, i in ipairs(p.products) do if i.type == "fluid" then return true end end
   return false
 end
-local reg = { force = fname, design = {}, engines = {}, silos = {}, stats = spec.stats or {}, chests = spec.chests or {} }
+local reg = { force = fname, design = {}, engines = {}, silos = {}, stats = spec.stats or {}, chests = spec.chests or {},
+  sinks = {} }
 local bad = {}
 local function make(e, is_design)
   local want = { x = ox + e.x, y = oy + e.y }
@@ -341,7 +346,7 @@ local function make(e, is_design)
   if e.role == "source" then ent.set_infinity_container_filter(1, { name = e.item, count = 100, mode = "exactly" }) end
   if e.role == "fluid_source" then ent.set_infinity_pipe_filter { name = e.fluid, percentage = 1, mode = "at-least" } end
   if e.role == "fluid_sink" then ent.set_infinity_pipe_filter { name = e.fluid, percentage = 0, mode = "at-most" } end
-  if e.role == "sink" then reg.sink, reg.items = ent, e.items end
+  if e.role == "sink" then reg.sinks[#reg.sinks + 1] = { ent = ent, items = e.items } end
   if e.role == "power_pole" then reg.hpole = ent end
   if e.role == "power" then
     ent.power_production = 1e9 / 60 ent.power_usage = 0 ent.electric_buffer_size = 1e9 / 30
@@ -374,9 +379,13 @@ SAMPLE = r"""
 local out = {}
 for case, c in pairs(storage.bp_test) do
   local r = { tick = game.tick, st = {} }
-  if c.sink and c.sink.valid then
+  if c.sinks and #c.sinks > 0 then
     r.out = {}
-    for _, it in ipairs(c.items) do r.out[it] = c.sink.get_item_count(it) end
+    for _, sk in ipairs(c.sinks) do
+      if sk.ent.valid then
+        for _, it in ipairs(sk.items) do r.out[it] = (r.out[it] or 0) + sk.ent.get_item_count(it) end
+      end
+    end
   end
   local f = game.forces[c.force]
   if c.tech then
@@ -440,7 +449,10 @@ class Case:
         out = (self.spec["outputs"] or [{}])[0]
         self.kind = out.get("kind", "items")
         self.rated = float(out.get("rate", 0))
-        self.rates = {out["item"]: self.rated, **out.get("also", {})} if out.get("item") else {}
+        self.rates = {}
+        for o in self.spec["outputs"]:  # every belt output (a block may have several), unless left blocked
+            if o.get("item") and o.get("kind") not in ("chest", "rocket-part") and o["item"] not in BLOCKED:
+                self.rates.update({o["item"]: float(o.get("rate", 0)), **o.get("also", {})})
         # fluid outputs and rocket parts are counted from the force's production statistics
         self.stats = []
         for o in self.spec["outputs"]:
@@ -460,7 +472,7 @@ class Case:
                     raise ValueError(f"{name}: no design chest at output tile {at}")
                 self.chests.append({"i": idx + 1, "item": o["item"]})
                 self.rates[o["item"]] = float(o["rate"])
-        if self.kind in ("fluid", "rocket-part", "chest"):
+        if self.kind in ("fluid", "rocket-part", "chest") or out.get("item") in BLOCKED:
             self.kind = "items"
             first = next(iter(self.rates), None)
             self.rated = self.rates[first] if first else 0.0
@@ -674,8 +686,8 @@ def main() -> int:
                     help="first instance id: 60..69 (default 60)")
     ap.add_argument("--draft-dir", help="also look for designs here (draft blocks not yet in jev/blueprints/)")
     ap.add_argument("--blocked-outputs", default="",
-                    help="comma list of fluids whose output ports get no drain (check that an unused output doesn't "
-                         "stall the block; those fluids aren't measured)")
+                    help="comma list of fluids (or items) whose output ports get no drain (or no loader): check that "
+                         "an unused output doesn't stall the block; those outputs aren't measured")
     ap.add_argument("--warmup", type=float, default=None, help="seconds before measuring (default: per design)")
     ap.add_argument("--measure", type=float, default=None,
                     help=f"seconds of measurement (default: per design `measure_s`, at least {MEASURE_S:g})")

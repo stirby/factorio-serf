@@ -87,6 +87,9 @@ bus over them (belts already there running its way are kept).
 load. Add mines before patches run dry (the audit shows drills on exhausted ore).
   - Feed everything by belt and pipe. No chest a person has to fill: if the audit lists chests filled by hand, \
 replace each with a feed.
+  - Oil: a pole line and pumpjacks, crude piped to the oil area, then the plastic-sulfur-basic block (basic oil \
+processing, can't deadlock) for plastic and sulfur; add advanced processing and cracking only when you need \
+lubricant or rocket fuel.
   - When a line is tangled, rebuild it to the plan rather than patching it again.
   - Research runs whenever labs and packs allow.
 """,
