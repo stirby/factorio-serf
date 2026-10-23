@@ -170,7 +170,9 @@ def lint(steps: list[dict], w: World, available: set[str] | None = None, recipes
                     pb = next((e for e in planned if "belt" in e["name"] and bt in e["tiles"] and e.get("dir")), None)
                     if pb:
                         be = {"x": pb["x"], "y": pb["y"], "d": pb["dir"]}
-                if not be or be.get("d") not in RD:
+                if not be and (math.floor(float(b[0])), math.floor(float(b[1]))) in maybe_belt:
+                    pass  # on the route of a line laid earlier in this plan: its exact path is the router's
+                elif not be or be.get("d") not in RD:
                     out.append(f"step {i + 1} row: no belt at {b[0]},{b[1]}")
                 else:
                     sides = [x for x in RD if RD[x][0] * RD[be["d"]][0] + RD[x][1] * RD[be["d"]][1] == 0]
@@ -219,6 +221,23 @@ def lint(steps: list[dict], w: World, available: set[str] | None = None, recipes
                         src="block")
             elif d == "mine_at":
                 removed.add((math.floor(float(s["x"])), math.floor(float(s["y"]))))
+            elif d == "merge_lanes" and isinstance(s.get("at"), (list, tuple)) and s.get("direction") in DIRS:
+                # the merged belt: its first tile, and straight on to `to` when that lies ahead on the same line
+                ax, ay = math.floor(float(s["at"][0])) + 0.5, math.floor(float(s["at"][1])) + 0.5
+                dx, dy = DIRS[s["direction"]]
+                n = 1
+                to = s.get("to")
+                if isinstance(to, (list, tuple)):
+                    tx, ty = math.floor(float(to[0])) + 0.5, math.floor(float(to[1])) + 0.5
+                    along = (tx - ax) * dx + (ty - ay) * dy
+                    if along > 0 and abs((tx - ax) * dy) + abs((ty - ay) * dx) < 0.5:
+                        n = int(along) + 1
+                    else:
+                        for xx in range(min(int(ax), int(tx)) - 1, max(int(ax), int(tx)) + 2):
+                            for yy in range(min(int(ay), int(ty)) - 1, max(int(ay), int(ty)) + 2):
+                                maybe_belt.add((xx, yy))
+                for k in range(n):
+                    add("transport-belt", ax + dx * k, ay + dy * k, s["direction"], None, None, None, src="merge_lanes")
             elif d == "connect":
                 f, t = s.get("from"), s.get("to")
                 if not (isinstance(f, (list, tuple)) and isinstance(t, (list, tuple))):

@@ -1109,6 +1109,13 @@ def test_row_extends_short_belt():
     ext = extend_input((0.5, 0.5), "east", 15, w2.at)
     check("row: the extension stops at the first thing in the way", [e["x"] for e in ext] == [1.5, 2.5, 3.5, 4.5, 5.5],
           [e["x"] for e in ext])
+    w3 = World({"ents": [], "center": [0, 0]})
+    plan = [{"do": "merge_lanes", "left": [61.5, -43.5], "right": [61.5, -39.5], "at": [64.5, -41.5],
+             "direction": "south", "to": [64.5, -26.5]},
+            {"do": "row", "belt": [64.5, -36.5], "machine": "stone-furnace", "recipe": "steel-plate", "count": 5,
+             "side": "west", "output": "belt"}]
+    probs = lint(plan, w3, None, {})
+    check("lint: a row along the belt a merge_lanes step lays earlier in the plan isn't flagged (b3)", probs == [], probs)
 
 
 if __name__ == "__main__":
