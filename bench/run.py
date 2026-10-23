@@ -120,7 +120,9 @@ async def run(a) -> dict:
         # stopped early)
         scn["objectives"] = [{"name": scn["name"], "goal": scn["goal"], "score": scn.get("score") or [],
                               "minutes": scn.get("minutes", 30), "hold_samples": 1}]
-    run_id = a.run_id or time.strftime("%Y%m%d-%H%M%S") + f"-{scn['name']}-{a.tag}"
+    # (with the slot: two runs of one scenario started in the same second shared a folder, and their project
+    # managers read each other's journals)
+    run_id = a.run_id or time.strftime("%Y%m%d-%H%M%S") + f"-{scn['name']}-{a.tag}-i{a.instance}"
     d = RUNS / run_id
     d.mkdir(parents=True, exist_ok=True)
     (d / "scenario.json").write_text(json.dumps(scn, indent=1))
