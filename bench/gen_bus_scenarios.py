@@ -168,7 +168,8 @@ local water = s.create_entity {{ name = 'infinity-pipe', position = {{ ox + 36.5
 water.set_infinity_pipe_filter {{ name = 'water', percentage = 1, mode = 'at-least' }}""".replace("{{", "{").replace("}}", "}") if oil else ""
     oil_ret = (", crude = string.format('%g,%g', ox + 30.5, oy + 60.5), "
                "water = string.format('%g,%g', ox + 36.5, oy + 60.5)") if oil else ""
-    feed_joins = ", ".join(f"{{{{ kind = 'feed', lane = 0, at = {a}, ['end'] = {{{{ ox + 0.5, oy + 0.5 }}}} }}}}"
+    # (spliced into the f-string below as text, so single braces here)
+    feed_joins = ", ".join(f"{{ kind = 'feed', lane = 0, at = {a}, ['end'] = {{ ox + 0.5, oy + 0.5 }} }}"
                            for a in range(0, feed_rows, 4))
     sink = ",".join(f"'{x}'" for x in ("automation-science-pack", "logistic-science-pack", "electronic-circuit",
                                          "iron-gear-wheel", "inserter", "transport-belt", "copper-cable",

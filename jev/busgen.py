@@ -224,5 +224,5 @@ class Bus:
         d = dict(d)
         d["lanes"] = list(d.get("lanes") or [])
         d["starts"] = dict(d.get("starts") or {})
-        d["joins"] = list(d.get("joins") or [])
+        d["joins"] = [j for j in (d.get("joins") or []) if isinstance(j, dict) and "at" in j]
         return cls(**d)
