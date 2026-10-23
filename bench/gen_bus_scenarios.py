@@ -245,6 +245,91 @@ return {{ origin = {{ ox, oy }}{oil_ret} }}
 """
 
 
+
+def setup_lua_bus(fed: list[str], spare: int = 3, n: int = 120, feeders: int = 4, extra_techs: tuple = (),
+                  extra_stock: dict | None = None, sinks: tuple = ()) -> str:
+    """A bus whose first lanes carry `fed` items from endless chests (lane k fed by `feeders` fast inserters on rows
+    4k.. from its outer gap: west lanes from the left, east lanes from the right), then `spare` empty lanes, with a
+    sink past every lane end that deletes `sinks` items. The feed rows are registered as joins."""
+    lanes = list(fed) + ["spare"] * spare
+    b = Bus(name="main", x=0.5, y=0.5, direction="south", side="east", lanes=lanes, length=n)
+    belts = ",".join(f"{{{e['x'] - 0.5:g},{e['y'] - 0.5:g}}}" for e in b.lay())
+    feeds = []
+    for k, item in enumerate(fed):
+        u = b.u(k)
+        west = k % 2 == 0
+        chest_u, ins_u = (u - 2, u - 1) if west else (u + 2, u + 1)
+        for r in range(4 * k, 4 * k + feeders):
+            feeds.append(f"{{{chest_u},{ins_u},{r},'{item}','{'west' if west else 'east'}'}}")
+    rows_used = 4 * len(fed) + feeders
+    feed_joins = ", ".join(f"{{ kind = 'feed', lane = 0, at = {a}, ['end'] = {{ ox + 0.5, oy + 0.5 }} }}"
+                           for a in range(0, rows_used, 4))
+    ends = ",".join(f"{{{b.u(i)}}}" for i in range(len(lanes)))
+    stock = ",".join(f"['{k}']={v}" for k, v in {
+        "assembling-machine-2": 70, "inserter": 250, "fast-inserter": 60, "transport-belt": 1500,
+        "underground-belt": 150, "splitter": 30, "small-electric-pole": 100, "medium-electric-pole": 80,
+        "iron-chest": 20, "long-handed-inserter": 30, **(extra_stock or {})}.items())
+    techs = ",".join(f"'{t}'" for t in TECHS + ["logistic-science-pack"] + list(extra_techs))
+    sink = ",".join(f"'{x}'" for x in sinks)
+    width = 4 * b.pairs + 4
+    return f"""
+for _, t in pairs {{ {techs} }} do if f.technologies[t] then f.technologies[t].researched = true end end
+local sp = f.get_spawn_position(s)
+local function clear(x0, y0)
+  local area = {{ {{ x0 - 6, y0 - 6 }}, {{ x0 + {width + 80}, y0 + {n + 8} }} }}
+  return s.count_entities_filtered {{ area = area, force = 'player' }} == 0
+     and s.count_entities_filtered {{ area = area, type = 'resource' }} == 0
+     and s.count_tiles_filtered {{ area = area, collision_mask = 'water_tile' }} == 0
+end
+local ox, oy
+for r = 20, 600, 10 do
+  for _, d in ipairs {{ {{1, 0}}, {{0, 1}}, {{-1, 0}}, {{0, -1}}, {{1, 1}}, {{-1, 1}}, {{1, -1}}, {{-1, -1}} }} do
+    local x0, y0 = math.floor(sp.x + d[1] * r), math.floor(sp.y + d[2] * r)
+    if clear(x0, y0) then ox, oy = x0, y0 break end
+  end
+  if ox then break end
+end
+if not ox then return {{ error = 'no clear area' }} end
+for _, t in pairs(s.find_entities_filtered {{ area = {{ {{ ox - 6, oy - 6 }}, {{ ox + {width + 80}, oy + {n + 8} }} }}, type = {{ 'tree', 'simple-entity' }} }}) do t.destroy() end
+for _, p in pairs {{ {belts} }} do
+  s.create_entity {{ name = 'transport-belt', position = {{ ox + p[1] + 0.5, oy + p[2] + 0.5 }}, direction = defines.direction.south, force = f }}
+end
+local eei = s.create_entity {{ name = 'electric-energy-interface', position = {{ ox - 6, oy + 1 }}, force = f }}
+eei.power_production = 1e8 eei.electric_buffer_size = 1e9
+for _, fd in pairs {{ {",".join(feeds)} }} do
+  local y = oy + fd[3] + 0.5
+  local ch = s.create_entity {{ name = 'infinity-chest', position = {{ ox + fd[1] + 0.5, y }}, force = f }}
+  ch.set_infinity_container_filter(1, {{ name = fd[4], count = 100, index = 1 }})
+  s.create_entity {{ name = 'fast-inserter', position = {{ ox + fd[2] + 0.5, y }}, direction = defines.direction[fd[5]], force = f }}
+end
+-- poles down both sides of the feed rows and across the bus head, every 6 tiles
+for x = -4, {width}, 6 do for y = -2, {rows_used + 2}, 6 do
+  s.create_entity {{ name = 'medium-electric-pole', position = {{ ox + x + 0.5, oy + y + 0.5 }}, force = f }}
+end end
+local sinks = {{ {sink} }}
+for _, e in pairs {{ {ends} }} do
+  local x = ox + e[1] + 0.5
+  s.create_entity {{ name = 'fast-inserter', position = {{ x, oy + {n} + 0.5 }}, direction = defines.direction.north, force = f }}
+  local ch = s.create_entity {{ name = 'infinity-chest', position = {{ x, oy + {n} + 1.5 }}, force = f }}
+  for i, it in pairs(sinks) do ch.set_infinity_container_filter(i, {{ name = it, count = 0, mode = 'exactly', index = i }}) end
+end
+for x = -2, {width}, 6 do s.create_entity {{ name = 'medium-electric-pole', position = {{ ox + x + 0.5, oy + {n} + 2.5 }}, force = f }} end
+for k = 0, {n // 8 + 1} do s.create_entity {{ name = 'medium-electric-pole', position = {{ ox + {width + 30}.5, oy - 3.5 + 8 * k }}, force = f }} end
+for x = {width}, {width + 30}, 8 do s.create_entity {{ name = 'medium-electric-pole', position = {{ ox + x + 0.5, oy - 3.5 }}, force = f }} end
+for x = {width}, {width + 30}, 8 do s.create_entity {{ name = 'medium-electric-pole', position = {{ ox + x + 0.5, oy + {n} + 2.5 }}, force = f }} end
+local chest = s.create_entity {{ name = 'steel-chest', position = {{ ox + {width + 4}.5, oy - 4.5 }}, force = f }}
+for nm, k in pairs {{ {stock} }} do chest.insert {{ name = nm, count = k }} end
+local chest2 = s.create_entity {{ name = 'steel-chest', position = {{ ox + {width + 5}.5, oy - 4.5 }}, force = f }}
+chest2.insert {{ name = 'transport-belt', count = 800 }}
+storage.layout = storage.layout or {{}}
+storage.layout['bus:main'] = {{ name = 'main', x = ox + 0.5, y = oy + 0.5, direction = 'south', side = 'east',
+  lanes = {{ {",".join(f"'{x}'" for x in lanes)} }}, length = {n}, starts = {{}}, joins = {{ {feed_joins} }} }}
+local c = storage.agents and storage.agents['serf'] and storage.agents['serf'].char
+if c and c.valid then c.teleport {{ ox + {width + 6}, oy - 3 }} end
+return {{ origin = {{ ox, oy }} }}
+"""
+
+
 ON_BUS = """local b = storage.layout and storage.layout['bus:main'] if not b then return 0 end
 local n = 0
 for _, e in pairs(s.find_entities_filtered { area = { { b.x - 3, b.y + b.length - 8 }, { b.x + 12, b.y + b.length } }, type = 'transport-belt' }) do
@@ -386,6 +471,31 @@ def scenarios() -> list[dict]:
         "score": [{"name": "taps", "lua": TAPS}, {"name": "assemblers", "lua": "count('assembling-machine-2')"},
                   {"name": "engines_per_min", "lua": "pm('engine-unit')"},
                   {"name": "adv_circuits_per_min", "lua": "pm('advanced-circuit')"}],
+    }, {
+        "name": "b8-bus-purple",
+        "stage": "crew-test",
+        "minutes": 180,
+        "agents": 1,
+        "kind": "directive",
+        "note": "Next rung after blue: purple (production) science at 15/min off a bus carrying iron, copper, steel, "
+                "stone bricks and plastic (endless chests, ~550/min a lane), with rails, electric furnaces, "
+                "productivity modules, advanced and green circuits all built off the bus. Met = 13+/min for 3 samples.",
+        "setup_lua": setup_lua_bus(["iron-plate", "copper-plate", "steel-plate", "stone-brick", "plastic-bar"], spare=3,
+                                   n=130, extra_techs=("steel-processing", "advanced-circuit", "advanced-electronics",
+                                                       "plastics", "railway", "advanced-material-processing-2",
+                                                       "productivity-module", "production-science-pack", "modules"),
+                                   extra_stock={"assembling-machine-2": 80},
+                                   sinks=("production-science-pack", "rail", "electric-furnace", "productivity-module",
+                                          "advanced-circuit", "electronic-circuit", "iron-stick", "copper-cable",
+                                          "iron-gear-wheel")),
+        "objectives": [{
+            "name": "purple-15", "minutes": 180, "hold_samples": 3,
+            "goal": "@{agent} our main bus (bus main) carries iron, copper, steel, stone bricks and plastic, and has "
+                    "spare lanes. Build production (purple) science for 15 a minute off the bus, making the rails, "
+                    "electric furnaces, productivity modules and circuits it needs, and put the packs onto the bus.",
+            "score": [{"name": "purple_per_min", "lua": "pm('production-science-pack')", "target": 13}],
+        }],
+        "score": [{"name": "taps", "lua": TAPS}, {"name": "assemblers", "lua": "count('assembling-machine-2')"}],
     }, {
         "name": "b2-bus-red",
         "stage": "crew-test",
