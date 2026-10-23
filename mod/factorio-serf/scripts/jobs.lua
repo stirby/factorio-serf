@@ -1576,6 +1576,28 @@ local function fluid_port(surface, p, fluid, want_out, force)
     .. " for " .. fluid .. " (its boxes: " .. table.concat(seen, ", ") .. ")"
 end
 
+-- The fluid a pipe line will carry when none is named: what its start tile (else its end) holds or touches. With
+-- it the route keeps clear of other fluids (c2: a 500-tile crude trunk laid as a plain pipe line joined the oil
+-- field's refinery inlets and broke the site).
+local function fluid_near(surface, p)
+  local function names(pos, r)
+    for _, n in pairs(surface.find_entities_filtered { position = pos, radius = r, limit = 6 }) do
+      local okF, fb = pcall(function() return n.fluidbox end)
+      if okF and fb then
+        for i = 1, #fb do
+          local name = fb[i] and fb[i].name
+          if not name then
+            local okL, lk = pcall(fb.get_locked_fluid, i)
+            name = okL and lk or nil
+          end
+          if name then return name end
+        end
+      end
+    end
+  end
+  return names(p, 0.5) or names(p, 1.2)
+end
+
 H.connect = {
   start = function(a, job)
     local args, c = job.args, a.char
@@ -1586,6 +1608,7 @@ H.connect = {
     local to = util.pos(args.to or { args.to_x, args.to_y })
     if not (from and from.x and to and to.x) then return fail("connect needs from=[x,y] and to=[x,y]") end
     local line_fluid = args.fluid or args.from_fluid or args.to_fluid
+    if not line_fluid and ent.type == "pipe" then line_fluid = fluid_near(c.surface, from) or fluid_near(c.surface, to) end
     local port_keys, port_units = {}, {}
     if args.from_fluid or args.to_fluid then
       if ent.type ~= "pipe" then return fail("from_fluid / to_fluid are for pipe lines") end

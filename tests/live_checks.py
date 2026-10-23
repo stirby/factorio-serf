@@ -587,6 +587,23 @@ return {{ acid_at_b = got, water_pipe = wf and wf.name or 'empty' }}""")
     check("fluid ports: acid output piped to the battery plant's acid input, clear of the water pipe in the way",
           r.get("ok") and isinstance(joined, dict) and joined.get("same") and joined.get("clean"),
           (r.get("msg"), joined))
+    # a plain pipe line from a water pipe keeps clear of the acid line just laid (its fluid comes from its start)
+    x1, y1 = await L.site(14, 6)
+    await L.ev(f"""
+local s, f = game.surfaces.nauvis, game.forces.player
+local w = s.create_entity {{ name = 'pipe', position = {{ {x1} + 0.5, {y1} + 2.5 }}, force = f }}
+w.insert_fluid {{ name = 'water', amount = 50 }}
+local o = s.create_entity {{ name = 'pipe', position = {{ {x1} + 6.5, {y1} + 2.5 }}, force = f }}
+o.insert_fluid {{ name = 'crude-oil', amount = 50 }}
+storage.agents['serf'].char.teleport({{ {x1} + 6.5, {y1} + 5.5 }})
+return true""")
+    r3 = await Runner(g)._do_connect({"item": "pipe", "from": [x1 + 1.5, y1 + 2.5], "to": [x1 + 12.5, y1 + 2.5]})
+    mixed = await L.ev(f"""
+local o = game.surfaces.nauvis.find_entity('pipe', {{ {x1} + 6.5, {y1} + 2.5 }})
+local fl = o and o.fluidbox[1]
+return fl and fl.name or 'empty'""")
+    check("fluid ports: a plain pipe line takes its fluid from its start and goes round another fluid",
+          r3.get("ok") and mixed == "crude-oil", (r3.get("msg"), mixed))
     r2 = await Runner(g)._do_connect({"item": "pipe", "from": [x0 + 2.5, y0 + 5.5], "to": [x0 + 16.5, y0 + 5.5],
                                       "from_fluid": "crude-oil"})
     check("fluid ports: a fluid the machine doesn't have says what its boxes are",
