@@ -655,6 +655,26 @@ for i = 1, #d.fluidbox do local fl = d.fluidbox[i] out[#out + 1] = (d.fluidbox.g
 return table.concat(out, ' ')""")
     check("fluid ports: a plain water line to the middle of a sulfur plant lands on its water inlet",
           r2.get("ok") and "water=water" in str(got) and "petroleum-gas=water" not in str(got), (r2.get("msg"), got))
+    # an empty pipe of some other line in the straight path: the water line goes round it, it doesn't join it (p2)
+    x1, y1 = await L.site(14, 7)
+    await L.ev(f"""
+local s, f = game.surfaces.nauvis, game.forces.player
+local w = s.create_entity {{ name = 'pipe', position = {{ {x1} + 0.5, {y1} + 3.5 }}, force = f }}
+w.insert_fluid {{ name = 'water', amount = 50 }}
+for dy = 2, 4 do s.create_entity {{ name = 'pipe', position = {{ {x1} + 6.5, {y1} + dy + 0.5 }}, force = f }} end
+storage.agents['serf'].char.teleport({{ {x1} + 6.5, {y1} + 6.5 }})
+return true""")
+    r3 = await Runner(g)._do_connect({"item": "pipe", "from": [x1 + 1.5, y1 + 3.5], "to": [x1 + 12.5, y1 + 3.5]})
+    await asyncio.sleep(2)
+    dry = await L.ev(f"""
+local n = 0
+for dy = 2, 4 do
+  local e = game.surfaces.nauvis.find_entity('pipe', {{ {x1} + 6.5, {y1} + dy + 0.5 }})
+  if e and e.fluidbox[1] then n = n + 1 end
+end
+return n""")
+    check("fluid ports: a water line goes round an empty pipe of another line instead of joining it",
+          r3.get("ok") and dry == 0, (r3.get("msg"), dry))
     await L.ev("storage.agents['serf'].char.get_main_inventory().clear() return true")
 
 

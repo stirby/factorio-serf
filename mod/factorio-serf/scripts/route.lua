@@ -52,20 +52,36 @@ function route.find(surface, from, to, opts)
   local cache = {}
   -- a pipe line carrying opts.fluid: a tile beside another fluid would join the two (the game refuses that, or
   -- the line ends up mixed), so it's a wall; the machines at the line's own ends don't count
+  -- An empty pipe beside the route is a wall too: it belongs to some other line that isn't flowing yet (p2: a water
+  -- line joined the empty acid pipe of a starved processing-unit row, and water reached its acid inlets). Only
+  -- things holding the line's own fluid, and the line's own ends, may touch it.
+  local ends = {}
+  ends[key(math.floor(from.x), math.floor(from.y))] = true
+  ends[key(math.floor(to.x), math.floor(to.y))] = true
   local function other_fluid_near(x, y)
     if not opts.fluid then return false end
     for _, d in ipairs(DIRS) do
-      for _, n in pairs(surface.find_entities_filtered { position = { x + d[1] + 0.5, y + d[2] + 0.5 }, limit = 3 }) do
-        if not (opts.fluid_ignore and n.unit_number and opts.fluid_ignore[n.unit_number]) then
-          local okF, fb = pcall(function() return n.fluidbox end)
-          if okF and fb then
-            for i = 1, #fb do
-              local name = fb[i] and fb[i].name
-              if not name then
-                local okL, flt = pcall(fb.get_filter, i)
-                name = okL and flt and flt.name or nil
+      local nx, ny = x + d[1], y + d[2]
+      if not ends[key(nx, ny)] then
+        for _, n in pairs(surface.find_entities_filtered { position = { nx + 0.5, ny + 0.5 }, limit = 3 }) do
+          if not (opts.fluid_ignore and n.unit_number and opts.fluid_ignore[n.unit_number]) then
+            local okF, fb = pcall(function() return n.fluidbox end)
+            if okF and fb and #fb > 0 then
+              local mine = false
+              for i = 1, #fb do
+                local name = fb[i] and fb[i].name
+                if not name then
+                  local okL, lk = pcall(fb.get_locked_fluid, i)
+                  name = okL and lk or nil
+                end
+                if not name then
+                  local okL, flt = pcall(fb.get_filter, i)
+                  name = okL and flt and flt.name or nil
+                end
+                if name and name ~= opts.fluid then return true end
+                if name == opts.fluid then mine = true end
               end
-              if name and name ~= opts.fluid then return true end
+              if not mine then return true end -- empty: some other line's
             end
           end
         end
