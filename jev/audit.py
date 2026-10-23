@@ -54,5 +54,10 @@ def words(a: dict, groups: int = 14) -> str:
     if hf:
         lines.append(f"Chests filled by hand ({len(hf)}; each is a line that isn't automated): "
                      + "; ".join(f"[gps={c['at'][0]},{c['at'][1]}] {c['holds']}" for c in hf[:10]))
+    gaps = a.get("pipe_gaps") or []
+    if gaps:
+        lines.append("Pipe lines broken by a gap (fluid on one side, an empty pipe just past it; a pipe in the gap "
+                     "joins them): " + "; ".join(f"{g['fluid']} stops at [gps={g['at'][0]},{g['at'][1]}], {g['gap']} "
+                                                 f"tile(s) short of [gps={g['to'][0]},{g['to'][1]}]" for g in gaps[:6]))
     lines.append(f"Belt tiles per machine {n['belts_per_machine']}, pipe tiles per machine {n['pipes_per_machine']}.")
     return "\n".join(lines)

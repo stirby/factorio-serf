@@ -974,8 +974,28 @@ return true""")
     check("clear: ... with force=true it takes them all", r2.get("ok") and left2 == 0, (r2.get("msg"), left2))
 
 
+async def chk_pipe_gap(L: Live, state: dict):
+    g = L.g
+    x0, y0 = await L.site(16, 6)
+    await L.ev(f"""local s, f = game.surfaces.nauvis, game.forces.player
+local src = s.create_entity {{ name = 'infinity-pipe', position = {{ {x0} + 0.5, {y0} + 2.5 }}, force = f }}
+src.set_infinity_pipe_filter {{ name = 'crude-oil', percentage = 1, mode = 'at-least' }}
+for k = 1, 5 do s.create_entity {{ name = 'pipe', position = {{ {x0} + k + 0.5, {y0} + 2.5 }}, force = f }} end
+for k = 7, 10 do s.create_entity {{ name = 'pipe', position = {{ {x0} + k + 0.5, {y0} + 2.5 }}, force = f }} end
+-- a line that just ends, nothing past it
+local src2 = s.create_entity {{ name = 'infinity-pipe', position = {{ {x0} + 0.5, {y0} + 4.5 }}, force = f }}
+src2.set_infinity_pipe_filter {{ name = 'water', percentage = 1, mode = 'at-least' }}
+for k = 1, 4 do s.create_entity {{ name = 'pipe', position = {{ {x0} + k + 0.5, {y0} + 4.5 }}, force = f }} end
+return true""")
+    await asyncio.sleep(3)
+    a = await g.call("audit", timeout=90)
+    gaps = [q for q in (a.get("pipe_gaps") or []) if x0 <= q["at"][0] <= x0 + 16 and y0 <= q["at"][1] <= y0 + 6]
+    check("audit: a crude line stopping 1 tile short of an empty pipe is reported as a gap, a plain end isn't",
+          len(gaps) == 1 and gaps[0]["fluid"] == "crude-oil" and gaps[0]["gap"] == 1, gaps)
+
+
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "pipegap": chk_pipe_gap}
 
 
 async def main() -> int:

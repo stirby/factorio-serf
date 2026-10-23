@@ -575,6 +575,41 @@ API.audit = function(req)
     elseif t == 'pipe' or t == 'pipe-to-ground' then out.pipes = out.pipes + 1
     else out.belts = out.belts + 1 end
   end
+  -- gaps in pipe lines: a dead-end plain pipe holding fluid with an empty dead-end pipe 2-3 tiles straight ahead and
+  -- free ground between (p7: a 650-tile crude line stopped one tile short of the base leg; dry for over an hour)
+  out.pipe_gaps = {}
+  local function dead_end(e)
+    local okC, cs = pcall(e.fluidbox.get_connections, 1)
+    return okC and cs and #cs == 1, okC and cs and cs[1] and cs[1].owner
+  end
+  for _, e in pairs(s.find_entities_filtered { force = f, name = 'pipe' }) do
+    if #out.pipe_gaps >= 10 then break end
+    local fl = e.fluidbox[1]
+    local is_end, nb = dead_end(e)
+    if fl and fl.amount > 1 and is_end and nb then
+      local vx, vy = e.position.x - nb.position.x, e.position.y - nb.position.y
+      local ax, ay = (vx > 0.5 and 1) or (vx < -0.5 and -1) or 0, (vy > 0.5 and 1) or (vy < -0.5 and -1) or 0
+      if (ax == 0) ~= (ay == 0) then
+        for k = 2, 3 do
+          local q = { x = e.position.x + ax * k, y = e.position.y + ay * k }
+          local o = s.find_entities_filtered { position = q, radius = 0.3, force = f, type = { 'pipe', 'pipe-to-ground' }, limit = 1 }[1]
+          if o then
+            local ofl = o.fluidbox[1]
+            local free = true
+            for j2 = 1, k - 1 do
+              local g = { x = e.position.x + ax * j2, y = e.position.y + ay * j2 }
+              if s.count_entities_filtered { position = g, radius = 0.3, limit = 1,
+                  type = { 'resource', 'character', 'corpse', 'item-entity' }, invert = true } > 0 then free = false end
+            end
+            if free and (not ofl or ofl.amount < 1) then
+              out.pipe_gaps[#out.pipe_gaps + 1] = { at = util.xy(e.position), to = util.xy(o.position), fluid = fl.name, gap = k - 1 }
+            end
+            break
+          end
+        end
+      end
+    end
+  end
   local stats = f.get_item_production_statistics(s)
   out.science_per_min = {}
   for _, n in pairs { 'automation-science-pack', 'logistic-science-pack', 'military-science-pack',
