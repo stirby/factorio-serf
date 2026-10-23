@@ -137,6 +137,7 @@ class Project:
         self.probes: list[dict] = []
         self.t0 = time.time()
         self.heard: list[str] = []  # what players and the serf said, for the next report
+        self.kept_research: list[str] = []  # techs the research keeper queued since the last report
         self.last: dict | None = None
         self._stop = asyncio.Event()
         self.task: asyncio.Task | None = None
@@ -166,9 +167,39 @@ class Project:
         return self.status == "running"
 
     # ------------------------------------------------------------------ the loop
+    RESEARCH_EVERY = 180
+
+    async def _keep_research(self) -> None:
+        """Labs never sit idle for want of a queued tech, as a player keeps the queue full: when nothing is being
+        researched and the base has labs, queue the cheapest tech the packs it makes can pay for (by the mod's
+        research op, not the character's job queue). p6's labs sat at "no research in progress" while its lines made
+        30 packs a minute, and its unattended score was 0."""
+        g = self.actor.g
+        while self.active:
+            await self._sleep(self.RESEARCH_EVERY)
+            if not self.active:
+                break
+            try:
+                p = await progress.probe(g)
+                if p.get("research") or not (p.get("ents") or {}).get("lab"):
+                    continue
+                packs = {k for k in progress.PACKS if (p.get("by_recipe") or {}).get(k)} or {"automation-science-pack"}
+                t = await g.call("techs", agent=g.name)
+                cands = [x for x in (t.get("available") or []) if x.get("units") and set(x.get("packs") or []) <= packs]
+                cands.sort(key=lambda x: (x["units"] * len(x.get("packs") or []), x["name"]))
+                for c in cands[:3]:
+                    r = await g.call("research", tech=c["name"])
+                    if r.get("ok", True) and not r.get("error"):
+                        self.kept_research.append(c["name"])
+                        self._log({"kind": "research_keeper", "tech": c["name"], "packs": sorted(packs)})
+                        break
+            except Exception as e:  # noqa: BLE001
+                self._log({"kind": "error", "where": "research_keeper", "error": repr(e)})
+
     async def run(self) -> str:
         a = self.actor
         self._log({"kind": "start", "goal": self.goal, "speaker": self.speaker})
+        keeper = asyncio.create_task(self._keep_research())
         try:
             while self.active:
                 if self.deadline and time.time() >= self.deadline:
@@ -203,6 +234,7 @@ class Project:
                     await self._sleep(mins * 60)
                     self.last = {"text": f"(you waited {mins:.0f} min)", "outcome": "waited", "mins": mins}
         finally:
+            keeper.cancel()
             p = await self._probe()
             self._log({"kind": "end", "status": self.status, "summary": self.summary, "turns": self.turns,
                        "usd": round(self.usd, 3), "orders": len(self.orders),
@@ -343,6 +375,10 @@ class Project:
         hand = self._by_hand()
         if hand:
             lines.append(hand)
+        if self.kept_research:
+            lines.append("The research queue ran dry, so research was queued automatically: " +
+                         ", ".join(self.kept_research[-6:]) + ". Queue longer research toward the goal to steer it.")
+            self.kept_research.clear()
         if self.heard:
             lines.append("Said in chat lately:\n" + "\n".join(self.heard[-15:]))
             self.heard.clear()

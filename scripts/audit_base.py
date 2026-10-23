@@ -104,12 +104,38 @@ return helpers.table_to_json(out)
 """
 
 
+# An empty research queue makes the labs stop, so the score would measure the queue, not the factory (p6 at 4 h:
+# 30 packs a minute made, 0 used). Queue techs the packs the base has made can pay for, those using the most kinds
+# of pack first; report that it was idle.
+LUA_RESEARCH = """
+local f, s = game.forces.player, game.surfaces.nauvis
+if f.current_research then return helpers.table_to_json { idle = false } end
+local st = f.get_item_production_statistics(s)
+local cands = {}
+for _, t in pairs(f.technologies) do
+  if t.enabled and not t.researched and t.research_unit_count and t.research_unit_count > 0
+     and not t.prototype.research_trigger then
+    local ok = true
+    for _, p in pairs(t.prerequisites) do if not p.researched then ok = false end end
+    for _, ing in pairs(t.research_unit_ingredients) do if st.get_input_count(ing.name) == 0 then ok = false end end
+    if ok then cands[#cands + 1] = { t.name, t.research_unit_count, #t.research_unit_ingredients } end
+  end
+end
+-- techs using the most pack kinds first, so every science line the base has gets drawn on; then the cheapest
+table.sort(cands, function(a, b) if a[3] ~= b[3] then return a[3] > b[3] end return a[2] < b[2] end)
+local queued = {}
+for i = 1, math.min(5, #cands) do if f.add_research(cands[i][1]) then queued[#queued + 1] = cands[i][1] end end
+return helpers.table_to_json { idle = true, queued = queued }
+"""
+
+
 async def audit(save: str, minutes: float, k: int) -> dict:
     inst = Instance(k, save)
     await asyncio.to_thread(inst.start, 300)
     g = None
     try:
         g = await Game.connect(inst.host, inst.rcon_port, inst.password, "serf")
+        research = json.loads((await g.call("eval", code=LUA_RESEARCH, timeout=60))["result"])
         r0 = json.loads((await g.call("eval", code=lua_made(SCIENCE), timeout=60))["result"])
         t0 = time.time()
         await asyncio.sleep(minutes * 60)
@@ -133,6 +159,7 @@ async def audit(save: str, minutes: float, k: int) -> dict:
     area = max(1.0, (bb[2] - bb[0]) * (bb[3] - bb[1]))
     out = {
         "save": save, "game_minutes": round(game_min, 2),
+        "research_was_idle": bool(research.get("idle")), "research_queued": research.get("queued") or [],
         "science_used_per_min": {k2: round(v, 1) for k2, v in used.items() if v > 0},
         "science_made_per_min": {k2: round(v, 1) for k2, v in made.items() if v > 0},
         "spm": round(sum(used.values()), 1),

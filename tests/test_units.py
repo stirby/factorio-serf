@@ -1045,6 +1045,53 @@ def test_bus():
           d.describe())
 
 
+
+def test_research_keeper():
+    import asyncio
+    from types import SimpleNamespace
+    from jev.project import Project
+
+    class G:
+        name = "serf"
+
+        def __init__(self, researching):
+            self.researching, self.queued = researching, []
+
+        async def call(self, op, **kw):
+            if op == "progress":
+                return {"research": self.researching, "ents": {"lab": 4}, "items": {}, "fluids": {},
+                        "by_recipe": {"automation-science-pack": 2, "logistic-science-pack": 1}, "techs": 20}
+            if op == "techs":
+                return {"available": [
+                    {"name": "chemical-thing", "units": 10, "packs": ["automation-science-pack", "chemical-science-pack"]},
+                    {"name": "big-green", "units": 300, "packs": ["automation-science-pack", "logistic-science-pack"]},
+                    {"name": "small-green", "units": 50, "packs": ["automation-science-pack", "logistic-science-pack"]},
+                    {"name": "trigger-tech", "units": 0, "packs": []}]}
+            if op == "research":
+                self.queued.append(kw["tech"])
+                return {"ok": True, "msg": "queued"}
+            raise AssertionError(op)
+
+    async def go(g):
+        pr = SimpleNamespace(actor=SimpleNamespace(g=g), active=True, RESEARCH_EVERY=0, kept_research=[], logs=[])
+        pr._log = pr.logs.append
+
+        async def sleep(secs):
+            if pr.logs or len(g.queued) or getattr(pr, "_n", 0) > 2:
+                pr.active = False
+            pr._n = getattr(pr, "_n", 0) + 1
+        pr._sleep = sleep
+        await Project._keep_research(pr)
+        return pr
+    g = G(None)
+    pr = asyncio.run(go(g))
+    check("research keeper: idle labs get the cheapest tech the base's packs pay for (not one needing blue)",
+          g.queued == ["small-green"] and pr.kept_research == ["small-green"], (g.queued, pr.logs))
+    g = G("automation")
+    asyncio.run(go(g))
+    check("research keeper: leaves a running research alone", g.queued == [], g.queued)
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):
