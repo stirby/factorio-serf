@@ -135,7 +135,7 @@ return {{ origin = {{ ox, oy }}, iron_end = {{ ox + 11.5, oy - 3.5 }}, copper_en
 
 
 
-def setup_lua_b4() -> str:
+def setup_lua_b4(feed_rows: int = 4) -> str:
     """A long bus (iron, copper, 6 spare) fed hard at its head (4 fast inserters per lane, ~550/min each), with a sink
     past the end of every lane (an inserter into an endless chest that deletes packs and intermediates), so products
     put on the bus never back up. Rows 0-3 hold the feeders (registered as a feed join)."""
@@ -149,6 +149,8 @@ def setup_lua_b4() -> str:
         "underground-belt": 80, "splitter": 20, "small-electric-pole": 80, "medium-electric-pole": 40,
         "iron-chest": 20, "long-handed-inserter": 30}.items())
     techs = ",".join(f"'{t}'" for t in TECHS + ["logistic-science-pack"])
+    feed_joins = ", ".join(f"{{{{ kind = 'feed', lane = 0, at = {a}, ['end'] = {{{{ ox + 0.5, oy + 0.5 }}}} }}}}"
+                           for a in range(0, feed_rows, 4))
     sink = ",".join(f"'{x}'" for x in ("automation-science-pack", "logistic-science-pack", "electronic-circuit",
                                          "iron-gear-wheel", "inserter", "transport-belt", "copper-cable"))
     return f"""
@@ -176,8 +178,8 @@ end
 local eei = s.create_entity {{ name = 'electric-energy-interface', position = {{ ox - 4, oy + 1 }}, force = f }}
 eei.power_production = 1e8
 eei.electric_buffer_size = 1e9
--- feeders: iron (lane 0, u=0) from the west gap, copper (lane 1, u=1) from the east gap, rows 0-3
-for row = 0, 3 do
+-- feeders: iron (lane 0, u=0) from the west gap, copper (lane 1, u=1) from the east gap, one per row
+for row = 0, {feed_rows - 1} do
   local y = oy + row + 0.5
   local ci = s.create_entity {{ name = 'infinity-chest', position = {{ ox - 1.5, y }}, force = f }}
   ci.set_infinity_container_filter(1, {{ name = 'iron-plate', count = 100, index = 1 }})
@@ -186,8 +188,10 @@ for row = 0, 3 do
   cc.set_infinity_container_filter(1, {{ name = 'copper-plate', count = 100, index = 1 }})
   s.create_entity {{ name = 'fast-inserter', position = {{ ox + 2.5, y }}, direction = defines.direction.east, force = f }}
 end
-s.create_entity {{ name = 'medium-electric-pole', position = {{ ox - 2.5, oy + 1.5 }}, force = f }}
-s.create_entity {{ name = 'medium-electric-pole', position = {{ ox + 4.5, oy + 1.5 }}, force = f }}
+for k = 0, {(feed_rows - 1) // 6} do
+  s.create_entity {{ name = 'medium-electric-pole', position = {{ ox - 2.5, oy + 1.5 + 6 * k }}, force = f }}
+  s.create_entity {{ name = 'medium-electric-pole', position = {{ ox + 4.5, oy + 1.5 + 6 * k }}, force = f }}
+end
 s.create_entity {{ name = 'medium-electric-pole', position = {{ ox + 1.5, oy - 3.5 }}, force = f }}
 -- sinks past the end of every lane
 local sinks = {{ {sink} }}
@@ -207,7 +211,7 @@ chest2.insert {{ name = 'transport-belt', count = 400 }}
 storage.layout = storage.layout or {{}}
 storage.layout['bus:main'] = {{ name = 'main', x = ox + 0.5, y = oy + 0.5, direction = 'south', side = 'east',
   lanes = {{ {",".join(f"'{x}'" for x in lanes)} }}, length = {n}, starts = {{}},
-  joins = {{ {{ kind = 'feed', lane = 0, at = 0, ['end'] = {{ ox + 0.5, oy + 0.5 }} }} }} }}
+  joins = {{ {feed_joins} }} }}
 local c = storage.agents and storage.agents['serf'] and storage.agents['serf'].char
 if c and c.valid then c.teleport {{ ox + 10, oy - 3 }} end
 return {{ origin = {{ ox, oy }} }}
@@ -280,6 +284,31 @@ def scenarios() -> list[dict]:
                     "need off the bus too, and put the science packs onto the bus.",
             "score": [{"name": "red_per_min", "lua": "pm('automation-science-pack')", "target": 40},
                       {"name": "green_per_min", "lua": "pm('logistic-science-pack')", "target": 40}],
+        }],
+        "score": [{"name": "taps", "lua": TAPS},
+                  {"name": "assemblers", "lua": "count('assembling-machine-2')"}],
+    }, {
+        "name": "b5-bus-science-double",
+        "stage": "crew-test",
+        "minutes": 180,
+        "agents": 1,
+        "kind": "directive",
+        "note": "Scale test: b4's order (red and green science at 45/min each, all intermediates off the bus), then "
+                "'double both'. The bus is fed at ~1100/min per plate lane (8 feeders). Does a bus-based build "
+                "extend cleanly? Met = 40+/min each, then 80+/min each, 3 samples each.",
+        "setup_lua": setup_lua_b4(8),
+        "objectives": [{
+            "name": "red-green-45", "minutes": 100, "hold_samples": 3,
+            "goal": "@{agent} our main bus (bus main) carries iron and copper plates and has spare lanes. Build red "
+                    "and green science for 45 a minute each, making the gears, circuits, inserters and belts they "
+                    "need off the bus too, and put the science packs onto the bus.",
+            "score": [{"name": "red_per_min", "lua": "pm('automation-science-pack')", "target": 40},
+                      {"name": "green_per_min", "lua": "pm('logistic-science-pack')", "target": 40}],
+        }, {
+            "name": "double-it", "minutes": 80, "hold_samples": 3,
+            "goal": "@{agent} nice. Now double it: red and green science at 90 a minute each, still all off the bus.",
+            "score": [{"name": "red_per_min", "lua": "pm('automation-science-pack')", "target": 80},
+                      {"name": "green_per_min", "lua": "pm('logistic-science-pack')", "target": 80}],
         }],
         "score": [{"name": "taps", "lua": TAPS},
                   {"name": "assemblers", "lua": "count('assembling-machine-2')"}],
