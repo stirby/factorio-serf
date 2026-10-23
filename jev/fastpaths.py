@@ -21,6 +21,12 @@ if TYPE_CHECKING:
 
 
 QUEUE_WORDS = re.compile(r"\b(queue|then|remove|reorder|prerequisites?|in this order|followed by)\b", re.I)
+# orders that build onto what's there ("extend the row", "onto the same belt", "off the bus"): the row fast path lays a
+# fresh row of its own, so it read one of these as "2 machines into the chest" (b4: AM1s into storage instead of two
+# more AM2s on the science belt). The planner takes them.
+ONTO_EXISTING = re.compile(r"\b(extend\w*|the same (?:belt|row|line)|existing|bus|tap\w*|join\w*|add (?:\d+|two|"
+                           r"three|four) more)\b", re.I)
+MACHINE_NAMES = re.compile(r"\b(assembling-machine-[123]|stone-furnace|steel-furnace|electric-furnace|chemical-plant)\b")
 
 
 class FastPaths:
@@ -58,6 +64,12 @@ class FastPaths:
                 return None
             opt = opts[r["product"]]
             if r["output"] == "belt" and len(opt["lines"]) == 2:
+                return None
+            named = set(MACHINE_NAMES.findall(o.text))
+            if ONTO_EXISTING.search(o.text) or (named and opt["machine"] not in named):
+                self.log({"kind": "quickbuild_skip", "order": o.id,
+                          "why": "builds onto what's there" if ONTO_EXISTING.search(o.text) else
+                          f"asks for {', '.join(sorted(named))}, the row would use {opt['machine']}"})
                 return None
             n = (int(r["count"]) if r["count"] not in (None, "not_said") and r["count_p"] >= 0.5
                  else quickbuild.DEFAULT_COUNT[opt["machine"]])
