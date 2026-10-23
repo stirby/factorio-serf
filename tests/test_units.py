@@ -1182,6 +1182,21 @@ def test_step_refs():
     check("refs: lint passes over a step that uses a run-time end", not any("malformed" in p for p in probs), probs)
 
 
+
+def test_underground_pair_off_view():
+    ug = {"u": 5, "n": "underground-belt", "t": "underground-belt", "x": 9.5, "y": 0.5, "d": "west", "ug": "input",
+          "pair": 99}
+    w = World({"ents": [belt(4, 10.5, 0.5, "west"), ug], "center": [12, 0], "radius": 3})
+    reasons = [ln.end_reason for ln in w.lines]
+    check("world: an underground entrance whose exit is outside the view isn't called broken",
+          any("past the edge" in r for r in reasons) and not any("no exit" in r for r in reasons), reasons)
+    ug2 = dict(ug)
+    ug2.pop("pair")
+    w2 = World({"ents": [belt(4, 10.5, 0.5, "west"), ug2], "center": [12, 0], "radius": 3})
+    check("world: ... one with no partner at all still is", any("no exit" in ln.end_reason for ln in w2.lines),
+          [ln.end_reason for ln in w2.lines])
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):

@@ -324,6 +324,9 @@ class World:
         if e["u"] in nxt:
             return f"merges into another line at {fmt_xy(self._ahead(e))}"
         if e["t"] == "underground-belt" and e.get("ug") == "input":
+            # paired with an exit outside this view: not broken (q6's manager rebuilt two working lines read as "no exit")
+            if e.get("pair"):
+                return "goes underground to an exit past the edge of this view (look further that way)"
             return "underground entrance with no exit"
         ax, ay = self._ahead(e)
         o = self.at(ax, ay)
