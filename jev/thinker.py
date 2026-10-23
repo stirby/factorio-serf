@@ -57,7 +57,7 @@ What the actor does on its own (don't plan steps for these, and trust them over 
 
 Numbers worth knowing: 1 offshore pump feeds 20 boilers; 1 boiler (1.8 MW) feeds exactly 2 steam engines (0.9 MW each) and burns ~0.45 coal/s; steam engines must be chained end to end from the boiler's steam output and each needs a pole touching the grid. Yellow belt 15 items/s (7.5 per lane); inserter ~0.83 items/s, fast inserter ~2.3/s. Assembler 1 speed 0.5, assembler 2 speed 0.75; stone furnace speed 1 (iron/copper plate 3.2 s). Recipes (time, at speed 1): gear 2 iron 0.5 s; copper cable 1 copper -> 2 cables 0.5 s; green circuit 1 iron + 3 cables 0.5 s (3 cable assemblers : 2 circuit assemblers); red science 1 copper + 1 gear 5 s; green science 1 inserter + 1 belt 6 s; electric mining drill 0.5 ore/s; burner mining drill 0.25 ore/s. Hand-mining is slow (about one item every 1-2 s): for more than ~50 of an ore or coal, place a few burner or electric drills on the patch with a chest (or onto a belt) instead. Burners eat fuel: 1 coal lasts a stone furnace ~44 s, a burner drill ~27 s, a burner inserter a few minutes; 20 coal hand-loaded keeps a burner drill going ~9 min and a furnace ~15 min. Anything meant to run longer than that needs fuel delivered by belt or inserter (e.g. a coal lane on the ore belt into furnaces, or burner drills on coal feeding each other and a coal belt); hand refuelling many burners costs the character minutes of coal mining every round. On a fresh map: two burner drills on coal facing each other fuel each other for good (a burner drill drops its ore 1 tile out from its front edge, onto the tile there); burner drills on iron or copper drop straight into a stone furnace on that tile; a coal drill dropping into a chest gives a pile to refuel from. Smelt early plates by hand-feeding a furnace only until drills run.
 
-Plans must be complete: every step needed to reach the goal, in order. An order that needs several production chains built one after another, each depending on the last (e.g. "automate green science" in a base that has no circuits yet, "get us to oil", "beat the game"), is a project: call start_project rather than one huge plan. For a big order (several separate builds), don't design everything before submitting: submit the first finished part with more=true so the actor starts building it, then design and submit the next part (the last one without more). Each part needs its own steps; put the expect checks where they belong. Prefer reusing what exists (belts, poles, chests). Keep builds compact and away from existing stuff (check the area first). Never hand-feed machines when the order says to automate: build inserters and belts.
+Plans must be complete: every step needed to reach the goal, in order. An order that needs several production chains built one after another, each depending on the last (e.g. "automate green science" in a base that has no circuits yet, "get us to oil", "beat the game"), is a project: call start_project rather than one huge plan. For a big order (several separate builds), don't design everything before submitting: submit the first finished part with more=true so the actor starts building it, then design and submit the next part (more=false on the last). more=false only when the plan finishes everything the order asks: a plan that does just part of it (say the research its build needs first) is more=true even if you can't design the rest yet; end your turn and you'll be asked for the next part once this one is done. Each part needs its own steps; put the expect checks where they belong. Prefer reusing what exists (belts, poles, chests). Keep builds compact and away from existing stuff (check the area first). Never hand-feed machines when the order says to automate: build inserters and belts.
 
 submit_plan fields: goal (what done looks like, one line), steps, expect (machine-checkable conditions: {{"check":"working","recipe":R,"count":N,"near":[x,y],"radius":r}}, {{"check":"has_item","x":..,"y":..,"item":I,"count":N}} (a chest or machine holds it), {{"check":"powered","near":[x,y],"radius":r}}, {{"check":"belt_carries","x":..,"y":..,"item":I}}, {{"check":"fluid_reaches","x":..,"y":..,"fluid":F}} (the machine there gets F at an inlet; added by itself for every connect with to_fluid), {{"check":"rate","item":I,"per_min":N,"near":[x,y],"radius":r}} (the machines making I there make at least 85% of N a minute, measured over a minute: use it when the order names a rate)), say (short chat line to the player now, optional), done_text (chat line when verified).
 Chat lines are short and plain, like a player in game chat.
@@ -153,10 +153,11 @@ TOOLS = [
                    "description": "optional: problems to keep an eye out for at this build afterwards, in words "
                                   "(e.g. 'the output chest is full', 'the boiler is out of coal')"},
          "force": {"type": "boolean", "description": "run it even though the checker reported problems"},
-         "more": {"type": "boolean", "description": "true = this is one finished part of a bigger order and you will "
-                                                    "submit the next part right after: the actor starts building it now "
-                                                    "while you design the rest"}},
-      "required": ["goal", "steps"]}),
+         "more": {"type": "boolean", "description": "false only when this plan finishes everything the order asks. "
+                                                    "true = it's one part and more must follow: the actor starts "
+                                                    "building it now; submit the next part when you can (now, or when "
+                                                    "you're asked for it after this part is done)"}},
+      "required": ["goal", "steps", "more"]}),
 ]
 
 
@@ -313,8 +314,10 @@ class Thinker:
         self._last_more = bool(args.get("more"))
         await self.on_plan(args, self.current)
         if self._last_more:
-            return (f"part accepted ({len(steps)} steps); the actor is building it now. Design the next part and "
-                    "submit it (more=true again if there's still more after it; leave it out on the last part).")
+            return (f"part accepted ({len(steps)} steps); the actor is building it now. If you can design the next "
+                    "part now, submit it (more=true again if there's still more after it, false on the last). If it "
+                    "depends on this part finishing (research, a build you need to look at), end your turn: you'll "
+                    "be asked for it once this part is done.")
         return f"plan accepted ({len(steps)} steps); the actor is running it now. End your turn."
 
     async def _loop(self) -> None:

@@ -1254,6 +1254,25 @@ def test_fluid_break_words():
           and w.count("no machine takes from it") == 1, w)
 
 
+def test_lint_unfed_belt_start():
+    from jev.lint import lint
+    ents = [belt(k + 1, 0.5, k + 0.5, "south", i=[k] if k else None, o=[k + 2] if k < 9 else None,
+                 items={"iron-plate": 4}) for k in range(10)]
+    w = World({"ents": ents, "center": [0, 5], "radius": 20})
+    flagged = lambda steps: any("nothing feeds that tile" in m for m in lint(steps, w))  # noqa: E731
+    beside = flagged([{"do": "route", "pairs": [{"name": "transport-belt", "from": [1.5, 4.5], "to": [12.5, 4.5]}]}])
+    end = flagged([{"do": "connect", "item": "transport-belt", "from": [0.5, 10.5], "to": [8.5, 14.5]}])
+    ins = flagged([{"do": "connect", "item": "transport-belt", "from": [2.5, 6.5], "to": [9.5, 6.5]},
+                   {"do": "place", "name": "inserter", "x": 1.5, "y": 6.5, "direction": "west"}])
+    ref = flagged([{"do": "tap", "bus": "main", "lane": 0, "at": 3},
+                   {"do": "connect", "item": "transport-belt", "from": "end:1", "to": [9.5, 2.5]}])
+    chain = flagged([{"do": "route", "pairs": [{"name": "transport-belt", "from": [0.5, 10.5], "to": [6.5, 10.5]}]},
+                     {"do": "route", "pairs": [{"name": "transport-belt", "from": [7.5, 10.5], "to": [12.5, 10.5]}]}])
+    check("lint: a belt routed from beside a bus lane is flagged as unfed (p8's empty sub-bus); one from a lane's "
+          "end, an inserter's drop, a tap's end or an earlier line's end isn't",
+          beside and not end and not ins and not ref and not chain, (beside, end, ins, ref, chain))
+
+
 def test_bus_feed_entries():
     from jev.busgen import DIRS, Bus
     ok_all, why = True, []

@@ -56,6 +56,7 @@ class Order:
     next_plan: dict | None = None  # a revised plan that arrived while the old one was running
     queued_plans: list = field(default_factory=list)  # next parts of a big order (plans submitted with more=true)
     running_more: bool = False  # the plan running now is a part with more to come
+    parts_asked: int = 0  # times the thinker was asked for a next part after ending its turn without one
     quick: bool = False  # built by the actor's quick-build path (no planner)
     belt_len: float = 0  # the longest new belt any of its plans laid (items need time to travel it)
     built_pts: list = field(default_factory=list)  # where its plans built (for "two more just like it")
@@ -487,6 +488,11 @@ class Actor(FastPaths):
             # orders it closed came straight back as "still broken"; 1 of 23 that went point fix -> planner did)
             r = await (self._fix_wide(o) if wide >= 0.6 and not detailed else self._fix(o))
             if r is True:
+                return True
+            if o.speaker == self.name and isinstance(r, str) and r.startswith("I already did"):
+                # a watch found it and it's fixed; what's left there it can't fix alone (p11: every refuelled burner
+                # line closed "failed" because a starved furnace sat nearby): done, and keep watching the spot
+                self.log({"kind": "watch_partial", "at": o.focus, "why": str(r)[:300]})
                 return True
             if o.speaker == self.name:  # a watch found it: don't spend a plan on it, stop watching that spot
                 self.watches = [w for w in self.watches if w["at"] != o.focus]
@@ -1126,6 +1132,19 @@ class Actor(FastPaths):
                 else:
                     plan = await self._wait_next_part(o)
                 o.running_more = bool(plan and plan.get("more"))
+                if plan is None and o.parts_asked < 4 and o.status != "cancelled":
+                    # the thinker ended its turn without the next part: ask for it now that this one is done (a part
+                    # can need research or a build finished before the rest can be designed; p11's planner did an
+                    # order's research part, didn't mark it as a part, and the order closed with nothing built)
+                    o.parts_asked += 1
+                    plan = await self._ask_plan(o, (
+                        f"A part of your plan for order {o.id} (\"{o.text}\") is done: {str(rep_part)[:600]}\n"
+                        "Submit the next part (more=true if yet more follows it), or, if everything the order asks "
+                        "is now done, submit a plan with no steps and a done_text."))
+                    if plan and not plan.get("steps") and not plan.get("no_plan"):
+                        plan = {"goal": o.text, "steps": [], "expect": parts_expect, "_parts_only": True,
+                                "done_text": plan.get("done_text")}
+                    o.running_more = bool(plan and plan.get("more"))
                 if plan is None:
                     # the thinker ended without a last part: verify what the parts promised
                     plan = {"goal": o.text, "steps": [], "expect": parts_expect, "_parts_only": True}
@@ -1147,7 +1166,7 @@ class Actor(FastPaths):
             if plan and plan.get("_parts_only"):
                 verified, vreport = await self._verify(o, plan)
                 if verified:
-                    await self.say("done")
+                    await self.say(plan.get("done_text") or "done")
                     return True
                 o.history.append(vreport)
                 text = (f"Your plan for order {o.id} (\"{o.text}\") didn't get there.\n{vreport}\n"

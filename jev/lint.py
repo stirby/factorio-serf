@@ -118,6 +118,7 @@ def lint(steps: list[dict], w: World, available: set[str] | None = None, recipes
     maybe_belt: set[tuple[int, int]] = set()
     power_targets: list[tuple[float, float]] = []
     removed: set[tuple[int, int]] = set()
+    starts: list[tuple[int, str, tuple[float, float], set]] = []  # belt lines laid from a tile: (step, op, from, belts before)
 
     def add(name, x, y, direction=None, pickup=None, drop=None, recipe=None, src="place"):
         wdt, hgt = size_of(name, direction)
@@ -246,6 +247,8 @@ def lint(steps: list[dict], w: World, available: set[str] | None = None, recipes
                     out.append(f"step {i + 1} connect needs from=[x,y] and to=[x,y]")
                     continue
                 item = s.get("item", "")
+                if "belt" in item:
+                    starts.append((i, "connect", (float(f[0]), float(f[1])), set(maybe_belt)))
                 if "belt" in item or "pipe" in item:
                     # route unknown: mark the bounding box as maybe-belt so inserters next to it aren't flagged
                     x0, x1 = sorted((math.floor(f[0]), math.floor(t[0])))
@@ -283,6 +286,17 @@ def lint(steps: list[dict], w: World, available: set[str] | None = None, recipes
                     power_targets.append((float(t[0]), float(t[1])))
             elif d == "power":
                 power_targets.append((float(s["x"]), float(s["y"])))
+            elif d == "route":
+                for pr in s.get("pairs") or []:
+                    f, t = pr.get("from"), pr.get("to")
+                    if "belt" in str(pr.get("name") or "transport-belt") and isinstance(f, (list, tuple)) \
+                            and isinstance(t, (list, tuple)):
+                        starts.append((i, "route", (float(f[0]), float(f[1])), set(maybe_belt)))
+                        x0, x1 = sorted((math.floor(f[0]), math.floor(t[0])))
+                        y0, y1 = sorted((math.floor(f[1]), math.floor(t[1])))
+                        for xx in range(x0 - 1, x1 + 2):
+                            for yy in range(y0 - 1, y1 + 2):
+                                maybe_belt.add((xx, yy))
         except (KeyError, TypeError, ValueError) as e:
             out.append(f"step {i + 1} ({d}) is malformed: {e!r}")
 
@@ -330,6 +344,42 @@ def lint(steps: list[dict], w: World, available: set[str] | None = None, recipes
                 out.append(f"{n} at {fmt_xy((e['x'], e['y']))} has no recipe")
             elif recipes and e["recipe"] not in recipes:
                 out.append(f"recipe {e['recipe']} is not available (not researched, or wrong name)")
+    # belt lines that start where nothing feeds them: p8 routed seven supply belts for a blue science block from
+    # tiles beside its bus, as if a belt starting next to a lane drew from it, and every one arrived empty
+    def fed(tile: tuple[int, int], before: set) -> bool:
+        b = w.at(tile[0] + 0.5, tile[1] + 0.5)
+        if b and b.get("t") in BELT_T:
+            return True  # continues a belt there (the mid-line case is checked above)
+        if before & {(tile[0] + a, tile[1] + c) for a in (-1, 0, 1) for c in (-1, 0, 1)}:
+            return True  # beside a line an earlier step of this plan lays: its exact end is the router's
+        for (dx, dy) in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            n = w.at(tile[0] + dx + 0.5, tile[1] + dy + 0.5)
+            if n and n.get("t") in BELT_T and n.get("d") in DIRS and DIRS[n["d"]] == (-dx, -dy):
+                return True  # a belt, splitter or underground exit points into it
+        for x in w.ents.values():
+            if x.get("t") in ("inserter", "mining-drill") and x.get("dp") and \
+                    (math.floor(x["dp"][0]), math.floor(x["dp"][1])) == tile:
+                return True
+        for x in planned:
+            if x["name"] in INSERTERS and x.get("dp") == tile:
+                return True
+            if x["name"] in DRILL_DROP and drill_drop(x) == tile:
+                return True
+            if "belt" in x["name"] or "splitter" in x["name"]:
+                if tile in x["tiles"]:
+                    return True
+                if x.get("dir") in DIRS:
+                    dx, dy = DIRS[x["dir"]]
+                    if any((tx + dx, ty + dy) == tile for tx, ty in x["tiles"]):
+                        return True
+        return False
+    for i, op, f, before in starts:
+        tile = (math.floor(f[0]), math.floor(f[1]))
+        if not fed(tile, before):
+            out.append(f"step {i + 1} {op} from {fmt_xy(f)}: nothing feeds that tile (no belt ends into it, no "
+                       "inserter or drill drops onto it), so the new belt stays empty. To take items off a bus lane "
+                       "use a tap step and start from its end (\"end:N\"); to carry on a line, start at its last "
+                       "tile")
     # machines nothing feeds
     for e in planned:
         if e["name"] in ASSEMBLERS or e["name"] in ("stone-furnace", "steel-furnace", "electric-furnace", "lab"):
