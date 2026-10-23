@@ -130,6 +130,37 @@ def _xy(s: dict, key: str = "") -> tuple[float, float] | None:
     return None
 
 
+REF = re.compile(r"^end:(\d+)$")
+
+
+def resolve_refs(step: dict, ends: dict) -> tuple[dict, list[int]]:
+    """A step with "end:N" in place of a tile ([x,y]) gets the end tile step N of the same plan reported (a tap's
+    split-off belt, a row's output belt). Returns the resolved copy and the step numbers it needed but didn't have."""
+    missing: list[int] = []
+
+    def sub(v):
+        if isinstance(v, str):
+            m = REF.match(v.strip())
+            if m:
+                n = int(m.group(1))
+                if n in ends:
+                    return list(ends[n])
+                missing.append(n)
+            return v
+        if isinstance(v, list):
+            return [sub(x) for x in v]
+        if isinstance(v, dict):
+            return {k: sub(x) for k, x in v.items()}
+        return v
+    return {k: sub(v) for k, v in step.items()}, missing
+
+
+def step_end(r: dict) -> list | None:
+    """The end tile a step reports for later steps to build on (tap: its split-off belt; row: its output belt)."""
+    e = r.get("end") or (r.get("info") or {}).get("output_belt_end")
+    return list(e) if isinstance(e, (list, tuple)) and len(e) == 2 else None
+
+
 def belt_end_targets(w, ends: set | None = None) -> set[tuple[int, int]]:
     """Free tiles an open belt end (belt, underground exit, splitter) points into: a new belt laid on one takes that
     end's items, side-loaded or head on. Belts standing on `ends` (a line's own source) don't count."""

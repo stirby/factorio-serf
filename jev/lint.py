@@ -144,6 +144,8 @@ def lint(steps: list[dict], w: World, available: set[str] | None = None, recipes
 
     for i, s in enumerate(steps):
         d = s.get("do")
+        if any(isinstance(v, str) and v.startswith("end:") for v in s.values()):
+            continue  # uses the end of an earlier step that only the run itself reports (a row's output belt)
         try:
             if d == "place":
                 add(s["name"], float(s["x"]), float(s["y"]), s.get("direction"), s.get("pickup"), s.get("drop"),

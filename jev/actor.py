@@ -26,7 +26,7 @@ from .project import OBVIOUS, Project
 from .fastpaths import FastPaths
 from .game import Game
 from .lint import lint, plan_points
-from .steps import Runner, describe, parse_missing, plan_needs
+from .steps import Runner, describe, parse_missing, plan_needs, resolve_refs, step_end
 from .thinker import Request, Thinker
 from .typesafe import Jev, JevError
 from .world import CHESTS, World, fmt_xy, items_words
@@ -783,7 +783,8 @@ class Actor(FastPaths):
     async def _bus_steps_as_ghosts(self, steps: list[dict]) -> list[dict]:
         """For the plan checker: bus, tap and bus_in steps as the entities they lay (worked out from the buses in
         the game), so a row along a tap's belt isn't flagged as having no belt."""
-        if not any(st.get("do") in ("bus", "tap", "bus_in") for st in steps):
+        if not any(st.get("do") in ("bus", "tap", "bus_in") for st in steps) and \
+                not any("end:" in json.dumps(st) for st in steps):
             return steps
         from .busgen import DIRS, Bus
         try:
@@ -791,7 +792,9 @@ class Actor(FastPaths):
         except Exception:  # noqa: BLE001
             return steps
         out = []
-        for st in steps:
+        ends: dict[int, list] = {}
+        for n, st in enumerate(steps, start=1):
+            st, _ = resolve_refs(st, ends)
             d = st.get("do")
             try:
                 if d == "bus":
@@ -808,8 +811,10 @@ class Actor(FastPaths):
                     if d == "tap":
                         ents, ex, _ = b.tap(b.lane_index(st.get("lane")), a)
                         nx, ny = DIRS[b.side]
+                        run = max(1, int(st.get("run", 3)))
                         ents += [{"name": "transport-belt", "x": ex["x"] + nx * k, "y": ex["y"] + ny * k,
-                                  "direction": b.side} for k in range(max(1, int(st.get("run", 3))))]
+                                  "direction": b.side} for k in range(run)]
+                        ends[n] = [ex["x"] + nx * (run - 1), ex["y"] + ny * (run - 1)]
                     else:
                         try:
                             i = b.lane_index(st.get("item") or st.get("lane"))
@@ -1167,9 +1172,15 @@ class Actor(FastPaths):
             fails = await self.runner.stock(need)
             if fails:
                 self.log({"kind": "stock_short", "order": o.id, "fails": fails})
+        ends: dict[int, list] = {}  # step number -> the end tile it reported ("end:N" in later steps)
         for i, st in enumerate(steps):
             if o.status == "cancelled":
                 return False, "cancelled"
+            st, missing_refs = resolve_refs(st, ends)
+            if missing_refs:
+                return False, (f"step {i + 1} ({describe(st)}) uses the end of step {missing_refs[0]}, which reported "
+                               "no end (only tap and row with output=belt do). Steps done so far:\n" +
+                               "\n".join(done[-15:]))
             if o.interrupt:
                 note, o.interrupt = o.interrupt, None
                 await self.say("ok, changing it")
@@ -1187,6 +1198,8 @@ class Actor(FastPaths):
                 if r.get("ok"):
                     self.metrics["steps_ok"] += 1
                     done.append(f"{i + 1}. {describe(st)}: ok ({str(r.get('msg'))[:120]})")
+                    if step_end(r):
+                        ends[i + 1] = step_end(r)
                     if st.get("do") == "refuel" and st.get("x") is not None:
                         self._remember_fuelled(float(st["x"]), float(st["y"]))
                     if st.get("do") == "insert" and "chest" in str(r.get("msg")) and int(st.get("count") or 0) >= 20:

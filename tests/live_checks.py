@@ -999,8 +999,40 @@ return true""")
           len(gaps) == 1 and gaps[0]["fluid"] == "crude-oil" and gaps[0]["gap"] == 1, gaps)
 
 
+async def chk_end_ref(L: Live, state: dict):
+    """A plan that taps a bus and builds a row on the tap's end via "end:1", run by the actor's plan loop."""
+    import tempfile
+    from jev.actor import Actor, Order
+    from jev.typesafe import reader
+    g = L.g
+    x0, y0 = await L.site(28, 30)
+    await L.ev(f"""local s, f = game.surfaces.nauvis, game.forces.player
+for _, t in pairs {{ 'logistics', 'automation', 'automation-2' }} do if f.technologies[t] then f.technologies[t].researched = true end end
+local c = storage.agents['serf'].char
+for n, k in pairs {{ ['transport-belt'] = 200, ['splitter'] = 4, ['underground-belt'] = 20, ['assembling-machine-2'] = 4,
+  inserter = 20, ['iron-chest'] = 6, ['small-electric-pole'] = 20 }} do c.insert {{ name = n, count = k }} end
+local eei = s.create_entity {{ name = 'electric-energy-interface', position = {{ {x0} + 26, {y0} + 2 }}, force = f }}
+eei.power_production = 1e7 eei.electric_buffer_size = 1e8
+s.create_entity {{ name = 'small-electric-pole', position = {{ {x0} + 24.5, {y0} + 2.5 }}, force = f }}
+c.teleport {{ {x0} + 12, {y0} + 4 }}
+return true""")
+    runner = Runner(g, lambda r: None)
+    r = await runner.run({"do": "bus", "name": "ref", "x": x0 + 2.5, "y": y0 + 0.5, "direction": "south", "side": "east",
+                          "lanes": ["iron-plate", "copper-plate"], "length": 26})
+    d = Path(tempfile.mkdtemp())
+    a = Actor(g, reader(log_path=d / "jev.jsonl"), d, "serf", think=False)
+    o = Order(id=1, text="test", speaker="ops", playbook="plan", points=[(x0 + 10, y0 + 10)])
+    o.built_pts = []
+    ok, msg = await a._run_plan(o, {"goal": "gears off the iron tap", "steps": [
+        {"do": "tap", "bus": "ref", "lane": "iron-plate", "at": 6},
+        {"do": "row", "belt": "end:1", "machine": "assembling-machine-2", "recipe": "iron-gear-wheel", "count": 2}]})
+    n = await L.ev(f"return game.surfaces.nauvis.count_entities_filtered {{ area = {{ {{ {x0}, {y0} }}, {{ {x0} + 28, {y0} + 30 }} }}, name = 'assembling-machine-2' }}")
+    check("refs: a row built on the end of a tap in the same plan (\"end:1\")", r.get("ok") and ok and n == 2,
+          (r.get("msg", "")[:80], ok, str(msg)[:200], n))
+
+
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "pipegap": chk_pipe_gap}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "pipegap": chk_pipe_gap, "endref": chk_end_ref}
 
 
 async def main() -> int:

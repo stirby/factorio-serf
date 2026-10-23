@@ -1167,6 +1167,21 @@ def test_lessons_route_tool_complaints():
                 os.environ["JEV_LIBRARY"] = old
 
 
+
+def test_step_refs():
+    from jev.steps import resolve_refs, step_end
+    st, miss = resolve_refs({"do": "row", "belt": "end:2", "count": 3}, {2: [10.5, 4.5]})
+    check("refs: end:N becomes the tile step N reported", st["belt"] == [10.5, 4.5] and not miss, st)
+    st, miss = resolve_refs({"do": "connect", "from": "end:1", "to": [1, 2]}, {})
+    check("refs: an end not reported yet is named as missing", miss == [1] and st["from"] == "end:1", (st, miss))
+    check("refs: tap and row report their ends", step_end({"end": [1.5, 2.5]}) == [1.5, 2.5] and
+          step_end({"info": {"output_belt_end": [3.5, 4.5]}}) == [3.5, 4.5] and step_end({"msg": "x"}) is None)
+    w = World({"ents": [], "center": [0, 0]})
+    probs = lint([{"do": "row", "belt": "end:1", "machine": "assembling-machine-2", "recipe": "iron-gear-wheel",
+                   "count": 2}], w, None, {})
+    check("refs: lint passes over a step that uses a run-time end", not any("malformed" in p for p in probs), probs)
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):
