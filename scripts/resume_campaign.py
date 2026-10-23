@@ -33,7 +33,11 @@ def main() -> None:
     k = args[args.index("--instance") + 1]
     camp = ROOT / "bench" / "campaigns" / name
     state_path = camp / "campaign.json"
-    state = json.loads(state_path.read_text())
+    if state_path.exists():
+        state = json.loads(state_path.read_text())
+    else:  # still in its first generation: campaign.py writes this file when a generation ends
+        world = args[args.index("--world") + 1]
+        state = {"name": name, "stage": world, "gen": 0, "gens": [], "worlds": [world]}
     running = state["gen"] + 1
     for p in pids(f"bench/[c]ampaign.py --name {name} --"):
         os.kill(p, signal.SIGTERM)
