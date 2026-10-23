@@ -588,6 +588,18 @@ API.audit = function(req)
   return out
 end
 
+-- Named layouts the planners lay out and build on (a main bus: its lanes, taps and merges), kept in the save so
+-- they outlive a session and every serf sees the same ones. req.key + req.value sets one, req.delete drops it.
+API.layout = function(req)
+  storage.layout = storage.layout or {}
+  if req.key and req.delete then
+    storage.layout[req.key] = nil
+  elseif req.key and req.value ~= nil then
+    storage.layout[req.key] = req.value
+  end
+  return { layout = storage.layout }
+end
+
 API.progress = function(req)
   local f, s = game.forces.player, game.surfaces.nauvis
   local out = { tick = game.tick, techs = 0, items = {}, fluids = {}, ents = {}, by_recipe = {}, rockets = 0,
