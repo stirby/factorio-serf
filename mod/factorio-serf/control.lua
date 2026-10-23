@@ -508,6 +508,85 @@ end
 
 -- How far into the game the force is (read-only): research, totals made, machines standing, rockets. The names to
 -- count come with the request (jev/progress.py), so the list can grow without a mod release.
+-- How the base is doing, the way a player sizes it up: every machine's state, grouped by what it makes (with what
+-- the starved ones lack and where one of them stands), chests a person has to fill by hand, belt and pipe per
+-- machine, and the science the labs took in the last minute. Read-only; the serf's audit tool and the campaign's
+-- unattended score use it.
+API.audit = function(req)
+  local s, f = game.surfaces.nauvis, game.forces.player
+  local names = {}
+  for n, v in pairs(defines.entity_status) do names[v] = n end
+  local feeders, takers = {}, {}
+  for _, i in pairs(s.find_entities_filtered { type = 'inserter', force = f }) do
+    local d, p = i.drop_target, i.pickup_target
+    if d and d.unit_number then feeders[d.unit_number] = true end
+    if p and p.unit_number then takers[p.unit_number] = true end
+  end
+  local out = { machines = 0, status = {}, groups = {}, hand_fed = {}, belts = 0, pipes = 0, labs = 0,
+    labs_working = 0 }
+  local crafting = { ['assembling-machine'] = true, furnace = true, lab = true, ['mining-drill'] = true }
+  for _, e in pairs(s.find_entities_filtered { force = f, type = { 'assembling-machine', 'furnace', 'lab',
+    'mining-drill', 'container', 'transport-belt', 'underground-belt', 'splitter', 'pipe', 'pipe-to-ground' } }) do
+    local t = e.type
+    if crafting[t] then
+      out.machines = out.machines + 1
+      local st = names[e.status] or 'unknown'
+      out.status[st] = (out.status[st] or 0) + 1
+      local what = e.name
+      if t == 'assembling-machine' or t == 'furnace' then
+        local okR, r = pcall(e.get_recipe)
+        if okR and r then what = r.name elseif t == 'furnace' and e.previous_recipe then
+          pcall(function() what = e.previous_recipe.name.name or e.previous_recipe.name end)
+        end
+      elseif t == 'mining-drill' then
+        local okM, mt = pcall(function() return e.mining_target end)
+        what = 'mining ' .. ((okM and mt and mt.name) or '?')
+      elseif t == 'lab' then
+        out.labs = out.labs + 1
+        if st == 'working' then out.labs_working = out.labs_working + 1 end
+        what = 'lab'
+      end
+      if type(what) ~= 'string' then what = e.name end
+      local g = out.groups[what] or { n = 0, working = 0, starved = 0, blocked = 0, other = 0 }
+      g.n = g.n + 1
+      if st == 'working' or st == 'normal' then g.working = g.working + 1
+      elseif st:find('shortage') or st:find('missing') or st == 'no_ingredients' or st == 'no_minable_resources' then
+        g.starved = g.starved + 1
+        g.at = g.at or util.xy(e.position)
+        g.why = g.why or st
+      elseif st:find('full') or st:find('waiting_for_space') then
+        g.blocked = g.blocked + 1
+        g.at = g.at or util.xy(e.position)
+      else
+        g.other = g.other + 1
+        g.why_other = g.why_other or st
+        g.at = g.at or util.xy(e.position)
+      end
+      out.groups[what] = g
+    elseif t == 'container' then
+      if e.unit_number and takers[e.unit_number] and not feeders[e.unit_number] then
+        if #out.hand_fed < 40 then
+          local inv = e.get_inventory(defines.inventory.chest)
+          local top
+          for _, it in pairs(inv and inv.get_contents() or {}) do if not top or it.count > top.count then top = it end end
+          out.hand_fed[#out.hand_fed + 1] = { at = util.xy(e.position), holds = top and (top.count .. ' ' .. top.name) or 'nothing' }
+        end
+      end
+    elseif t == 'pipe' or t == 'pipe-to-ground' then out.pipes = out.pipes + 1
+    else out.belts = out.belts + 1 end
+  end
+  local stats = f.get_item_production_statistics(s)
+  out.science_per_min = {}
+  for _, n in pairs { 'automation-science-pack', 'logistic-science-pack', 'military-science-pack',
+    'chemical-science-pack', 'production-science-pack', 'utility-science-pack', 'space-science-pack' } do
+    local okF, v = pcall(function()
+      return stats.get_flow_count { name = n, category = 'output', precision_index = defines.flow_precision_index.one_minute, count = false } * 60
+    end)
+    if okF and v and v > 0 then out.science_per_min[n] = math.floor(v * 10 + 0.5) / 10 end
+  end
+  return out
+end
+
 API.progress = function(req)
   local f, s = game.forces.player, game.surfaces.nauvis
   local out = { tick = game.tick, techs = 0, items = {}, fluids = {}, ents = {}, by_recipe = {}, rockets = 0,

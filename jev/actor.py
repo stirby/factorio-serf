@@ -752,6 +752,23 @@ class Actor(FastPaths):
         async def diagnose(a):
             return json.dumps(await self.g.call("diagnose", item=a.get("item", "iron-plate"), surface="nauvis"),
                               separators=(",", ":"))[:8000]
+        async def rates(a):
+            from .ratios import solve, table
+            targets = a.get("targets") if isinstance(a.get("targets"), dict) else {a.get("item"): a.get("per_min")}
+            try:
+                targets = {str(k): float(v) for k, v in targets.items() if k and v}
+            except (TypeError, ValueError):
+                targets = {}
+            if not targets:
+                return "rates needs item and per_min (or targets {item: per_min})"
+            plan = solve(targets, assembler=a.get("assembler") or "assembling-machine-2",
+                         furnace=a.get("furnace") or "steel-furnace", belt=a.get("belt") or "transport-belt")
+            return table(plan, margin=float(a.get("margin") or 1.0))
+
+        async def audit(a):
+            from . import audit as base_audit
+            return base_audit.words(await self.g.call("audit", timeout=60))
+
         async def start_project(a):
             cur = self.thinker.current if self.thinker else None
             o = next((x for x in self.orders if cur and x.id == cur.order_id), None)
@@ -759,7 +776,8 @@ class Actor(FastPaths):
                 return "refused: this order already comes from a project; plan it as an order (smaller, if need be)"
             return self.start_project(str(a.get("goal") or (o.text if o else "")), o.speaker if o else "a player")
         return {"area": area, "find": find, "recipe": recipe, "free_space": free_space, "me": me, "say": say,
-                "techs": techs, "production": production, "diagnose": diagnose, "start_project": start_project}
+                "techs": techs, "production": production, "diagnose": diagnose, "start_project": start_project,
+                "rates": rates, "audit": audit}
 
     async def _lint(self, plan: dict) -> list[str]:
         pts = plan_points(plan.get("steps") or [])

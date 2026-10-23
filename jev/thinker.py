@@ -90,6 +90,16 @@ TOOLS = [
     ("diagnose", "Why an item or fluid is short across the base: made vs used per minute, and every machine that makes "
                  "or uses it grouped by state (working, starved of X, output full, no power...) with positions.",
      {"type": "object", "properties": {"item": {"type": "string"}}, "required": ["item"]}),
+    ("rates", "What a target rate takes, worked back to ore: machines per step (and which machine), oil refineries "
+              "and crackers, raw ore, crude and water a minute, drills, pumpjacks and belts. Size every production "
+              "build from it; margin 1.25 = 25% headroom (round up). targets {item: per_min} for several at once.",
+     {"type": "object", "properties": {"item": {"type": "string"}, "per_min": {"type": "number"},
+                                       "targets": {"type": "object"}, "margin": {"type": "number"},
+                                       "assembler": {"type": "string", "description": "default assembling-machine-2"},
+                                       "furnace": {"type": "string", "description": "default steel-furnace"}}}),
+    ("audit", "The whole base's health: machines working, starved or blocked, grouped by what they make (what the "
+              "starved lack, a position), chests filled by hand, belt and pipe per machine, and the science per "
+              "minute the labs actually get.", {"type": "object", "properties": {}}),
     ("techs", "Research: what's being researched, the queue, and what can be researched next with its packs "
               "(trigger techs say what unlocks them instead).", {"type": "object", "properties": {}}),
     ("block_info", "Where a built-in block would sit if placed at x,y with that rotation: its footprint, where each "
