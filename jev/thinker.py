@@ -362,6 +362,7 @@ class Thinker:
         self._last_more = False
         self.lint_rounds = 0
         interrupted = False
+        limited = False
         self.log_fn({"t": t0, "kind": "thinker_prompt", "req": req.kind, "order": req.order_id, "text": prompt})
         await self.client.query(prompt)
         texts = []
@@ -379,6 +380,7 @@ class Thinker:
                         if "usage limit" in b.text.lower() or "hit your session limit" in b.text:
                             self.stats.usage_limited = True
                             self.stats.limited_at = time.time()
+                            limited = True
             elif isinstance(msg, ResultMessage):
                 total = msg.total_cost_usd or 0.0
                 cost = max(0.0, total - self._session_cost)
@@ -393,6 +395,12 @@ class Thinker:
                              "text": "\n".join(texts)[-2000:], "error": msg.subtype if msg.is_error else None,
                              "in": u.get("input_tokens", 0) + u.get("cache_read_input_tokens", 0)
                              + u.get("cache_creation_input_tokens", 0), "out": u.get("output_tokens", 0)})
+        if limited:
+            # the request went unanswered, but it stays in the conversation: p11's lesson prompt ("don't submit a
+            # plan") was answered an hour later in place of the next order, which then closed "done" with nothing
+            # built. Start a fresh session so nothing carries over.
+            await self._restart()
         if not self._plan_submitted:
             # a turn without a plan (e.g. it only answered a question): tell the actor so it doesn't wait forever
-            await self.on_plan({"goal": None, "steps": [], "no_plan": True, "text": "\n".join(texts)[-500:]}, req)
+            await self.on_plan({"goal": None, "steps": [], "no_plan": True, "text": "\n".join(texts)[-500:],
+                                **({"limited": True} if limited else {})}, req)

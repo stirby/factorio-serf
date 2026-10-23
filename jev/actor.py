@@ -1177,6 +1177,10 @@ class Actor(FastPaths):
                 if not (self.thinker and self.thinker.stats.usage_limited):
                     await self.say("sorry, I'm stuck on this one (no plan)")
                 return False
+            if plan.get("no_plan") and plan.get("limited"):
+                # out of capacity, not an answer: p11's order closed "done" on "You've hit your session limit"
+                await self.say("my planner is out of capacity right now (usage limit); I'll have to leave this one")
+                return False
             if plan.get("no_plan") and plan.get("error"):
                 await self.say("my planner hit an error; trying again")
                 plan = None
