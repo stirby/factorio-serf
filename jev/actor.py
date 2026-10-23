@@ -786,7 +786,7 @@ class Actor(FastPaths):
         if not any(st.get("do") in ("bus", "tap", "bus_in") for st in steps) and \
                 not any("end:" in json.dumps(st) for st in steps):
             return steps
-        from .busgen import DIRS, Bus
+        from .busgen import DIRS, OPP, Bus
         try:
             buses = await self.runner.buses()
         except Exception:  # noqa: BLE001
@@ -809,11 +809,13 @@ class Actor(FastPaths):
                     b = buses[name]
                     a = self.runner._bus_row(b, st.get("at"))
                     if d == "tap":
-                        ents, ex, _ = b.tap(b.lane_index(st.get("lane")), a)
-                        nx, ny = DIRS[b.side]
+                        i = b.lane_index(st.get("lane"))
+                        tb = b.mirrored() if st.get("side") in ("opposite", OPP.get(b.side)) else b
+                        ents, ex, _ = tb.tap(2 * b.pairs - 1 - i if tb is not b else i, a)
+                        nx, ny = DIRS[tb.side]
                         run = max(1, int(st.get("run", 3)))
                         ents += [{"name": "transport-belt", "x": ex["x"] + nx * k, "y": ex["y"] + ny * k,
-                                  "direction": b.side} for k in range(run)]
+                                  "direction": tb.side} for k in range(run)]
                         ends[n] = [ex["x"] + nx * (run - 1), ex["y"] + ny * (run - 1)]
                     else:
                         try:

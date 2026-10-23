@@ -1361,7 +1361,7 @@ class Runner:
     async def _do_tap(self, s):
         """Take one lane off the bus: a splitter on the lane, the split-off belt under the later lanes to the bus's
         side and `run` tiles beyond it (default 3), ready for a row or a connect."""
-        from .busgen import DIRS, SPARE
+        from .busgen import DIRS, OPP, SPARE
         try:
             b = await self._bus(s.get("bus"))
             i = b.lane_index(s.get("lane"))
@@ -1375,12 +1375,18 @@ class Runner:
             return {"ok": False, "msg": f"tap: lane {i} of bus {b.name} is spare (nothing on it yet)"}
         if a < b.start(i):
             return {"ok": False, "msg": f"tap: lane {i} starts at row {b.start(i)}; tap it further down"}
-        ents, ex, mine = b.tap(i, a)
-        nx, ny = DIRS[b.side]
+        out_side = b.side
+        if s.get("side") in ("opposite", OPP.get(b.side)):  # leave the bus on its far side (a mirrored view)
+            mb = b.mirrored()
+            ents, ex, mine = mb.tap(2 * b.pairs - 1 - i, a)
+            out_side = mb.side
+        else:
+            ents, ex, mine = b.tap(i, a)
+        nx, ny = DIRS[out_side]
         run = max(1, int(s.get("run", 3)))
         for k in range(run):
             ents.append({"name": "transport-belt", "x": ex["x"] + nx * k, "y": ex["y"] + ny * k,
-                         "direction": b.side})
+                         "direction": out_side})
         end = [ex["x"] + nx * (run - 1), ex["y"] + ny * (run - 1)]
         import math as _m
         lane_tile = (_m.floor(mine[0][0]), _m.floor(mine[0][1]))
@@ -1396,7 +1402,7 @@ class Runner:
             b.joins.append({"kind": "tap", "lane": i, "at": a, "end": end})
             await self._save_bus(b)
         return {"ok": bool(r.get("ok")), "msg": f"tap on bus {b.name} lane {i} ({b.lanes[i]}) at row {a}: "
-                f"{r.get('msg')}; the split-off belt ends at {end[0]:g},{end[1]:g} running {b.side}",
+                f"{r.get('msg')}; the split-off belt ends at {end[0]:g},{end[1]:g} running {out_side}",
                 "end": end}
 
     async def _do_feed(self, s):

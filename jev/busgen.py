@@ -156,6 +156,18 @@ class Bus:
         first = out[0]
         return out, {"x": first["x"], "y": first["y"], "direction": back}
 
+    def mirrored(self) -> "Bus":
+        """The same bus seen from its other side: lane slots in reverse order (padded to whole pairs), taps coming
+        out on the opposite side. The layout is symmetric (two free columns on both sides of every pair), so a tap
+        laid on this view leaves the bus on the far side. Lane j here is lane 2P-1-j of the real bus."""
+        slots = list(self.lanes) + [SPARE] * (2 * self.pairs - len(self.lanes))
+        n = len(slots)
+        x, y = self.at(0, 4 * self.pairs - 3)
+        m = Bus(name=self.name, x=x, y=y, direction=self.direction, side=OPP[self.side], lanes=slots[::-1],
+                length=self.length, starts={str(n - 1 - int(k)): v for k, v in self.starts.items()},
+                joins=[dict(j, lane=n - 1 - int(j.get("lane", 0))) for j in self.joins])
+        return m
+
     def feed_entry(self, i: int) -> tuple[tuple[float, float], str]:
         """Where a supply line ends to feed lane i at its first tile: in the free gap column on the lane's outer side
         (the west lane of a pair from before it, the east lane from after it), pointing at the lane. Its first tile

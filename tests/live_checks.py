@@ -1167,8 +1167,43 @@ return out""") or {})
           set(ends[0]) == {"iron-plate"} and set(ends[1]) == {"copper-plate"}, ends)
 
 
+async def chk_tap_opposite(L: Live, state: dict):
+    from jev.busgen import Bus
+    g = L.g
+    x0, y0 = await L.site(30, 30)
+    await L.ev(f"""local f = game.forces.player
+if f.technologies['logistics'] then f.technologies['logistics'].researched = true end
+local c = storage.agents['serf'].char
+for n, k in pairs {{ ['transport-belt'] = 200, ['splitter'] = 6, ['underground-belt'] = 30 }} do c.insert {{ name = n, count = k }} end
+c.teleport {{ {x0} + 22, {y0} + 10 }}
+return true""")
+    runner = Runner(g, lambda r: None)
+    lanes = ["iron-plate", "copper-plate", "stone", "spare"]
+    hx, hy = x0 + 12.5, y0 + 0.5
+    await runner.run({"do": "bus", "name": "op", "x": hx, "y": hy, "direction": "south", "side": "east",
+                      "lanes": lanes, "length": 28})
+    t = await runner.run({"do": "tap", "bus": "op", "lane": "copper-plate", "at": 8, "side": "opposite", "run": 3})
+    b = Bus(name="op", x=hx, y=hy, direction="south", side="east", lanes=lanes, length=28)
+    heads = [b.at(0, b.u(i)) for i in range(3)]
+    feed = "local s = game.surfaces.nauvis\n" + "\n".join(
+        f"do local e = s.find_entity('transport-belt', {{{x}, {y}}}) if e then for l = 1, 2 do "
+        f"e.get_transport_line(l).insert_at_back({{ name = '{it}' }}) end end end"
+        for (x, y), it in zip(heads, lanes[:3])) + "\nreturn true"
+    t0 = time.monotonic()
+    while time.monotonic() - t0 < 30:
+        await L.ev(feed)
+        await asyncio.sleep(0.3)
+    await asyncio.sleep(8)
+    end = t.get("end") or [0, 0]
+    got = await L.ev(f"""local e = game.surfaces.nauvis.find_entity('transport-belt', {{ {end[0]}, {end[1]} }}) local out = {{}}
+if e then for l = 1, 2 do for _, c in pairs(e.get_transport_line(l).get_contents()) do out[c.name] = (out[c.name] or 0) + c.count end end end
+return out""") or {}
+    check("tap side=opposite: copper comes off on the west side (the bus's taps are east) and only copper",
+          t.get("ok") and end[0] < hx and set(got) == {"copper-plate"}, (t.get("msg", "")[:160], end, got))
+
+
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "pipegap": chk_pipe_gap, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "pipegap": chk_pipe_gap, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite}
 
 
 async def main() -> int:

@@ -1266,6 +1266,38 @@ def test_summary_line_end_pieces():
         l.get("first_piece") == "underground-belt (exit)" for l in lines), lines)
 
 
+
+def test_bus_opposite_taps():
+    from jev.busgen import Bus
+    ok_all, why = True, []
+    for d, side in (("south", "east"), ("east", "north"), ("west", "south")):
+        b = Bus(name="t", x=10.5, y=-4.5, direction=d, side=side, lanes=["a", "b", "c", "d", "e"], length=40)
+        mb = b.mirrored()
+        lanes = b.lay()
+        lane_tiles = {i: {(math.floor(x), math.floor(y)) for x, y in (b.at(k, b.u(i)) for k in range(b.length))}
+                      for i in range(5)}
+        for i in range(5):
+            a = 6 + 6 * i
+            tap, ex, mine = mb.tap(2 * b.pairs - 1 - i, a)
+            mt = (math.floor(mine[0][0]), math.floor(mine[0][1]))
+            if mt not in lane_tiles[i]:
+                ok_all = False
+                why.append((d, side, i, "splitter not on lane", mt))
+                continue
+            rest = [e for e in lanes if (math.floor(e["x"]), math.floor(e["y"])) != mt]
+            seen, bad = _flow(rest + tap, b.at(0, b.u(i)))
+            exit_t = (math.floor(ex["x"]), math.floor(ex["y"]))
+            end_t = tuple(math.floor(v) for v in b.at(b.length - 1, b.u(i)))
+            others = set().union(*(lane_tiles[j] for j in range(5) if j != i))
+            # the exit lies past the bus on the side opposite `side`
+            nx, ny = {"north": (0, -1), "east": (1, 0), "south": (0, 1), "west": (-1, 0)}[side]
+            beyond = (exit_t[0] - math.floor(b.x)) * nx + (exit_t[1] - math.floor(b.y)) * ny < -1
+            if exit_t not in seen or end_t not in seen or seen & others or bad or not beyond:
+                ok_all = False
+                why.append((d, side, i, exit_t in seen, end_t in seen, len(seen & others), bad[:1], beyond))
+    check("bus: a tap with side=opposite carries its lane out past the far side, every lane, no mixing", ok_all, why)
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):
