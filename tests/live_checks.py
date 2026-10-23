@@ -444,6 +444,69 @@ return true""")
     await L.ev("storage.agents['serf'].char.get_main_inventory().clear() return true")
 
 
+async def chk_route_detour(L: Live, state: dict):
+    """A 16-tile pipe whose way is barred by a block of walls thicker than an underground reaches: the route has to go
+    round, which the default node budget can't find; the retry with a bigger budget does."""
+    g = L.g
+    X0, Y0 = 3000, 3400
+    await L.ev(f"""local s, f = game.surfaces.nauvis, game.forces.player
+s.request_to_generate_chunks({{ {X0}, {Y0} }}, 4)
+s.force_generate_chunk_requests()
+local tiles = {{}}
+for x = {X0} - 100, {X0} + 100 do for y = {Y0} - 40, {Y0} + 60 do tiles[#tiles + 1] = {{ name = 'refined-concrete', position = {{ x, y }} }} end end
+s.set_tiles(tiles)
+for _, e in pairs(s.find_entities_filtered {{ area = {{ {{ {X0} - 100, {Y0} - 40 }}, {{ {X0} + 100, {Y0} + 60 }} }} }}) do
+  if e.type ~= 'character' then e.destroy() end
+end
+-- a cup open to the south, walls 12 thick (more than an underground reaches): the start is inside at the top,
+-- the goal just north of the cup, so the line has to go out the bottom and round
+local function wall(x0, y0, x1, y1)
+  for x = x0, x1 do for y = y0, y1 do s.create_entity {{ name = 'stone-wall', position = {{ x + 0.5, y + 0.5 }}, force = f }} end end
+end
+wall({X0} - 42, {Y0} - 12, {X0} + 42, {Y0} - 1)
+wall({X0} - 42, {Y0}, {X0} - 31, {Y0} + 40)
+wall({X0} + 31, {Y0}, {X0} + 42, {Y0} + 40)
+local c = storage.agents['serf'].char
+c.teleport({{ {X0} + 0.5, {Y0} + 2.5 }})
+c.get_main_inventory().clear()
+c.insert {{ name = 'pipe', count = 400 }}
+c.insert {{ name = 'pipe-to-ground', count = 20 }}
+return true""")
+    t0 = time.time()
+    r = await g.run({"op": "connect", "item": "pipe", "from": [X0 + 0.5, Y0 + 0.5], "to": [X0 + 0.5, Y0 - 16.5]},
+                    timeout=400)
+    check("route: a 17-tile pipe from inside a walled cup goes out and round (bigger search on retry)",
+          r.get("ok"), (str(r.get("msg"))[:200], f"{time.time() - t0:.0f}s"))
+    await L.ev("storage.agents['serf'].char.get_main_inventory().clear() return true")
+
+
+async def chk_route_pocket(L: Live, state: dict):
+    """A water line to a tile ringed by crude pipes (no undergrounds): the failure says the end is in a closed pocket
+    walled in by crude-oil pipes, not "search limit"."""
+    g = L.g
+    x0, y0 = await L.site(24, 12)
+    gx, gy = x0 + 18, y0 + 6
+    await L.ev(f"""local s, f = game.surfaces.nauvis, game.forces.player
+local src = s.create_entity {{ name = 'infinity-pipe', position = {{ {gx} + 4.5, {gy} + 0.5 }}, force = f }}
+src.set_infinity_pipe_filter {{ name = 'crude-oil', percentage = 1, mode = 'at-least' }}
+for dx = -3, 3 do for dy = -3, 3 do
+  if math.max(math.abs(dx), math.abs(dy)) == 3 then
+    s.create_entity {{ name = 'pipe', position = {{ {gx} + dx + 0.5, {gy} + dy + 0.5 }}, force = f }}
+  end
+end end
+local c = storage.agents['serf'].char
+c.teleport({{ {x0} + 1.5, {y0} + 9.5 }})
+c.insert {{ name = 'pipe', count = 50 }}
+return true""")
+    await asyncio.sleep(2)
+    r = await g.run({"op": "connect", "item": "pipe", "from": [x0 + 1.5, y0 + 6.5], "to": [gx + 0.5, gy + 0.5],
+                     "fluid": "water", "underground": False}, timeout=60)
+    why = str(r.get("msg"))
+    check("route: an end ringed by crude pipes is reported as a closed pocket walled in by crude-oil pipes",
+          not r.get("ok") and "closed pocket of 9 free tiles" in why and "crude-oil pipes" in why, why[:300])
+    await L.ev("storage.agents['serf'].char.get_main_inventory().clear() return true")
+
+
 async def chk_ug_pair(L: Live, state: dict):
     g = L.g
     x0, y0 = await L.site(10, 3)
@@ -1324,7 +1387,7 @@ return out""") or {}
 
 
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "clearworking": chk_clear_working, "pipegap": chk_pipe_gap, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "detour": chk_route_detour, "pocket": chk_route_pocket, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "clearworking": chk_clear_working, "pipegap": chk_pipe_gap, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe}
 
 
 async def main() -> int:

@@ -111,10 +111,10 @@ function route.find(surface, from, to, opts)
                   local okL, flt = pcall(fb.get_filter, i)
                   name = okL and flt and flt.name or nil
                 end
-                if name and name ~= opts.fluid then return true end
+                if name and name ~= opts.fluid then return name end
                 if name == opts.fluid then mine = true end
               end
-              if not mine then return true end -- empty: some other line's
+              if not mine then return "empty" end -- empty: some other line's
             end
           end
         end
@@ -175,6 +175,57 @@ function route.find(surface, from, to, opts)
     end
     return table.concat(around, ", ")
   end
+  -- The free tiles reachable from x,y on the surface (no undergrounds), up to cap: nil when there are more (open
+  -- ground), else their count and what walls them in. p6's 13-tile petroleum pipe failed "within search limit" at
+  -- 6,000 and at 24,000 nodes alike: its inlet sat in a pocket closed off by other fluids' pipes.
+  local function pocket(x0, y0, cap)
+    local seen, q, walls = { [key(x0, y0)] = true }, { { x0, y0 } }, {}
+    local head = 1
+    while head <= #q do
+      if #q > cap then return nil end
+      local pt = q[head]
+      head = head + 1
+      for _, d in ipairs(DIRS) do
+        local x, y = pt[1] + d[1], pt[2] + d[2]
+        local k = key(x, y)
+        if not seen[k] then
+          seen[k] = true
+          if free(x, y) then
+            q[#q + 1] = { x, y }
+          else
+            local es = surface.find_entities_filtered { area = { { x + 0.2, y + 0.2 }, { x + 0.8, y + 0.8 } }, limit = 1,
+              type = { "resource", "character", "corpse", "item-entity" }, invert = true }
+            local w
+            if es[1] then w = es[1].name
+            else
+              local okT, t = pcall(surface.get_tile, x, y)
+              local tn = (okT and t and t.valid) and t.name or "?"
+              local other = opts.fluid and other_fluid_near(x, y)
+              w = (tn:find("water") and tn)
+                or (other == "empty" and "free ground beside an empty pipe of another line")
+                or (other and ("free ground beside " .. other .. " pipes"))
+                or (opts.belt and "free ground an open belt end points into") or tn
+            end
+            walls[w] = (walls[w] or 0) + 1
+          end
+        end
+      end
+    end
+    return #q, walls
+  end
+  local function pocket_words(x0, y0, what)
+    local n, walls = pocket(x0, y0, 3000)
+    if not n then return nil end
+    local parts = {}
+    for w, c in pairs(walls) do parts[#parts + 1] = { c, w } end
+    table.sort(parts, function(a, b) return a[1] > b[1] end)
+    local ws = {}
+    for i = 1, math.min(#parts, 6) do ws[#ws + 1] = parts[i][1] .. " " .. parts[i][2] end
+    return what .. " " .. x0 .. "," .. y0 .. " sits in a closed pocket of " .. n .. " free tiles, walled in by "
+      .. table.concat(ws, ", ") .. (opts.fluid and " (a pipe beside another fluid's pipe would join them, so those are walls)" or "")
+      .. (hop and "; going under found no way out either" or "")
+      .. ". Make an opening (pick up what's in the way), or end the line somewhere else"
+  end
   local function why_not(reason)
     -- the last step into the goal can't be in direction gf: from the tile at goal - gf
     local gin = opts.goal_forbid and { -opts.goal_forbid[1], -opts.goal_forbid[2] } or nil
@@ -182,6 +233,8 @@ function route.find(surface, from, to, opts)
     if gb then return "end tile " .. gx .. "," .. gy .. " has no free tile beside it to come in from (" .. gb .. ")" end
     local sb = (not hop) and no_way(sx, sy, opts.start_forbid)
     if sb then return "start tile " .. sx .. "," .. sy .. " has no free tile beside it to leave by (" .. sb .. ")" end
+    local pw = pocket_words(gx, gy, "the end") or pocket_words(sx, sy, "the start")
+    if pw then return pw end
     return reason .. " (searched " .. expanded .. " tiles; got as close as " .. best.x .. "," .. best.y .. ", "
       .. best.h .. " tiles from the end)"
   end

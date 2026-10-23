@@ -1857,6 +1857,13 @@ H.connect = {
       ropts.belt = ent.type == "transport-belt"
       local err
       path, err = route.find(c.surface, from, to, ropts)
+      if not path and err and err:find("search limit", 1, true) and not ropts.max_nodes then
+        -- a short line round a crowded block can need a wide detour: the default budget is ~100 nodes a tile of
+        -- distance (6000 at least), and p6's oil block failed 13-tile pipes with "8 tiles from the end"
+        local d = math.abs(math.floor(to.x) - math.floor(from.x)) + math.abs(math.floor(to.y) - math.floor(from.y))
+        ropts.max_nodes = math.min(120000, 4 * math.max(6000, 100 * d))
+        path, err = route.find(c.surface, from, to, ropts)
+      end
       if not path then return fail("can't route " .. item .. ": " .. err) end
       if job.join_into then path[#path] = nil end -- the belt it feeds is already there
       if #path == 0 then return ok("already connected: " .. xystr(from) .. " is next to the belt it feeds") end
