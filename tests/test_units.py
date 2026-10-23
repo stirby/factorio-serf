@@ -1127,6 +1127,18 @@ def test_row_extends_short_belt():
     check("lint: a row along the belt a merge_lanes step lays earlier in the plan isn't flagged (b3)", probs == [], probs)
 
 
+
+def test_belt_end_targets():
+    from jev.steps import belt_end_targets
+    w = World({"ents": [belt(1, 0.5, 0.5, "east"), belt(2, 1.5, 0.5, "east"),
+                        belt(3, 5.5, 5.5, "south"), belt(4, 5.5, 6.5, "south")], "center": [0, 0]})
+    t = belt_end_targets(w)
+    check("route: the free tile in front of each open belt end is kept clear, and only those",
+          t == {(2, 0), (5, 7)}, t)
+    t2 = belt_end_targets(w, {(1, 0)})
+    check("route: ... except where the belt is a line's own source (an endpoint)", t2 == {(5, 7)}, t2)
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):

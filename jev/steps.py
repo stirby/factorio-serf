@@ -130,6 +130,27 @@ def _xy(s: dict, key: str = "") -> tuple[float, float] | None:
     return None
 
 
+def belt_end_targets(w, ends: set | None = None) -> set[tuple[int, int]]:
+    """Free tiles an open belt end (belt, underground exit, splitter) points into: a new belt laid on one takes that
+    end's items, side-loaded or head on. Belts standing on `ends` (a line's own source) don't count."""
+    import math as _m
+    from .world import DIRS
+    out = set()
+    for e in w.ents.values():
+        t, d = e.get("t"), e.get("d")
+        if d not in DIRS or not (t in ("transport-belt", "splitter") or (t == "underground-belt" and e.get("ug") == "output")):
+            continue
+        if ends and (_m.floor(e["x"]), _m.floor(e["y"])) in ends:
+            continue
+        dx, dy = DIRS[d]
+        offs = (-0.5, 0.5) if t == "splitter" else (0.0,)
+        for o in offs:
+            tile = (_m.floor(e["x"] - dy * o + dx), _m.floor(e["y"] + dx * o + dy))
+            if tile not in w.tile:
+                out.add(tile)
+    return out
+
+
 def describe(step: dict) -> str:
     d = step.get("do", "?")
     if step.get("text"):
@@ -1405,6 +1426,7 @@ class Runner:
         sc = await self.g.scan(center=(cx, cy), radius=min(rad, 96), tiles=True)
         w = World(sc)
         blocked = {tuple(map(int, b)) for b in (sc.get("blocked") or [])} | set(w.tile)
+        blocked |= belt_end_targets(w, {p for _, a, b in nets for p in (a, b)})  # would take that belt's items (b4)
         # existing belts on the endpoints are fine to replace? no: endpoints must be free tiles
         for _, a, b in nets:
             blocked.discard(a)
