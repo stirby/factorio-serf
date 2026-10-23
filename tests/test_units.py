@@ -817,6 +817,27 @@ def test_project_stuck():
               and json.loads((Path(d) / "level.json").read_text())["level"] == 8)
 
 
+def test_fluid_reaches():
+    import asyncio
+    from types import SimpleNamespace
+    from jev.actor import Actor
+
+    def actor(fin):
+        ents = [{"u": 1, "n": "chemical-plant", "t": "assembling-machine", "x": 10.5, "y": 10.5, "w": 3, "h": 3,
+                 "fin": fin}]
+        async def world(c, r):
+            return World({"ents": ents, "center": [10, 10]})
+        return SimpleNamespace(world=world)
+    chk = {"check": "fluid_reaches", "x": 10.5, "y": 10.5, "fluid": "petroleum-gas"}
+    ok, msg = asyncio.run(Actor._check(actor([{"want": "petroleum-gas", "have": "petroleum-gas", "amt": 40}]), chk))
+    check("fluid_reaches: petroleum at the plastic plant's inlet passes", ok, msg)
+    ok, msg = asyncio.run(Actor._check(actor([{"want": "petroleum-gas", "have": None, "amt": 0}]), chk))
+    check("fluid_reaches: an empty inlet fails and says so (p1's false 'done')", not ok and "no petroleum-gas" in msg,
+          msg)
+    ok, msg = asyncio.run(Actor._check(actor([{"want": "petroleum-gas", "amt": 0, "pipes": ["water"]}]), chk))
+    check("fluid_reaches: ... and names what its pipes carry instead", not ok and "carry water" in msg, msg)
+
+
 def test_keeper_state():
     import tempfile
     from types import SimpleNamespace

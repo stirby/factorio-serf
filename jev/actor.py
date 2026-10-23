@@ -1184,6 +1184,12 @@ class Actor(FastPaths):
                            for st in plan.get("steps") or []):
             # an acknowledgement or a research queue, or a step that reports exactly what it did
             return True, "nothing more to check"
+        # a pipe laid to a machine's inlet for a fluid: done when that fluid arrives there, not when the pipe stands
+        for st in plan.get("steps") or []:
+            if st.get("do") == "connect" and st.get("to_fluid") and st.get("to") and not any(
+                    x.get("check") == "fluid_reaches" and x.get("fluid") == st["to_fluid"] for x in exp):
+                exp.append({"check": "fluid_reaches", "x": float(st["to"][0]), "y": float(st["to"][1]),
+                            "fluid": st["to_fluid"]})
         builds = [st for st in plan.get("steps") or [] if st.get("do") in ("ghosts", "block", "design", "stamp",
                                                                             "place", "build_ghosts", "route")]
         if builds and not any(e.get("check") == "built" for e in exp):
@@ -1310,6 +1316,24 @@ class Actor(FastPaths):
                 w = await self.world(tuple(near), int(r) + 3)
                 bad = [m for m in w.near(near, r) if m.get("pw")]
                 return (not bad), ("" if not bad else f"{len(bad)} machines without power near {fmt_xy(near)}")
+            if c == "fluid_reaches":
+                # the machine at x,y gets the fluid at an inlet (p1: "petroleum pipe order 'done' in 3 m but false:
+                # plastic plants still no petroleum")
+                w = await self.world((e["x"], e["y"]), 4)
+                ent = w.at(e["x"], e["y"])
+                if not ent:
+                    return False, f"nothing at {e['x']},{e['y']}"
+                fin = ent.get("fin")
+                if fin is None:
+                    return True, ""  # no inlet data for this kind of building: don't block on it
+                fl = e["fluid"]
+                if any((b.get("have") == fl or b.get("want") == fl) and (b.get("amt") or 0) > 0 for b in fin):
+                    return True, ""
+                inlet = next((b for b in fin if b.get("want") == fl), None)
+                pipes = ", ".join(inlet.get("pipes") or []) if inlet else ""
+                return False, (f"no {fl} reaches the {ent['n']} at {fmt_xy((ent['x'], ent['y']))} yet"
+                               + (f" (the pipes at its {fl} inlet carry {pipes})" if pipes else
+                                  " (its inlet's pipes are empty: the source isn't flowing or the line doesn't reach it)"))
             if c == "belt_carries":
                 w = await self.world((e["x"], e["y"]), 4)
                 ent = w.at(e["x"], e["y"])
