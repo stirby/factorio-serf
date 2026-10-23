@@ -777,11 +777,38 @@ class Actor(FastPaths):
                 kw["fluid"] = str(a["fluid"])
             r = await self.g.call("pipes", timeout=60, **kw)
             at = r.get("at") or {}
-            out = [f"{at.get('n')} at [gps={at['p'][0]},{at['p'][1]}]" + (f" ({at['status']})" if at.get("status") else "")]
+            out = [f"{at.get('n')} at [gps={at['p'][0]},{at['p'][1]}]" + (f" ({at['status']})" if at.get("status") not in (None, "working") else "")]
+            gps = lambda q: f"[gps={q[0]},{q[1]}]"  # noqa: E731
             for net in r.get("lines") or []:
                 port = net.get("port") or {}
                 out.append(f"- port {port.get('index')} ({port.get('kind')}, {port.get('fluid') or 'no fluid set'}): "
                            + base_audit.line_words(net, ends=8, origin=port.get("kind")))
+                if net.get("sources") or port.get("kind") == "output":
+                    continue
+                # nothing feeds this line: follow it past each break toward whatever should (b9: the first trace
+                # stopped at a gap, and the second break further on took another call from the well's end)
+                seen = {tuple(e["at"]) for e in net.get("ends") or []}
+                frontier, hops = list(net.get("ends") or []), 0
+                while frontier and hops < 3:
+                    e = frontier.pop(0)
+                    nxt = e.get("further") or e.get("next_to")
+                    if not nxt or not nxt.get("p") or nxt.get("blocks") or tuple(nxt["p"]) in seen:
+                        continue
+                    seen.add(tuple(nxt["p"]))
+                    try:
+                        r2 = await self.g.call("pipes", x=float(nxt["p"][0]), y=float(nxt["p"][1]), timeout=60)
+                    except Exception:  # noqa: BLE001
+                        continue
+                    n2 = next(iter(r2.get("lines") or []), None)
+                    if not n2:
+                        continue
+                    hops += 1
+                    out.append(f"  past the break at {gps(e['at'])}, the {nxt.get('n')} at {gps(nxt['p'])} is on: "
+                               + base_audit.line_words(n2, ends=4))
+                    if n2.get("sources") or (port.get("fluid") and n2.get("fluid") == port["fluid"]):
+                        break  # reached the fluid: the break before this is the one to mend
+                    seen |= {tuple(x["at"]) for x in n2.get("ends") or []}
+                    frontier += list(n2.get("ends") or [])
             return "\n".join(out) if len(out) > 1 else out[0] + ": no fluid ports"
 
         async def start_project(a):

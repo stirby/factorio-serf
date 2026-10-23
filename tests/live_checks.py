@@ -1087,6 +1087,15 @@ return true""")
     check("pipes: from the source, the water line is 5 pieces holding water and ends 1 tile short of the dry pipe",
           net.get("fluid") == "water" and net.get("pipes") == 5
           and any((e.get("further") or {}).get("gap") == 1 and e.get("toward") == "west" for e in ends), net)
+    import tempfile
+    from jev.actor import Actor
+    from jev.typesafe import reader
+    d = Path(tempfile.mkdtemp())
+    act = Actor(g, reader(log_path=d / "jev.jsonl"), d, "serf", think=False)
+    txt = await act._thinker_tools()["pipes"]({"x": x0 + 3.5, "y": y0 + 6.5})
+    print("   ", txt.replace("\n", "\n    "))
+    check("pipes tool: from the dry machine it follows the line past the gap to the water beyond",
+          "past the break at" in txt and "holding water" in txt.split("past the break at", 1)[1], txt[:300])
 
 
 async def chk_long_pipe(L: Live, state: dict):

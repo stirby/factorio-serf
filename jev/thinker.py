@@ -110,7 +110,8 @@ TOOLS = [
               "minute the labs actually get.", {"type": "object", "properties": {}}),
     ("pipes", "Follow a fluid line pipe by pipe from x,y (a pipe, a machine, a pumpjack...): what it holds and how "
               "full, what feeds it and what it feeds, and every open end with what's past it (a gap to the next pipe, "
-              "a pipe of another fluid, an underground with no exit). When a machine lacks a fluid, call this on it "
+              "a pipe of another fluid, an underground with no exit, a ghost, a segment too long to flow); when nothing feeds "
+              "the line it follows it on past up to 3 breaks toward the fluid. When a machine lacks a fluid, call this on it "
               "before laying anything new: mend the break it finds instead of building a second line.",
      {"type": "object", "properties": {"x": {"type": "number"}, "y": {"type": "number"},
                                        "fluid": {"type": "string", "description": "only the port for this fluid"}},
