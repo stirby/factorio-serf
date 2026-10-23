@@ -1046,6 +1046,10 @@ def test_bus():
     samples = [(0, a, 8) for a in rows] + [(1, a, 8 if a < 20 else 0) for a in rows] + [(2, a, 0) for a in rows] + \
         [(3, a, 3) for a in rows]
     words = fb.flow_words(samples)
+    check("bus flow: a lane nothing taps that stops at row 16 is still filling, not used up",
+          "filling, items reach row 16" in words[1], words[1])
+    fb.joins.append({"kind": "tap", "lane": 1, "at": 8, "end": [0, 0]})
+    words = fb.flow_words(samples)
     check("bus flow: backed up / used up by row / empty / flowing, one line per lane in use",
           len(words) == 4 and "backed up to the end" in words[0] and "used up by row 16" in words[1] and
           "empty" in words[2] and "flowing, 3/8" in words[3], words)

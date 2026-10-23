@@ -210,8 +210,13 @@ class Bus:
             elif end >= 0.75:
                 out.append(f"{name}: backed up to the end (more comes in than is taken: room to tap more)")
             elif end < 0.1 and last is not None and last < pts[-1][0]:
-                out.append(f"{name}: used up by row {last} (taps take all of it: more supply needed before "
-                           f"adding consumers)")
+                tapped = any(j.get("kind") == "tap" and int(j.get("lane", -1)) == i and int(j.get("at", 0)) <= last + 4
+                             for j in self.joins)
+                if tapped:
+                    out.append(f"{name}: used up by row {last} (taps take all of it: more supply needed before "
+                               f"adding consumers)")
+                else:  # nothing takes from it up there: a new or newly fed lane that hasn't filled yet
+                    out.append(f"{name}: filling, items reach row {last} so far (nothing taps it before there)")
             else:
                 out.append(f"{name}: flowing, {end * 8:.0f}/8 full near the end")
         return out
