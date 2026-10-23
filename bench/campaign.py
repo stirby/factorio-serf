@@ -149,6 +149,7 @@ class Generation:
         actor = Actor(g, jev, self.dir, "serf", think=True, thinker_effort=camp.effort)
         actor.project_effort = camp.strategist_effort
         actor.allow_projects = camp.mode == "project"  # the strategist is the project manager in its mode
+        actor.project_style = camp.style
         actor.state_path = camp.dir / "actor_state.json"  # the keepers' lists carry over to the next generation
         await actor.start()
         orig_say = actor.say
@@ -302,6 +303,7 @@ class Campaign:
     def __init__(self, a):
         self.name, self.k, self.effort, self.strategist_effort = a.name, a.instance, a.effort, a.strategist_effort
         self.mode = a.mode
+        self.style = a.style
         self.target = a.target or (str(a.target_level) if a.target_level else None)
         self.order = a.order or PROJECT_ORDER
         self.goal = a.order.replace("@serf", "").replace("project:", "").strip() if a.order else GOAL
@@ -369,6 +371,12 @@ class Campaign:
                 say(f"{self.name}: two crashed generations in a row, stopping")
                 self.save_state()
                 return
+            if summ.get("final_save"):
+                # the score: the base left alone (no serf) for a few minutes, on a spare server, in the background
+                subprocess.Popen([sys.executable, str(ROOT / "scripts" / "audit_base.py"), summ["final_save"],
+                                  "--minutes", "5", "--instance", "auto", "--label", f"g{n}",
+                                  "--append", str(self.dir / "audits.jsonl")],
+                                 cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
             if not summ.get("error"):
                 self.state["stage"] = self.next_stage(summ)
             else:
@@ -411,6 +419,8 @@ def main() -> None:
     p.add_argument("--target", default=None,
                    help="end the generation as soon as these milestones are met, e.g. 5 or 7,8 (the task ladder)")
     p.add_argument("--order", default=None, help="project mode: the order that starts it (default: beat the game)")
+    p.add_argument("--style", choices=["player", "classic"], default="player",
+                   help="how the project manager builds: player (rates first, base plan, no hand-feeding) or classic")
     a = p.parse_args()
     os.environ["JEV_READER"] = a.reader
     asyncio.run(Campaign(a).run(a.gens, a.gen_hours))

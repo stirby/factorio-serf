@@ -151,17 +151,64 @@ async def audit(save: str, minutes: float, k: int) -> dict:
     }
     d = ROOT / "bench" / "audits"
     d.mkdir(parents=True, exist_ok=True)
-    (d / f"{save}.json").write_text(json.dumps(out, indent=1))
+    (d / f"{Path(save).stem}.json").write_text(json.dumps(out, indent=1))
     return out
+
+
+AUDIT_SLOTS = range(50, 60)  # campaigns audit their generations here, in the background
+
+
+def claim_slot() -> tuple[int, Path]:
+    """A free audit slot, held by a lock file until the audit ends (several campaigns may finish a generation at
+    once)."""
+    import os
+    from instance import INSTANCES
+    for _ in range(120):
+        for k in AUDIT_SLOTS:
+            d = INSTANCES / str(k)
+            d.mkdir(parents=True, exist_ok=True)
+            lock = d / "audit.lock"
+            try:
+                fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            except FileExistsError:
+                if time.time() - lock.stat().st_mtime > 3600:  # left by a crashed audit
+                    lock.unlink(missing_ok=True)
+                continue
+            os.write(fd, str(os.getpid()).encode())
+            os.close(fd)
+            if Instance(k).info().get("running"):
+                lock.unlink(missing_ok=True)
+                continue
+            return k, lock
+        time.sleep(30)
+    raise RuntimeError("no free audit slot in 50-59")
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("save")
+    ap.add_argument("save", help="a save name in server/factorio/saves, or a path")
     ap.add_argument("--minutes", type=float, default=5)
-    ap.add_argument("--instance", type=int, default=61)
+    ap.add_argument("--instance", default="61", help="a slot, or auto (a free one in 50-59)")
+    ap.add_argument("--append", default=None, help="also append the result as a JSON line to this file")
+    ap.add_argument("--label", default=None)
     a = ap.parse_args()
-    print(json.dumps(asyncio.run(audit(a.save, a.minutes, a.instance)), indent=1))
+    lock = None
+    if a.instance == "auto":
+        k, lock = claim_slot()
+    else:
+        k = int(a.instance)
+    try:
+        out = asyncio.run(audit(a.save, a.minutes, k))
+    finally:
+        if lock:
+            lock.unlink(missing_ok=True)
+    if a.label:
+        out["label"] = a.label
+    out["t"] = time.time()
+    if a.append:
+        with open(a.append, "a") as f:
+            f.write(json.dumps(out) + "\n")
+    print(json.dumps(out, indent=1))
 
 
 if __name__ == "__main__":

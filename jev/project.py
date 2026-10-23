@@ -47,7 +47,25 @@ report (and production, diagnose, area), not with what {name} says.
 - Give the largest orders {name} can finish on its own. Start with ones you're confident about; grow them as they \
 succeed. When one fails, look at why (area, diagnose) and break it down or change approach. Don't repeat a failed \
 order unchanged.
-- Build like a good player. Your score is unattended science per minute: the science the labs keep getting while \
+{build}- {name} hand-crafts every building it places unless chests hold them, and a big craft keeps it busy for minutes. \
+Once there's power and electronic circuits, have it build the two mall blocks (mall-logistics, mall-buildings) fed by \
+belts; it takes from their chests from then on.
+- Name places with [gps=x,y] tags; pick them with free_space and area. Keep the base compact enough to walk.
+- Each turn: look as much as you need (a few tool calls), note anything worth remembering (the plan, where things \
+are, what failed and why), then end with exactly one of give_order, wait or finish. {name} works on an order until \
+it's done or failed; then you get the next turn.
+- Players may also give {name} orders or say things; they're in the report. Players come first: fit your plan \
+around what they ask.
+- When a run of orders got a sub-goal done cleanly, save it with save_playbook so later projects can reuse it.
+- finish when the goal is met (done=true), or when you've tried the ways you can think of and it can't be done from \
+here (done=false, say what's in the way).
+
+Milestones, for reference: {milestones}
+"""
+
+# how the manager is told to build: "player" (rates first, one base plan, ahead of demand, no hand-feeding;
+# docs/BUILD-LIKE-A-PLAYER.md) or "classic" (the rocket runs of 22 October), for comparing the two
+BUILD = {"player": """- Build like a good player. Your score is unattended science per minute: the science the labs keep getting while \
 {name} stands still. Each report has the base's health (audit): machines working, what the rest lack, chests filled \
 by hand. A base that only runs while {name} carries things isn't done.
   - Pick the rate first: a science target (say 30 a minute of each pack you make; raise it later), and size every \
@@ -63,21 +81,10 @@ load. Add mines before patches run dry (the audit shows drills on exhausted ore)
 replace each with a feed.
   - When a line is tangled, rebuild it to the plan rather than patching it again.
   - Research runs whenever labs and packs allow.
-- {name} hand-crafts every building it places unless chests hold them, and a big craft keeps it busy for minutes. \
-Once there's power and electronic circuits, have it build the two mall blocks (mall-logistics, mall-buildings) fed by \
-belts; it takes from their chests from then on.
-- Name places with [gps=x,y] tags; pick them with free_space and area. Keep the base compact enough to walk.
-- Each turn: look as much as you need (a few tool calls), note anything worth remembering (the plan, where things \
-are, what failed and why), then end with exactly one of give_order, wait or finish. {name} works on an order until \
-it's done or failed; then you get the next turn.
-- Players may also give {name} orders or say things; they're in the report. Players come first: fit your plan \
-around what they ask.
-- When a run of orders got a sub-goal done cleanly, save it with save_playbook so later projects can reuse it.
-- finish when the goal is met (done=true), or when you've tried the ways you can think of and it can't be done from \
-here (done=false, say what's in the way).
-
-Milestones, for reference: {milestones}
-"""
+""",
+         "classic": """- Build for throughput that lasts: mines belted to furnaces, fuel by belt or inserter rather than by hand, power that \
+scales with what's built, research running whenever labs and packs allow.
+"""}
 
 OWN_TOOLS = [
     ("give_order", "Give the serf its next order (ends your turn). Phrase it as a player would in chat, with "
@@ -108,8 +115,10 @@ OWN_TOOLS = [
 
 class Project:
     def __init__(self, actor, goal: str, speaker: str, workdir: Path, model: str = MODEL, effort: str | None = None,
-                 deadline: float | None = None):
+                 deadline: float | None = None, style: str = "player"):
         self.actor, self.goal, self.speaker = actor, goal.strip(), speaker
+        self.style = style if style in BUILD else "player"
+        self.health = ""
         self.workdir, self.model, self.effort, self.deadline = workdir, model, effort, deadline
         self.workdir.mkdir(parents=True, exist_ok=True)
         self.journal_path = workdir / "journal.jsonl"
@@ -163,7 +172,7 @@ class Project:
                 if not self.active:
                     break
                 p = await self._probe()
-                self.health = await self._audit()
+                self.health = await self._audit() if self.style == "player" else ""
                 when = f"+{int((time.time() - self.t0) / 60)}m"
                 try:
                     d = await self._decide(self._report(p), when)
@@ -374,6 +383,7 @@ class Project:
         sdk_tools += [tool(n, d, s)(make(n)) for n, d, s in OWN_TOOLS]
         server = create_sdk_mcp_server("world", tools=sdk_tools)
         system = SYSTEM.format(name=self.actor.name, goal=self.goal, speaker=self.speaker,
+                               build=BUILD[self.style].format(name=self.actor.name),
                                milestones="; ".join(f"{lv} {nm}" for lv, nm, _ in progress.MILESTONES))
         try:
             from . import blueprints as bp

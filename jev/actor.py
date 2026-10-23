@@ -169,7 +169,7 @@ class Actor(FastPaths):
         if not self.allow_projects:
             return "refused: projects are off here; plan it as an order (in parts with more=true if it's big)"
         self.project = Project(self, goal, speaker, self.project_dir, effort=self.project_effort,
-                               deadline=self.project_deadline)
+                               deadline=self.project_deadline, style=getattr(self, "project_style", "player"))
         self.projects.append(self.project)
         self.project.task = asyncio.create_task(self._run_project(self.project))
         self.log({"kind": "project_start", "goal": goal, "speaker": speaker})
