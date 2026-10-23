@@ -556,6 +556,22 @@ API.audit = function(req)
         g.starved = g.starved + 1
         g.at = g.at or util.xy(e.position)
         g.why = g.why or st
+        if st == 'item_ingredient_shortage' and (t == 'assembling-machine' or t == 'furnace') then
+          -- which ingredient it's short of: p6's manager read "6 starved" as sulfur and sent the serf after a belt
+          -- that was fine; the row lacked advanced circuits
+          pcall(function()
+            local r = e.get_recipe() or (t == 'furnace' and e.previous_recipe and prototypes.recipe[e.previous_recipe.name.name or e.previous_recipe.name])
+            local inv = e.get_inventory(defines.inventory.crafter_input)
+            if r and inv then
+              g.lacks = g.lacks or {}
+              for _, ing in pairs(r.ingredients) do
+                if ing.type == 'item' and inv.get_item_count(ing.name) < ing.amount then
+                  g.lacks[ing.name] = (g.lacks[ing.name] or 0) + 1
+                end
+              end
+            end
+          end)
+        end
       elseif st:find('full') or st:find('waiting_for_space') then
         g.blocked = g.blocked + 1
         g.at = g.at or util.xy(e.position)

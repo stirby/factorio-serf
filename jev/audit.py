@@ -44,8 +44,11 @@ def words(a: dict, groups: int = 14) -> str:
             at = v.get("at")
             where = f" e.g. at [gps={at[0]},{at[1]}]" if at else ""
             why = v.get("why") or v.get("why_other") or ""
+            lacks = v.get("lacks") if isinstance(v.get("lacks"), dict) else {}
+            short = ", ".join(f"{item} in {n}" for item, n in sorted(lacks.items(), key=lambda kv: -kv[1])[:4])
             lines.append(f"- {k}: {v['working']}/{v['n']} working, {v.get('starved', 0)} starved"
-                         + (f" ({why})" if why and v.get("starved") else "")
+                         + (f" ({why}" + (f": lacking {short}" if short else "") + ")" if why and v.get("starved")
+                            else "")
                          + f", {v.get('blocked', 0)} blocked" + (f", {v.get('other', 0)} {v.get('why_other')}"
                                                                 if v.get("other") else "") + where)
         if len(bad) > groups:
