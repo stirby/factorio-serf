@@ -84,7 +84,8 @@ lane is along its length. Everything takes from the bus and gives back to it: no
 straight across the base to another. A base that already has straight plate lanes can make them its bus: lay the \
 bus over them (belts already there running its way are kept).
   - Build ahead of demand: smelting and mining at about 1.5 times what the chains need, power at 1.5 times the \
-load. Add mines before patches run dry (the audit shows drills on exhausted ore).
+load. Open new mines before patches run dry: the report shows the ore left under the drills and how long it lasts \
+at their rate, and drills already on mined-out ground.
   - Feed everything by belt and pipe. No chest a person has to fill: if the audit lists chests filled by hand, \
 replace each with a feed.
   - Oil: a pole line and pumpjacks, crude piped to the oil area, then the plastic-sulfur-basic block (basic oil \

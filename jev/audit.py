@@ -54,6 +54,20 @@ def words(a: dict, groups: int = 14) -> str:
     if hf:
         lines.append(f"Chests filled by hand ({len(hf)}; each is a line that isn't automated): "
                      + "; ".join(f"[gps={c['at'][0]},{c['at'][1]}] {c['holds']}" for c in hf[:10]))
+    ore = [g for g in (a.get("ore_left") or []) if isinstance(g, dict)]
+    if ore:
+        def left(g):
+            amt = g.get("amount", 0)
+            amount = f"{amt / 1000:.0f}k" if amt >= 1000 else f"{amt}"
+            mins = g.get("minutes")
+            when = (f"~{mins / 60:.1f} h" if mins and mins >= 120 else f"~{mins} min") if mins is not None else "?"
+            return f"{g['ore']} at [gps={g['at'][0]},{g['at'][1]}]: {amount} under {g['drills']} drills, {when} at their rate"
+        soon = [g for g in ore if g.get("minutes") is not None and g["minutes"] < 120]
+        lines.append(("Ore under the drills (runs out soonest first; open new mines before a patch runs dry): "
+                      if soon else "Ore under the drills: ") + "; ".join(left(g) for g in ore[:6]))
+    dry = (a.get("status") or {}).get("no_minable_resources", 0)
+    if dry:
+        lines.append(f"{dry} drills stand on mined-out ground: move them onto ore or open a new patch.")
     gaps = a.get("pipe_gaps") or []
     if gaps:
         lines.append("Pipe lines broken by a gap (fluid on one side, an empty pipe just past it; a pipe in the gap "

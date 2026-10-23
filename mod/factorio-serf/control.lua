@@ -575,6 +575,35 @@ API.audit = function(req)
     elseif t == 'pipe' or t == 'pipe-to-ground' then out.pipes = out.pipes + 1
     else out.belts = out.belts + 1 end
   end
+  -- ore left under the drills, by patch (drills grouped by ore and a 64-tile cell): a player expands mining before
+  -- a patch runs dry; p7's iron ran out at 8 h with 9 drills already on empty ground, and c1's base starved the same way
+  out.ore_left = {}
+  do
+    local groups, seen = {}, {}
+    for _, d in pairs(s.find_entities_filtered { force = f, type = 'mining-drill' }) do
+      local okR, r = pcall(function() return d.prototype.mining_drill_radius end)
+      r = (okR and r) or 2.49
+      local tgt = d.mining_target
+      local ore = tgt and tgt.name
+      if ore and ore ~= 'crude-oil' then
+        local key = ore .. '@' .. math.floor(d.position.x / 64) .. ',' .. math.floor(d.position.y / 64)
+        local g = groups[key] or { ore = ore, at = util.xy(d.position), drills = 0, amount = 0, rate = 0 }
+        g.drills = g.drills + 1
+        local okS, sp = pcall(function() return d.prototype.mining_speed end)
+        g.rate = g.rate + 60 * ((okS and sp) or 0.5)
+        for _, res in pairs(s.find_entities_filtered { area = { { d.position.x - r, d.position.y - r }, { d.position.x + r, d.position.y + r } }, name = ore }) do
+          local k = res.position.x .. ',' .. res.position.y
+          if not seen[k] then seen[k] = true g.amount = g.amount + res.amount end
+        end
+        groups[key] = g
+      end
+    end
+    for _, g in pairs(groups) do
+      g.minutes = g.rate > 0 and math.floor(g.amount / g.rate) or nil
+      out.ore_left[#out.ore_left + 1] = g
+    end
+    table.sort(out.ore_left, function(a, b) return (a.minutes or 1e9) < (b.minutes or 1e9) end)
+  end
   -- gaps in pipe lines: a dead-end plain pipe holding fluid with an empty dead-end pipe 2-3 tiles straight ahead and
   -- free ground between (p7: a 650-tile crude line stopped one tile short of the base leg; dry for over an hour)
   out.pipe_gaps = {}

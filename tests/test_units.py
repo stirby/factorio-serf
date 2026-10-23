@@ -1216,6 +1216,18 @@ def test_underground_pair_off_view():
           [ln.end_reason for ln in w2.lines])
 
 
+
+def test_audit_ore_words():
+    from jev import audit as A
+    a = {"machines": 10, "status": {"working": 6, "no_minable_resources": 4}, "groups": {}, "labs": 0,
+         "ore_left": [{"ore": "iron-ore", "at": [1, 2], "drills": 8, "amount": 30000, "rate": 480, "minutes": 62},
+                      {"ore": "coal", "at": [5, 6], "drills": 4, "amount": 200000, "rate": 120, "minutes": 1666}]}
+    w = A.words(a)
+    check("audit words: ore that runs out within 2 h is called out, and drills on mined-out ground",
+          "open new mines before a patch runs dry" in w and "iron-ore at [gps=1,2]: 30k under 8 drills, ~62 min" in w
+          and "4 drills stand on mined-out ground" in w, w)
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):

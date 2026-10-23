@@ -1106,8 +1106,25 @@ return e.is_connected_to_electric_network()""")
           r.get("ok") and st is True, (r.get("msg"), st))
 
 
+async def chk_ore_left(L: Live, state: dict):
+    g = L.g
+    spot = await L.ev("""local s, c = game.surfaces.nauvis, storage.agents['serf'].char
+local r = s.find_entities_filtered { position = c.position, radius = 200, name = 'iron-ore', limit = 1 }[1]
+if not r then return nil end
+for k = 0, 1 do s.create_entity { name = 'electric-mining-drill', position = { r.position.x + 3 * k, r.position.y }, force = game.forces.player } end
+return { r.position.x, r.position.y }""")
+    if not spot:
+        check("audit ore: an iron patch near spawn", False, "none within 200 tiles")
+        return
+    a = await g.call("audit", timeout=90)
+    near = [o for o in (a.get("ore_left") or []) if o["ore"] == "iron-ore" and abs(o["at"][0] - spot[0]) < 70
+            and abs(o["at"][1] - spot[1]) < 70]
+    check("audit ore: drills on an iron patch report the ore under them and hours left",
+          near and near[0]["drills"] >= 2 and near[0]["amount"] > 0 and near[0].get("minutes") is not None, near)
+
+
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "pipegap": chk_pipe_gap, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "pipegap": chk_pipe_gap, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left}
 
 
 async def main() -> int:
