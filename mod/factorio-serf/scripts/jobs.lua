@@ -1734,15 +1734,19 @@ H.connect = {
       local join_segments, joined_end = {}, {}
       if ent.type == "pipe" then
         for i, pt in ipairs { from, to } do
-          for _, n in pairs(c.surface.find_entities_filtered { position = pt, radius = 0.6, force = c.force,
+          -- on the end tile, or right beside it (b7: the planner ended its water line one tile outside a block's
+          -- water port, as its lessons say, and the empty port pipe walled that tile off: "end tile is blocked")
+          for _, n in pairs(c.surface.find_entities_filtered { position = pt, radius = 1.1, force = c.force,
               type = { "pipe", "pipe-to-ground", "storage-tank", "pump", "infinity-pipe" } }) do
             local fb = n.fluidbox
             local held = fb[1] and fb[1].name
-            if not held or held == line_fluid then
+            local on_end = util.dist(n.position, pt) < 0.6
+            local beside = math.abs(n.position.x - pt.x) + math.abs(n.position.y - pt.y) < 1.2
+            if (on_end or beside) and (not held or held == line_fluid) then
               local okS, seg = pcall(fb.get_fluid_segment_id, 1)
               if okS and seg then join_segments[seg] = true end
               if n.unit_number then port_units[n.unit_number] = true end
-              if n.type == "pipe" or n.type == "infinity-pipe" then joined_end[i] = n end
+              if on_end and (n.type == "pipe" or n.type == "infinity-pipe") then joined_end[i] = n end
             end
           end
         end

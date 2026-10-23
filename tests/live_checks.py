@@ -936,7 +936,7 @@ return n""")
 
 async def chk_block_pipe(L: Live, state: dict):
     g = L.g
-    x0, y0 = await L.site(18, 26)
+    x0, y0 = await L.site(22, 26)
     await L.ev(f"""local f = game.forces.player
 for _, t in pairs {{ 'fluid-handling', 'oil-gathering', 'oil-processing', 'plastics', 'sulfur-processing' }} do if f.technologies[t] then f.technologies[t].researched = true end end
 local c = storage.agents['serf'].char
@@ -957,6 +957,19 @@ return n""")
     check("pipes: a crude line joins a new block's empty input pipe (b6: 'end tile is blocked')",
           b.get("ok") and r.get("ok"), (b.get("msg"), r.get("msg")))
     check("pipes: ... and the block's refineries get crude", (crude or 0) >= 1, crude)
+    # b7: a water line ending one tile outside the block's water port (east side, at 14,4)
+    await L.ev(f"""local w = game.surfaces.nauvis.create_entity {{ name = 'infinity-pipe', position = {{ {x0} + 17.5, {y0} + 11.5 }}, force = game.forces.player }}
+w.set_infinity_pipe_filter {{ name = 'water', percentage = 1, mode = 'at-least' }}
+return true""")
+    r2 = await runner._do_connect({"item": "pipe", "from": [x0 + 17.5, y0 + 11.5], "to": [x0 + 15.5, y0 + 4.5]})
+    await asyncio.sleep(5)
+    water = await L.ev(f"""local n = 0
+for _, e in pairs(game.surfaces.nauvis.find_entities_filtered {{ area = {{ {{ {x0}, {y0} }}, {{ {x0} + 15, {y0} + 15 }} }}, name = 'chemical-plant' }}) do
+  for i = 1, #e.fluidbox do local fl = e.fluidbox[i] if fl and fl.name == 'water' then n = n + 1 end end
+end
+return n""")
+    check("pipes: a water line ending one tile outside the block's water port joins it (b7: 'end tile is blocked')",
+          r2.get("ok") and (water or 0) >= 1, (r2.get("msg"), water))
 
 
 async def chk_clear_guard(L: Live, state: dict):
