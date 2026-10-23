@@ -611,7 +611,7 @@ class Actor(FastPaths):
                 try:
                     w = await self.world((c["x"], c["y"]), 2)
                     e = w.at(c["x"], c["y"])
-                    if not e:
+                    if not e or "chest" not in str(e.get("name")):  # gone, or rebuilt as something else (q6: a belt)
                         self.stocked.remove(c)
                         continue
                     have = (e.get("inv") or {}).get(c["item"], 0)
