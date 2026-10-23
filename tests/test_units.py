@@ -1040,6 +1040,15 @@ def test_bus():
     b.joins.append({"kind": "tap", "lane": 0, "at": 10, "end": [0, 0]})
     check("bus: rows within 4 of another join are refused, others free",
           b.rows_free(12) is not None and b.rows_free(14) is None and b.rows_free(28) is not None)
+    fb = Bus(name="f", x=0.5, y=0.5, direction="south", side="east", lanes=["iron-plate", "copper-plate", "coal",
+                                                                            "stone", "spare"], length=40)
+    rows = [a for i, a, _ in fb.sample_tiles() if i == 0]
+    samples = [(0, a, 8) for a in rows] + [(1, a, 8 if a < 20 else 0) for a in rows] + [(2, a, 0) for a in rows] + \
+        [(3, a, 3) for a in rows]
+    words = fb.flow_words(samples)
+    check("bus flow: backed up / used up by row / empty / flowing, one line per lane in use",
+          len(words) == 4 and "backed up to the end" in words[0] and "used up by row 16" in words[1] and
+          "empty" in words[2] and "flowing, 3/8" in words[3], words)
     d = Bus.from_dict(json.loads(json.dumps(b.to_dict())))
     check("bus: round-trips through json (the game's layout store)", d.to_dict() == b.to_dict() and "lanes: 0 a" in
           d.describe())

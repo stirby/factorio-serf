@@ -280,8 +280,12 @@ class Project:
             self._log({"kind": "error", "where": "audit", "error": repr(e)})
         try:
             buses = await self.actor.runner.buses()
-            if buses:
-                out += "\nMain bus: " + " | ".join(b.describe() for b in buses.values())
+            for b in buses.values():
+                out += "\nMain bus: " + b.describe()
+                try:
+                    out += "\n  Lanes now: " + "; ".join(await self.actor.runner.bus_flow(b))
+                except Exception as e:  # noqa: BLE001
+                    self._log({"kind": "error", "where": "bus_flow", "error": repr(e)})
         except Exception as e:  # noqa: BLE001
             self._log({"kind": "error", "where": "buses", "error": repr(e)})
         return out

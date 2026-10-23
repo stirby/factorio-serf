@@ -1211,6 +1211,14 @@ class Runner:
             return next(iter(bs.values()))
         raise ValueError(f"no bus named {name!r} (buses: {', '.join(bs) or 'none yet: lay one with a bus step'})")
 
+    async def bus_flow(self, b) -> list[str]:
+        """How full each lane of bus b is along its length (mod belt_items op), in words."""
+        pts = b.sample_tiles()
+        r = await self.g.call("belt_items", tiles=[[x, y] for _, _, (x, y) in pts])
+        got = r.get("tiles") or []
+        return b.flow_words([(i, a, int((got[k] or {}).get("n", 0)) if k < len(got) else 0)
+                             for k, (i, a, _) in enumerate(pts)])
+
     async def _save_bus(self, b) -> None:
         await self.g.call("layout", key=f"bus:{b.name}", value=b.to_dict())
 

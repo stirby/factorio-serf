@@ -181,6 +181,41 @@ class Bus:
                 (". Joins: " + "; ".join(joins) if joins else "") +
                 (f". Free rows for taps/merges include {', '.join(map(str, free[:8]))}" if free else ""))
 
+    def sample_tiles(self, every: int = 4) -> list[tuple[int, int, tuple[float, float]]]:
+        """(lane, row, tile) to read along each lane in use, every `every` rows and the last row."""
+        out = []
+        for i, it in enumerate(self.lanes):
+            if it == SPARE:
+                continue
+            rows = sorted(set(list(range(self.start(i), self.length, every)) + [self.length - 1]))
+            out += [(i, a, self.at(a, self.u(i))) for a in rows]
+        return out
+
+    def flow_words(self, samples: list[tuple[int, int, int]]) -> list[str]:
+        """How full each lane is along its length, as a player reads a bus. samples: (lane, row, items on the tile;
+        a full yellow belt tile holds 8)."""
+        by: dict[int, list[tuple[int, int]]] = {}
+        for i, a, n in samples:
+            by.setdefault(i, []).append((a, n))
+        out = []
+        for i, pts in sorted(by.items()):
+            pts.sort()
+            name = f"lane {i} {self.lanes[i]}"
+            head = sum(n for _, n in pts[:2]) / (8 * min(2, len(pts)))
+            tail = pts[-max(1, len(pts) // 3):]
+            end = sum(n for _, n in tail) / (8 * len(tail))
+            last = max((a for a, n in pts if n > 0), default=None)
+            if head < 0.1 and last is None:
+                out.append(f"{name}: empty (nothing comes in at its head)")
+            elif end >= 0.75:
+                out.append(f"{name}: backed up to the end (more comes in than is taken: room to tap more)")
+            elif end < 0.1 and last is not None and last < pts[-1][0]:
+                out.append(f"{name}: used up by row {last} (taps take all of it: more supply needed before "
+                           f"adding consumers)")
+            else:
+                out.append(f"{name}: flowing, {end * 8:.0f}/8 full near the end")
+        return out
+
     def to_dict(self) -> dict:
         return asdict(self)
 

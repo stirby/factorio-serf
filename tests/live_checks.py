@@ -809,6 +809,10 @@ return out""") or {{}}
         x, y = b.at(39, b.u(i))
         got = await on(x, y)
         check(f"bus: lane {i}'s far end carries {it} only", set(got) == {it}, got)
+    bb = (await runner.buses())["lc"]
+    words = await runner.bus_flow(bb)
+    check("bus: the lane readout covers every lane in use (5) and reads the fed ones as carrying items",
+          len(words) == 5 and not any("empty" in w for w in words), words)
 
 
 async def chk_row_extend(L: Live, state: dict):

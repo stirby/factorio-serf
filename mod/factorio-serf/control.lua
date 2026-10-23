@@ -600,6 +600,26 @@ API.layout = function(req)
   return { layout = storage.layout }
 end
 
+-- Items on the belts at the given tiles (req.tiles = {{x, y}, ...}), for reading how full a bus lane is along its
+-- length. Read-only.
+API.belt_items = function(req)
+  local s = game.surfaces[req.surface or "nauvis"] or game.surfaces.nauvis
+  local out = {}
+  for i, t in ipairs(req.tiles or {}) do
+    local n, what = 0, {}
+    for _, e in pairs(s.find_entities_filtered { position = { t[1], t[2] }, type = { "transport-belt", "underground-belt", "splitter" } }) do
+      for l = 1, 2 do
+        for _, c in pairs(e.get_transport_line(l).get_contents()) do
+          n = n + c.count
+          what[c.name] = (what[c.name] or 0) + c.count
+        end
+      end
+    end
+    out[i] = { n = n, items = what }
+  end
+  return { tiles = out }
+end
+
 API.progress = function(req)
   local f, s = game.forces.player, game.surfaces.nauvis
   local out = { tick = game.tick, techs = 0, items = {}, fluids = {}, ents = {}, by_recipe = {}, rockets = 0,
