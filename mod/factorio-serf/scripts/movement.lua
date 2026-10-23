@@ -49,6 +49,27 @@ function movement.gc()
   end
 end
 
+-- A goal on ground not generated yet: walk toward it in legs that end on generated ground, as a player walks into
+-- the unknown and the world appears ahead (the pathfinder needs the whole route generated, so one long move into
+-- new ground failed at once with "that area isn't generated yet", even though walking generates it).
+local LEG = 64
+local function generated(surface, p)
+  return surface.is_chunk_generated { math.floor(p.x / 32), math.floor(p.y / 32) }
+end
+local function leg_toward(char, goal)
+  local pos = char.position
+  local dx, dy = goal.x - pos.x, goal.y - pos.y
+  local d = math.sqrt(dx * dx + dy * dy)
+  if d < 1 then return nil end
+  local step = math.min(LEG, d)
+  while step >= 8 do
+    local q = { x = pos.x + dx / d * step, y = pos.y + dy / d * step }
+    if generated(char.surface, q) then return q end
+    step = step - 8
+  end
+  return nil
+end
+
 function movement.tick(char, m)
   if m.pause then
     if game.tick < m.pause then return nil end
@@ -57,8 +78,25 @@ function movement.tick(char, m)
   local pos = char.position
   local d = util.dist(pos, m.goal)
   if d <= m.radius then
+    if m.final then -- a leg toward a goal on new ground: on to the next leg (or the goal itself)
+      m.goal, m.radius, m.final = m.final.goal, m.final.radius, nil
+      m.path, m.req, m.repaths, m.attempt, m.snapped, m.stuck_ref = nil, nil, nil, nil, nil, nil
+      return nil
+    end
     movement.stop(char)
     return "arrived"
+  end
+  if not m.path and not m.req and not util.cheat() and not generated(char.surface, m.goal) then
+    local leg = leg_toward(char, m.goal)
+    if leg then
+      m.final = { goal = m.goal, radius = m.radius }
+      m.goal, m.radius, m.gen_wait = leg, 2, nil
+    else -- nothing generated toward it yet: wait (up to 10 s) for the ground around the character to appear
+      m.gen_wait = (m.gen_wait or 0) + 1
+      if m.gen_wait == 1 then char.surface.request_to_generate_chunks(pos, 3) end
+      if m.gen_wait < 600 then return nil end
+    end
+    d = util.dist(pos, m.goal)
   end
 
   if util.cheat() then
