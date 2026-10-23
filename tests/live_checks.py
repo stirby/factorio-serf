@@ -1443,8 +1443,113 @@ return out""") or {}
           t.get("ok") and end[0] < hx and set(got) == {"copper-plate"}, (t.get("msg", "")[:160], end, got))
 
 
+async def chk_supply(L: Live, state: dict):
+    """supply: a block's two-lane input (iron left, copper right) fed off a bus by two taps and a lane merge; the
+    belt into the input carries iron on its left lane and copper on its right (the block itself isn't built)."""
+    from jev import blueprints as bp
+    from jev.busgen import Bus
+    g = L.g
+    x0, y0 = await L.site(40, 40)
+    await L.ev(f"""local f = game.forces.player
+if f.technologies['logistics'] then f.technologies['logistics'].researched = true end
+local c = storage.agents['serf'].char
+for n, k in pairs {{ ['transport-belt'] = 300, ['splitter'] = 6, ['underground-belt'] = 30 }} do c.insert {{ name = n, count = k }} end
+c.teleport {{ {x0} + 12, {y0} + 10 }}
+return true""")
+    runner = Runner(g, lambda r: None)
+    lanes = ["iron-plate", "copper-plate"]
+    hx, hy = x0 + 3.5, y0 + 0.5
+    await runner.run({"do": "bus", "name": "sup", "x": hx, "y": hy, "direction": "south", "side": "east",
+                      "lanes": lanes, "length": 36})
+    bx, by = x0 + 16, y0 + 14
+    r = await runner.run({"do": "supply", "name": "electronic-circuit-3-2", "x": bx, "y": by, "bus": "sup"})
+    print("   ", str(r.get("msg"))[:300])
+    b = Bus(name="sup", x=hx, y=hy, direction="south", side="east", lanes=lanes, length=36)
+    heads = [b.at(0, b.u(i)) for i in range(2)]
+    feed = "local s = game.surfaces.nauvis\n" + "\n".join(
+        f"do local e = s.find_entity('transport-belt', {{{x}, {y}}}) if e then for l = 1, 2 do "
+        f"e.get_transport_line(l).insert_at_back({{ name = '{it}' }}) end end end"
+        for (x, y), it in zip(heads, lanes)) + "\nreturn true"
+    t0 = time.monotonic()
+    while time.monotonic() - t0 < 45:
+        await L.ev(feed)
+        await asyncio.sleep(0.3)
+    await asyncio.sleep(15)
+    p = bp.stamp("electronic-circuit-3-2", bx, by, 0)["inputs"][0]
+    ex, ey = p["at"][0] - 1 + 0.5, p["at"][1] + 0.5  # fed from the west
+    got = await L.ev(f"""local e = game.surfaces.nauvis.find_entity('transport-belt', {{ {ex}, {ey} }}) local out = {{}}
+if e then for l = 1, 2 do local t = {{}} for _, c in pairs(e.get_transport_line(l).get_contents()) do t[c.name] = c.count end out[l] = t end
+out.d = e.direction end
+return out""") or {}
+    left, right = set((got.get("1") or got.get(1) or {})), set((got.get("2") or got.get(2) or {}))
+    if not (left and right):
+        from jev.world import World
+        w = World(await g.scan(center=(x0 + 16, y0 + 16), radius=22))
+        for ln in w.lines:
+            print(f"    line {ln.id}: {ln.length} tiles {ln.start} -> {ln.end} items={ln.items} end: {ln.end_reason}")
+    check("supply: the block's input is fed iron on the left lane and copper on the right, from two taps",
+          r.get("ok") and left == {"iron-plate"} and right == {"copper-plate"}, (str(r.get("msg"))[:200], got))
+
+
+async def chk_supply_far(L: Live, state: dict):
+    """supply on the bus's far side: the advanced-circuit block turned 180 (inputs face east, toward the bus) west of a
+    bus whose taps normally come out east. Its plastic + circuit input gets plastic left, circuits right; its copper
+    input gets copper."""
+    from jev import blueprints as bp
+    from jev.busgen import Bus
+    g = L.g
+    x0, y0 = await L.site(48, 40)
+    await L.ev(f"""local f = game.forces.player
+if f.technologies['logistics'] then f.technologies['logistics'].researched = true end
+local c = storage.agents['serf'].char
+for n, k in pairs {{ ['transport-belt'] = 300, ['splitter'] = 6, ['underground-belt'] = 30 }} do c.insert {{ name = n, count = k }} end
+c.teleport {{ {x0} + 30, {y0} + 10 }}
+return true""")
+    runner = Runner(g, lambda r: None)
+    lanes = ["copper-plate", "plastic-bar", "electronic-circuit", "spare"]
+    hx, hy = x0 + 32.5, y0 + 0.5
+    await runner.run({"do": "bus", "name": "far", "x": hx, "y": hy, "direction": "south", "side": "east",
+                      "lanes": lanes, "length": 38})
+    bx, by = x0 + 2, y0 + 16
+    r = await runner.run({"do": "supply", "name": "advanced-circuit-block", "x": bx, "y": by, "rotation": 180,
+                          "bus": "far"})
+    print("   ", str(r.get("msg"))[:400])
+    b = Bus(name="far", x=hx, y=hy, direction="south", side="east", lanes=lanes, length=38)
+    heads = [b.at(0, b.u(i)) for i in range(3)]
+    feed = "local s = game.surfaces.nauvis\n" + "\n".join(
+        f"do local e = s.find_entity('transport-belt', {{{x}, {y}}}) if e then for l = 1, 2 do "
+        f"e.get_transport_line(l).insert_at_back({{ name = '{it}' }}) end end end"
+        for (x, y), it in zip(heads, lanes[:3])) + "\nreturn true"
+    t0 = time.monotonic()
+    while time.monotonic() - t0 < 50:
+        await L.ev(feed)
+        await asyncio.sleep(0.3)
+    await asyncio.sleep(15)
+    got = []
+    for p in bp.stamp("advanced-circuit-block", bx, by, 180)["inputs"]:
+        ex, ey = p["at"][0] + 1 + 0.5, p["at"][1] + 0.5  # fed from the east
+        got.append(await L.ev(f"""local e = game.surfaces.nauvis.find_entity('transport-belt', {{ {ex}, {ey} }}) local out = {{}}
+if e then for l = 1, 2 do local t = {{}} for _, c in pairs(e.get_transport_line(l).get_contents()) do t[c.name] = c.count end out[l] = t end end
+return out""") or {})
+    def lanes2(o, k):  # a Lua {1 = .., 2 = ..} comes back as a list or a dict
+        if isinstance(o, list):
+            v = o[k - 1] if len(o) >= k else {}
+        else:
+            v = o.get(str(k)) or o.get(k) or {}
+        return set(v) if isinstance(v, dict) else set()
+    ok2 = lanes2(got[0], 1) == {"plastic-bar"} and lanes2(got[0], 2) == {"electronic-circuit"}
+    ok1 = (lanes2(got[1], 1) | lanes2(got[1], 2)) == {"copper-plate"}
+    if not (ok1 and ok2):
+        from jev.world import World
+        w = World(await g.scan(center=(x0 + 24, y0 + 20), radius=26))
+        for ln in w.lines:
+            print(f"    line {ln.id}: {ln.length} tiles {ln.start} -> {ln.end} items={ln.items} end: {ln.end_reason}")
+    check("supply far side: plastic left and circuits right on one input, copper on the other, tapped out west",
+          r.get("ok") and ok1 and ok2, (str(r.get("msg"))[:200], got))
+
+
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "detour": chk_route_detour, "routepocket": chk_route_pocket, "fetchfar": chk_fetch_far, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "clearworking": chk_clear_working, "pipegap": chk_pipe_gap, "auditlacks": chk_audit_lacks, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "detour": chk_route_detour, "routepocket": chk_route_pocket, "fetchfar": chk_fetch_far, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "clearworking": chk_clear_working, "pipegap": chk_pipe_gap, "auditlacks": chk_audit_lacks, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe, "supply": chk_supply, "supplyfar": chk_supply_far}
 
 
 async def main() -> int:

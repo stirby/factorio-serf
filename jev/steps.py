@@ -194,6 +194,8 @@ def describe(step: dict) -> str:
         return f"run {step.get('item')} from {step.get('from')} to {step.get('to')}"
     if d == "ghosts":
         return f"lay out {len(step.get('entities') or [])} buildings as a plan and build them"
+    if d == "supply":
+        return f"feed block {step.get('name')} at {step.get('x')},{step.get('y')} from the bus"
     if d in ("fetch", "craft", "mine"):
         return f"{d} {step.get('count', '')} {step.get('item') or step.get('recipe') or step.get('name')}"
     if d == "insert":
@@ -1236,6 +1238,97 @@ class Runner:
         r = await self._do_ghosts({"entities": ents})
         r["msg"] = f"block {s['name']}: " + str(r.get("msg"))
         return r
+
+    async def _do_supply(self, s):
+        """Feed a placed block's belt inputs: for each input, tap the bus lane carrying each item it takes (at the
+        free rows nearest the block, coming out on the block's side), merge two items onto their own lanes when the
+        input takes two, and bring the belt to the tile the input is fed from. The block is named as in its block step
+        (name, x, y, rotation, anchor); from={item: [x,y]} gives the last belt of a line for an item the bus doesn't
+        carry; only=[items] limits it to inputs taking those. Fluid inputs are left to a pipe connect. (b7, p7, p8:
+        wiring a block's inputs by hand took most of a blue science build, and mixed lines took dozens of purges.)"""
+        from . import blueprints as bp
+        from .busgen import DIRS as BD, OPP
+        try:
+            st = bp.stamp(s["name"], float(s["x"]), float(s["y"]), s.get("rotation", 0), s.get("anchor"))
+        except KeyError as e:
+            return {"ok": False, "msg": f"supply: {e}"}
+        ports = [p for p in st.get("inputs") or [] if "at" in p and p.get("side") in BD
+                 and p.get("kind") not in ("fluid", "chest", "power")]
+        if not ports:
+            return {"ok": False, "msg": f"supply: block {s['name']} has no belt inputs to feed"}
+        given = {str(k): v for k, v in (s.get("from") or {}).items()} if isinstance(s.get("from"), dict) else {}
+        only = s.get("only")
+        only = [only] if isinstance(only, str) else (only or None)
+        bx0, by0 = st["bbox"][0]
+        bx1, by1 = st["bbox"][1]
+        bcx, bcy = (bx0 + bx1) / 2, (by0 + by1) / 2
+        done, failed = [], []
+
+        async def source(item: str, near: tuple[float, float]):
+            """The last belt of a line carrying item: given, or a new tap on the bus lane carrying it."""
+            if item in given:
+                return list(given[item]), f"{item} from the line ending at {fmt_xy(given[item])}"
+            try:
+                b = await self._bus(s.get("bus"))
+                i = b.lane_index(item)
+            except ValueError as e:
+                return None, f"{item}: {e}; give from={{\"{item}\": [x,y]}} (the last belt of a line carrying it)"
+            nx, ny = BD[b.side]
+            across = (bcx - b.x) * nx + (bcy - b.y) * ny
+            a0 = max(0, min(b.length - 3, b.along_of(*near)))
+            rows = sorted((a for a in range(max(b.start(i), 0), b.length - 2) if b.rows_free(a) is None),
+                          key=lambda a: abs(a - a0))
+            if not rows:
+                return None, f"{item}: no free row left on bus {b.name} to tap lane {i} (taps and merges sit 4 apart)"
+            for a in rows[:3]:
+                r = await self._do_tap({"bus": b.name, "lane": i, "at": a,
+                                        **({"side": "opposite"} if across < 0 else {})})
+                if r.get("ok"):
+                    return list(r["end"]), f"{item} tapped off lane {i} at row {a}"
+                last = str(r.get("msg"))
+            return None, f"{item}: tap failed: {last[:160]}"
+
+        for p in ports:
+            lanes = p.get("lanes") or {}
+            items = [lanes[k] for k in ("left", "right") if lanes.get(k)] or ([p["item"]] if p.get("item") else [])
+            if only and not any(it in only for it in items):
+                continue
+            side = p["side"]
+            sx, sy = BD[side]
+            d = OPP[side]  # the feeding belt runs into the block
+            tx, ty = p["at"][0] + 0.5, p["at"][1] + 0.5
+            ex, ey = tx + sx, ty + sy  # the tile the input belt is fed from
+            what = " + ".join(items)
+            if len(set(items)) >= 2:
+                # merge right on the feeding tile: a merged run before it gets crossed by the second feed's route
+                # while its tiles are still free
+                mx, my = ex, ey
+                (lt, lw), (rt, rw) = [await source(it, (mx, my)) for it in (lanes["left"], lanes["right"])]
+                if not (lt and rt):
+                    failed.append(f"{what} input at {fmt_xy((tx, ty))}: " + "; ".join(w for t, w in ((lt, lw), (rt, rw))
+                                                                                   if not t))
+                    continue
+                r = await self._do_merge_lanes({"left": lt, "right": rt, "at": [mx, my], "direction": d})
+                if r.get("ok"):
+                    await self._act({"op": "rotate", "x": ex, "y": ey, "direction": d})
+                    done.append(f"{what} on their lanes into {fmt_xy((tx, ty))} ({lw}; {rw})")
+                else:
+                    failed.append(f"{what} input at {fmt_xy((tx, ty))}: merge failed: {str(r.get('msg'))[:200]}")
+            elif items:
+                t, w = await source(items[0], (ex, ey))
+                if not t:
+                    failed.append(f"{what} input at {fmt_xy((tx, ty))}: {w}")
+                    continue
+                r = await self._act({"op": "connect", "item": "transport-belt", "from": t, "to": [ex, ey],
+                                     "end_direction": d}, timeout=420)
+                if r.get("ok"):
+                    await self._act({"op": "rotate", "x": ex, "y": ey, "direction": d})
+                    done.append(f"{what} into {fmt_xy((tx, ty))} ({w})")
+                else:
+                    failed.append(f"{what} input at {fmt_xy((tx, ty))}: belt failed: {str(r.get('msg'))[:200]}")
+        msg = (f"supply {s['name']}: fed " + ("; ".join(done) if done else "nothing")
+               + (f". Not fed: {'; '.join(failed)}" if failed else ""))
+        return {"ok": not failed and bool(done), "msg": msg}
 
     async def _do_design(self, s):
         """A saved design (library) built at anchor x,y."""
