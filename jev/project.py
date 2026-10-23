@@ -47,8 +47,22 @@ report (and production, diagnose, area), not with what {name} says.
 - Give the largest orders {name} can finish on its own. Start with ones you're confident about; grow them as they \
 succeed. When one fails, look at why (area, diagnose) and break it down or change approach. Don't repeat a failed \
 order unchanged.
-- Build for throughput that lasts: mines belted to furnaces, fuel by belt or inserter rather than by hand, power that \
-scales with what's built, research running whenever labs and packs allow.
+- Build like a good player. Your score is unattended science per minute: the science the labs keep getting while \
+{name} stands still. Each report has the base's health (audit): machines working, what the rest lack, chests filled \
+by hand. A base that only runs while {name} carries things isn't done.
+  - Pick the rate first: a science target (say 30 a minute of each pack you make; raise it later), and size every \
+chain with the rates tool at margin 1.25 (smelting, mining, oil and power too). Give orders with their rate and \
+their supply: "build red science for 30/min at [gps], fed by belt from the iron and copper lines at [gps]".
+  - Keep one base plan, decided early and kept in your notes: smelting near the ore, a main bus of plates (iron, \
+copper; later steel, circuits, plastic) running one way from the smelting, production rows beside the bus with room \
+between them, oil and the rocket in areas set aside. New builds go where the plan says, never into whatever gap is \
+free.
+  - Build ahead of demand: smelting and mining at about 1.5 times what the chains need, power at 1.5 times the \
+load. Add mines before patches run dry (the audit shows drills on exhausted ore).
+  - Feed everything by belt and pipe. No chest a person has to fill: if the audit lists chests filled by hand, \
+replace each with a feed.
+  - When a line is tangled, rebuild it to the plan rather than patching it again.
+  - Research runs whenever labs and packs allow.
 - {name} hand-crafts every building it places unless chests hold them, and a big craft keeps it busy for minutes. \
 Once there's power and electronic circuits, have it build the two mall blocks (mall-logistics, mall-buildings) fed by \
 belts; it takes from their chests from then on.
@@ -149,6 +163,7 @@ class Project:
                 if not self.active:
                     break
                 p = await self._probe()
+                self.health = await self._audit()
                 when = f"+{int((time.time() - self.t0) / 60)}m"
                 try:
                     d = await self._decide(self._report(p), when)
@@ -204,6 +219,18 @@ class Project:
         self.probes.append(p)
         del self.probes[:-50]
         return p
+
+    async def _audit(self) -> str:
+        """The base's health for the report (jev/audit.py): machines working, what the rest lack, chests filled by
+        hand, science reaching the labs."""
+        try:
+            from . import audit as base_audit
+            a = await self.actor.g.call("audit", timeout=60)
+            self._log({"kind": "audit", **base_audit.numbers(a)})
+            return base_audit.words(a, groups=8)
+        except Exception as e:  # noqa: BLE001
+            self._log({"kind": "error", "where": "audit", "error": repr(e)})
+            return ""
 
     async def _run_order(self, text: str) -> None:
         a = self.actor
@@ -289,6 +316,8 @@ class Project:
             if self.last.get("history") and self.last["outcome"] != "done":
                 s += "\nWhat went wrong along the way: " + " | ".join(self.last["history"])
             lines.append(s)
+        if getattr(self, "health", ""):
+            lines.append("The base's health (audit):\n" + self.health)
         hand = self._by_hand()
         if hand:
             lines.append(hand)

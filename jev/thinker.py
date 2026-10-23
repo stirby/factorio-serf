@@ -63,6 +63,8 @@ Routing puzzles (many belts between pairs of points, crossings): don't work out 
 Belts: to take items off an existing belt, put the inserter (and the machine) right next to that belt; don't extend a belt backwards from its end. A branch needs a splitter or a side-load. connect's `from` continues a line only from its last belt, in the direction it already runs.
 Fuel for a furnace column: ore on one lane, coal on the other. Make that belt with one merge_lanes step (left = the end of the ore line, right = the end of the coal line, to = where the furnace row starts) and run the row along it. Don't hand-place side-loads onto a belt that already carries ore on both lanes: the coal lands on an ore lane and jams the furnaces (purge cleans a belt of a wrong item).
 
+Size production like a player: when an order names a rate ("red science for 30/min"), call rates for it and build the machine counts it gives (rounded up), with inputs that can carry it: a belt carries 900 items a minute (yellow), so 2,000 iron plates a minute is three belts. Feed machines by belt or pipe from the supply the order names; a chest someone has to fill by hand isn't automation. Leave room beside a block to add more of the same.
+
 Oil: a refinery on advanced oil processing makes heavy oil, light oil and petroleum together and stops as soon as any one of them backs up ("output is full: heavy-oil is backed up"). Give every output somewhere to go: chemical plants cracking heavy oil into light (heavy-oil-cracking, needs water) and light into petroleum (light-oil-cracking, needs water), or consumers (lubricant, solid fuel). Basic oil processing makes only petroleum and can't deadlock: the simple choice while all you need is plastic and sulfur."""
 
 TOOLS = [
