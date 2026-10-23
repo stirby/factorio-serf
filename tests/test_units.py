@@ -1257,6 +1257,15 @@ def test_bus_feed_entries():
           ok_all, why)
 
 
+
+def test_summary_line_end_pieces():
+    ug = {"u": 5, "n": "underground-belt", "t": "underground-belt", "x": 12.5, "y": 0.5, "d": "east", "ug": "output"}
+    w = World({"ents": [ug, belt(6, 13.5, 0.5, "east"), belt(7, 14.5, 0.5, "east")], "center": [13, 0]})
+    lines = w.summary()["belt_lines"]
+    check("summary: a belt line starting at an underground exit says so", any(
+        l.get("first_piece") == "underground-belt (exit)" for l in lines), lines)
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):

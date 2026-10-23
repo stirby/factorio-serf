@@ -799,6 +799,14 @@ class World:
                  "carrying": items_words(ln.items, 4), "end": ln.end_reason}
             if ln.start_reason not in ("starts here", "fed from another line"):
                 d["start"] = ln.start_reason
+            # what stands at each end when it isn't a plain belt (q6 mined 'the belt' at a line's end by name, and it
+            # was an underground exit)
+            for key, u in (("first_piece", ln.belts[0]), ("last_piece", ln.belts[-1])):
+                e = self.ents.get(u) or {}
+                if e.get("t") == "underground-belt":
+                    d[key] = f"{e.get('n')} ({'entrance' if e.get('ug') == 'input' else 'exit'})"
+                elif e.get("t") == "splitter":
+                    d[key] = e.get("n")
             if ln.density >= 7:
                 d["backed_up"] = True
             if ln.takers:
