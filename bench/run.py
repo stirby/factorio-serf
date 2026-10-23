@@ -269,6 +269,14 @@ async def run(a) -> dict:
                 pass
         res["jev"] = jev.stats.as_dict()
         await jev.close()
+        try:  # what got built, from above (map.svg): around the setup's origin when it gives one
+            import map_svg
+            o = setup.get("origin") if isinstance(setup, dict) else None
+            area = ((o[0] - 30, o[1] - 30), (o[0] + 110, o[1] + 110)) if o else None
+            m = json.loads((await asyncio.wait_for(g.call("eval", code=map_svg.lua(area), timeout=60), 70))["result"])
+            (d / "map.svg").write_text(map_svg.svg(m))
+        except Exception:  # noqa: BLE001
+            pass
         await asyncio.to_thread(inst.stop)
         obs = res["objectives"]
         res["success"] = bool(obs) and all(o.get("success") for o in obs)

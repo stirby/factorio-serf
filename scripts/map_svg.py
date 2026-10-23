@@ -19,10 +19,10 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 from jev.rcon import Crew, Rcon  # noqa: E402
 
-LUA = """
+LUA_BODY = """
 local s = game.surfaces.nauvis
 local ents, x0, y0, x1, y1 = {}, 1e9, 1e9, -1e9, -1e9
-for _, e in pairs(s.find_entities_filtered { force = 'player' }) do
+for _, e in pairs(s.find_entities_filtered { force = 'player', area = AREA }) do
   if e.type ~= 'character' and e.type ~= 'entity-ghost' then
     local b = e.bounding_box
     local ok, st = pcall(function() return e.status end)
@@ -57,6 +57,16 @@ for k, v in pairs(ore) do o[#o + 1] = k .. ',' .. v end
 for k in pairs(water) do w[#w + 1] = k end
 return helpers.table_to_json { box = { x0, y0, x1, y1 }, ents = ents, ore = o, water = w, tick = game.tick }
 """
+
+
+def lua(area=None) -> str:
+    """The dump, of everything of the player force or only what's in area ((x0, y0), (x1, y1))."""
+    a = "nil" if area is None else f"{{{{{area[0][0]},{area[0][1]}}},{{{area[1][0]},{area[1][1]}}}}}"
+    return "local AREA = " + a + "\n" + LUA_BODY
+
+
+LUA = lua()
+
 
 COLOURS = {
     "transport-belt": "#d6b31b", "underground-belt": "#a88a10", "splitter": "#e8c84a", "inserter": "#7bab3c",
@@ -107,7 +117,7 @@ async def grab(k: int) -> dict:
     c = Crew(Rcon("127.0.0.1", 27100 + k, pw))
     await c.connect()
     try:
-        return json.loads((await c.call("eval", code=LUA, timeout=120))["result"])
+        return json.loads((await c.call("eval", code=lua(), timeout=120))["result"])
     finally:
         await c.close()
 
