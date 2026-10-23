@@ -1,0 +1,49 @@
+{
+ "save": "rocket-launched-p2-own-project",
+ "game_minutes": 5.0,
+ "science_used_per_min": {},
+ "science_made_per_min": {},
+ "spm": 0.0,
+ "machines": 230,
+ "working_share": 0.061,
+ "starved_share": 0.37,
+ "blocked_share": 0.535,
+ "unpowered_or_unfuelled_share": 0.035,
+ "status": {
+  "full_output": 71,
+  "missing_science_packs": 8,
+  "item_ingredient_shortage": 36,
+  "no_ingredients": 7,
+  "waiting_for_space_in_destination": 52,
+  "no_minable_resources": 26,
+  "working": 14,
+  "no_fuel": 8,
+  "fluid_ingredient_shortage": 8
+ },
+ "belt_tiles_per_machine": 20.91,
+ "pipe_tiles_per_machine": 10.58,
+ "chests": 78,
+ "chests_fed_by_hand": 18,
+ "chests_mixed": 13,
+ "mixed_belt_tiles": 2,
+ "footprint_tiles_per_machine": 500.4,
+ "bbox": [
+  -67.5,
+  -79.5,
+  373.5,
+  181.5
+ ],
+ "counts": {
+  "assembling-machine": 92,
+  "furnace": 41,
+  "mining-drill": 88,
+  "lab": 8,
+  "transport-belt": 4420,
+  "underground-belt": 381,
+  "splitter": 8,
+  "pipe": 2156,
+  "pipe-to-ground": 277,
+  "inserter": 380,
+  "container": 78
+ }
+}

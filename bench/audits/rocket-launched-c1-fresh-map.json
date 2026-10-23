@@ -1,0 +1,52 @@
+{
+ "save": "rocket-launched-c1-fresh-map",
+ "game_minutes": 5.0,
+ "science_used_per_min": {},
+ "science_made_per_min": {
+  "logistic-science-pack": 0.6
+ },
+ "spm": 0.0,
+ "machines": 222,
+ "working_share": 0.189,
+ "starved_share": 0.5,
+ "blocked_share": 0.27,
+ "unpowered_or_unfuelled_share": 0.036,
+ "status": {
+  "no_minable_resources": 16,
+  "working": 42,
+  "waiting_for_space_in_destination": 24,
+  "no_fuel": 8,
+  "full_output": 36,
+  "no_ingredients": 33,
+  "missing_science_packs": 13,
+  "item_ingredient_shortage": 45,
+  "waiting_to_launch_rocket": 1,
+  "fluid_ingredient_shortage": 4
+ },
+ "belt_tiles_per_machine": 21.65,
+ "pipe_tiles_per_machine": 5.23,
+ "chests": 77,
+ "chests_fed_by_hand": 25,
+ "chests_mixed": 6,
+ "mixed_belt_tiles": 1,
+ "footprint_tiles_per_machine": 222.1,
+ "bbox": [
+  -109.5,
+  -133.5,
+  167.5,
+  44.5
+ ],
+ "counts": {
+  "assembling-machine": 66,
+  "furnace": 87,
+  "mining-drill": 55,
+  "lab": 13,
+  "transport-belt": 4481,
+  "underground-belt": 311,
+  "splitter": 14,
+  "pipe": 1006,
+  "pipe-to-ground": 156,
+  "inserter": 406,
+  "container": 77
+ }
+}
