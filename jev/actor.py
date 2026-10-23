@@ -72,7 +72,8 @@ class Order:
         return self.points[0] if self.points else None
 
 
-BUILD_OPS = ("ghosts", "block", "design", "stamp", "place", "build_ghosts", "route", "row", "connect", "merge_lanes")
+BUILD_OPS = ("ghosts", "block", "design", "stamp", "place", "build_ghosts", "route", "row", "connect", "merge_lanes",
+             "bus", "tap", "bus_in")
 
 
 def fixed_words(fixed: list[str]) -> str:
@@ -779,7 +780,51 @@ class Actor(FastPaths):
                 "techs": techs, "production": production, "diagnose": diagnose, "start_project": start_project,
                 "rates": rates, "audit": audit}
 
+    async def _bus_steps_as_ghosts(self, steps: list[dict]) -> list[dict]:
+        """For the plan checker: bus, tap and bus_in steps as the entities they lay (worked out from the buses in
+        the game), so a row along a tap's belt isn't flagged as having no belt."""
+        if not any(st.get("do") in ("bus", "tap", "bus_in") for st in steps):
+            return steps
+        from .busgen import DIRS, Bus
+        try:
+            buses = await self.runner.buses()
+        except Exception:  # noqa: BLE001
+            return steps
+        out = []
+        for st in steps:
+            d = st.get("do")
+            try:
+                if d == "bus":
+                    b = buses.get(st.get("name") or "main") or Bus(
+                        name=st.get("name") or "main", x=float(st["x"]), y=float(st["y"]), direction=st["direction"],
+                        side=st["side"], lanes=[str(x) for x in st["lanes"]], length=int(st["length"]))
+                    buses[b.name] = b
+                    out.append({"do": "ghosts", "entities": b.lay()})
+                    continue
+                if d in ("tap", "bus_in"):
+                    name = st.get("bus") or (next(iter(buses)) if len(buses) == 1 else None)
+                    b = buses[name]
+                    a = self.runner._bus_row(b, st.get("at"))
+                    if d == "tap":
+                        ents, ex, _ = b.tap(b.lane_index(st.get("lane")), a)
+                        nx, ny = DIRS[b.side]
+                        ents += [{"name": "transport-belt", "x": ex["x"] + nx * k, "y": ex["y"] + ny * k,
+                                  "direction": b.side} for k in range(max(1, int(st.get("run", 3))))]
+                    else:
+                        try:
+                            i = b.lane_index(st.get("item") or st.get("lane"))
+                        except ValueError:
+                            i = b.lanes.index("spare")
+                        ents, _ = b.merge(i, a)
+                    out.append({"do": "ghosts", "entities": [e for e in ents if e["name"] != "splitter"]})
+                    continue
+            except (KeyError, ValueError, TypeError, StopIteration):
+                pass
+            out.append(st)
+        return out
+
     async def _lint(self, plan: dict) -> list[str]:
+        plan = dict(plan, steps=await self._bus_steps_as_ghosts(plan.get("steps") or []))
         pts = plan_points(plan.get("steps") or [])
         if not pts:
             return []
@@ -969,6 +1014,13 @@ class Actor(FastPaths):
                              json.dumps(sm, separators=(",", ":"))[:budget])
                 except Exception as e:  # noqa: BLE001
                     text += f"\n(area read at {fmt_xy(p)} failed: {e!r})"
+        try:
+            buses = await self.runner.buses()
+            if buses:
+                text += "\n\nMain bus" + ("es" if len(buses) > 1 else "") + " (tap, bus_in): " + \
+                    " | ".join(b.describe() for b in buses.values())
+        except Exception as e:  # noqa: BLE001
+            self.log({"kind": "error", "where": "buses", "error": repr(e)})
         me = await self.g.me()
         text += f"\n\nThe character is at {fmt_xy(me.get('position') or (0, 0))}, carrying {items_words(me.get('inventory'), 12)}."
         try:

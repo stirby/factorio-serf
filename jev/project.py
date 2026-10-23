@@ -75,6 +75,12 @@ their supply: "build red science for 30/min at [gps], fed by belt from the iron 
 copper; later steel, circuits, plastic) running one way from the smelting, production rows beside the bus with room \
 between them, oil and the rocket in areas set aside. New builds go where the plan says, never into whatever gap is \
 free.
+  - {name} has bus tools; name them in orders. "lay bus main at [gps] flowing south, taps on the east side, lanes \
+iron-plate, iron-plate, copper-plate, copper-plate, then 4 spare, 100 long" lays it (spare lanes are for steel, \
+circuits, plastic later); "feed bus lane 0 from the iron smelting line at [gps]" fills a lane; "tap the copper and \
+iron lanes at rows 10 and 14 and build green circuits for 30/min along them, then put the circuits onto the bus at \
+row 30" is a production row. The report shows the bus: its lanes, heads, taps and free rows. Everything takes from \
+the bus and gives back to it: no belt from one machine group straight across the base to another.
   - Build ahead of demand: smelting and mining at about 1.5 times what the chains need, power at 1.5 times the \
 load. Add mines before patches run dry (the audit shows drills on exhausted ore).
   - Feed everything by belt and pipe. No chest a person has to fill: if the audit lists chests filled by hand, \
@@ -231,15 +237,22 @@ class Project:
 
     async def _audit(self) -> str:
         """The base's health for the report (jev/audit.py): machines working, what the rest lack, chests filled by
-        hand, science reaching the labs."""
+        hand, science reaching the labs; and the main bus as laid so far."""
+        out = ""
         try:
             from . import audit as base_audit
             a = await self.actor.g.call("audit", timeout=60)
             self._log({"kind": "audit", **base_audit.numbers(a)})
-            return base_audit.words(a, groups=8)
+            out = base_audit.words(a, groups=8)
         except Exception as e:  # noqa: BLE001
             self._log({"kind": "error", "where": "audit", "error": repr(e)})
-            return ""
+        try:
+            buses = await self.actor.runner.buses()
+            if buses:
+                out += "\nMain bus: " + " | ".join(b.describe() for b in buses.values())
+        except Exception as e:  # noqa: BLE001
+            self._log({"kind": "error", "where": "buses", "error": repr(e)})
+        return out
 
     async def _run_order(self, text: str) -> None:
         a = self.actor

@@ -148,6 +148,13 @@ def describe(step: dict) -> str:
         return f"put {step.get('count', '')} {step.get('item')} into the thing{at}"
     if d == "say":
         return "say: " + str(step.get("text", ""))[:60]
+    if d == "bus":
+        return f"lay bus {step.get('name') or 'main'}" + (f" ({', '.join(map(str, step['lanes']))})" if step.get(
+            "lanes") else "")
+    if d == "tap":
+        return f"tap the {step.get('lane')} lane of bus {step.get('bus') or 'main'} at row {step.get('at')}"
+    if d == "bus_in":
+        return f"put {step.get('item') or step.get('lane')} onto bus {step.get('bus') or 'main'} at row {step.get('at')}"
     return f"{d}{at}"
 
 
@@ -1174,6 +1181,184 @@ class Runner:
                 return {"ok": False, "msg": "; ".join(msgs)}
         return {"ok": True, "msg": "; ".join(msgs) or "merged"}
 
+    # ------------------------------------------------------------------ main bus (jev/busgen.py)
+    async def buses(self) -> dict:
+        from .busgen import Bus
+        lay = (await self.g.call("layout")).get("layout") or {}
+        out = {}
+        for k, v in (lay.items() if isinstance(lay, dict) else []):
+            if str(k).startswith("bus:"):
+                try:
+                    out[k[4:]] = Bus.from_dict(v)
+                except (TypeError, ValueError):
+                    pass
+        return out
+
+    async def _bus(self, name):
+        bs = await self.buses()
+        if name and name in bs:
+            return bs[name]
+        if not name and len(bs) == 1:
+            return next(iter(bs.values()))
+        raise ValueError(f"no bus named {name!r} (buses: {', '.join(bs) or 'none yet: lay one with a bus step'})")
+
+    async def _save_bus(self, b) -> None:
+        await self.g.call("layout", key=f"bus:{b.name}", value=b.to_dict())
+
+    async def _blocked(self, ents: list[dict], skip: set | None = None) -> list[str]:
+        """What already stands on the tiles these entities need (other than tiles in skip)."""
+        from .lint import size_of, tiles_of
+        from .world import World
+        xs, ys = [e["x"] for e in ents], [e["y"] for e in ents]
+        cx, cy = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
+        w = World(await self.g.scan(center=(cx, cy), radius=int(max(max(xs) - min(xs), max(ys) - min(ys)) / 2 + 4)))
+        out = []
+        for e in ents:
+            fw, fh = size_of(e["name"], e.get("direction"))
+            for t in tiles_of(e["x"], e["y"], fw, fh):
+                if skip and t in skip:
+                    continue
+                o = w.at(t[0] + 0.5, t[1] + 0.5)
+                if o and o.get("t") not in ("resource",):
+                    out.append(f"{o.get('n')} at {o['x']:g},{o['y']:g}")
+        return sorted(set(out))
+
+    @staticmethod
+    def _bus_row(b, at) -> int:
+        if isinstance(at, (list, tuple)) and len(at) == 2:
+            return b.along_of(float(at[0]), float(at[1]))
+        return int(at)
+
+    async def _do_bus(self, s):
+        """Lay a main bus (or lengthen one): straight lanes in pairs with free columns between, registered by name
+        so taps and merges can find its lanes later."""
+        from .busgen import Bus
+        name = s.get("name") or "main"
+        old = (await self.buses()).get(name)
+        if old and ("x" not in s or (abs(float(s["x"]) - old.x) < 1 and abs(float(s["y"]) - old.y) < 1)):
+            n = int(s.get("length") or old.length)
+            if n <= old.length:
+                return {"ok": True, "msg": old.describe()}
+            ents = old.lay(old.length, n)
+            r = await self._do_ghosts({"entities": ents}) if ents else {"ok": True, "msg": "no lanes in use"}
+            if r.get("ok"):
+                old.length = n
+                await self._save_bus(old)
+            return {"ok": bool(r.get("ok")), "msg": f"lengthened bus {name} to {n} rows: {r.get('msg')}. " +
+                    old.describe()}
+        if old:
+            return {"ok": False, "msg": f"a bus named {name} already exists elsewhere ({old.describe()}); pick "
+                                        "another name"}
+        try:
+            b = Bus(name=name, x=float(s["x"]), y=float(s["y"]), direction=s["direction"], side=s["side"],
+                    lanes=[str(x) for x in s["lanes"]], length=int(s["length"]))
+        except (KeyError, ValueError, TypeError) as e:
+            return {"ok": False, "msg": f"bus needs name x y direction side lanes=[items] length: {e}"}
+        if not b.lanes:
+            return {"ok": False, "msg": "bus needs at least one lane"}
+        ents = b.lay()
+        if not ents:
+            return {"ok": False, "msg": "every lane is spare: name at least one lane's item"}
+        bl = await self._blocked(ents)
+        if bl:
+            return {"ok": False, "msg": f"the bus's lanes are blocked by {', '.join(bl[:6])}" +
+                    (f" and {len(bl) - 6} more" if len(bl) > 6 else "") + ": clear them or lay it elsewhere"}
+        await self._save_bus(b)  # registered first: a half-built bus is still the bus
+        r = await self._do_ghosts({"entities": ents})
+        return {"ok": bool(r.get("ok")), "msg": f"laid bus {name}: {r.get('msg')}. {b.describe()}. Feed each "
+                "lane by connecting its supply line to the lane's head."}
+
+    async def _do_tap(self, s):
+        """Take one lane off the bus: a splitter on the lane, the split-off belt under the later lanes to the bus's
+        side and `run` tiles beyond it (default 3), ready for a row or a connect."""
+        from .busgen import DIRS, SPARE
+        try:
+            b = await self._bus(s.get("bus"))
+            i = b.lane_index(s.get("lane"))
+            a = self._bus_row(b, s.get("at"))
+        except (ValueError, TypeError) as e:
+            return {"ok": False, "msg": f"tap: {e}"}
+        why = b.rows_free(a)
+        if why:
+            return {"ok": False, "msg": f"tap: {why}"}
+        if b.lanes[i] == SPARE:
+            return {"ok": False, "msg": f"tap: lane {i} of bus {b.name} is spare (nothing on it yet)"}
+        if a < b.start(i):
+            return {"ok": False, "msg": f"tap: lane {i} starts at row {b.start(i)}; tap it further down"}
+        ents, ex, mine = b.tap(i, a)
+        nx, ny = DIRS[b.side]
+        run = max(1, int(s.get("run", 3)))
+        for k in range(run):
+            ents.append({"name": "transport-belt", "x": ex["x"] + nx * k, "y": ex["y"] + ny * k,
+                         "direction": b.side})
+        end = [ex["x"] + nx * (run - 1), ex["y"] + ny * (run - 1)]
+        import math as _m
+        lane_tile = (_m.floor(mine[0][0]), _m.floor(mine[0][1]))
+        bl = await self._blocked(ents, skip={lane_tile})
+        if bl:
+            return {"ok": False, "msg": f"tap: blocked by {', '.join(bl[:6])} (keep the bus's gap columns clear; or "
+                                        "tap at another row)"}
+        m = await self._do_mine_at({"x": mine[0][0], "y": mine[0][1]})
+        if not m.get("ok") and "nothing" not in str(m.get("msg")):
+            return {"ok": False, "msg": f"tap: couldn't pick up the lane's belt for the splitter: {m.get('msg')}"}
+        r = await self._do_ghosts({"entities": ents})
+        if r.get("ok"):
+            b.joins.append({"kind": "tap", "lane": i, "at": a, "end": end})
+            await self._save_bus(b)
+        return {"ok": bool(r.get("ok")), "msg": f"tap on bus {b.name} lane {i} ({b.lanes[i]}) at row {a}: "
+                f"{r.get('msg')}; the split-off belt ends at {end[0]:g},{end[1]:g} running {b.side}",
+                "end": end}
+
+    async def _do_bus_in(self, s):
+        """Put a product onto the bus: its belt (from = the last tile of the line carrying it) comes in from the
+        bus's side under the lanes and starts a lane at row at+1: a spare lane, or one already carrying it (then
+        it side-loads that lane)."""
+        from .busgen import SPARE
+        try:
+            b = await self._bus(s.get("bus"))
+            a = self._bus_row(b, s.get("at"))
+        except (ValueError, TypeError) as e:
+            return {"ok": False, "msg": f"bus_in: {e}"}
+        if not isinstance(s.get("from"), (list, tuple)):
+            return {"ok": False, "msg": "bus_in needs from=[x,y], the last belt of the line carrying the product"}
+        item = s.get("item") or s.get("lane")
+        try:
+            i = b.lane_index(item)
+        except ValueError:
+            spares = [k for k, it in enumerate(b.lanes) if it == SPARE]
+            if not spares:
+                return {"ok": False, "msg": f"bus_in: bus {b.name} has no {item} lane and no spare lane (lanes: "
+                                            f"{', '.join(b.lanes)}); lay a second bus"}
+            i = spares[0]
+        why = b.rows_free(a)
+        if why:
+            return {"ok": False, "msg": f"bus_in: {why}"}
+        ents, entry = b.merge(i, a)
+        new_lane = b.lanes[i] == SPARE or b.start(i) > a + 1
+        lane_from = a + 1
+        lane_to = b.length if b.lanes[i] == SPARE else b.start(i)
+        if new_lane:
+            for k in range(lane_from, lane_to):
+                x, y = b.at(k, b.u(i))
+                ents.append({"name": "transport-belt", "x": x, "y": y, "direction": b.direction})
+        bl = await self._blocked(ents)
+        if bl:
+            return {"ok": False, "msg": f"bus_in: blocked by {', '.join(bl[:6])} (or merge at another row)"}
+        r = await self._do_ghosts({"entities": ents})
+        if not r.get("ok"):
+            return {"ok": False, "msg": f"bus_in: {r.get('msg')}"}
+        if new_lane:
+            b.lanes[i] = item or b.lanes[i]
+            b.starts[str(i)] = lane_from
+        b.joins.append({"kind": "merge", "lane": i, "at": a, "end": [entry["x"], entry["y"]]})
+        await self._save_bus(b)
+        c = await self._act({"op": "connect", "item": s.get("belt", "transport-belt"), "from": list(s["from"]),
+                             "to": [entry["x"], entry["y"]]}, timeout=600)
+        side_load = "" if new_lane else " (side-loading the lane, which already runs there: one side of it)"
+        return {"ok": bool(c.get("ok")) or "already connected" in str(c.get("msg")),
+                "msg": f"bus_in to bus {b.name} lane {i} ({b.lanes[i]}) at row {a}{side_load}: laid {r.get('msg')}; "
+                       f"line in: {str(c.get('msg'))[:160]}"}
+
     async def _do_route(self, s):
         """Several separate belt lines at once (pairs of from/to tiles), laid by the router so they never mix:
         crossings go under with undergrounds. Then built as ghosts."""
@@ -1377,6 +1562,16 @@ def plan_needs(steps: list[dict]) -> dict:
                     add(s.get("item", "transport-belt"), abs(src[0] - s["at"][0]) + abs(src[1] - s["at"][1]) + 6)
             if isinstance(s.get("to"), (list, tuple)) and isinstance(s.get("at"), (list, tuple)):
                 add(s.get("item", "transport-belt"), abs(s["to"][0] - s["at"][0]) + abs(s["to"][1] - s["at"][1]) + 4)
+        elif d == "bus":
+            n = sum(1 for x in (s.get("lanes") or []) if x != "spare")
+            add("transport-belt", n * int(s.get("length") or 0))
+        elif d == "tap":
+            add("splitter", 1)
+            add("underground-belt", 2 * 4)
+            add("transport-belt", int(s.get("run", 3)) + 4)
+        elif d == "bus_in":
+            add("underground-belt", 2 * 4)
+            add("transport-belt", 60)
         elif d == "route":
             for pr in s.get("pairs") or []:
                 try:

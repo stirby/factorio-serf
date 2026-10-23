@@ -165,6 +165,11 @@ def lint(steps: list[dict], w: World, available: set[str] | None = None, recipes
                 from .rowgen import DIRS as RD, row_entities
                 b = s.get("belt") or [0, 0]
                 be = w.at(float(b[0]), float(b[1]))
+                if not be:  # a belt an earlier step of this plan lays (a tap's split-off belt, a connect's end)
+                    bt = (math.floor(float(b[0])), math.floor(float(b[1])))
+                    pb = next((e for e in planned if "belt" in e["name"] and bt in e["tiles"] and e.get("dir")), None)
+                    if pb:
+                        be = {"x": pb["x"], "y": pb["y"], "d": pb["dir"]}
                 if not be or be.get("d") not in RD:
                     out.append(f"step {i + 1} row: no belt at {b[0]},{b[1]}")
                 else:

@@ -938,6 +938,113 @@ def test_lint_drill_outputs():
           probs)
 
 
+
+def _flow(ents: list[dict], start: tuple[float, float]):
+    """Where items put on the belt at `start` can go through these entities: the tiles reached, and side-loads onto a
+    belt that also has an input from behind (half a belt lost) or onto an underground entrance."""
+    from jev.busgen import DIRS
+    tiles = {}
+    for e in ents:
+        if e["name"] == "splitter":
+            dx, dy = DIRS[e["direction"]]
+            ax, ay = -dy, dx  # across
+            for k in (-0.5, 0.5):
+                tiles[(math.floor(e["x"] + ax * k), math.floor(e["y"] + ay * k))] = e
+        else:
+            tiles[(math.floor(e["x"]), math.floor(e["y"]))] = e
+    feeders = {}  # tile -> tiles that push into it
+
+    def ahead(t, e):
+        dx, dy = DIRS[e["direction"]]
+        if e["name"] == "underground-belt" and e.get("type") == "input":
+            for k in range(1, 6):
+                o = tiles.get((t[0] + dx * k, t[1] + dy * k))
+                if o and o["name"] == "underground-belt" and o.get("type") == "output" and o["direction"] == e["direction"]:
+                    return [(t[0] + dx * k, t[1] + dy * k)]
+            return []
+        return [(t[0] + dx, t[1] + dy)]
+    for t, e in tiles.items():
+        for n in ahead(t, e):
+            feeders.setdefault(n, []).append(t)
+    seen, todo, bad = set(), [(math.floor(start[0]), math.floor(start[1]))], []
+    while todo:
+        t = todo.pop()
+        if t in seen or t not in tiles:
+            continue
+        seen.add(t)
+        e = tiles[t]
+        if e["name"] == "splitter":  # whichever side items come in, they leave by both
+            todo += [k for k, v in tiles.items() if v is e and k not in seen]
+        for n in ahead(t, e):
+            if n not in tiles:
+                seen.add(n)  # off the end (an exit tile)
+                continue
+            ne = tiles[n]
+            dx, dy = DIRS[ne["direction"]]
+            behind = (n[0] - dx, n[1] - dy)
+            ug_jump = e["name"] == "underground-belt" and e.get("type") == "input"
+            if ne["name"] == "underground-belt" and ne.get("type") == "input" and t != behind:
+                bad.append(f"side-load into underground at {n}")
+            elif ne["name"] == "transport-belt" and t != behind and not ug_jump and behind in feeders.get(n, []):
+                bad.append(f"side-load onto a fed belt at {n}")
+            todo.append(n)
+    return seen, bad
+
+
+def test_bus():
+    from jev.busgen import Bus
+    for d, side in (("south", "east"), ("east", "north"), ("north", "west"), ("west", "south"), ("south", "west")):
+        b = Bus(name="t", x=10.5, y=-4.5, direction=d, side=side, lanes=["a", "b", "c", "d", "spare"], length=40)
+        lanes = b.lay()
+        lane_tiles = {i: {(math.floor(x), math.floor(y)) for x, y in (b.at(k, b.u(i)) for k in range(b.length))}
+                      for i in range(5)}
+        ok_all, why = True, []
+        for i in range(4):
+            a = 6 + 5 * i
+            tap, ex, mine = b.tap(i, a)
+            mt = (math.floor(mine[0][0]), math.floor(mine[0][1]))
+            rest = [e for e in lanes if (math.floor(e["x"]), math.floor(e["y"])) != mt]
+            seen, bad = _flow(rest + tap, b.at(0, b.u(i)))
+            exit_t = (math.floor(ex["x"]), math.floor(ex["y"]))
+            end_t = tuple(math.floor(v) for v in b.at(b.length - 1, b.u(i)))
+            others = set().union(*(lane_tiles[j] for j in range(5) if j != i))
+            occupied = {}
+            for e in rest + tap:
+                k = (math.floor(e["x"]), math.floor(e["y"]))
+                if e["name"] != "splitter":
+                    occupied[k] = occupied.get(k, 0) + 1
+            if exit_t not in seen or end_t not in seen or seen & others or bad or any(v > 1 for v in occupied.values()):
+                ok_all = False
+                why.append((d, side, i, exit_t in seen, end_t in seen, len(seen & others), bad[:2]))
+            m_ents, entry = b.merge(4, a + 2) if i == 0 else b.merge(i, a + 2)
+        check(f"bus {d}/{side}: a tap on every lane carries that lane (all of it, no side-loads) past the bus edge, "
+              "and the lane runs on", ok_all, why)
+        # merges: a spare lane started from the side, and an east and a west lane side-loaded
+        okm, whym = True, []
+        for i in (4, 1, 2):
+            a = 20
+            m_ents, entry = b.merge(i, a)
+            lane = [] if i == 4 else [e for e in lanes if b.along_of(e["x"], e["y"]) > a and
+                                      (math.floor(e["x"]), math.floor(e["y"])) in lane_tiles[i]]
+            if i == 4:
+                lane = [{"name": "transport-belt", "x": x, "y": y, "direction": d}
+                        for x, y in (b.at(k, b.u(4)) for k in range(a + 1, b.length))]
+            seen, bad = _flow(m_ents + lane, (entry["x"], entry["y"]))
+            end_t = tuple(math.floor(v) for v in b.at(b.length - 1, b.u(i)))
+            others = set().union(*(lane_tiles[j] for j in range(5) if j != i))
+            if end_t not in seen or seen & others or (i == 4 and bad):
+                okm = False
+                whym.append((i, end_t in seen, len(seen & others), bad[:2]))
+        check(f"bus {d}/{side}: merges reach their lane (a spare lane fully, no side-load) and no other", okm, whym)
+    b = Bus(name="t", x=0.5, y=0.5, direction="south", side="east", lanes=["a", "b"], length=30)
+    b.joins.append({"kind": "tap", "lane": 0, "at": 10, "end": [0, 0]})
+    check("bus: rows within 4 of another join are refused, others free",
+          b.rows_free(12) is not None and b.rows_free(14) is None and b.rows_free(28) is not None)
+    d = Bus.from_dict(json.loads(json.dumps(b.to_dict())))
+    check("bus: round-trips through json (the game's layout store)", d.to_dict() == b.to_dict() and "lanes: 0 a" in
+          d.describe())
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):

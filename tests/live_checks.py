@@ -753,8 +753,66 @@ return { cx * 32, sp.y }"""
     check("chunks: ... so a move past the old edge finds a path", far.get("ok"), far.get("msg"))
 
 
+async def chk_bus(L: Live, state: dict):
+    from jev.busgen import Bus
+    g = L.g
+    x0, y0 = await L.site(24, 44)
+    await L.ev("""local f = game.forces.player
+for _, t in pairs { 'logistics', 'logistics-2' } do if f.technologies[t] then f.technologies[t].researched = true end end
+local c = storage.agents['serf'].char
+for n, k in pairs { ['transport-belt'] = 400, ['splitter'] = 10, ['underground-belt'] = 40 } do c.insert { name = n, count = k } end
+return true""")
+    await L.ev(f"storage.agents['serf'].char.teleport({{{x0 + 8}, {y0 + 10}}}) return true")
+    runner = Runner(g, lambda r: None)
+    lanes = ["iron-plate", "copper-plate", "stone", "coal", "spare"]
+    hx, hy = x0 + 2.5, y0 + 0.5
+    r = await runner.run({"do": "bus", "name": "lc", "x": hx, "y": hy, "direction": "south", "side": "east",
+                          "lanes": lanes, "length": 40})
+    check("bus: laid 4 lanes of 40 (one spare)", r.get("ok"), r.get("msg"))
+    b = Bus(name="lc", x=hx, y=hy, direction="south", side="east", lanes=lanes, length=40)
+    taps = {}
+    for i, a in ((0, 6), (3, 12), (1, 18), (2, 24)):
+        t = await runner.run({"do": "tap", "bus": "lc", "lane": lanes[i], "at": a, "run": 3})
+        taps[i] = t.get("end")
+        check(f"bus: tap lane {i} ({lanes[i]}) at row {a}", t.get("ok") and t.get("end"), t.get("msg"))
+    # a gear belt coming from the side, to start the spare lane
+    sx, sy = b.at(30, 4 * b.pairs + 6)
+    await L.ev(f"""local s, f = game.surfaces.nauvis, game.forces.player
+for k = 0, 3 do s.create_entity {{ name = 'transport-belt', position = {{ {sx} + k, {sy} }}, direction = defines.direction.west, force = f }} end
+return true""")
+    m = await runner.run({"do": "bus_in", "bus": "lc", "item": "iron-gear-wheel", "at": 29, "from": [sx, sy]})
+    check("bus: bus_in starts the spare lane with gears from the side", m.get("ok"), m.get("msg"))
+    heads = [b.at(0, b.u(i)) for i in range(4)] + [(sx + 3, sy)]
+    items = lanes[:4] + ["iron-gear-wheel"]
+    feed = "local s = game.surfaces.nauvis local ok = 0\n" + "\n".join(
+        f"do local e = s.find_entity('transport-belt', {{{x}, {y}}}) if e then for l = 1, 2 do "
+        f"if e.get_transport_line(l).insert_at_back({{ name = '{it}' }}) then ok = ok + 1 end end end end"
+        for (x, y), it in zip(heads, items)) + "\nreturn ok"
+    t0 = time.monotonic()
+    while time.monotonic() - t0 < 45:
+        await L.ev(feed)
+        await asyncio.sleep(0.25)
+    await asyncio.sleep(8)
+
+    async def on(x, y):
+        return await L.ev(f"""local s = game.surfaces.nauvis local out = {{}}
+for _, e in pairs(s.find_entities_filtered {{ position = {{ {x}, {y} }}, type = {{ 'transport-belt', 'underground-belt', 'splitter' }} }}) do
+  for l = 1, 2 do for _, c in pairs(e.get_transport_line(l).get_contents()) do out[c.name] = (out[c.name] or 0) + c.count end end
+end
+return out""") or {{}}
+    for i, end in taps.items():
+        if not end:
+            continue
+        got = await on(*end)
+        check(f"bus: tap {i}'s belt end has {lanes[i]} and nothing else", set(got) == {lanes[i]}, got)
+    for i, it in enumerate(items):
+        x, y = b.at(39, b.u(i))
+        got = await on(x, y)
+        check(f"bus: lane {i}'s far end carries {it} only", set(got) == {it}, got)
+
+
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus}
 
 
 async def main() -> int:
