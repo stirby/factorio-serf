@@ -611,8 +611,55 @@ return fl and fl.name or 'empty'""")
     await L.ev("storage.agents['serf'].char.get_main_inventory().clear() return true")
 
 
+async def chk_fluid_ports2(L: Live, state: dict):
+    g = L.g
+    x0, y0 = await L.site(24, 14)
+    ports = await L.ev(f"""
+local s, f = game.surfaces.nauvis, game.forces.player
+for _, r in ipairs {{ 'battery', 'sulfuric-acid', 'sulfur' }} do f.recipes[r].enabled = true end
+local a = s.create_entity {{ name = 'chemical-plant', position = {{ {x0} + 2.5, {y0} + 3.5 }}, force = f,
+  direction = defines.direction.east }}
+a.set_recipe('sulfuric-acid')
+local b = s.create_entity {{ name = 'chemical-plant', position = {{ {x0} + 14.5, {y0} + 3.5 }}, force = f }}
+b.set_recipe('battery')
+local d = s.create_entity {{ name = 'chemical-plant', position = {{ {x0} + 14.5, {y0} + 10.5 }}, force = f }}
+d.set_recipe('sulfur')
+local w = s.create_entity {{ name = 'pipe', position = {{ {x0} + 1.5, {y0} + 10.5 }}, force = f }}
+w.insert_fluid {{ name = 'water', amount = 50 }}
+-- pipes already on both of the acid plant's acid ports
+local fb, out = a.fluidbox, {{}}
+for i = 1, #fb do
+  if fb.get_locked_fluid(i) == 'sulfuric-acid' then
+    for _, pc in pairs(fb.get_pipe_connections(i)) do
+      s.create_entity {{ name = 'pipe', position = pc.target_position, force = f }}
+      out[#out + 1] = {{ pc.target_position.x, pc.target_position.y }}
+    end
+  end
+end
+local c = storage.agents['serf'].char
+c.teleport({{ {x0} + 8.5, {y0} + 7.5 }})
+c.get_main_inventory().clear()
+c.insert {{ name = 'pipe', count = 80 }}
+c.insert {{ name = 'pipe-to-ground', count = 10 }}
+return out""")
+    r = await Runner(g)._do_connect({"item": "pipe", "from": [x0 + 2.5, y0 + 3.5], "to": [x0 + 14.5, y0 + 3.5],
+                                     "from_fluid": "sulfuric-acid", "to_fluid": "sulfuric-acid"})
+    check("fluid ports: with pipes already on the acid ports, the line carries on from one",
+          r.get("ok"), (r.get("msg"), ports))
+    r2 = await Runner(g)._do_connect({"item": "pipe", "from": [x0 + 1.5, y0 + 10.5], "to": [x0 + 14.5, y0 + 10.5]})
+    await asyncio.sleep(3)
+    got = await L.ev(f"""
+local d = game.surfaces.nauvis.find_entity('chemical-plant', {{ {x0} + 14.5, {y0} + 10.5 }})
+local out = {{}}
+for i = 1, #d.fluidbox do local fl = d.fluidbox[i] out[#out + 1] = (d.fluidbox.get_locked_fluid(i) or '?') .. '=' .. (fl and fl.name or 'empty') end
+return table.concat(out, ' ')""")
+    check("fluid ports: a plain water line to the middle of a sulfur plant lands on its water inlet",
+          r2.get("ok") and "water=water" in str(got) and "petroleum-gas=water" not in str(got), (r2.get("msg"), got))
+    await L.ev("storage.agents['serf'].char.get_main_inventory().clear() return true")
+
+
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2}
 
 
 async def main() -> int:

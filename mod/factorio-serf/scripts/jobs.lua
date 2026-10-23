@@ -1568,6 +1568,14 @@ local function fluid_port(surface, p, fluid, want_out, force)
       return t, best
     end
   end
+  -- a pipe already on the port (empty, or holding this fluid): the line carries on from it (an offshore pump's
+  -- first pipe was "already taken", and the line gave up)
+  for _, cd in ipairs(cands) do
+    local t = { x = math.floor(cd.pos.x) + 0.5, y = math.floor(cd.pos.y) + 0.5 }
+    local pipe = surface.find_entities_filtered { position = t, radius = 0.4, type = "pipe", limit = 1 }[1]
+    local held = pipe and pipe.fluidbox[1] and pipe.fluidbox[1].name
+    if pipe and (not held or held == fluid) then return t, best, true end
+  end
   if #cands > 0 then
     return nil, best.name .. " at " .. xystr(best.position) .. ": its " .. fluid .. " connection"
       .. (#cands > 1 and "s are" or " is") .. " already taken (a pipe or building is there): join that pipe instead"
@@ -1583,19 +1591,26 @@ local function fluid_near(surface, p)
   local function names(pos, r)
     for _, n in pairs(surface.find_entities_filtered { position = pos, radius = r, limit = 6 }) do
       local okF, fb = pcall(function() return n.fluidbox end)
-      if okF and fb then
-        for i = 1, #fb do
-          local name = fb[i] and fb[i].name
-          if not name then
-            local okL, lk = pcall(fb.get_locked_fluid, i)
-            name = okL and lk or nil
-          end
-          if name then return name end
+      -- only single-box things (pipes, tanks, pumps): a refinery or chemical plant holds several fluids, and which
+      -- one the line is for has to be named (from_fluid / to_fluid)
+      if okF and fb and #fb == 1 then
+        local name = fb[1] and fb[1].name
+        if not name then
+          local okL, lk = pcall(fb.get_locked_fluid, 1)
+          name = okL and lk or nil
         end
+        if name then return name end
       end
     end
   end
   return names(p, 0.5) or names(p, 1.2)
+end
+
+-- the machine whose footprint holds p (the planner pointed at the machine itself), if any
+local function machine_at(surface, p, force)
+  for _, m in pairs(surface.find_entities_filtered { position = p, radius = 0.1, type = PORT_TYPES, force = force }) do
+    return m
+  end
 end
 
 H.connect = {
@@ -1625,6 +1640,41 @@ H.connect = {
         to = q
         port_keys[route.key(math.floor(q.x), math.floor(q.y))] = true
         if e.unit_number then port_units[e.unit_number] = true end
+      end
+    end
+    -- an end on a machine, with the fluid known: that machine's port for it (its output at the start, its input at
+    -- the end), the same as naming from_fluid / to_fluid
+    if line_fluid and ent.type == "pipe" then
+      if not args.from_fluid and machine_at(c.surface, from, c.force) then
+        local q, e = fluid_port(c.surface, from, line_fluid, true, c.force)
+        if q then
+          from = q
+          port_keys[route.key(math.floor(q.x), math.floor(q.y))] = true
+          if e.unit_number then port_units[e.unit_number] = true end
+        end
+      end
+      if not args.to_fluid and machine_at(c.surface, to, c.force) then
+        local q, e = fluid_port(c.surface, to, line_fluid, false, c.force)
+        if q then
+          to = q
+          port_keys[route.key(math.floor(q.x), math.floor(q.y))] = true
+          if e.unit_number then port_units[e.unit_number] = true end
+        end
+      end
+    end
+    -- the machines the line runs between have other boxes too (a chemical plant's water inlet beside its acid one):
+    -- those aren't walls for this line, or it can't reach the port (it stalled 2 tiles from a chemical plant)
+    local function ignore_ends(pt, set)
+      if not line_fluid then return end
+      for _, m in pairs(c.surface.find_entities_filtered { position = pt, radius = 3, type = PORT_TYPES, force = c.force }) do
+        local okF, fb = pcall(function() return m.fluidbox end)
+        if okF and fb and m.unit_number then
+          for i = 1, #fb do
+            local okL, lk = pcall(fb.get_locked_fluid, i)
+            local name = (okL and lk) or (fb[i] and fb[i].name)
+            if name == line_fluid then set[m.unit_number] = true break end
+          end
+        end
       end
     end
     if util.dist(from, to) > 250 then return fail("too far to route in one go (max ~250 tiles); split it") end
@@ -1658,6 +1708,8 @@ H.connect = {
       for _, p in ipairs(hops) do places[#places + 1] = { pos = p } end
       path = { hops.first, hops.last, n = math.floor(util.dist(hops.first, hops.last) + 0.5) }
     else
+      ignore_ends(from, port_units)
+      ignore_ends(to, port_units)
       local ropts = { entity = ent.name, force = c.force, allow = {}, fluid = line_fluid, fluid_ignore = port_units }
       local fk, tk = route.key(math.floor(from.x), math.floor(from.y)), route.key(math.floor(to.x), math.floor(to.y))
       for k in pairs(port_keys) do ropts.allow[k] = true end -- a port tile is where the pipe must go: no sliding
