@@ -69,6 +69,7 @@ end
 -- start_forbid / goal_forbid = {dx, dy}: a first step / last step in that direction is not allowed (it would run
 -- a belt head-on into the belt there). goal_join: the goal is an existing belt the line feeds; nothing lands on it.
 -- belt: a belt line, which keeps off tiles an open belt end points into (except its own two ends).
+-- start_dir = {dx, dy}: the way items arrive into the start tile; an underground entrance there faces that way.
 function route.find(surface, from, to, opts)
   local sx, sy = math.floor(from.x), math.floor(from.y)
   local gx, gy = math.floor(to.x), math.floor(to.y)
@@ -140,7 +141,10 @@ function route.find(surface, from, to, opts)
   local h = {}
   local came, g = {}, {}
   g[key(sx, sy)] = 0
-  push(h, { x = sx, y = sy, f = math.abs(gx - sx) + math.abs(gy - sy), dir = nil })
+  -- start_dir: the way items come into the start tile (from a splitter's or underground's output, or the line it
+  -- continues): an underground entrance there must face that way too, or it's fed from the side and takes nothing
+  -- (p6: "connect turned the first tile after a splitter into a sideways underground entrance")
+  push(h, { x = sx, y = sy, f = math.abs(gx - sx) + math.abs(gy - sy), dir = opts.start_dir })
   local hop = opts.hop
   local function tunnel_ok(x, y, d, k)
     -- Another underground of the same kind in line between would pair with ours instead.

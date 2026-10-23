@@ -596,8 +596,12 @@ H.place = {
           return nil
         end
       end
+      -- (corpses such as tree stumps and dropped items never block a building: naming one sent p8's planner around
+      -- "stumps that block placement and can't be mined")
+      local NOT_A_BLOCKER = { resource = true, corpse = true, ["character-corpse"] = true, ["item-entity"] = true,
+        character = true }
       for _, e in pairs(found) do
-        if e.type ~= "resource" then blockers[#blockers + 1] = e.name .. "@" .. xystr(e.position) end
+        if not NOT_A_BLOCKER[e.type] then blockers[#blockers + 1] = e.name .. "@" .. xystr(e.position) end
       end
       -- the game won't let a player join two different fluids: say which, not "water, cliff or wrong tile"
       -- (a pipe line's last tile beside a machine inlet for another fluid: 9 failures in an afternoon)
@@ -1193,8 +1197,11 @@ local DIR_VEC = { [defines.direction.north] = { 0, -1 }, [defines.direction.east
   [defines.direction.south] = { 0, 1 }, [defines.direction.west] = { -1, 0 } }
 local BELTS = { "transport-belt", "underground-belt", "splitter" }
 
+-- (by the tile's area: a position+radius search matches entity centres, and a splitter's centre lies between its two
+-- tiles, so it was never found from either one)
 local function belt_at(surface, p)
-  return surface.find_entities_filtered { position = p, radius = 0.3, type = BELTS, limit = 1 }[1]
+  local x, y = p.x or p[1], p.y or p[2]
+  return surface.find_entities_filtered { area = { { x - 0.3, y - 0.3 }, { x + 0.3, y + 0.3 } }, type = BELTS, limit = 1 }[1]
 end
 
 -- The belt in front of a belt, if any.
@@ -1690,7 +1697,8 @@ H.connect = {
     if util.dist(from, to) > 250 then return fail("too far to route in one go (max ~250 tiles); split it") end
     -- Endpoints often land on a machine edge; slide them to the nearest free tile.
     local function free_tile(p)
-      for r = 0, 2 do
+      -- a pole line's end may sit inside a big machine (a refinery is 5x5): a pole 4 tiles out still powers it
+      for r = 0, (ent.type == "electric-pole" and 4 or 2) do
         for dx = -r, r do
           for dy = -r, r do
             if math.max(math.abs(dx), math.abs(dy)) == r then
@@ -1790,12 +1798,26 @@ H.connect = {
           job.continues = s
           from, ropts.allow[fk] = s.position, true
           local feeder = feeder_of(c.surface, s)
-          if feeder then ropts.start_forbid = { util.sign(feeder.x - s.position.x), util.sign(feeder.y - s.position.y) } end
+          if feeder then
+            ropts.start_forbid = { util.sign(feeder.x - s.position.x), util.sign(feeder.y - s.position.y) }
+            ropts.start_dir = { -ropts.start_forbid[1], -ropts.start_forbid[2] }
+          end
         elseif s and s.type ~= "transport-belt" then
           local v = DIR_VEC[s.direction]
           if v and (s.type == "splitter" or s.belt_to_ground_type == "output") then
             from = { x = from.x + v[1], y = from.y + v[2] }
             fk = route.key(math.floor(from.x), math.floor(from.y))
+            ropts.start_dir = { v[1], v[2] }
+          end
+        elseif not s then
+          -- a bare tile that a splitter or underground exit beside it feeds: items come in that way
+          for _, v in pairs(DIR_VEC) do
+            local n = belt_at(c.surface, { x = tile(from).x - v[1], y = tile(from).y - v[2] })
+            local nv = n and DIR_VEC[n.direction]
+            if n and nv and nv[1] == v[1] and nv[2] == v[2] and (n.type == "splitter" or n.belt_to_ground_type == "output") then
+              ropts.start_dir = { v[1], v[2] }
+              break
+            end
           end
         end
         -- End on a belt: feed into it from behind or the side, never head-on, and leave it as it is.

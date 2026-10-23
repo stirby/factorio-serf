@@ -1031,8 +1031,70 @@ return true""")
           (r.get("msg", "")[:80], ok, str(msg)[:200], n))
 
 
+async def chk_split_start(L: Live, state: dict):
+    g = L.g
+    x0, y0 = await L.site(16, 18)
+    await L.ev(f"""local s, f = game.surfaces.nauvis, game.forces.player
+for _, t in pairs {{ 'logistics' }} do if f.technologies[t] then f.technologies[t].researched = true end end
+for k = 0, 12 do
+  if k ~= 3 then s.create_entity {{ name = 'transport-belt', position = {{ {x0} + 2.5, {y0} + k + 0.5 }}, direction = defines.direction.south, force = f }} end
+  s.create_entity {{ name = 'transport-belt', position = {{ {x0} + 4.5, {y0} + k + 0.5 }}, direction = defines.direction.south, force = f }}
+end
+s.create_entity {{ name = 'splitter', position = {{ {x0} + 3, {y0} + 3.5 }}, direction = defines.direction.south, force = f }}
+local c = storage.agents['serf'].char
+c.insert {{ name = 'transport-belt', count = 80 }} c.insert {{ name = 'underground-belt', count = 10 }}
+c.teleport {{ {x0} + 8, {y0} + 8 }}
+return true""")
+    r = await Runner(g)._do_connect({"item": "transport-belt", "from": [x0 + 3.5, y0 + 4.5], "to": [x0 + 12.5, y0 + 4.5]})
+    ent = await L.ev(f"""local e = game.surfaces.nauvis.find_entities_filtered {{ position = {{ {x0} + 3.5, {y0} + 4.5 }}, radius = 0.4 }}[1]
+return e and (e.name .. ' ' .. e.direction) or 'none'""")
+    feed = (f"local s = game.surfaces.nauvis local a = s.find_entity('transport-belt', {{ {x0} + 2.5, {y0} + 0.5 }}) "
+            f"local b = s.find_entity('transport-belt', {{ {x0} + 4.5, {y0} + 0.5 }}) "
+            "for l = 1, 2 do if a then a.get_transport_line(l).insert_at_back({ name = 'iron-plate' }) end "
+            "if b then b.get_transport_line(l).insert_at_back({ name = 'copper-plate' }) end end return true")
+    t0 = time.monotonic()
+    while time.monotonic() - t0 < 25:
+        await L.ev(feed)
+        await asyncio.sleep(0.4)
+    await asyncio.sleep(10)
+    got = await L.ev(f"""local out = {{}}
+for _, e in pairs(game.surfaces.nauvis.find_entities_filtered {{ area = {{ {{ {x0} + 10, {y0} }}, {{ {x0} + 14, {y0} + 18 }} }}, type = 'transport-belt' }}) do
+  for l = 1, 2 do for _, c in pairs(e.get_transport_line(l).get_contents()) do out[c.name] = (out[c.name] or 0) + c.count end end
+end
+return out""")
+    check("splitter start: the line from a splitter's side output doesn't start with a sideways underground entrance",
+          r.get("ok") and not str(ent).startswith("underground-belt"), (r.get("msg"), ent))
+    check("splitter start: ... and the split-off iron (only) reaches its end", (got or {}).get("iron-plate", 0) > 0
+          and "copper-plate" not in (got or {}), got)
+
+
+async def chk_power_big(L: Live, state: dict):
+    g = L.g
+    x0, y0 = await L.site(26, 14)
+    y0 += 2
+    await L.ev(f"""local s, f = game.surfaces.nauvis, game.forces.player
+for _, t in pairs {{ 'oil-processing', 'fluid-handling' }} do if f.technologies[t] then f.technologies[t].researched = true end end
+local eei = s.create_entity {{ name = 'electric-energy-interface', position = {{ {x0} + 2, {y0} + 6 }}, force = f }}
+eei.power_production = 1e7 eei.electric_buffer_size = 1e8
+-- p7's case: the live pole 6 tiles from the refinery's centre (in wire reach of it, its supply short of the edge)
+s.create_entity {{ name = 'small-electric-pole', position = {{ {x0} + 3.5, {y0} + 4.5 }}, force = f }}
+for k = 1, 2 do s.create_entity {{ name = 'small-electric-pole', position = {{ {x0} + 3.5 + 7 * k, {y0} + 4.5 - k }}, force = f }} end
+s.create_entity {{ name = 'small-electric-pole', position = {{ {x0} + 19.5, {y0} + 0.5 }}, force = f }}
+local r = s.create_entity {{ name = 'oil-refinery', position = {{ {x0} + 19.5, {y0} + 6.5 }}, force = f }}
+r.set_recipe('basic-oil-processing')
+local c = storage.agents['serf'].char
+c.insert {{ name = 'small-electric-pole', count = 20 }}
+c.teleport {{ {x0} + 10, {y0} + 10 }}
+return true""")
+    r = await Runner(g).run({"do": "power", "x": x0 + 19.5, "y": y0 + 6.5})
+    st = await L.ev(f"""local e = game.surfaces.nauvis.find_entity('oil-refinery', {{ {x0} + 19.5, {y0} + 6.5 }})
+return e.is_connected_to_electric_network()""")
+    check("power: a pole line aimed at the middle of a 5x5 refinery ends beside it and powers it",
+          r.get("ok") and st is True, (r.get("msg"), st))
+
+
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "pipegap": chk_pipe_gap, "endref": chk_end_ref}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "pipegap": chk_pipe_gap, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big}
 
 
 async def main() -> int:
