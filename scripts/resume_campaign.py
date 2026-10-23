@@ -62,6 +62,11 @@ def main() -> None:
         state["stage"] = stage
         state_path.write_text(json.dumps(state, indent=1))
         print(f"{name}: generation {running} closed at {saves[-1].name}; next starts from {stage}")
+        # score the closed generation like campaign.py does when one ends by itself: the base left alone
+        subprocess.Popen([str(ROOT / ".venv/bin/python"), str(ROOT / "scripts" / "audit_base.py"), str(saves[-1]),
+                          "--minutes", "5", "--instance", "auto", "--label", f"g{running}",
+                          "--append", str(camp / "audits.jsonl")],
+                         cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
     else:
         if gdir.exists():
             gdir.rename(camp / f"gen-{running:02d}-aborted-{time.strftime('%H%M')}")
