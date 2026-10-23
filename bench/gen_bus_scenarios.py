@@ -148,7 +148,7 @@ def setup_lua_b4() -> str:
         "assembling-machine-2": 40, "inserter": 150, "fast-inserter": 40, "transport-belt": 800,
         "underground-belt": 80, "splitter": 20, "small-electric-pole": 80, "medium-electric-pole": 40,
         "iron-chest": 20, "long-handed-inserter": 30}.items())
-    techs = ",".join(f"'{t}'" for t in TECHS)
+    techs = ",".join(f"'{t}'" for t in TECHS + ["logistic-science-pack"])
     sink = ",".join(f"'{x}'" for x in ("automation-science-pack", "logistic-science-pack", "electronic-circuit",
                                          "iron-gear-wheel", "inserter", "transport-belt", "copper-cable"))
     return f"""
