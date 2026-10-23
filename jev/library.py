@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 from pathlib import Path
 
@@ -31,12 +32,30 @@ def lessons(limit: int = 40) -> list[str]:
     return list(reversed(out))
 
 
+# A rule that routes around a harness op ("if tap crashes, stop using it and hand-place splitters") outlives the fix
+# and keeps every later planner off the tool (2026-10-23: four such lessons from one fixture bug turned the bus runs
+# away from tap and bus_in for hours). Those go to tool_complaints.jsonl, for whoever maintains the harness.
+OPS = ("tap", "bus_in", "bus", "connect", "route", "row", "merge_lanes", "ghosts", "block", "stamp", "design",
+       "upgrade", "clear", "power", "place", "insert", "fetch", "craft", "mine", "mine_at", "purge", "research",
+       "configure", "launch", "move")
+_OPS_RE = "|".join(sorted(OPS, key=len, reverse=True))
+TOOL_COMPLAINT = re.compile(
+    rf"\b(?:stop using|don'?t use|do not use|never use|avoid(?: using)?)\s+(?:the\s+)?(?:`?(?:{_OPS_RE})`?"
+    rf"(?:\s*(?:/|,|and|or)\s*`?(?:{_OPS_RE})`?)*)\s+(?:ops?|steps?|tools?)\b"
+    rf"|\b(?:{_OPS_RE})\b[^.]{{0,40}}\b(?:crash(?:es|ed)?|is broken|doesn'?t work|TypeError)", re.I)
+
+
 def save_lesson(text: str, source: dict | None = None) -> str:
     text = " ".join(str(text).split())[:400]
     if len(text) < 15:
         return "too short to be a rule"
     d = lib_dir()
     d.mkdir(parents=True, exist_ok=True)
+    if TOOL_COMPLAINT.search(text):
+        with open(d / "tool_complaints.jsonl", "a") as f:
+            f.write(json.dumps({"t": time.time(), "text": text, "source": source or {}}) + "\n")
+        return ("not saved as a rule: it works around a tool of the harness, which gets fixed instead (sent to the "
+                "maintainers). Save what you learned about the game, not about avoiding a tool")
     with open(d / "lessons.jsonl", "a") as f:
         f.write(json.dumps({"t": time.time(), "text": text, "source": source or {}}) + "\n")
     return "saved"

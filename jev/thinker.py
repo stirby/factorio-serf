@@ -118,7 +118,9 @@ TOOLS = [
                                        "entities": {"type": "array", "items": {"type": "object"}}},
       "required": ["name", "entities"]}),
     ("save_lesson", "Save one general rule for your future self (no coordinates): what would have made a first plan "
-                    "work. Only when asked for a lesson.",
+                    "work. Only when asked for a lesson. About the game, not about avoiding a step op: when an op "
+                    "misbehaves (crashes, refuses a fair request), say so plainly; that goes to the harness's "
+                    "maintainers, who fix it, instead of becoming a rule.",
      {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}),
     ("say", "Say a line in game chat now.", {"type": "object", "properties": {"text": {"type": "string"}},
                                              "required": ["text"]}),

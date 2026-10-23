@@ -1143,6 +1143,30 @@ def test_belt_end_targets():
     check("route: ... except where the belt is a line's own source (an endpoint)", t2 == {(5, 7)}, t2)
 
 
+
+def test_lessons_route_tool_complaints():
+    import os
+    import tempfile
+    from jev import library
+    with tempfile.TemporaryDirectory() as d:
+        old = os.environ.get("JEV_LIBRARY")
+        os.environ["JEV_LIBRARY"] = d
+        try:
+            r1 = library.save_lesson("If the tap and bus_in ops crash (TypeError), stop using them and hand-lay "
+                                     "splitters instead.")
+            r2 = library.save_lesson("Fuel for a furnace column: ore on one lane, coal on the other lane.")
+            check("lessons: a rule to avoid a harness op goes to the maintainers, not the planners' rules",
+                  r1.startswith("not saved") and (Path(d) / "tool_complaints.jsonl").exists()
+                  and library.lessons() == ["Fuel for a furnace column: ore on one lane, coal on the other lane."],
+                  (r1, library.lessons()))
+            check("lessons: a game rule is saved", r2 == "saved")
+        finally:
+            if old is None:
+                os.environ.pop("JEV_LIBRARY", None)
+            else:
+                os.environ["JEV_LIBRARY"] = old
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):
