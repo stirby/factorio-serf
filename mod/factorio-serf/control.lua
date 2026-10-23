@@ -580,7 +580,8 @@ API.audit = function(req)
   for _, n in pairs { 'automation-science-pack', 'logistic-science-pack', 'military-science-pack',
     'chemical-science-pack', 'production-science-pack', 'utility-science-pack', 'space-science-pack' } do
     local okF, v = pcall(function()
-      return stats.get_flow_count { name = n, category = 'output', precision_index = defines.flow_precision_index.one_minute, count = false } * 60
+      -- already per minute (measured: 222.3 against 222.75 iron plates counted over a minute)
+      return stats.get_flow_count { name = n, category = 'output', precision_index = defines.flow_precision_index.one_minute, count = false }
     end)
     if okF and v and v > 0 then out.science_per_min[n] = math.floor(v * 10 + 0.5) / 10 end
   end
