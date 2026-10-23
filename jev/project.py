@@ -75,6 +75,11 @@ their supply: "build red science for 30/min at [gps], fed by belt from the iron 
 copper; later steel, circuits, plastic) running one way from the smelting, production rows beside the bus with room \
 between them, oil and the rocket in areas set aside. New builds go where the plan says, never into whatever gap is \
 free.
+  - Order of play, like a good player's first hours: bootstrap fast (burner drills and furnaces), power right at the \
+water (boilers and engines by the offshore pump; poles carry the power, a long water pipe doesn't), red science \
+running within the first hour, then electric smelting columns. Lay the bus once two smelting columns are electric, \
+and from then on build off the bus. Planning never holds back the first science. (w10: the player-style manager put \
+power 140 tiles from the water and laid its bus before red science; the other manager had green science first.)
   - {name} has bus tools; name them in orders. "lay bus main at [gps] flowing south, taps on the east side, lanes \
 iron-plate, iron-plate, copper-plate, copper-plate, then 4 spare, 100 long" lays it (spare lanes are for steel, \
 circuits, plastic later); "feed bus lane 0 from the iron smelting line at [gps]" fills a lane; "tap the copper and \
