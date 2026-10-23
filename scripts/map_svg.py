@@ -89,7 +89,7 @@ def svg(d: dict, px: float = 6) -> str:
     x0, y0, x1, y1 = d["box"]
     W, H = (x1 - x0) * px, (y1 - y0) * px
     out = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W:.0f}" height="{H:.0f}" '
-           f'viewBox="0 0 {W:.0f} {H:.0f}" style="background:#2b2a26">']
+           f'viewBox="0 0 {W:.0f} {H:.0f}">', f'<rect width="{W:.0f}" height="{H:.0f}" fill="#f4f1ea"/>']
     for w in d["water"]:
         cx, cy = (int(v) for v in w.split(","))
         out.append(f'<rect x="{(cx * 2 - x0) * px:.0f}" y="{(cy * 2 - y0) * px:.0f}" width="{2 * px:.0f}" '
