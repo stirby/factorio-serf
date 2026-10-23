@@ -88,7 +88,15 @@ function route.find(surface, from, to, opts)
       local nx, ny = x + d[1], y + d[2]
       if not ends[key(nx, ny)] then
         for _, n in pairs(surface.find_entities_filtered { position = { nx + 0.5, ny + 0.5 }, limit = 3 }) do
-          if not (opts.fluid_ignore and n.unit_number and opts.fluid_ignore[n.unit_number]) then
+          local joined = false
+          if opts.join_segments and next(opts.join_segments) then
+            local okF0, fb0 = pcall(function() return n.fluidbox end)
+            if okF0 and fb0 and #fb0 >= 1 then
+              local okS, seg = pcall(fb0.get_fluid_segment_id, 1)
+              joined = okS and seg and opts.join_segments[seg] or false
+            end
+          end
+          if not joined and not (opts.fluid_ignore and n.unit_number and opts.fluid_ignore[n.unit_number]) then
             local okF, fb = pcall(function() return n.fluidbox end)
             if okF and fb and #fb > 0 then
               local mine = false

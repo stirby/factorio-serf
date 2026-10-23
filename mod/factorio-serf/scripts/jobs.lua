@@ -1720,7 +1720,51 @@ H.connect = {
     else
       ignore_ends(from, port_units)
       ignore_ends(to, port_units)
-      local ropts = { entity = ent.name, force = c.force, allow = {}, fluid = line_fluid, fluid_ignore = port_units }
+      -- a pipe right at either end, empty or holding the line's fluid, is what the line joins (a block's input pipe
+      -- before anything flows: b6's crude line to a new plastic-sulfur block was walled off as "some other line"):
+      -- that pipe's whole network is no wall for this line
+      local join_segments, joined_end = {}, {}
+      if ent.type == "pipe" then
+        for i, pt in ipairs { from, to } do
+          for _, n in pairs(c.surface.find_entities_filtered { position = pt, radius = 0.6, force = c.force,
+              type = { "pipe", "pipe-to-ground", "storage-tank", "pump", "infinity-pipe" } }) do
+            local fb = n.fluidbox
+            local held = fb[1] and fb[1].name
+            if not held or held == line_fluid then
+              local okS, seg = pcall(fb.get_fluid_segment_id, 1)
+              if okS and seg then join_segments[seg] = true end
+              if n.unit_number then port_units[n.unit_number] = true end
+              if n.type == "pipe" or n.type == "infinity-pipe" then joined_end[i] = n end
+            end
+          end
+        end
+        -- the line ends on a free tile beside the pipe it joins, on the side facing the other end (sliding to the
+        -- nearest free tile put it against a refinery's petroleum box, a wall for a crude line)
+        local function beside(n, toward)
+          local best, bd
+          for _, v in pairs(DIR_VEC) do
+            local q = { x = n.position.x + v[1], y = n.position.y + v[2] }
+            if c.surface.can_place_entity { name = ent.name, position = q, force = c.force,
+                  build_check_type = defines.build_check_type.manual }
+                and c.surface.count_entities_filtered { area = { { q.x - 0.3, q.y - 0.3 }, { q.x + 0.3, q.y + 0.3 } },
+                  invert = true, limit = 1, type = { "resource", "character", "corpse", "item-entity" } } == 0 then
+              local d = util.dist(q, toward)
+              if not bd or d < bd then best, bd = q, d end
+            end
+          end
+          return best
+        end
+        if joined_end[1] then
+          local q = beside(joined_end[1], to)
+          if q then from = q end
+        end
+        if joined_end[2] then
+          local q = beside(joined_end[2], from)
+          if q then to = q end
+        end
+      end
+      local ropts = { entity = ent.name, force = c.force, allow = {}, fluid = line_fluid, fluid_ignore = port_units,
+        join_segments = join_segments }
       local fk, tk = route.key(math.floor(from.x), math.floor(from.y)), route.key(math.floor(to.x), math.floor(to.y))
       for k in pairs(port_keys) do ropts.allow[k] = true end -- a port tile is where the pipe must go: no sliding
       if ent.type == "transport-belt" then
