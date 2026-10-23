@@ -929,8 +929,53 @@ return n""")
     check("belt routes: ... so none of that belt's copper reaches the new line's end", cu == 0, cu)
 
 
+async def chk_block_pipe(L: Live, state: dict):
+    g = L.g
+    x0, y0 = await L.site(18, 26)
+    await L.ev(f"""local f = game.forces.player
+for _, t in pairs {{ 'fluid-handling', 'oil-gathering', 'oil-processing', 'plastics', 'sulfur-processing' }} do if f.technologies[t] then f.technologies[t].researched = true end end
+local c = storage.agents['serf'].char
+for n, k in pairs {{ ['oil-refinery'] = 3, ['chemical-plant'] = 2, ['fast-inserter'] = 3, pipe = 60, ['pipe-to-ground'] = 6, ['small-electric-pole'] = 6, ['transport-belt'] = 6 }} do c.insert {{ name = n, count = k }} end
+c.teleport {{ {x0} + 8, {y0} + 18 }}
+local src = game.surfaces.nauvis.create_entity {{ name = 'infinity-pipe', position = {{ {x0} + 8.5, {y0} + 22.5 }}, force = f }}
+src.set_infinity_pipe_filter {{ name = 'crude-oil', percentage = 1, mode = 'at-least' }}
+return true""")
+    runner = Runner(g)
+    b = await runner.run({"do": "block", "name": "plastic-sulfur-basic", "x": x0, "y": y0})
+    r = await runner._do_connect({"item": "pipe", "from": [x0 + 8.5, y0 + 22.5], "to": [x0 + 8.5, y0 + 14.5]})
+    await asyncio.sleep(6)
+    crude = await L.ev(f"""local n = 0
+for _, e in pairs(game.surfaces.nauvis.find_entities_filtered {{ area = {{ {{ {x0}, {y0} }}, {{ {x0} + 15, {y0} + 15 }} }}, name = 'oil-refinery' }}) do
+  for i = 1, #e.fluidbox do local fl = e.fluidbox[i] if fl and fl.name == 'crude-oil' then n = n + 1 end end
+end
+return n""")
+    check("pipes: a crude line joins a new block's empty input pipe (b6: 'end tile is blocked')",
+          b.get("ok") and r.get("ok"), (b.get("msg"), r.get("msg")))
+    check("pipes: ... and the block's refineries get crude", (crude or 0) >= 1, crude)
+
+
+async def chk_clear_guard(L: Live, state: dict):
+    g = L.g
+    x0, y0 = await L.site(12, 10)
+    await L.ev(f"""local s, f = game.surfaces.nauvis, game.forces.player
+for row = 0, 2 do for k = 0, 7 do
+  s.create_entity {{ name = 'transport-belt', position = {{ {x0} + k + 0.5, {y0} + 2 * row + 1.5 }}, direction = defines.direction.east, force = f }}
+end end
+storage.agents['serf'].char.teleport {{ {x0} + 4, {y0} + 8 }}
+return true""")
+    runner = Runner(g)
+    r = await runner.run({"do": "clear", "x": x0 + 4, "y": y0 + 3, "radius": 5, "only": ["transport-belt"]})
+    left = await L.ev(f"return game.surfaces.nauvis.count_entities_filtered {{ area = {{ {{ {x0}, {y0} }}, {{ {x0} + 12, {y0} + 10 }} }}, name = 'transport-belt' }}")
+    check("clear: a square holding 3 separate belt lines is refused and the lines are listed",
+          not r.get("ok") and "3 separate belt lines" in str(r.get("msg")) and left == 24, (r.get("msg"), left))
+    r2 = await runner.run({"do": "clear", "x": x0 + 4, "y": y0 + 3, "radius": 5, "only": ["transport-belt"],
+                           "force": True})
+    left2 = await L.ev(f"return game.surfaces.nauvis.count_entities_filtered {{ area = {{ {{ {x0}, {y0} }}, {{ {x0} + 12, {y0} + 10 }} }}, name = 'transport-belt' }}")
+    check("clear: ... with force=true it takes them all", r2.get("ok") and left2 == 0, (r2.get("msg"), left2))
+
+
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard}
 
 
 async def main() -> int:

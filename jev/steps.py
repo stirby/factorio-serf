@@ -18,7 +18,7 @@ import re
 import time
 
 from .game import Game
-from .world import grid_live
+from .world import fmt_xy, grid_live
 
 log = logging.getLogger("jev.steps")
 
@@ -942,6 +942,21 @@ class Runner:
             w = World(sc)
             ents = [e for e in w.ents.values() if e["u"] > 0 and abs(e["x"] - p[0]) <= rad
                     and abs(e["y"] - p[1]) <= rad and (not only or e.get("n") in only)]
+            # several separate belt lines in the square: the one meant is rarely all of them (p6 cleared radius 12
+            # of belts to remove one bad line and took its chemical science block's 183 belts with it)
+            lines = {}
+            for e in ents:
+                ln = w.line_of.get(e["u"]) if e.get("t") in ("transport-belt", "underground-belt", "splitter") else None
+                if ln is not None:
+                    lines[ln.id] = ln
+            if len(lines) > 2 and not s.get("force"):
+                desc = []
+                for ln in list(lines.values())[:8]:
+                    items = ", ".join(sorted(ln.items or {})) or "empty"
+                    desc.append(f"line {ln.id} ({items}; {ln.length} tiles, {fmt_xy(ln.start)} to {fmt_xy(ln.end)})")
+                return {"ok": False, "msg": f"that square holds {len(lines)} separate belt lines: " + "; ".join(desc) +
+                        ". Clear the one you mean with clear line=[x,y] (a tile of it), or add force=true to take "
+                        "them all"}
         if not ents:
             return {"ok": True, "msg": "nothing there to pick up"}
         me = await self.g.me()
