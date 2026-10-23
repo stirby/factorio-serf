@@ -78,6 +78,59 @@ return {{ origin = {{ ox, oy }} }}
 """
 
 
+
+def setup_lua_b2() -> str:
+    """No bus yet: an iron and a copper plate line (from endless chests, as if from smelting) end side by side at the
+    north edge of a clear area; four labs stand unpowered-by-packs in the south-east; materials in a chest."""
+    stock = ",".join(f"['{k}']={v}" for k, v in dict(STOCK, lab=0).items() if v)
+    techs = ",".join(f"'{t}'" for t in TECHS)
+    return f"""
+for _, t in pairs {{ {techs} }} do if f.technologies[t] then f.technologies[t].researched = true end end
+for _, t in pairs {{ 'military', 'optics', 'turrets', 'stone-wall', 'weapon-shooting-speed-1', 'physical-projectile-damage-1' }} do
+  if f.technologies[t] and not f.technologies[t].researched then f.add_research(t) end
+end
+local sp = f.get_spawn_position(s)
+local function clear(x0, y0)
+  local area = {{ {{ x0 - 4, y0 - 8 }}, {{ x0 + 76, y0 + 76 }} }}
+  return s.count_entities_filtered {{ area = area, force = 'player' }} == 0
+     and s.count_entities_filtered {{ area = area, type = 'resource' }} == 0
+     and s.count_tiles_filtered {{ area = area, collision_mask = 'water_tile' }} == 0
+end
+local ox, oy
+for r = 20, 400, 10 do
+  for _, d in ipairs {{ {{1, 0}}, {{0, 1}}, {{-1, 0}}, {{0, -1}}, {{1, 1}}, {{-1, 1}}, {{1, -1}}, {{-1, -1}} }} do
+    local x0, y0 = math.floor(sp.x + d[1] * r), math.floor(sp.y + d[2] * r)
+    if clear(x0, y0) then ox, oy = x0, y0 break end
+  end
+  if ox then break end
+end
+if not ox then return {{ error = 'no clear area' }} end
+for _, t in pairs(s.find_entities_filtered {{ area = {{ {{ ox - 4, oy - 8 }}, {{ ox + 76, oy + 76 }} }}, type = {{ 'tree', 'simple-entity' }} }}) do t.destroy() end
+local eei = s.create_entity {{ name = 'electric-energy-interface', position = {{ ox - 3, oy - 2 }}, force = f }}
+eei.power_production = 1e7
+eei.electric_buffer_size = 1e8
+-- two plate lines running east along the north edge, 12 tiles long, ending at x = ox + 11
+for row, item in pairs {{ [0] = 'iron-plate', [2] = 'copper-plate' }} do
+  local y = oy - 4 + row + 0.5
+  for k = 0, 11 do s.create_entity {{ name = 'transport-belt', position = {{ ox + k + 0.5, y }}, direction = defines.direction.east, force = f }} end
+  local ch = s.create_entity {{ name = 'infinity-chest', position = {{ ox - 1.5, y }}, force = f }}
+  ch.set_infinity_container_filter(1, {{ name = item, count = 100, index = 1 }})
+  s.create_entity {{ name = 'fast-inserter', position = {{ ox - 0.5, y }}, direction = defines.direction.west, force = f }}
+end
+s.create_entity {{ name = 'medium-electric-pole', position = {{ ox - 0.5, oy - 1.5 }}, force = f }}
+-- labs in the south-east, on a pole line from the same supply
+for k = 0, 3 do s.create_entity {{ name = 'lab', position = {{ ox + 50.5 + 4 * k, oy + 50.5 }}, force = f }} end
+for k = 0, 7 do s.create_entity {{ name = 'medium-electric-pole', position = {{ ox - 0.5 + 8 * k, oy - 1.5 }}, force = f }} end
+for k = 1, 6 do s.create_entity {{ name = 'medium-electric-pole', position = {{ ox + 55.5, oy - 1.5 + 8 * k }}, force = f }} end
+for k = 0, 2 do s.create_entity {{ name = 'medium-electric-pole', position = {{ ox + 47.5 + 8 * k, oy + 47.5 }}, force = f }} end
+local chest = s.create_entity {{ name = 'steel-chest', position = {{ ox + 20.5, oy - 6.5 }}, force = f }}
+for n, k in pairs {{ {stock} }} do chest.insert {{ name = n, count = k }} end
+local c = storage.agents and storage.agents['serf'] and storage.agents['serf'].char
+if c and c.valid then c.teleport {{ ox + 18, oy - 6 }} end
+return {{ origin = {{ ox, oy }}, iron_end = {{ ox + 11.5, oy - 3.5 }}, copper_end = {{ ox + 11.5, oy - 1.5 }}, labs = {{ ox + 50.5, oy + 50.5 }} }}
+"""
+
+
 ON_BUS = """local b = storage.layout and storage.layout['bus:main'] if not b then return 0 end
 local n = 0
 for _, e in pairs(s.find_entities_filtered { area = { { b.x - 3, b.y + b.length - 8 }, { b.x + 12, b.y + b.length } }, type = 'transport-belt' }) do
@@ -107,6 +160,27 @@ def scenarios() -> list[dict]:
                       {"name": "circuits_at_bus_end", "lua": ON_BUS, "target": 1}],
         }],
         "score": [{"name": "taps", "lua": TAPS}, {"name": "circuits_made", "lua": "st.get_input_count('electronic-circuit')"}],
+    }, {
+        "name": "b2-bus-red",
+        "stage": "crew-test",
+        "minutes": 50,
+        "agents": 1,
+        "kind": "directive",
+        "note": "No bus yet: iron and copper plate lines end side by side at the north edge of a clear 80x80 area; "
+                "4 labs in the south-east with research queued (red only). The order: lay a main bus from the plate "
+                "lines (with spares), then red science at 30/min off it, into the labs. Met = red packs made at "
+                "27+/min and reaching the labs for 3 samples, with a bus registered.",
+        "setup_lua": setup_lua_b2(),
+        "objectives": [{
+            "name": "red-from-bus", "minutes": 50, "hold_samples": 3,
+            "goal": "@{agent} our iron and copper plate lines end up at the north edge of the clear ground. Lay a "
+                    "main bus from them going south (iron, copper, and some spare lanes for later), then build red "
+                    "science for 30 a minute off the bus and feed it to the labs in the south-east.",
+            "score": [{"name": "red_per_min", "lua": "pm('automation-science-pack')", "target": 27},
+                      {"name": "packs_in_labs", "lua": "local n = 0 for _, l in pairs(s.find_entities_filtered { name = 'lab', force = f }) do n = n + l.get_inventory(defines.inventory.lab_input).get_item_count('automation-science-pack') end return n", "target": 1},
+                      {"name": "buses", "lua": "local n = 0 for k in pairs(storage.layout or {}) do if tostring(k):sub(1, 4) == 'bus:' then n = n + 1 end end return n", "target": 1}],
+        }],
+        "score": [{"name": "taps", "lua": TAPS.replace("storage.layout['bus:main']", "(function() for k, v in pairs(storage.layout or {}) do if tostring(k):sub(1, 4) == 'bus:' then return v end end end)()")}],
     }]
 
 
