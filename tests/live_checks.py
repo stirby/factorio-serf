@@ -745,6 +745,8 @@ return { cx * 32, sp.y }"""
     post = await L.ev(f"local s = game.surfaces.nauvis local c = {{ {(ex + 64) // 32}, {int(ey // 32)} }} "
                       "return { s.is_chunk_generated(c), game.forces.player.is_chunk_charted(s, c) }")
     far = await g.run({"op": "move", "x": ex + 60, "y": ey, "radius": 3}, timeout=60)
+    await L.ev("local s = game.surfaces.nauvis storage.agents['serf'].char.teleport("
+               "game.forces.player.get_spawn_position(s)) return true")  # later checks look near the serf
     # (charting only runs while a player is connected, so a headless test can only see the generation)
     check("chunks: walking toward the edge of the map generates the ground 2-3 chunks ahead",
           walk.get("ok") and pre is False and post[0] is True, (walk.get("msg"), pre, post))

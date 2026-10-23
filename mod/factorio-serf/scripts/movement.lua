@@ -50,6 +50,10 @@ function movement.gc()
 end
 
 function movement.tick(char, m)
+  if m.pause then
+    if game.tick < m.pause then return nil end
+    m.pause, m.stuck_ref = nil, nil
+  end
   local pos = char.position
   local d = util.dist(pos, m.goal)
   if d <= m.radius then
@@ -132,9 +136,26 @@ function movement.tick(char, m)
     m.stuck_ref = nil
     movement.stop(char)
     if m.repaths >= 2 then
-      -- Caught on a corner twice: wiggle free like a player would (at most a tile, to the nearest clear spot).
-      local spot = char.surface.find_non_colliding_position("character", pos, 1.2, 0.1)
-      if spot and util.dist(spot, pos) > 0.05 then char.teleport(spot) end
+      -- Caught twice: in a forest (q7 got stuck at the same tree on every walk home), cut down the tree or rock
+      -- it is caught on, as a player would, and stand still while the axe works; else wiggle free like a player
+      -- would (at most a tile, to the nearest clear spot).
+      local cut = false
+      local snags = char.surface.find_entities_filtered { position = pos, radius = 1.5, type = { "tree", "simple-entity" } }
+      table.sort(snags, function(a, b) return util.dist(a.position, pos) < util.dist(b.position, pos) end)
+      for _, e in ipairs(snags) do
+        if e.valid and e.minable and (e.type == "tree" or e.prototype.count_as_rock_for_filtered_deconstruction) then
+          local secs = e.prototype.mineable_properties.mining_time / char.prototype.mining_speed
+          if char.mine_entity(e) then
+            cut = true
+            m.pause = game.tick + math.ceil(secs * 60)
+            break
+          end
+        end
+      end
+      if not cut then
+        local spot = char.surface.find_non_colliding_position("character", pos, 1.2, 0.1)
+        if spot and util.dist(spot, pos) > 0.05 then char.teleport(spot) end
+      end
     end
     request(char, m)
   end
