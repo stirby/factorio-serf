@@ -1187,6 +1187,18 @@ def test_step_refs():
     probs = lint([{"do": "row", "belt": "end:1", "machine": "assembling-machine-2", "recipe": "iron-gear-wheel",
                    "count": 2}], w, None, {})
     check("refs: lint passes over a step that uses a run-time end", not any("malformed" in p for p in probs), probs)
+    from jev.lint import plan_points
+    plan = [{"do": "tap", "bus": "main", "lane": "iron-plate", "at": 4},
+            {"do": "connect", "item": "transport-belt", "from": "end:1", "to": [30.5, 4.5]},
+            {"do": "connect", "item": "pipe", "from": [1, 1], "to": "end:1", "to_fluid": "water"},
+            {"do": "row", "belt": "end:1", "machine": "assembling-machine-2", "count": 2},
+            {"do": "merge_lanes", "left": "end:1", "right": [2.5, 2.5], "at": "end:1", "direction": "east"}]
+    try:
+        plan_points(plan), plan_needs(plan), lint(plan, w, None, {})
+        ok_ = True
+    except Exception as e:  # noqa: BLE001
+        ok_ = repr(e)
+    check("refs: plan points, items needed and lint take a plan full of end:N references", ok_ is True, ok_)
 
 
 

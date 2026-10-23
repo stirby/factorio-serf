@@ -1272,7 +1272,7 @@ class Actor(FastPaths):
             return True, "nothing more to check"
         # a pipe laid to a machine's inlet for a fluid: done when that fluid arrives there, not when the pipe stands
         for st in plan.get("steps") or []:
-            if st.get("do") == "connect" and st.get("to_fluid") and st.get("to") and not any(
+            if st.get("do") == "connect" and st.get("to_fluid") and isinstance(st.get("to"), (list, tuple)) and not any(
                     x.get("check") == "fluid_reaches" and x.get("fluid") == st["to_fluid"] for x in exp):
                 exp.append({"check": "fluid_reaches", "x": float(st["to"][0]), "y": float(st["to"][1]),
                             "fluid": st["to_fluid"]})
@@ -1297,9 +1297,12 @@ class Actor(FastPaths):
         if end_wait:
             rounds = max(rounds, min(40, int(end_wait / 6) + 2))
         # items need time to travel a long new belt (a yellow belt moves 1.875 tiles/s): wait that long too
-        belt = sum(abs(float(st["to"][0]) - float(st["from"][0])) + abs(float(st["to"][1]) - float(st["from"][1]))
+        def xy(v):  # a tile, or None for an "end:N" reference (known only when the plan runs)
+            return v if isinstance(v, (list, tuple)) and len(v) == 2 else None
+        belt = sum(abs(float(xy(st["to"])[0]) - float(xy(st["from"])[0])) +
+                   abs(float(xy(st["to"])[1]) - float(xy(st["from"])[1]))
                    for st in plan.get("steps") or [] if st.get("do") == "connect" and "belt" in str(st.get("item"))
-                   and st.get("from") and st.get("to"))
+                   and xy(st.get("from")) and xy(st.get("to")))
         o.belt_len = max(o.belt_len, belt)
         if any(e.get("check") in ("belt_carries", "has_item") for e in exp):
             belt = max(belt, o.belt_len)  # a fix plan for an order with a long belt still waits for the items
