@@ -125,6 +125,7 @@ local function entry(e)
       if d.s == "full_output" then d.fout = fluid_outputs(e) end
     end
     pcall(function() d.prog = math.floor(e.crafting_progress * 100) end)
+    pcall(function() d.pf = e.products_finished end)  -- crafts done so far: two scans give a block's rate
   elseif t == "container" or t == "logistic-container" or t == "infinity-container" then
     local inv = e.get_inventory(defines.inventory.chest)
     d.inv = contents(inv)

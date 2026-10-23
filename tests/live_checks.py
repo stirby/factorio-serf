@@ -694,8 +694,43 @@ return true""")
     await L.ev("storage.agents['serf'].char.get_main_inventory().clear() return true")
 
 
+async def chk_rate(L: Live, state: dict):
+    from types import SimpleNamespace
+    from jev.actor import Actor
+    from jev.world import World
+    g = L.g
+    x0, y0 = await L.site(8, 4)
+    await L.ev(f"""
+local s, f = game.surfaces.nauvis, game.forces.player
+for i = 0, 1 do
+  local fu = s.create_entity {{ name = 'stone-furnace', position = {{ {x0} + 1 + 3 * i, {y0} + 1 }}, force = f }}
+  fu.insert {{ name = 'coal', count = 50 }}
+  fu.get_inventory(defines.inventory.furnace_source).insert {{ name = 'iron-ore', count = 50 }}
+end
+return true""")
+
+    async def world(center, radius):
+        return World(await g.scan(center=center, radius=radius))
+    a = SimpleNamespace(world=world)
+    near = [x0 + 2.5, y0 + 1]
+    ok30 = ok100 = None
+    msg100 = ""
+    t0 = time.monotonic()
+    while time.monotonic() - t0 < 120 and (ok30 is None or ok100 is None):
+        r30 = await Actor._check(a, {"check": "rate", "item": "iron-plate", "per_min": 30, "near": near, "radius": 4})
+        r100 = await Actor._check(a, {"check": "rate", "item": "iron-plate", "per_min": 100, "near": near, "radius": 4})
+        if "measuring" not in r30[1]:
+            ok30 = r30[0]
+        if "measuring" not in r100[1]:
+            ok100, msg100 = r100
+        await asyncio.sleep(6)
+    check("rate: two stone furnaces make about 37 plates/min, so a 30/min target passes", ok30 is True, ok30)
+    check("rate: ... and a 100/min target fails and says the measured rate", ok100 is False and "/min, want 100"
+          in msg100, msg100)
+
+
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate}
 
 
 async def main() -> int:

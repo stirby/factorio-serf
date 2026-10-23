@@ -1224,6 +1224,8 @@ class Actor(FastPaths):
         waited = sum(float(st.get("seconds") or 0) for st in plan.get("steps") or [] if st.get("do") == "wait")
         waited -= end_wait
         rounds = 2 if waited >= 30 else 8
+        if any(x.get("check") == "rate" for x in exp):
+            rounds = max(rounds, 16)  # a rate is measured over at least 45 s
         if end_wait:
             rounds = max(rounds, min(40, int(end_wait / 6) + 2))
         # items need time to travel a long new belt (a yellow belt moves 1.875 tiles/s): wait that long too
@@ -1334,6 +1336,34 @@ class Actor(FastPaths):
                 w = await self.world(tuple(near), int(r) + 3)
                 bad = [m for m in w.near(near, r) if m.get("pw")]
                 return (not bad), ("" if not bad else f"{len(bad)} machines without power near {fmt_xy(near)}")
+            if c == "rate":
+                # a block's sustained output: crafts finished by the machines making the item within radius,
+                # counted between two looks at least 45 s apart (the first look only starts the clock)
+                from .ratios import RECIPES
+                near = e.get("near") or [e.get("x"), e.get("y")]
+                r = float(e.get("radius", 12))
+                item, want = e["item"], float(e.get("per_min") or 0)
+                w = await self.world(tuple(near), int(r) + 3)
+                made = 0.0
+                for m in w.of_type("assembling-machine", "furnace", "rocket-silo"):
+                    if abs(m["x"] - near[0]) > r or abs(m["y"] - near[1]) > r or m.get("pf") is None:
+                        continue
+                    rec = RECIPES.get(m.get("r") or "")
+                    per = sum(p["amount"] for p in (rec or {}).get("products", []) if p["name"] == item)
+                    made += per * m["pf"]
+                key = (item, round(near[0]), round(near[1]))
+                marks = self.__dict__.setdefault("_rate_marks", {})
+                t0, m0 = marks.get(key, (None, None))
+                now = time.time()
+                if t0 is None or now - t0 > 900 or made < m0:
+                    marks[key] = (now, made)
+                    return False, f"measuring {item} output near {fmt_xy(near)} (needs about a minute)"
+                if now - t0 < 45:
+                    return False, f"measuring {item} output near {fmt_xy(near)} ({now - t0:.0f} s so far)"
+                rate = (made - m0) / (now - t0) * 60
+                if rate >= 0.85 * want:
+                    return True, ""
+                return False, f"{item} near {fmt_xy(near)}: {rate:.1f}/min, want {want:g}/min"
             if c == "fluid_reaches":
                 # the machine at x,y gets the fluid at an inlet (p1: "petroleum pipe order 'done' in 3 m but false:
                 # plastic plants still no petroleum")
