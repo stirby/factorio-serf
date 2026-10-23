@@ -480,7 +480,8 @@ def scenarios() -> list[dict]:
         "note": "Next rung after blue: purple (production) science at 15/min off a bus carrying iron, copper, steel, "
                 "stone bricks and plastic (endless chests, ~550/min a lane), with rails, electric furnaces, "
                 "productivity modules, advanced and green circuits all built off the bus. Met = 13+/min for 3 samples.",
-        "setup_lua": setup_lua_bus(["iron-plate", "copper-plate", "steel-plate", "stone-brick", "plastic-bar"], spare=3,
+        "setup_lua": setup_lua_bus(["iron-plate", "copper-plate", "steel-plate", "stone-brick", "plastic-bar", "stone"],
+                                   spare=2,
                                    n=130, extra_techs=("steel-processing", "advanced-circuit", "advanced-electronics",
                                                        "plastics", "railway", "advanced-material-processing-2",
                                                        "productivity-module", "production-science-pack", "modules"),
@@ -490,7 +491,7 @@ def scenarios() -> list[dict]:
                                           "iron-gear-wheel")),
         "objectives": [{
             "name": "purple-15", "minutes": 180, "hold_samples": 3,
-            "goal": "@{agent} our main bus (bus main) carries iron, copper, steel, stone bricks and plastic, and has "
+            "goal": "@{agent} our main bus (bus main) carries iron, copper, steel, stone bricks, plastic and stone, and has "
                     "spare lanes. Build production (purple) science for 15 a minute off the bus, making the rails, "
                     "electric furnaces, productivity modules and circuits it needs, and put the packs onto the bus.",
             "score": [{"name": "purple_per_min", "lua": "pm('production-science-pack')", "target": 13}],
