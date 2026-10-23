@@ -2,7 +2,7 @@
 """A top-down timelapse of a campaign: every half-hourly save drawn in one fixed frame (the final base's bounds),
 captioned with the hours of play, stitched into an MP4. Loads copies of the saves on a test slot; read-only.
 
-    .venv/bin/python scripts/timelapse.py c1 --final rocket-launched-c1-fresh-map --slot 69 --out media/c1
+    .venv/bin/python scripts/timelapse.py c1 --final rocket-launched-c1-fresh-map --slot 69 --out media/c1 --px 8
 """
 from __future__ import annotations
 
@@ -63,13 +63,14 @@ def main() -> None:
         png = out / f"{i:03d}.png"
         hours = d["tick"] / 216000
         label = f"{a.campaign}  {hours:4.1f} h of play  ({len(d['ents'])} buildings)"
-        subprocess.run(["convert", "-density", "72", str(svg), "-gravity", "NorthWest", "-pointsize", "28",
-                        "-fill", "#1d2326", "-annotate", "+16+12", label, str(png)], check=True)
+        k = a.px / 4  # caption scales with the frame
+        subprocess.run(["convert", "-density", "72", str(svg), "-gravity", "NorthWest", "-pointsize", str(int(28 * k)),
+                        "-fill", "#1d2326", "-annotate", f"+{int(16 * k)}+{int(12 * k)}", label, str(png)], check=True)
         frames.append(png)
         print(f"{i + 1}/{len(saves)} {sv.name}: {hours:.1f} h, {len(d['ents'])} buildings", flush=True)
     mp4 = out / f"{a.campaign}-timelapse.mp4"
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-framerate", str(a.fps), "-i", str(out / "%03d.png"),
-                    "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                    "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18",
                     str(mp4)], check=True)
     print(mp4)
 
