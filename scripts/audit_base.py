@@ -152,7 +152,6 @@ async def audit(save: str, minutes: float, k: int) -> dict:
         g = await Game.connect(inst.host, inst.rcon_port, inst.password, "serf")
         research = json.loads((await g.call("eval", code=LUA_RESEARCH, timeout=60))["result"])
         r0 = json.loads((await g.call("eval", code=lua_made(SCIENCE), timeout=60))["result"])
-        t0 = time.time()
         await asyncio.sleep(minutes * 60)
         r1 = json.loads((await g.call("eval", code=lua_made(SCIENCE), timeout=60))["result"])
         snap = json.loads((await g.call("eval", code=LUA_SNAPSHOT, timeout=120))["result"])
