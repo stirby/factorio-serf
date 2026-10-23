@@ -2424,7 +2424,25 @@ function jobs.tick()
       end
       if a.job or #a.queue > 0 then st.busy_ticks = st.busy_ticks + 1 else st.idle_ticks = st.idle_ticks + 1 end
       if a.char.crafting_queue_size > 0 then st.crafting_ticks = st.crafting_ticks + 1 end
-      if tick30 then account_crafts(a) end
+      if tick30 then
+        account_crafts(a)
+        -- the map generates and charts around a player as they walk; a script character gets neither, so the
+        -- serf could walk 240 tiles out and still find no crude oil ("that area isn't generated yet"). Do for it
+        -- what the game does for a player: on entering a new chunk, generate and chart 3 chunks around. Charting
+        -- skips chunks that aren't generated yet, so chart again 2 s later, once the new ones exist. (Charting only
+        -- runs while a player is connected; the generation is what find and the pathfinder need.)
+        local p = a.char.position
+        local cx, cy = math.floor(p.x / 32), math.floor(p.y / 32)
+        local moved = a.chunk_x ~= cx or a.chunk_y ~= cy
+        if moved or (a.chart_at and game.tick >= a.chart_at) then
+          a.chart_at = moved and game.tick + 120 or nil
+          a.chunk_x, a.chunk_y = cx, cy
+          pcall(function()
+            if moved then a.char.surface.request_to_generate_chunks(p, 3) end
+            a.char.force.chart(a.char.surface, { { p.x - 96, p.y - 96 }, { p.x + 96, p.y + 96 } })
+          end)
+        end
+      end
       -- Start as many instant jobs as possible this tick; stop at the first long one.
       local guard = 0
       while not a.job and #a.queue > 0 and guard < 20 do

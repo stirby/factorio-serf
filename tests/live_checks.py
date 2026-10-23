@@ -729,8 +729,30 @@ return true""")
           in msg100, msg100)
 
 
+async def chk_chunks(L: Live, state: dict):
+    g = L.g
+    edge_lua = """
+local s, sp = game.surfaces.nauvis, game.forces.player.get_spawn_position(game.surfaces.nauvis)
+local cy = math.floor(sp.y / 32)
+local cx = math.floor(sp.x / 32)
+while s.is_chunk_generated { cx, cy } do cx = cx + 1 end
+return { cx * 32, sp.y }"""
+    ex, ey = await L.ev(edge_lua)
+    await L.ev(f"storage.agents['serf'].char.teleport({{{ex - 60}, {ey}}}) return true")
+    pre = await L.ev(f"return game.surfaces.nauvis.is_chunk_generated {{ {(ex + 64) // 32}, {int(ey // 32)} }}")
+    walk = await g.run({"op": "move", "x": ex - 10, "y": ey, "radius": 3}, timeout=60)
+    await asyncio.sleep(4)
+    post = await L.ev(f"local s = game.surfaces.nauvis local c = {{ {(ex + 64) // 32}, {int(ey // 32)} }} "
+                      "return { s.is_chunk_generated(c), game.forces.player.is_chunk_charted(s, c) }")
+    far = await g.run({"op": "move", "x": ex + 60, "y": ey, "radius": 3}, timeout=60)
+    # (charting only runs while a player is connected, so a headless test can only see the generation)
+    check("chunks: walking toward the edge of the map generates the ground 2-3 chunks ahead",
+          walk.get("ok") and pre is False and post[0] is True, (walk.get("msg"), pre, post))
+    check("chunks: ... so a move past the old edge finds a path", far.get("ok"), far.get("msg"))
+
+
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks}
 
 
 async def main() -> int:
