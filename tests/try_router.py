@@ -1,5 +1,5 @@
 """Route a TBM level offline: python tests/try_router.py K  (instance K already set up with a tbm-N scenario)"""
-import asyncio, json, math, re, sys, time
+import asyncio, json, math, re, sys, tempfile, time
 from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT)); sys.path.insert(0, str(ROOT / "tests"))
@@ -58,6 +58,6 @@ async def main(k):
                 else:
                     row += "."
             print(row)
-        Path("/tmp/claude-1000/-home-stephen-ops/dca040bd-512a-4ed8-b7ff-9ffd9741ccde/scratchpad/tbm_route.json").write_text(json.dumps(ents))
+        (Path(tempfile.gettempdir()) / "tbm_route.json").write_text(json.dumps(ents))
 
 asyncio.run(main(int(sys.argv[1])))

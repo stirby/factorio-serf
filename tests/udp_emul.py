@@ -1,6 +1,6 @@
 """Exercise the UDP permission path from RCON: every call goes through the mod's as_player op (the same guard and
 client rules as a player's own app). python tests/udp_emul.py K"""
-import asyncio, json, sys, time
+import asyncio, json, sys, tempfile, time
 from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT)); sys.path.insert(0, str(ROOT / "tests"))
@@ -29,7 +29,7 @@ async def main(k):
     g0 = await connect(k)
     g = Game(AsPlayer(g0.crew), "serf2")
     await g.start()
-    d = Path("/tmp/claude-1000/-home-stephen-ops/dca040bd-512a-4ed8-b7ff-9ffd9741ccde/scratchpad/udpemul")
+    d = Path(tempfile.gettempdir()) / "udpemul"
     a = Actor(g, reader(log_path=d / "jev.jsonl"), d, "serf2", think=False)
     await a.start()
     print("started; items", len(a.items), "recipes", len(a.recipes))

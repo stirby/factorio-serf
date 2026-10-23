@@ -1,18 +1,26 @@
-# factorio-jev
+# factorio-serf
 
-A Factorio 2.0 character that plays next to you and takes orders from chat. It splits the work:
+A Factorio 2.0 character, the serf, that plays next to you and takes orders from chat. It plays by the same rules as
+a human player: it walks, reaches, carries and crafts like one. It splits the work:
 - **Jev** (TypeSafe's decision model) makes the quick judgment calls.
-- **Opus** plans asynchronously.
+- **Opus** plans asynchronously, and can run a whole goal as a project.
 - **Code** does everything exact in between.
 
-This is the successor to [factorio-serf](https://github.com/stirby/factorio-serf), which is frozen at `serf-v1-final` and serves as the baseline.
+On 22 October 2026 it launched a rocket from a fresh map after about 19 hours of play, with an Opus player giving
+the orders; another serf launched from a midgame base running "beat the game" as its own project.
+
+This is version 2. The first serf (Claude agents acting step by step) is on the `serf-v1` branch and tag
+`serf-v1-final`.
+
+**Needs:** Factorio 2.0.77 with Space Age, a TypeSafe API key for Jev (in `TYPESAFE_API_KEY` or `~/dev/jev.env`),
+and Claude through the Claude Agent SDK (a Claude subscription logged in to Claude Code). MIT licensed.
 
 See [docs/DESIGN.md](docs/DESIGN.md) for how the parts fit together.
 
 ## Play
 
 1. Start Factorio with `--enable-lua-udp 27200`.
-2. Load a game with this repo's `mod/factorio-serf` installed. It's the serf mod plus new actions, so link this copy rather than the old one.
+2. Load a game with this repo's `mod/factorio-serf` installed. Link this copy into your Factorio mods folder.
 3. Run:
 
 ```

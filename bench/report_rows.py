@@ -6,7 +6,7 @@ from collections import defaultdict
 from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 SERF = Path.home() / "dev/factorio-slave/experiments/nights"
-SERFBASE = Path("/tmp/claude-1000/-home-stephen-ops/dca040bd-512a-4ed8-b7ff-9ffd9741ccde/scratchpad/serfbase")
+SERFBASE = ROOT / "bench" / "serfbase"  # the frozen serf's results, copied here to compare
 
 
 def serf():

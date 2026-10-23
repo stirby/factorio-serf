@@ -66,7 +66,7 @@ def main() -> None:
         if gdir.exists():
             gdir.rename(camp / f"gen-{running:02d}-aborted-{time.strftime('%H%M')}")
         print(f"{name}: generation {running} had no save yet; starting it again from {state['stage']}")
-    log = Path("/tmp/claude-1000/-home-stephen-ops/dca040bd-512a-4ed8-b7ff-9ffd9741ccde/scratchpad") / f"camp_{name}.out"
+    log = ROOT / "bench" / "runs" / f"camp_{name}.out"
     with open(log, "a") as f:
         f.write(time.strftime("%H:%M:%S") + f" relaunching {name} on the current code\n")
         subprocess.Popen([str(ROOT / ".venv/bin/python"), "bench/campaign.py", "--name", name, *args], cwd=ROOT,

@@ -5,3 +5,4 @@ server/factorio
 server/instances/
 bench/runs/
 *.env
+bench/campaigns/

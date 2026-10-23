@@ -1,0 +1,10 @@
+{
+ "remote-iron-line-with-coal-belt-fuel": {
+  "when": "Need a new iron plate belt into the base from a distant patch, with coal from another patch, on an established base with power.",
+  "orders": [
+   "Build a new iron line: electric mining drills on the iron patch at [gps] (12-16 drills, power via poles from the main grid at [gps]) belting ore to a smelting-column-12 placed near the patch's edge at [gps]. Fuel the furnaces with coal by belt from the coal patch at [gps] (electric drills). Belt the iron plates from the column to the main base, ending on free ground at [gps]. Nothing hand-fed: ore, coal and plates all by belt."
+  ],
+  "result": "One order, ~38 min: 14 drills, 12 steel furnaces (ore+coal shared belt), plates belted ~80 tiles to base end with buffer chests.",
+  "t": 1792728386.7252593
+ }
+}
