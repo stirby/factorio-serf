@@ -1298,6 +1298,29 @@ def test_bus_opposite_taps():
     check("bus: a tap with side=opposite carries its lane out past the far side, every lane, no mixing", ok_all, why)
 
 
+
+def test_lint_bus_steps_both_sides():
+    import asyncio
+    from types import SimpleNamespace
+    from jev.actor import Actor
+    from jev.busgen import Bus
+    b = Bus(name="main", x=0.5, y=0.5, direction="south", side="east", lanes=["a", "b", "c", "d"], length=30)
+
+    async def buses():
+        return {"main": b}
+    runner = SimpleNamespace(buses=buses, _bus_row=lambda bb, at: int(at))
+    fake = SimpleNamespace(runner=runner)
+    steps = [{"do": "tap", "bus": "main", "lane": "b", "at": 6},
+             {"do": "tap", "bus": "main", "lane": "c", "at": 12, "side": "opposite"},
+             {"do": "row", "belt": "end:2", "machine": "assembling-machine-2", "count": 1}]
+    out = asyncio.run(Actor._bus_steps_as_ghosts(fake, steps))
+    east = max(e["x"] for e in out[0]["entities"])
+    west = min(e["x"] for e in out[1]["entities"])
+    check("lint view: taps become their entities on the right side, and end:2 gets the opposite tap's end",
+          out[0]["do"] == "ghosts" and out[1]["do"] == "ghosts" and east > 7 and west < -1
+          and isinstance(out[2]["belt"], list) and out[2]["belt"][0] < -1, (east, west, out[2].get("belt")))
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):
