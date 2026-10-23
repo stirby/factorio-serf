@@ -838,6 +838,28 @@ def test_fluid_reaches():
     check("fluid_reaches: ... and names what its pipes carry instead", not ok and "carry water" in msg, msg)
 
 
+def test_ratios():
+    from jev.ratios import solve, solve_oil, table
+    plan = solve({"automation-science-pack": 60})
+    st = {x["recipe"]: x for x in plan["steps"]}
+    check("ratios: 60 red/min = 6.67 assembler-2s (5 s, speed 0.75)",
+          abs(st["automation-science-pack"]["count"] - 6.667) < 0.01, st["automation-science-pack"])
+    check("ratios: ... 120 iron plates/min = 3.2 steel furnaces", abs(st["iron-plate"]["count"] - 3.2) < 0.01
+          and abs(plan["raw"]["iron-ore"] - 120) < 0.01, (st["iron-plate"], plan["raw"]))
+    p2 = solve({"production-science-pack": 45})
+    s2 = {x["recipe"]: x for x in p2["steps"]}
+    check("ratios: 45 purple/min = 450 rails/min and 375 steel/min (rails + electric furnaces)",
+          abs(s2["rail"]["per_min"] - 450) < 0.1 and abs(s2["steel-plate"]["per_min"] - 375) < 0.1,
+          (s2["rail"], s2["steel-plate"]))
+    o = solve_oil({"petroleum-gas": 55 * 12, "light-oil": 0, "heavy-oil": 0})
+    check("ratios: petroleum only = refinery + full cracking (97.5 petroleum per refinery run)",
+          abs(o["refineries"] - 55 * 12 / 97.5 * 5 / 60) < 1e-6 and o["heavy_crackers"] > 0 and o["light_crackers"] > 0, o)
+    o = solve_oil({"heavy-oil": 600})
+    check("ratios: lots of heavy oil leaves petroleum over, and says it needs a consumer",
+          o["surplus"].get("petroleum-gas", 0) > 0, o)
+    check("ratios: the table names machines, raw and drills", "6.67 exact" in table(plan) and "drills" in table(plan))
+
+
 def test_keeper_state():
     import tempfile
     from types import SimpleNamespace
