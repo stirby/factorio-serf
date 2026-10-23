@@ -69,7 +69,9 @@ Fuel for a furnace column: ore on one lane, coal on the other. Make that belt wi
 
 Size production like a player: when an order names a rate ("red science for 30/min"), call rates for it and build the machine counts it gives (rounded up), with inputs that can carry it: a belt carries 900 items a minute (yellow), so 2,000 iron plates a minute is three belts. Feed machines by belt or pipe from the supply the order names; a chest someone has to fill by hand isn't automation. Leave room beside a block to add more of the same.
 
-Oil: a refinery on advanced oil processing makes heavy oil, light oil and petroleum together and stops as soon as any one of them backs up ("output is full: heavy-oil is backed up"). Give every output somewhere to go: chemical plants cracking heavy oil into light (heavy-oil-cracking, needs water) and light into petroleum (light-oil-cracking, needs water), or consumers (lubricant, solid fuel). Basic oil processing makes only petroleum and can't deadlock: the simple choice while all you need is plastic and sulfur. The plastic-sulfur-basic block is exactly that, tested: crude and water pipes in, a coal belt in, plastic and sulfur belts out (~108 plastic and 36 sulfur a minute, enough for ~30 blue science a minute); use it rather than piping refineries and chemical plants by hand."""
+Oil: a refinery on advanced oil processing makes heavy oil, light oil and petroleum together and stops as soon as any one of them backs up ("output is full: heavy-oil is backed up"). Give every output somewhere to go: chemical plants cracking heavy oil into light (heavy-oil-cracking, needs water) and light into petroleum (light-oil-cracking, needs water), or consumers (lubricant, solid fuel). Basic oil processing makes only petroleum and can't deadlock: the simple choice while all you need is plastic and sulfur. The plastic-sulfur-basic block is exactly that, tested: crude and water pipes in, a coal belt in, plastic and sulfur belts out (~108 plastic and 36 sulfur a minute, enough for ~30 blue science a minute); use it rather than piping refineries and chemical plants by hand.
+
+Pipelines: in Factorio 2.0 a fluid segment spanning more than 320 tiles fills up but nothing comes out of its far end (measured: 300 tiles carry 1200/s, 330 carry nothing, pipe-to-ground lines too). Crude farther than ~300 tiles needs a powered pump at least every 300 tiles along the line (each pump starts a new segment; a pump needs power, fluid-handling and engine units), or refine at the field and belt plastic and sulfur back. When a machine lacks a fluid, call pipes on it before building anything: it walks the line and names the break (a gap, an underground with no exit, an unbuilt ghost, a segment too long); mend that instead of laying a second line."""
 
 TOOLS = [
     ("area", "What's in an area: machines with state and why they're stopped, belt lines (direction, items, where "
@@ -106,6 +108,13 @@ TOOLS = [
     ("audit", "The whole base's health: machines working, starved or blocked, grouped by what they make (what the "
               "starved lack, a position), chests filled by hand, belt and pipe per machine, and the science per "
               "minute the labs actually get.", {"type": "object", "properties": {}}),
+    ("pipes", "Follow a fluid line pipe by pipe from x,y (a pipe, a machine, a pumpjack...): what it holds and how "
+              "full, what feeds it and what it feeds, and every open end with what's past it (a gap to the next pipe, "
+              "a pipe of another fluid, an underground with no exit). When a machine lacks a fluid, call this on it "
+              "before laying anything new: mend the break it finds instead of building a second line.",
+     {"type": "object", "properties": {"x": {"type": "number"}, "y": {"type": "number"},
+                                       "fluid": {"type": "string", "description": "only the port for this fluid"}},
+      "required": ["x", "y"]}),
     ("techs", "Research: what's being researched, the queue, and what can be researched next with its packs "
               "(trigger techs say what unlocks them instead).", {"type": "object", "properties": {}}),
     ("block_info", "Where a built-in block would sit if placed at x,y with that rotation: its footprint, where each "

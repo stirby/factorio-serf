@@ -770,6 +770,20 @@ class Actor(FastPaths):
             from . import audit as base_audit
             return base_audit.words(await self.g.call("audit", timeout=60))
 
+        async def pipes(a):
+            from . import audit as base_audit
+            kw = {"x": float(a["x"]), "y": float(a["y"])}
+            if a.get("fluid"):
+                kw["fluid"] = str(a["fluid"])
+            r = await self.g.call("pipes", timeout=60, **kw)
+            at = r.get("at") or {}
+            out = [f"{at.get('n')} at [gps={at['p'][0]},{at['p'][1]}]" + (f" ({at['status']})" if at.get("status") else "")]
+            for net in r.get("lines") or []:
+                port = net.get("port") or {}
+                out.append(f"- port {port.get('index')} ({port.get('kind')}, {port.get('fluid') or 'no fluid set'}): "
+                           + base_audit.line_words(net, ends=8, origin=port.get("kind")))
+            return "\n".join(out) if len(out) > 1 else out[0] + ": no fluid ports"
+
         async def start_project(a):
             cur = self.thinker.current if self.thinker else None
             o = next((x for x in self.orders if cur and x.id == cur.order_id), None)
@@ -778,7 +792,7 @@ class Actor(FastPaths):
             return self.start_project(str(a.get("goal") or (o.text if o else "")), o.speaker if o else "a player")
         return {"area": area, "find": find, "recipe": recipe, "free_space": free_space, "me": me, "say": say,
                 "techs": techs, "production": production, "diagnose": diagnose, "start_project": start_project,
-                "rates": rates, "audit": audit}
+                "rates": rates, "audit": audit, "pipes": pipes}
 
     async def _bus_steps_as_ghosts(self, steps: list[dict]) -> list[dict]:
         """For the plan checker: bus, tap and bus_in steps as the entities they lay (worked out from the buses in

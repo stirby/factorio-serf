@@ -13,6 +13,7 @@ local marks = require("scripts.marks")
 local late = require("scripts.late")
 local orders = require("scripts.orders")
 local link = require("scripts.link")
+local fluids = require("scripts.fluids")
 
 script.on_init(agents.init)
 script.on_configuration_changed(agents.init)
@@ -310,6 +311,7 @@ API.stored = function(req)
     entity = proto.place_result ~= nil or prototypes.entity[req.item] ~= nil }
 end
 API.trace = function(req) return observe.trace(req.agent and live(req) or nil, req) end
+API.pipes = function(req) return fluids.trace(req) end
 API.world = function(req) return observe.world(req.agent and storage.agents[req.agent] or nil) end
 API.recipes = function(req) return { recipes = observe.recipes(live(req), req) } end
 API.techs = function(req) return { available = observe.techs(live(req), req) } end
@@ -639,6 +641,10 @@ API.audit = function(req)
       end
     end
   end
+  local okB, br = pcall(fluids.breaks, s, f, 4)
+  out.fluid_breaks = okB and br or { error = tostring(br) }
+  local okL, ls = pcall(fluids.long_segments, s, f, 6)
+  out.long_pipes = okL and ls or {}
   local stats = f.get_item_production_statistics(s)
   out.science_per_min = {}
   for _, n in pairs { 'automation-science-pack', 'logistic-science-pack', 'military-science-pack',

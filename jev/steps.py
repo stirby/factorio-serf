@@ -574,7 +574,12 @@ class Runner:
                                             f"it ends at {start[0]:g},{start[1]:g})" if k > 1 else "")}
             msgs.append(str(r.get("msg") or "")[:160])
             start = end
-        return {"ok": True, "msg": f"laid it in {n} legs: " + " | ".join(msgs)}
+        msg = f"laid it in {n} legs: " + " | ".join(msgs)
+        span = max(abs(to[0] - fr[0]), abs(to[1] - fr[1]))
+        if "pipe" in str(s["item"]) and span > 300:
+            msg += (f". Note: it spans {span:.0f} tiles; a fluid segment longer than 320 tiles carries nothing in 2.0, "
+                    f"so it needs a powered pump at least every 300 tiles")
+        return {"ok": True, "msg": msg}
 
     async def _free_tile(self, x: float, y: float) -> list[float]:
         """The free land tile nearest x,y (a waypoint for a long line)."""

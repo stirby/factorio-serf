@@ -16,7 +16,8 @@ from . import progress
 from .thinker import TOOLS
 
 MODEL = "claude-opus-5-5"
-LOOK_TOOLS = ("area", "find", "recipe", "free_space", "me", "production", "diagnose", "techs", "rates", "audit")
+LOOK_TOOLS = ("area", "find", "recipe", "free_space", "me", "production", "diagnose", "techs", "rates", "audit",
+              "pipes")
 ORDER_LIMIT = 45 * 60  # one order that runs longer is stopped and reported as unfinished
 
 # an order that is a project on its face, no planner turn needed to see it
@@ -51,6 +52,10 @@ order unchanged.
 Once there's power and electronic circuits, have it build the two mall blocks (mall-logistics, mall-buildings) fed by \
 belts; it takes from their chests from then on.
 - Name places with [gps=x,y] tags; pick them with free_space and area. Keep the base compact enough to walk.
+- Fluids: in Factorio 2.0 a pipeline segment longer than 320 tiles fills up but nothing comes out of its far end. \
+Oil farther than ~300 tiles needs a powered pump at least every 300 tiles along the pipe (each pump starts a new \
+segment), or refining at the field with the products belted back. When a fluid line is dry, call pipes on the \
+starved machine: it walks the line and names the break; have that mended rather than a new line laid.
 - Each turn: look as much as you need (a few tool calls), note anything worth remembering (the plan, where things \
 are, what failed and why), then end with exactly one of give_order, wait or finish. {name} works on an order until \
 it's done or failed; then you get the next turn.

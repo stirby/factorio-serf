@@ -1229,6 +1229,31 @@ def test_audit_ore_words():
 
 
 
+def test_fluid_break_words():
+    from jev import audit as A
+    crude = {"machine": {"n": "oil-refinery", "p": [10.5, 20.5], "status": "fluid_ingredient_shortage"},
+             "why": "missing", "fluid": "crude-oil",
+             "line": {"pipes": 12, "fill": 0, "sources": {}, "users": {}, "port": {"index": 2, "kind": "input"},
+                      "ends": [{"at": [10.5, 8.5], "n": "pipe", "kind": "pipe end", "toward": "north",
+                                "further": {"n": "pipe", "p": [10.5, 6.5], "gap": 1, "fluid": "water"}}],
+                      "ends_total": 1}}
+    jacks = {"machine": {"n": "pumpjack", "p": [300.5, 40.5], "status": "waiting_for_space_in_destination"},
+             "why": "full", "fluid": "crude-oil",
+             "line": {"pipes": 640, "fluid": "crude-oil", "fill": 97,
+                      "sources": [{"n": "pumpjack", "p": [300.5, 40.5]}, {"n": "pumpjack", "p": [304.5, 40.5]}],
+                      "users": {}, "port": {"index": 1, "kind": "output"}, "ends_total": 1,
+                      "ends": [{"at": [12.5, 9.5], "n": "pipe-to-ground", "kind": "underground, no exit",
+                                "toward": "west", "further": {"n": "pipe-to-ground", "p": [8.5, 9.5], "gap": 3,
+                                                              "dir": "east"}}]}}
+    w = A.words({"machines": 3, "groups": {}, "fluid_breaks": [crude, jacks]})
+    check("audit words: a crude line stopping at a gap to a water pipe says joining them would mix fluids; full "
+          "pumpjacks whose line goes underground with no exit say which way the next one faces",
+          "oil-refinery at [gps=10.5,20.5] lacks crude-oil" in w and "joining them would mix fluids" in w
+          and "no machine takes from it" in w and "facing east (an exit for this one faces west)" in w
+          and "the line into it is 12 pipes dry" in w and "no pump, pumpjack or machine output" in w
+          and w.count("no machine takes from it") == 1, w)
+
+
 def test_bus_feed_entries():
     from jev.busgen import DIRS, Bus
     ok_all, why = True, []

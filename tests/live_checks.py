@@ -1012,6 +1012,90 @@ return true""")
           len(gaps) == 1 and gaps[0]["fluid"] == "crude-oil" and gaps[0]["gap"] == 1, gaps)
 
 
+async def chk_fluid_trace(L: Live, state: dict):
+    """Two machines missing water: one behind a 1-tile gap in its line, one behind an underground with no exit (the
+    next pipe-to-ground faces the wrong way). The audit traces both; the pipes op follows a line from its source."""
+    from jev import audit as base_audit
+    g = L.g
+    x0, y0 = await L.site(24, 10)
+    await L.ev(f"""local s, f = game.surfaces.nauvis, game.forces.player
+f.technologies['concrete'].researched = true
+local eei = s.create_entity {{ name = 'electric-energy-interface', position = {{ {x0} + 10, {y0} + 9 }}, force = f }}
+eei.power_production = 1e7 eei.electric_buffer_size = 1e8
+for _, x in pairs {{ 6.5, 12.5, 18.5 }} do s.create_entity {{ name = 'medium-electric-pole', position = {{ {x0} + x, {y0} + 8.5 }}, force = f }} end
+local function am(x)
+  local m = s.create_entity {{ name = 'assembling-machine-2', position = {{ {x0} + x, {y0} + 6.5 }}, force = f, recipe = 'concrete' }}
+  m.insert {{ name = 'stone-brick', count = 50 }} m.insert {{ name = 'iron-ore', count = 20 }}
+end
+am(3.5) am(16.5)
+local src = s.create_entity {{ name = 'infinity-pipe', position = {{ {x0} + 10.5, {y0} + 1.5 }}, force = f }}
+src.set_infinity_pipe_filter {{ name = 'water', percentage = 1, mode = 'at-least' }}
+for x = 6, 9 do s.create_entity {{ name = 'pipe', position = {{ {x0} + x + 0.5, {y0} + 1.5 }}, force = f }} end
+for _, q in pairs {{ {{4.5, 1.5}}, {{3.5, 1.5}}, {{3.5, 2.5}}, {{3.5, 3.5}}, {{3.5, 4.5}} }} do
+  s.create_entity {{ name = 'pipe', position = {{ {x0} + q[1], {y0} + q[2] }}, force = f }}
+end
+s.create_entity {{ name = 'pipe-to-ground', position = {{ {x0} + 16.5, {y0} + 4.5 }}, direction = defines.direction.south, force = f }}
+s.create_entity {{ name = 'pipe-to-ground', position = {{ {x0} + 16.5, {y0} + 1.5 }}, direction = defines.direction.south, force = f }}
+return true""")
+    await asyncio.sleep(3)
+    a = await g.call("audit", timeout=90)
+    br = [b for b in (a.get("fluid_breaks") or []) if isinstance(b, dict)
+          and x0 <= b["machine"]["p"][0] <= x0 + 24 and y0 <= b["machine"]["p"][1] <= y0 + 10]
+    words = [base_audit.break_words(b) for b in br]
+    for w in words:
+        print("   ", w)
+    gap = [b for b in br if any((e.get("further") or {}).get("gap") == 1 and (e.get("further") or {}).get("fluid") == "water"
+                                for e in b["line"].get("ends") or [])]
+    ug = [b for b in br if any(e.get("kind") == "underground, no exit" and (e.get("further") or {}).get("dir") == "south"
+                               for e in b["line"].get("ends") or [])]
+    check("pipes: the audit traces both dry machines' lines (a 1-tile gap to a water pipe; an underground whose "
+          "next pipe-to-ground faces the wrong way)",
+          len(br) == 2 and all(b["why"] == "missing" and b["fluid"] == "water" for b in br) and gap and ug,
+          [(b["machine"]["p"], b["why"], b["fluid"]) for b in br])
+    r = await g.call("pipes", x=x0 + 10.5, y=y0 + 1.5)
+    net = (r.get("lines") or [{}])[0]
+    ends = net.get("ends") or []
+    print("   ", base_audit.line_words(net))
+    check("pipes: from the source, the water line is 5 pieces holding water and ends 1 tile short of the dry pipe",
+          net.get("fluid") == "water" and net.get("pipes") == 5
+          and any((e.get("further") or {}).get("gap") == 1 and e.get("toward") == "west" for e in ends), net)
+
+
+async def chk_long_pipe(L: Live, state: dict):
+    """A 330-tile crude line is one segment too long to flow (2.0: over 320 tiles nothing comes out); the audit names
+    it and the pipes op flags it. A 290-tile line isn't flagged."""
+    from jev import audit as base_audit
+    g = L.g
+    await L.ev("""local s, f = game.surfaces.nauvis, game.forces.player
+local X0, Y0 = 3000, 3000
+s.request_to_generate_chunks({ X0 + 170, Y0 }, 8)
+s.force_generate_chunk_requests()
+local tiles = {}
+for x = X0 - 2, X0 + 340 do for y = Y0 - 2, Y0 + 6 do tiles[#tiles + 1] = { name = 'refined-concrete', position = { x, y } } end end
+s.set_tiles(tiles)
+for _, e in pairs(s.find_entities_filtered { area = { { X0 - 2, Y0 - 2 }, { X0 + 340, Y0 + 6 } } }) do
+  if e.type ~= 'character' then e.destroy() end
+end
+for i, n in ipairs { 330, 290 } do
+  local y = Y0 + 0.5 + (i - 1) * 3
+  local src = s.create_entity { name = 'infinity-pipe', position = { X0 + 0.5, y }, force = f }
+  src.set_infinity_pipe_filter { name = 'crude-oil', percentage = 1, mode = 'at-least' }
+  for k = 1, n do s.create_entity { name = 'pipe', position = { X0 + k + 0.5, y }, force = f } end
+end
+return true""")
+    await asyncio.sleep(2)
+    a = await g.call("audit", timeout=90)
+    lp = [x for x in (a.get("long_pipes") or []) if isinstance(x, dict) and x["from"][1] >= 3000]
+    for x in lp:
+        print("   ", base_audit.long_words(x))
+    check("pipes: the audit names a 330-tile crude segment as too long to flow, not a 290-tile one",
+          len(lp) == 1 and lp[0]["span"] >= 330 and lp[0]["fluid"] == "crude-oil", lp)
+    r = await g.call("pipes", x=3100.5, y=3000.5)
+    net = (r.get("lines") or [{}])[0]
+    check("pipes: tracing the long line flags its segment too", bool(net.get("long"))
+          and "nothing comes out" in base_audit.line_words(net), net.get("long"))
+
+
 async def chk_end_ref(L: Live, state: dict):
     """A plan that taps a bus and builds a row on the tap's end via "end:1", run by the actor's plan loop."""
     import tempfile
@@ -1203,7 +1287,7 @@ return out""") or {}
 
 
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "pipegap": chk_pipe_gap, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "pipegap": chk_pipe_gap, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe}
 
 
 async def main() -> int:
