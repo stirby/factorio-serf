@@ -1076,6 +1076,8 @@ def test_research_keeper():
                         "by_recipe": {"automation-science-pack": 2, "logistic-science-pack": 1}, "techs": 20}
             if op == "techs":
                 return {"available": [
+                    {"name": "toward-goal", "units": 900, "packs": ["automation-science-pack", "logistic-science-pack"],
+                     "toward": True},
                     {"name": "chemical-thing", "units": 10, "packs": ["automation-science-pack", "chemical-science-pack"]},
                     {"name": "big-green", "units": 300, "packs": ["automation-science-pack", "logistic-science-pack"]},
                     {"name": "small-green", "units": 50, "packs": ["automation-science-pack", "logistic-science-pack"]},
@@ -1086,7 +1088,8 @@ def test_research_keeper():
             raise AssertionError(op)
 
     async def go(g):
-        pr = SimpleNamespace(actor=SimpleNamespace(g=g), active=True, RESEARCH_EVERY=0, kept_research=[], logs=[])
+        pr = SimpleNamespace(actor=SimpleNamespace(g=g), active=True, RESEARCH_EVERY=0, kept_research=[], logs=[],
+                             toward="rocket-silo")
         pr._log = pr.logs.append
 
         async def sleep(secs):
@@ -1098,8 +1101,8 @@ def test_research_keeper():
         return pr
     g = G(None)
     pr = asyncio.run(go(g))
-    check("research keeper: idle labs get the cheapest tech the base's packs pay for (not one needing blue)",
-          g.queued == ["small-green"] and pr.kept_research == ["small-green"], (g.queued, pr.logs))
+    check("research keeper: idle labs get a tech toward the goal the base's packs pay for, before cheaper filler",
+          g.queued == ["toward-goal"] and pr.kept_research == ["toward-goal"], (g.queued, pr.logs))
     g = G("automation")
     asyncio.run(go(g))
     check("research keeper: leaves a running research alone", g.queued == [], g.queued)

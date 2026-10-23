@@ -173,6 +173,7 @@ class Project:
 
     # ------------------------------------------------------------------ the loop
     RESEARCH_EVERY = 180
+    toward = "rocket-silo"  # the tech the research keeper steers toward
 
     async def _keep_research(self) -> None:
         """Labs never sit idle for want of a queued tech, as a player keeps the queue full: when nothing is being
@@ -189,9 +190,11 @@ class Project:
                 if p.get("research") or not (p.get("ents") or {}).get("lab"):
                     continue
                 packs = {k for k in progress.PACKS if (p.get("by_recipe") or {}).get(k)} or {"automation-science-pack"}
-                t = await g.call("techs", agent=g.name)
+                t = await g.call("techs", agent=g.name, toward=self.toward)
                 cands = [x for x in (t.get("available") or []) if x.get("units") and set(x.get("packs") or []) <= packs]
-                cands.sort(key=lambda x: (x["units"] * len(x.get("packs") or []), x["name"]))
+                # toward the goal first (the rocket silo's prerequisites), then the cheapest: p7's keeper spent its
+                # packs on inserter capacity, lamps and explosives
+                cands.sort(key=lambda x: (not x.get("toward"), x["units"] * len(x.get("packs") or []), x["name"]))
                 for c in cands[:3]:
                     r = await g.call("research", tech=c["name"])
                     if r.get("ok", True) and not r.get("error"):

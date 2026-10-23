@@ -454,6 +454,16 @@ local trigger_text = util.trigger_text
 -- Researchable now. 2.0 has trigger techs (craft/mine/build something) as well as lab techs.
 function observe.techs(a, args)
   local out = {}
+  -- args.toward = a goal tech: mark the available techs that lead to it (it or any of its unresearched prerequisites)
+  local leads = {}
+  if args.toward and a.char.force.technologies[args.toward] then
+    local function walk(t)
+      if leads[t.name] or t.researched then return end
+      leads[t.name] = true
+      for _, pre in pairs(t.prerequisites) do walk(pre) end
+    end
+    walk(a.char.force.technologies[args.toward])
+  end
   for name, t in pairs(a.char.force.technologies) do
     if not t.researched and t.enabled then
       local ready = true
@@ -473,6 +483,7 @@ function observe.techs(a, args)
           if eff.type == "unlock-recipe" then unlocks[#unlocks + 1] = eff.recipe end
         end
         if #unlocks > 0 then d.unlocks = unlocks end
+        if leads[name] then d.toward = true end
         out[#out + 1] = d
       end
     end
