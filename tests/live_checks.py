@@ -865,8 +865,38 @@ return true""")
           r.get("ok") and n == 48, (r.get("msg"), n))
 
 
+async def chk_fluid_port_taken(L: Live, state: dict):
+    g = L.g
+    res = {}
+    for case in ("ptg", "inserter"):
+        x0, y0 = await L.site(16, 12)
+        pet = await L.ev(f"""
+local s, f = game.surfaces.nauvis, game.forces.player
+f.recipes['sulfur'].enabled = true
+local d = s.create_entity {{ name = 'chemical-plant', position = {{ {x0} + 8.5, {y0} + 5.5 }}, force = f }}
+d.set_recipe('sulfur')
+local fb, port = d.fluidbox, nil
+for i = 1, #fb do
+  if fb.get_locked_fluid(i) == 'petroleum-gas' then port = fb.get_pipe_connections(i)[1].target_position end
+end
+local src = s.create_entity {{ name = 'pipe', position = {{ {x0} + 0.5, {y0} + 10.5 }}, force = f }}
+src.insert_fluid {{ name = 'petroleum-gas', amount = 50 }}
+s.create_entity {{ name = '{"pipe-to-ground" if case == "ptg" else "inserter"}', position = port, force = f,
+  direction = defines.direction.south }}
+local c = storage.agents['serf'].char
+c.teleport({{ {x0} + 4.5, {y0} + 10.5 }})
+c.insert {{ name = 'pipe', count = 60 }} c.insert {{ name = 'pipe-to-ground', count = 10 }}
+return {{ port.x, port.y }}""")
+        res[case] = await Runner(g)._do_connect({"item": "pipe", "from": [x0 + 0.5, y0 + 10.5],
+                                                 "to": [x0 + 8.5, y0 + 5.5], "to_fluid": "petroleum-gas"})
+    check("fluid ports: an empty pipe-to-ground on the inlet is joined, not reported as taken",
+          "taken" not in str(res["ptg"].get("msg")), res["ptg"].get("msg"))
+    check("fluid ports: with a building on the petroleum inlet, the failure names what's there",
+          not res["inserter"].get("ok") and "taken by inserter at" in str(res["inserter"].get("msg")),
+          res["inserter"].get("msg"))
+
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken}
 
 
 async def main() -> int:

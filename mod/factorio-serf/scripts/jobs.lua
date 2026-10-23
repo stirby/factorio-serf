@@ -1570,15 +1570,25 @@ local function fluid_port(surface, p, fluid, want_out, force)
   end
   -- a pipe already on the port (empty, or holding this fluid): the line carries on from it (an offshore pump's
   -- first pipe was "already taken", and the line gave up)
+  local there = {}
   for _, cd in ipairs(cands) do
     local t = { x = math.floor(cd.pos.x) + 0.5, y = math.floor(cd.pos.y) + 0.5 }
-    local pipe = surface.find_entities_filtered { position = t, radius = 0.4, type = "pipe", limit = 1 }[1]
+    local pipe = surface.find_entities_filtered { position = t, radius = 0.4, type = { "pipe", "pipe-to-ground" }, limit = 1 }[1]
     local held = pipe and pipe.fluidbox[1] and pipe.fluidbox[1].name
     if pipe and (not held or held == fluid) then return t, best, true end
+    -- say what's in the way, so the plan can pick it up or route round it (q6 guessed at a stone wall that wasn't there)
+    for _, o in pairs(surface.find_entities_filtered { position = t, radius = 0.4, limit = 2,
+        type = { "resource", "character", "corpse", "item-entity" }, invert = true }) do
+      local f = ""
+      local okF, fb = pcall(function() return o.fluidbox end)
+      if okF and fb and #fb >= 1 and fb[1] then f = " holding " .. fb[1].name end
+      there[#there + 1] = o.name .. " at " .. xystr(o.position) .. f
+    end
   end
   if #cands > 0 then
     return nil, best.name .. " at " .. xystr(best.position) .. ": its " .. fluid .. " connection"
-      .. (#cands > 1 and "s are" or " is") .. " already taken (a pipe or building is there): join that pipe instead"
+      .. (#cands > 1 and "s are" or " is") .. " taken by " .. (#there > 0 and table.concat(there, ", ") or "something")
+      .. ": pick that up (mine_at) and connect again, or join a pipe that carries " .. fluid
   end
   return nil, best.name .. " at " .. xystr(best.position) .. " has no " .. (want_out and "output" or "input")
     .. " for " .. fluid .. " (its boxes: " .. table.concat(seen, ", ") .. ")"
