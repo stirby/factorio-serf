@@ -135,7 +135,8 @@ return {{ origin = {{ ox, oy }}, iron_end = {{ ox + 11.5, oy - 3.5 }}, copper_en
 
 
 
-def setup_lua_b4(feed_rows: int = 4, coal: bool = False, oil: bool = False) -> str:
+def setup_lua_b4(feed_rows: int = 4, coal: bool = False, oil: bool = False, extra_techs: tuple = (),
+                 extra_stock: dict | None = None) -> str:
     """A long bus (iron, copper, 6 spare) fed hard at its head (4 fast inserters per lane, ~550/min each), with a sink
     past the end of every lane (an inserter into an endless chest that deletes packs and intermediates), so products
     put on the bus never back up. Rows 0-3 hold the feeders (registered as a feed join). coal: lane 2 carries coal,
@@ -151,9 +152,11 @@ def setup_lua_b4(feed_rows: int = 4, coal: bool = False, oil: bool = False) -> s
         "assembling-machine-2": 40, "inserter": 150, "fast-inserter": 40, "transport-belt": 800,
         "underground-belt": 80, "splitter": 20, "small-electric-pole": 80, "medium-electric-pole": 40,
         "iron-chest": 20, "long-handed-inserter": 30,
-        **({"oil-refinery": 4, "chemical-plant": 4, "pipe": 150, "pipe-to-ground": 30, "pump": 4} if oil else {})}.items())
+        **({"oil-refinery": 4, "chemical-plant": 4, "pipe": 150, "pipe-to-ground": 30, "pump": 4} if oil else {}),
+        **(extra_stock or {})}.items())
     techs = ",".join(f"'{t}'" for t in TECHS + ["logistic-science-pack"] + (
-        ["fluid-handling", "oil-gathering", "oil-processing", "plastics", "sulfur-processing"] if oil else []))
+        ["fluid-handling", "oil-gathering", "oil-processing", "plastics", "sulfur-processing"] if oil else []) +
+        list(extra_techs))
     coal_lua = """-- coal onto lane 2 (u=4) at rows 4-7 from its west gap
 for row = 4, 7 do
   local y = oy + row + 0.5
@@ -173,7 +176,8 @@ water.set_infinity_pipe_filter {{ name = 'water', percentage = 1, mode = 'at-lea
                            for a in range(0, feed_rows, 4))
     sink = ",".join(f"'{x}'" for x in ("automation-science-pack", "logistic-science-pack", "electronic-circuit",
                                          "iron-gear-wheel", "inserter", "transport-belt", "copper-cable",
-                                         "plastic-bar", "sulfur", "coal"))
+                                         "plastic-bar", "sulfur", "coal", "chemical-science-pack", "steel-plate",
+                                         "engine-unit", "advanced-circuit", "pipe"))
     return f"""
 for _, t in pairs {{ {techs} }} do if f.technologies[t] then f.technologies[t].researched = true end end
 local sp = f.get_spawn_position(s)
@@ -355,6 +359,33 @@ def scenarios() -> list[dict]:
                       {"name": "sulfur_per_min", "lua": "pm('sulfur')", "target": 15}],
         }],
         "score": [{"name": "taps", "lua": TAPS}, {"name": "refineries", "lua": "count('oil-refinery')"}],
+    }, {
+        "name": "b7-bus-blue",
+        "stage": "crew-test",
+        "minutes": 180,
+        "agents": 1,
+        "kind": "directive",
+        "note": "How large a task: blue science at 30/min from raw plates, coal and piped crude on a bus, with every "
+                "chain built (steel, gears, pipes, engines, green and advanced circuits, plastic, sulfur): ~35 "
+                "assemblers, ~8 furnaces and an oil area from one order. Plate lanes fed at ~1100/min, sinks past "
+                "every lane. Met = blue packs made at 27+/min for 3 samples.",
+        "setup_lua": setup_lua_b4(8, coal=True, oil=True,
+                                  extra_techs=("steel-processing", "engine", "advanced-circuit", "advanced-electronics",
+                                               "chemical-science-pack", "lubricant"),
+                                  extra_stock={"assembling-machine-2": 70, "stone-furnace": 30, "inserter": 250,
+                                               "transport-belt": 1500, "underground-belt": 150, "splitter": 30,
+                                               "fast-inserter": 60, "medium-electric-pole": 80}),
+        "objectives": [{
+            "name": "blue-30", "minutes": 180, "hold_samples": 3,
+            "goal": "@{agent} crude oil and water arrive in the pipes at [gps={crude}] and [gps={water}], and our main "
+                    "bus (bus main) has iron, copper and coal. Build chemical (blue) science for 30 a minute, making "
+                    "everything it needs from those: steel, engines, green and advanced circuits, plastic, sulfur. "
+                    "Put the packs onto the bus.",
+            "score": [{"name": "blue_per_min", "lua": "pm('chemical-science-pack')", "target": 27}],
+        }],
+        "score": [{"name": "taps", "lua": TAPS}, {"name": "assemblers", "lua": "count('assembling-machine-2')"},
+                  {"name": "engines_per_min", "lua": "pm('engine-unit')"},
+                  {"name": "adv_circuits_per_min", "lua": "pm('advanced-circuit')"}],
     }, {
         "name": "b2-bus-red",
         "stage": "crew-test",
