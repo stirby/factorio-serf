@@ -100,6 +100,7 @@ class Game:
             return {"id": jid, "ok": False, "msg": f"timed out after {timeout:.0f}s", "timeout": True}
 
     QUEUE_WAIT = 600.0  # longest an action waits in the mod's queue behind other jobs before giving up
+    CRAFT_CAP = 18 * 60.0  # a fetch or craft still crafting runs on past its timeout up to this (the mod stops jobs at 20 min)
 
     async def run(self, action: dict, timeout: float = 300, replace: bool = False,
                   queue_timeout: float | None = None) -> dict:
@@ -134,6 +135,7 @@ class Game:
         t0 = time.monotonic()
         ran = None  # how long the mod says our job has been running
         ahead: dict = {}
+        last_craft = None  # the crafting queue at the last extension
         while True:
             r = await self.wait_job(jid, min(10.0, max(1.0, timeout)))
             if not r.get("timeout"):
@@ -145,7 +147,14 @@ class Game:
                 continue
             if st.get("running"):
                 ran = st.get("secs", 0)
-                if ran >= timeout:
+                craft = st.get("crafting")
+                if ran >= timeout and op in ("fetch", "craft") and craft and craft != last_craft \
+                        and ran < self.CRAFT_CAP:
+                    # still hand-crafting, and getting on with it since the last look: a long craft isn't stuck
+                    # (c1: 110 advanced circuits at 6 s each timed out at 300 s, five times in a row)
+                    last_craft = craft
+                    timeout = ran + 60
+                elif ran >= timeout:
                     await self.cancel(f"{op} timed out", job=jid)
                     return {"id": jid, "ok": False, "op": op, "timeout": True,
                             "msg": f"timed out after {timeout:.0f}s"}
@@ -171,7 +180,7 @@ class Game:
             return None
         job = me.get("job") or {}
         if job.get("id") == jid:
-            return {"running": True, "secs": job.get("secs", 0)}
+            return {"running": True, "secs": job.get("secs", 0), "crafting": me.get("crafting")}
         return {"running": False, "ahead": job, "queued": me.get("queued", 0)}
 
     async def cancel(self, reason: str = "replanned", job: int | None = None) -> None:

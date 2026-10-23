@@ -678,8 +678,24 @@ return n""")
     await L.ev("storage.agents['serf'].char.get_main_inventory().clear() return true")
 
 
+async def chk_long_craft(L: Live, state: dict):
+    g = L.g
+    await L.ev("""
+local c = storage.agents['serf'].char
+c.get_main_inventory().clear()
+c.insert { name = 'iron-plate', count = 100 }
+return true""")
+    t0 = time.monotonic()
+    r = await g.run({"op": "craft", "recipe": "iron-gear-wheel", "count": 40}, timeout=5)
+    secs = time.monotonic() - t0
+    have = await L.ev("return storage.agents['serf'].char.get_item_count('iron-gear-wheel')")
+    check("long craft: a craft longer than its timeout runs on while it's getting on (c1: 110 adv circuits)",
+          r.get("ok") and have >= 40 and secs > 10, (r.get("msg"), have, round(secs)))
+    await L.ev("storage.agents['serf'].char.get_main_inventory().clear() return true")
+
+
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft}
 
 
 async def main() -> int:
