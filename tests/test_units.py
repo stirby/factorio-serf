@@ -1092,6 +1092,25 @@ def test_research_keeper():
     check("research keeper: leaves a running research alone", g.queued == [], g.queued)
 
 
+
+def test_row_extends_short_belt():
+    from jev.rowgen import extend_input
+    w = World({"ents": [belt(1, 0.5, 0.5, "east", items={"iron-plate": 2}), belt(2, 1.5, 0.5, "east")],
+               "center": [0, 0]})
+    probs = lint([{"do": "row", "belt": [0.5, 0.5], "machine": "assembling-machine-1", "recipe": "iron-gear-wheel",
+                   "count": 3, "side": "south"}], w, None, {})
+    check("row: a 2-tile belt under a 3-machine row isn't flagged (the row carries its belt on)",
+          not any("nothing" in p for p in probs), probs)
+    ext = extend_input((0.5, 0.5), "east", 15, w.at)
+    check("row: the extension starts past the existing belt and covers the row",
+          ext and ext[0]["x"] == 2.5 and ext[-1]["x"] == 14.5 and all(e["direction"] == "east" for e in ext), ext[:2])
+    w2 = World({"ents": [belt(1, 0.5, 0.5, "east"), {"u": 3, "n": "iron-chest", "t": "container", "x": 6.5, "y": 0.5}],
+                "center": [0, 0]})
+    ext = extend_input((0.5, 0.5), "east", 15, w2.at)
+    check("row: the extension stops at the first thing in the way", [e["x"] for e in ext] == [1.5, 2.5, 3.5, 4.5, 5.5],
+          [e["x"] for e in ext])
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):

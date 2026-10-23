@@ -87,3 +87,23 @@ def row_entities(belt, belt_dir: str, side: str, machine: str, recipe: str | Non
         ox, oy = at(end_along - 1, S + 3)
         info["output_belt_end"] = [ox, oy]
     return ents, info
+
+
+def extend_input(belt, belt_dir: str, length: int, at, name: str = "transport-belt") -> list[dict]:
+    """Belts that carry the row's input belt on downstream over the row's whole length (a tap's short split-off belt,
+    any line that ends early): from the tile after `belt`, over free tiles, up to the first tile something else
+    stands on. at(x, y) -> the entity there as {"t", "d"} or None. Tiles already holding a belt running the same way
+    at the start are passed over."""
+    dx, dy = DIRS[belt_dir]
+    bx, by = int(float(belt[0]) // 1) + 0.5, int(float(belt[1]) // 1) + 0.5
+    out = []
+    for k in range(1, int(length)):
+        x, y = bx + dx * k, by + dy * k
+        o = at(x, y)
+        if o is None:
+            out.append({"name": name, "x": x, "y": y, "direction": belt_dir})
+        elif o.get("t") == "transport-belt" and o.get("d") == belt_dir and not out:
+            continue
+        else:
+            break
+    return out

@@ -1101,7 +1101,14 @@ class Runner:
             blocked = sum(1 for x in ents if w.at(x["x"], x["y"]) is not None)
             if best is None or blocked < best[0]:
                 best = (blocked, ents, info, sd)
-        return best[1], best[2], best[3], best[0]
+        # the input belt runs the row's whole length: a tap's split-off belt (or any line) that ends early is carried
+        # on downstream over free ground, up to the first tile something else stands on
+        from .rowgen import extend_input
+        ext = extend_input((e["x"], e["y"]), d, int(best[2].get("length", 0)) + int(s.get("offset", 0)), w.at,
+                           e.get("n") if "transport-belt" in str(e.get("n")) else "transport-belt")
+        if ext:
+            best[2]["belt_extended"] = len(ext)
+        return best[1] + ext, best[2], best[3], best[0]
 
     async def _do_row(self, s):
         """Machines in a row along an existing belt (see jev/rowgen.py), then powered from the grid."""
@@ -1117,6 +1124,8 @@ class Runner:
                                    "radius": max(max(xs) - min(xs), max(ys) - min(ys)) / 2 + 2})
         msg = (f"row of {info['machines']} {s.get('machine', 'assembling-machine-1')} on the {side} side: "
                f"{r.get('msg')}; power: {pr.get('msg')}")
+        if info.get("belt_extended"):
+            msg += f"; input belt carried on {info['belt_extended']} tiles to cover the row"
         if info.get("output_belt_end"):
             msg += f"; output belt ends at {info['output_belt_end'][0]:g},{info['output_belt_end'][1]:g}"
         return {"ok": bool(pr.get("ok")), "msg": msg, "info": info}

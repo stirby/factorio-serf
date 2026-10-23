@@ -17,13 +17,16 @@ from jev.busgen import Bus  # noqa: E402
 
 LANES = ["iron-plate", "copper-plate", "spare", "spare"]
 LENGTH = 60
-STOCK = {"assembling-machine-2": 20, "inserter": 80, "fast-inserter": 20, "transport-belt": 400,
+STOCK = {"assembling-machine-2": 20, "stone-furnace": 30, "inserter": 80, "fast-inserter": 20, "transport-belt": 400,
          "underground-belt": 40, "splitter": 10, "small-electric-pole": 60, "medium-electric-pole": 30,
          "iron-chest": 10}
 TECHS = ["automation", "automation-2", "logistics", "electronics", "fast-inserter", "electric-energy-distribution-1"]
 
 
-def setup_lua() -> str:
+def setup_lua(lanes: list[str] = LANES, techs_extra: tuple = ()) -> str:
+    """A bus of `lanes` (spares empty, the rest fed from endless chests), registered as bus main."""
+    LANES = lanes  # noqa: N806
+    TECHS = globals()["TECHS"] + list(techs_extra)  # noqa: N806
     b = Bus(name="main", x=0.5, y=0.5, direction="south", side="east", lanes=LANES, length=LENGTH)
     belts = ",".join(f"{{{e['x'] - 0.5:g},{e['y'] - 0.5:g}}}" for e in b.lay())
     feeds = ",".join(f"{{{b.u(i)},'{it}'}}" for i, it in enumerate(LANES) if it != "spare")
@@ -160,6 +163,26 @@ def scenarios() -> list[dict]:
                       {"name": "circuits_at_bus_end", "lua": ON_BUS, "target": 1}],
         }],
         "score": [{"name": "taps", "lua": TAPS}, {"name": "circuits_made", "lua": "st.get_input_count('electronic-circuit')"}],
+    }, {
+        "name": "b3-bus-steel",
+        "stage": "crew-test",
+        "minutes": 45,
+        "agents": 1,
+        "kind": "directive",
+        "note": "A main bus carries iron plates, copper plates and coal (endless chests); one lane is spare. Steel "
+                "off the bus: iron and coal taken off (two taps, one belt with a lane of each, or two belts), a "
+                "furnace row, steel back onto the spare lane. Met = steel made at 13+/min for 3 samples and steel "
+                "at the bus's far end.",
+        "setup_lua": setup_lua(["iron-plate", "copper-plate", "coal", "spare"], ("steel-processing",)),
+        "objectives": [{
+            "name": "steel-on-bus", "minutes": 45, "hold_samples": 3,
+            "goal": "@{agent} we need steel. Our main bus (bus main) has iron plates and coal on it: build steel "
+                    "for 15 a minute off the bus and put the steel on the bus's spare lane.",
+            "score": [{"name": "steel_per_min", "lua": "pm('steel-plate')", "target": 13},
+                      {"name": "steel_at_bus_end", "lua": ON_BUS.replace("electronic-circuit", "steel-plate"),
+                       "target": 1}],
+        }],
+        "score": [{"name": "taps", "lua": TAPS}, {"name": "steel_made", "lua": "st.get_input_count('steel-plate')"}],
     }, {
         "name": "b2-bus-red",
         "stage": "crew-test",

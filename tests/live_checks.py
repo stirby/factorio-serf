@@ -811,8 +811,39 @@ return out""") or {{}}
         check(f"bus: lane {i}'s far end carries {it} only", set(got) == {it}, got)
 
 
+async def chk_row_extend(L: Live, state: dict):
+    g = L.g
+    x0, y0 = await L.site(18, 8)
+    await L.ev(f"""local s, f = game.surfaces.nauvis, game.forces.player
+for k = 0, 1 do s.create_entity {{ name = 'transport-belt', position = {{ {x0} + k + 0.5, {y0} + 0.5 }}, direction = defines.direction.east, force = f }} end
+local eei = s.create_entity {{ name = 'electric-energy-interface', position = {{ {x0} - 3, {y0} + 3 }}, force = f }}
+eei.power_production = 1e7 eei.electric_buffer_size = 1e8
+s.create_entity {{ name = 'small-electric-pole', position = {{ {x0} - 1.5, {y0} + 1.5 }}, force = f }}
+local c = storage.agents['serf'].char
+for n, k in pairs {{ ['assembling-machine-1'] = 5, inserter = 12, ['transport-belt'] = 40, ['iron-chest'] = 5, ['small-electric-pole'] = 12 }} do c.insert {{ name = n, count = k }} end
+c.teleport {{ {x0} + 6, {y0} - 2 }}
+return true""")
+    runner = Runner(g, lambda r: None)
+    r = await runner.run({"do": "row", "belt": [x0 + 0.5, y0 + 0.5], "machine": "assembling-machine-1",
+                          "recipe": "iron-gear-wheel", "count": 3, "side": "south"})
+    check("row: built along a 2-tile belt, carrying the belt on", r.get("ok") and "carried on" in str(r.get("msg")),
+          r.get("msg"))
+    feed = (f"local e = game.surfaces.nauvis.find_entity('transport-belt', {{ {x0} + 0.5, {y0} + 0.5 }}) "
+            "if e then for l = 1, 2 do e.get_transport_line(l).insert_at_back({ name = 'iron-plate' }) end end return true")
+    t0 = time.monotonic()
+    while time.monotonic() - t0 < 40:
+        await L.ev(feed)
+        await asyncio.sleep(0.3)
+    got = await L.ev(f"""local n = 0
+for _, a in pairs(game.surfaces.nauvis.find_entities_filtered {{ area = {{ {{ {x0}, {y0} }}, {{ {x0} + 18, {y0} + 8 }} }}, name = 'assembling-machine-1' }}) do
+  if a.products_finished > 0 or a.get_inventory(defines.inventory.assembling_machine_input).get_item_count('iron-plate') > 0 then n = n + 1 end
+end
+return n""")
+    check("row: every machine in the row gets plates (3 of 3)", got == 3, got)
+
+
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend}
 
 
 async def main() -> int:

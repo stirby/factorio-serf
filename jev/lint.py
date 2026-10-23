@@ -186,6 +186,20 @@ def lint(steps: list[dict], w: World, available: set[str] | None = None, recipes
                     except ValueError as ex:
                         out.append(f"step {i + 1} row: {ex}")
                         ents = []
+                    if ents:
+                        from .rowgen import extend_input
+                        _, rinfo = row_entities((be["x"], be["y"]), be["d"], sd, s.get("machine", "assembling-machine-1"),
+                                                s.get("recipe"), int(s.get("count", 1)), bool(s.get("second_belt")),
+                                                s.get("output", "chest"), s.get("inserter", "inserter"),
+                                                int(s.get("offset", 0)))
+
+                        def taken(x, y):
+                            o = w.at(x, y)
+                            t = (math.floor(x), math.floor(y))
+                            pb = next((q for q in planned if t in q["tiles"]), None)
+                            return o or ({"t": pb["name"], "d": pb.get("dir")} if pb else None)
+                        ents = ents + extend_input((be["x"], be["y"]), be["d"],
+                                                   int(rinfo.get("length", 0)) + int(s.get("offset", 0)), taken)
                     for e in ents:
                         add(e["name"], float(e["x"]), float(e["y"]), e.get("direction"), None, None, e.get("recipe"),
                             src="row")
