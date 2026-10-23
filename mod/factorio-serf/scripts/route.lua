@@ -39,12 +39,36 @@ end
 
 local DIRS = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }
 
+-- The tile an open belt end (a belt, an underground exit, a splitter) points into: a new belt laid there would take
+-- that end's items, side-loaded or head on. b4: an iron feed ran straight down past the copper tap's end, copper
+-- side-loaded onto it, and the green chain starved for 30 minutes on a belt with copper on both lanes.
+local BELT_T = { "transport-belt", "underground-belt", "splitter", "loader", "loader-1x1" }
+local function fed_by_belt_end(surface, x, y)
+  for _, b in pairs(surface.find_entities_filtered { area = { { x - 1.5, y - 1.5 }, { x + 2.5, y + 2.5 } }, type = BELT_T }) do
+    local v = ({ [defines.direction.north] = { 0, -1 }, [defines.direction.east] = { 1, 0 },
+                 [defines.direction.south] = { 0, 1 }, [defines.direction.west] = { -1, 0 } })[b.direction]
+    local into = v and not (b.type == "underground-belt" and b.belt_to_ground_type == "input")
+      and not (b.type:find("loader") and b.loader_type == "input")
+    if into then
+      local offs = { 0 }
+      if b.type == "splitter" then offs = { -0.5, 0.5 } end
+      for _, o in ipairs(offs) do
+        local tx = math.floor(b.position.x - v[2] * o + v[1])
+        local ty = math.floor(b.position.y + v[1] * o + v[2])
+        if tx == x and ty == y then return true end
+      end
+    end
+  end
+  return false
+end
+
 -- opts: entity (prototype name to test placement), force, max_nodes, allow (tile keys always passable),
 -- hop = { name = underground entity, reach = max tiles from entrance to exit }: when the way ahead is blocked,
 -- the line may go under it (belts under belts, pipes under pipes, either under water). Entrances are entered
 -- straight, exits lead straight on. Path entries for those tiles carry ug = "input" | "output" and dir = {dx, dy}.
 -- start_forbid / goal_forbid = {dx, dy}: a first step / last step in that direction is not allowed (it would run
 -- a belt head-on into the belt there). goal_join: the goal is an existing belt the line feeds; nothing lands on it.
+-- belt: a belt line, which keeps off tiles an open belt end points into (except its own two ends).
 function route.find(surface, from, to, opts)
   local sx, sy = math.floor(from.x), math.floor(from.y)
   local gx, gy = math.floor(to.x), math.floor(to.y)
@@ -98,7 +122,8 @@ function route.find(surface, from, to, opts)
         build_check_type = defines.build_check_type.manual,
       } and surface.count_entities_filtered { area = { { x + 0.2, y + 0.2 }, { x + 0.8, y + 0.8 } },
         type = { "resource", "character", "corpse", "item-entity", "entity-ghost", "tile-ghost" }, invert = true,
-        limit = 1 } == 0 and not other_fluid_near(x, y))
+        limit = 1 } == 0 and not other_fluid_near(x, y)
+        and not (opts.belt and not ends[k] and fed_by_belt_end(surface, x, y)))
     end
     return cache[k]
   end

@@ -1784,6 +1784,7 @@ H.connect = {
         hop = { name = ug, reach = math.max(2, reach) }
       end
       ropts.hop = hop
+      ropts.belt = ent.type == "transport-belt"
       local err
       path, err = route.find(c.surface, from, to, ropts)
       if not path then return fail("can't route " .. item .. ": " .. err) end

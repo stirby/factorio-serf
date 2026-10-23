@@ -895,8 +895,42 @@ return {{ port.x, port.y }}""")
           not res["inserter"].get("ok") and "taken by inserter at" in str(res["inserter"].get("msg")),
           res["inserter"].get("msg"))
 
+async def chk_belt_end(L: Live, state: dict):
+    g = L.g
+    x0, y0 = await L.site(12, 14)
+    await L.ev(f"""local s, f = game.surfaces.nauvis, game.forces.player
+for k = 0, 2 do s.create_entity {{ name = 'transport-belt', position = {{ {x0} + k + 0.5, {y0} + 6.5 }}, direction = defines.direction.east, force = f }} end
+s.create_entity {{ name = 'transport-belt', position = {{ {x0} + 3.5, {y0} + 0.5 }}, direction = defines.direction.south, force = f }}
+local c = storage.agents['serf'].char
+c.insert {{ name = 'transport-belt', count = 60 }} c.insert {{ name = 'underground-belt', count = 10 }}
+c.teleport {{ {x0} + 8, {y0} + 6 }}
+return true""")
+    # the copper belt ends at x0+2 pointing east, into tile x0+3; the iron line runs down column x0+3 from its start
+    r = await Runner(g)._do_connect({"item": "transport-belt", "from": [x0 + 3.5, y0 + 0.5], "to": [x0 + 3.5, y0 + 12.5]})
+    on = await L.ev(f"""local e = game.surfaces.nauvis.find_entities_filtered {{ position = {{ {x0} + 3.5, {y0} + 6.5 }}, radius = 0.4, type = {{ 'transport-belt', 'splitter' }} }}
+return #e""")
+    feed = (f"local s = game.surfaces.nauvis "
+            f"local a = s.find_entity('transport-belt', {{ {x0} + 0.5, {y0} + 6.5 }}) "
+            f"local b = s.find_entity('transport-belt', {{ {x0} + 3.5, {y0} + 0.5 }}) "
+            "for l = 1, 2 do if a then a.get_transport_line(l).insert_at_back({ name = 'copper-plate' }) end "
+            "if b then b.get_transport_line(l).insert_at_back({ name = 'iron-plate' }) end end return true")
+    t0 = time.monotonic()
+    while time.monotonic() - t0 < 15:
+        await L.ev(feed)
+        await asyncio.sleep(0.4)
+    await asyncio.sleep(8)
+    cu = await L.ev(f"""local n = 0
+for _, e in pairs(game.surfaces.nauvis.find_entities_filtered {{ area = {{ {{ {x0} + 2, {y0} + 9 }}, {{ {x0} + 6, {y0} + 14 }} }}, type = 'transport-belt' }}) do
+  for l = 1, 2 do n = n + e.get_transport_line(l).get_item_count('copper-plate') end
+end
+return n""")
+    check("belt routes: a new line keeps off the tile another belt's open end points into (no belt there)",
+          r.get("ok") and on == 0, (r.get("msg"), on))
+    check("belt routes: ... so none of that belt's copper reaches the new line's end", cu == 0, cu)
+
+
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end}
 
 
 async def main() -> int:
