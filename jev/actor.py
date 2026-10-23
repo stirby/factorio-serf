@@ -1016,9 +1016,12 @@ class Actor(FastPaths):
                     text += f"\n(area read at {fmt_xy(p)} failed: {e!r})"
         try:
             buses = await self.runner.buses()
-            if buses:
-                text += "\n\nMain bus" + ("es" if len(buses) > 1 else "") + " (tap, bus_in): " + \
-                    " | ".join(b.describe() for b in buses.values())
+            for b in buses.values():
+                text += "\n\nMain bus (tap, bus_in): " + b.describe()
+                try:
+                    text += "\n  Lanes now: " + "; ".join(await self.runner.bus_flow(b))
+                except Exception:  # noqa: BLE001  (a server whose mod predates belt_items)
+                    pass
         except Exception as e:  # noqa: BLE001
             self.log({"kind": "error", "where": "buses", "error": repr(e)})
         me = await self.g.me()
