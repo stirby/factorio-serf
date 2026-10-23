@@ -212,6 +212,12 @@ def describe(step: dict) -> str:
     return f"{d}{at}"
 
 
+# machines whose stopping matters to a clear (picked up while working = a line stops)
+WORKERS = {"assembling-machine", "furnace", "mining-drill", "lab", "boiler", "generator", "offshore-pump", "pump",
+           "rocket-silo", "reactor"}
+FLUID_MACHINES = {"oil-refinery", "chemical-plant", "boiler", "steam-engine", "pumpjack", "offshore-pump", "pump"}
+
+
 class Runner:
     def __init__(self, game: Game, log_fn=None):
         self.g = game
@@ -987,6 +993,21 @@ class Runner:
                 ln = w.line_of.get(e["u"]) if e.get("t") in ("transport-belt", "underground-belt", "splitter") else None
                 if ln is not None:
                     lines[ln.id] = ln
+            # working machines and the pipes of a live fluid system: p6 cleared a square to rebuild a sulfur plant and
+            # took the refineries' crude and water pipes with it (84 things; the oil block stood dry for an hour)
+            if not s.get("force") and not only:
+                busy = [e for e in ents if e.get("s") == "working" and e.get("t") in WORKERS]
+                pipes = [e for e in ents if e.get("t") in ("pipe", "pipe-to-ground", "pump", "storage-tank")]
+                wet = [e for e in busy if e.get("n") in FLUID_MACHINES]
+                if len(busy) >= 3 or (len(pipes) >= 8 and wet):
+                    names: dict[str, int] = {}
+                    for e in busy:
+                        names[e["n"]] = names.get(e["n"], 0) + 1
+                    what = ", ".join(f"{k} {n}" for n, k in names.items())
+                    return {"ok": False, "msg": f"that square holds {len(busy)} working machines ({what})"
+                            + (f" and {len(pipes)} pipes of a working fluid line" if pipes and wet else "")
+                            + ": clearing it stops them. Pick up only what you mean with only=[names] (or clear "
+                              "line=[x,y] for one belt line), or add force=true to take everything there"}
             if len(lines) > 2 and not s.get("force"):
                 desc = []
                 for ln in list(lines.values())[:8]:

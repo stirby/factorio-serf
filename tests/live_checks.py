@@ -992,6 +992,34 @@ return true""")
     check("clear: ... with force=true it takes them all", r2.get("ok") and left2 == 0, (r2.get("msg"), left2))
 
 
+async def chk_clear_working(L: Live, state: dict):
+    """A square clear over 3 working assemblers is refused (they'd stop); force=true takes them."""
+    g = L.g
+    x0, y0 = await L.site(14, 8)
+    await L.ev(f"""local s, f = game.surfaces.nauvis, game.forces.player
+local eei = s.create_entity {{ name = 'electric-energy-interface', position = {{ {x0} + 12, {y0} + 6 }}, force = f }}
+eei.power_production = 1e7 eei.electric_buffer_size = 1e8
+for k = 0, 2 do
+  local m = s.create_entity {{ name = 'assembling-machine-2', position = {{ {x0} + 1.5 + 3 * k, {y0} + 1.5 }}, force = f, recipe = 'iron-gear-wheel' }}
+  m.insert {{ name = 'iron-plate', count = 200 }}
+end
+s.create_entity {{ name = 'medium-electric-pole', position = {{ {x0} + 4.5, {y0} + 3.5 }}, force = f }}
+s.create_entity {{ name = 'medium-electric-pole', position = {{ {x0} + 10.5, {y0} + 5.5 }}, force = f }}
+storage.agents['serf'].char.teleport {{ {x0} + 4, {y0} + 6 }}
+return true""")
+    await asyncio.sleep(2)
+    runner = Runner(g)
+    count = (f"return game.surfaces.nauvis.count_entities_filtered {{ area = {{ {{ {x0}, {y0} }}, {{ {x0} + 10, {y0} + 4 }} }}, "
+             f"name = 'assembling-machine-2' }}")
+    r = await runner.run({"do": "clear", "x": x0 + 4.5, "y": y0 + 2, "radius": 5})
+    left = await L.ev(count)
+    check("clear: a square over 3 working machines is refused, and says what's working there",
+          not r.get("ok") and "3 working machines" in str(r.get("msg")) and left == 3, (r.get("msg"), left))
+    r2 = await runner.run({"do": "clear", "x": x0 + 4.5, "y": y0 + 2, "radius": 5, "force": True})
+    left2 = await L.ev(count)
+    check("clear: ... with force=true it takes them", r2.get("ok") and left2 == 0, (str(r2.get("msg"))[:120], left2))
+
+
 async def chk_pipe_gap(L: Live, state: dict):
     g = L.g
     x0, y0 = await L.site(16, 6)
@@ -1287,7 +1315,7 @@ return out""") or {}
 
 
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "pipegap": chk_pipe_gap, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "clearworking": chk_clear_working, "pipegap": chk_pipe_gap, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe}
 
 
 async def main() -> int:
