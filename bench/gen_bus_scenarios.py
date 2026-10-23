@@ -135,11 +135,14 @@ return {{ origin = {{ ox, oy }}, iron_end = {{ ox + 11.5, oy - 3.5 }}, copper_en
 
 
 
-def setup_lua_b4(feed_rows: int = 4) -> str:
+def setup_lua_b4(feed_rows: int = 4, coal: bool = False, oil: bool = False) -> str:
     """A long bus (iron, copper, 6 spare) fed hard at its head (4 fast inserters per lane, ~550/min each), with a sink
     past the end of every lane (an inserter into an endless chest that deletes packs and intermediates), so products
-    put on the bus never back up. Rows 0-3 hold the feeders (registered as a feed join)."""
-    lanes = ["iron-plate", "copper-plate"] + ["spare"] * 6
+    put on the bus never back up. Rows 0-3 hold the feeders (registered as a feed join). coal: lane 2 carries coal,
+    fed at rows 4-7 from its west gap. oil: endless crude and water pipe ends east of the bus."""
+    lanes = ["iron-plate", "copper-plate"] + (["coal"] if coal else []) + ["spare"] * (5 if coal else 6)
+    if coal:
+        feed_rows = max(feed_rows, 8)
     n = 100
     b = Bus(name="main", x=0.5, y=0.5, direction="south", side="east", lanes=lanes, length=n)
     belts = ",".join(f"{{{e['x'] - 0.5:g},{e['y'] - 0.5:g}}}" for e in b.lay())
@@ -147,12 +150,29 @@ def setup_lua_b4(feed_rows: int = 4) -> str:
     stock = ",".join(f"['{k}']={v}" for k, v in {
         "assembling-machine-2": 40, "inserter": 150, "fast-inserter": 40, "transport-belt": 800,
         "underground-belt": 80, "splitter": 20, "small-electric-pole": 80, "medium-electric-pole": 40,
-        "iron-chest": 20, "long-handed-inserter": 30}.items())
-    techs = ",".join(f"'{t}'" for t in TECHS + ["logistic-science-pack"])
+        "iron-chest": 20, "long-handed-inserter": 30,
+        **({"oil-refinery": 4, "chemical-plant": 4, "pipe": 150, "pipe-to-ground": 30, "pump": 4} if oil else {})}.items())
+    techs = ",".join(f"'{t}'" for t in TECHS + ["logistic-science-pack"] + (
+        ["fluid-handling", "oil-gathering", "oil-processing", "plastics", "sulfur-processing"] if oil else []))
+    coal_lua = """-- coal onto lane 2 (u=4) at rows 4-7 from its west gap
+for row = 4, 7 do
+  local y = oy + row + 0.5
+  local cc = s.create_entity {{ name = 'infinity-chest', position = {{ ox + 2.5, y }}, force = f }}
+  cc.set_infinity_container_filter(1, {{ name = 'coal', count = 100, index = 1 }})
+  s.create_entity {{ name = 'fast-inserter', position = {{ ox + 3.5, y }}, direction = defines.direction.west, force = f }}
+end""".replace("{{", "{").replace("}}", "}") if coal else ""
+    oil_lua = """-- crude and water arrive in pipes east of the bus, as if piped from pumpjacks and an offshore pump
+local crude = s.create_entity {{ name = 'infinity-pipe', position = {{ ox + 30.5, oy + 60.5 }}, force = f }}
+crude.set_infinity_pipe_filter {{ name = 'crude-oil', percentage = 1, mode = 'at-least' }}
+local water = s.create_entity {{ name = 'infinity-pipe', position = {{ ox + 36.5, oy + 60.5 }}, force = f }}
+water.set_infinity_pipe_filter {{ name = 'water', percentage = 1, mode = 'at-least' }}""".replace("{{", "{").replace("}}", "}") if oil else ""
+    oil_ret = (", crude = string.format('%g,%g', ox + 30.5, oy + 60.5), "
+               "water = string.format('%g,%g', ox + 36.5, oy + 60.5)") if oil else ""
     feed_joins = ", ".join(f"{{{{ kind = 'feed', lane = 0, at = {a}, ['end'] = {{{{ ox + 0.5, oy + 0.5 }}}} }}}}"
                            for a in range(0, feed_rows, 4))
     sink = ",".join(f"'{x}'" for x in ("automation-science-pack", "logistic-science-pack", "electronic-circuit",
-                                         "iron-gear-wheel", "inserter", "transport-belt", "copper-cable"))
+                                         "iron-gear-wheel", "inserter", "transport-belt", "copper-cable",
+                                         "plastic-bar", "sulfur", "coal"))
     return f"""
 for _, t in pairs {{ {techs} }} do if f.technologies[t] then f.technologies[t].researched = true end end
 local sp = f.get_spawn_position(s)
@@ -192,6 +212,8 @@ for k = 0, {(feed_rows - 1) // 6} do
   s.create_entity {{ name = 'medium-electric-pole', position = {{ ox - 2.5, oy + 1.5 + 6 * k }}, force = f }}
   s.create_entity {{ name = 'medium-electric-pole', position = {{ ox + 4.5, oy + 1.5 + 6 * k }}, force = f }}
 end
+{coal_lua}
+{oil_lua}
 s.create_entity {{ name = 'medium-electric-pole', position = {{ ox + 1.5, oy - 3.5 }}, force = f }}
 -- sinks past the end of every lane
 local sinks = {{ {sink} }}
@@ -214,7 +236,7 @@ storage.layout['bus:main'] = {{ name = 'main', x = ox + 0.5, y = oy + 0.5, direc
   joins = {{ {feed_joins} }} }}
 local c = storage.agents and storage.agents['serf'] and storage.agents['serf'].char
 if c and c.valid then c.teleport {{ ox + 10, oy - 3 }} end
-return {{ origin = {{ ox, oy }} }}
+return {{ origin = {{ ox, oy }}{oil_ret} }}
 """
 
 
@@ -312,6 +334,26 @@ def scenarios() -> list[dict]:
         }],
         "score": [{"name": "taps", "lua": TAPS},
                   {"name": "assemblers", "lua": "count('assembling-machine-2')"}],
+    }, {
+        "name": "b6-bus-oil",
+        "stage": "crew-test",
+        "minutes": 75,
+        "agents": 1,
+        "kind": "directive",
+        "note": "Oil beside a bus: crude and water arrive in pipes (endless) east of a bus carrying iron, copper and "
+                "coal; sinks past every lane end. The order: plastic and sulfur, both onto the bus. Tests the oil "
+                "area (block or hand-piped) and two bus_in merges. Met = plastic 60+/min and sulfur 15+/min for 3 "
+                "samples.",
+        "setup_lua": setup_lua_b4(8, coal=True, oil=True),
+        "objectives": [{
+            "name": "plastic-sulfur", "minutes": 75, "hold_samples": 3,
+            "goal": "@{agent} crude oil and water now arrive in the pipes at [gps={crude}] and [gps={water}]. Our main "
+                    "bus (bus main) has iron, copper and coal on it. Build plastic and sulfur from the oil, at least "
+                    "60 plastic and 15 sulfur a minute, and put both onto the bus.",
+            "score": [{"name": "plastic_per_min", "lua": "pm('plastic-bar')", "target": 60},
+                      {"name": "sulfur_per_min", "lua": "pm('sulfur')", "target": 15}],
+        }],
+        "score": [{"name": "taps", "lua": TAPS}, {"name": "refineries", "lua": "count('oil-refinery')"}],
     }, {
         "name": "b2-bus-red",
         "stage": "crew-test",
