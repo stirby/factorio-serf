@@ -1228,6 +1228,35 @@ def test_audit_ore_words():
           and "4 drills stand on mined-out ground" in w, w)
 
 
+
+def test_bus_feed_entries():
+    from jev.busgen import DIRS, Bus
+    ok_all, why = True, []
+    for d, side in (("south", "east"), ("east", "north"), ("north", "west"), ("west", "south")):
+        b = Bus(name="t", x=0.5, y=0.5, direction=d, side=side, lanes=["a", "b", "c", "d", "e"], length=20)
+        lanes = b.lay()
+        lane_tiles = {i: {(math.floor(x), math.floor(y)) for x, y in (b.at(k, b.u(i)) for k in range(b.length))}
+                      for i in range(5)}
+        entries = set()
+        for i in range(5):
+            (ex, ey), face = b.feed_entry(i)
+            gu = b.u(i) + (-1 if i % 2 == 0 else 1)
+            supply = [{"name": "transport-belt", "x": x, "y": y, "direction": d} for x, y in (b.at(-2, gu), b.at(-1, gu))]
+            supply.append({"name": "transport-belt", "x": ex, "y": ey, "direction": face})
+            seen, bad = _flow(lanes + supply, b.at(-2, gu))
+            end_t = tuple(math.floor(v) for v in b.at(b.length - 1, b.u(i)))
+            others = set().union(*(lane_tiles[j] for j in range(5) if j != i))
+            entries.add((math.floor(ex), math.floor(ey)))
+            if end_t not in seen or seen & others or bad:
+                ok_all = False
+                why.append((d, side, i, end_t in seen, len(seen & others), bad[:2]))
+        if len(entries) != 5:
+            ok_all = False
+            why.append((d, side, "entries shared", sorted(entries)))
+    check("bus feed: each lane's feed turns into its first tile from its own side column and runs the lane, alone",
+          ok_all, why)
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):

@@ -156,6 +156,15 @@ class Bus:
         first = out[0]
         return out, {"x": first["x"], "y": first["y"], "direction": back}
 
+    def feed_entry(self, i: int) -> tuple[tuple[float, float], str]:
+        """Where a supply line ends to feed lane i at its first tile: in the free gap column on the lane's outer side
+        (the west lane of a pair from before it, the east lane from after it), pointing at the lane. Its first tile
+        has nothing behind it, so a belt coming in from the side turns it into a curve and the whole belt goes on;
+        and no two lanes share a column, so the feeds of a pair never cross."""
+        u = self.u(i) + (-1 if i % 2 == 0 else 1)
+        face = self.side if i % 2 == 0 else OPP[self.side]
+        return self.at(self.start(i), u), face
+
     # ------------------------------------------------------------------ bookkeeping
     def rows_free(self, a: int) -> str | None:
         """Why row a can't take a tap or merge (another one too close, or off the bus), or None."""

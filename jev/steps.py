@@ -207,6 +207,8 @@ def describe(step: dict) -> str:
         return f"tap the {step.get('lane')} lane of bus {step.get('bus') or 'main'} at row {step.get('at')}"
     if d == "bus_in":
         return f"put {step.get('item') or step.get('lane')} onto bus {step.get('bus') or 'main'} at row {step.get('at')}"
+    if d == "feed":
+        return f"feed the {step.get('lane')} lane of bus {step.get('bus') or 'main'}"
     return f"{d}{at}"
 
 
@@ -1397,6 +1399,30 @@ class Runner:
                 f"{r.get('msg')}; the split-off belt ends at {end[0]:g},{end[1]:g} running {b.side}",
                 "end": end}
 
+    async def _do_feed(self, s):
+        """Feed a lane of the bus from a supply line (from = its last belt): the line comes in beside the lane's first
+        tile, in the free column on the lane's outer side, and turns into it, so the lanes of a pair are fed from
+        opposite sides and never block each other (p9: two smelter lines aimed at neighbouring lane heads, one ended
+        against the other's feed and both lanes ran empty)."""
+        try:
+            b = await self._bus(s.get("bus"))
+            i = b.lane_index(s.get("lane"))
+        except (ValueError, TypeError) as e:
+            return {"ok": False, "msg": f"feed: {e}"}
+        if not isinstance(s.get("from"), (list, tuple)):
+            return {"ok": False, "msg": "feed needs from=[x,y], the last belt of the supply line"}
+        (ex, ey), face = b.feed_entry(i)
+        r = await self._act({"op": "connect", "item": s.get("belt", "transport-belt"), "from": list(s["from"]),
+                             "to": [ex, ey], "end_direction": face}, timeout=600)
+        if r.get("ok"):
+            await self._act({"op": "rotate", "x": ex, "y": ey, "direction": face})
+            if not any(j.get("kind") == "feed" and int(j.get("lane", -1)) == i for j in b.joins):
+                b.joins.append({"kind": "feed", "lane": i, "at": b.start(i), "end": [ex, ey]})
+                await self._save_bus(b)
+        hx, hy = b.at(b.start(i), b.u(i))
+        return {"ok": bool(r.get("ok")), "msg": f"feed bus {b.name} lane {i} ({b.lanes[i]}) at its first tile "
+                f"{hx:g},{hy:g} from the side ({ex:g},{ey:g}, facing {face}): {str(r.get('msg'))[:200]}"}
+
     async def _do_bus_in(self, s):
         """Put a product onto the bus: its belt (from = the last tile of the line carrying it) comes in from the
         bus's side under the lanes and starts a lane at row at+1: a spare lane, or one already carrying it (then
@@ -1661,6 +1687,8 @@ def plan_needs(steps: list[dict]) -> dict:
         elif d == "bus_in":
             add("underground-belt", 2 * 4)
             add("transport-belt", 60)
+        elif d == "feed" and isinstance(s.get("from"), (list, tuple)):
+            add("transport-belt", 40)
         elif d == "route":
             for pr in s.get("pairs") or []:
                 try:

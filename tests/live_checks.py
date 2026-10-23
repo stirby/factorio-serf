@@ -1123,8 +1123,52 @@ return { r.position.x, r.position.y }""")
           near and near[0]["drills"] >= 2 and near[0]["amount"] > 0 and near[0].get("minutes") is not None, near)
 
 
+async def chk_bus_feed(L: Live, state: dict):
+    from jev.busgen import Bus
+    g = L.g
+    x0, y0 = await L.site(40, 20)
+    await L.ev(f"""local s, f = game.surfaces.nauvis, game.forces.player
+if f.technologies['logistics'] then f.technologies['logistics'].researched = true end
+-- two supply lines from the south-west, ending 2 tiles apart, both heading east
+for k = 0, 3 do
+  s.create_entity {{ name = 'transport-belt', position = {{ {x0} + k + 0.5, {y0} + 14.5 }}, direction = defines.direction.east, force = f }}
+  s.create_entity {{ name = 'transport-belt', position = {{ {x0} + k + 0.5, {y0} + 16.5 }}, direction = defines.direction.east, force = f }}
+end
+local c = storage.agents['serf'].char
+c.insert {{ name = 'transport-belt', count = 200 }} c.insert {{ name = 'underground-belt', count = 20 }}
+c.teleport {{ {x0} + 12, {y0} + 12 }}
+return true""")
+    runner = Runner(g, lambda r: None)
+    r = await runner.run({"do": "bus", "name": "fd", "x": x0 + 16.5, "y": y0 + 6.5, "direction": "east", "side": "south",
+                          "lanes": ["iron-plate", "copper-plate"], "length": 20})
+    f0 = await runner.run({"do": "feed", "bus": "fd", "lane": 0, "from": [x0 + 3.5, y0 + 14.5]})
+    f1 = await runner.run({"do": "feed", "bus": "fd", "lane": 1, "from": [x0 + 3.5, y0 + 16.5]})
+    feed = (f"local s = game.surfaces.nauvis "
+            f"local a = s.find_entity('transport-belt', {{ {x0} + 0.5, {y0} + 14.5 }}) "
+            f"local b = s.find_entity('transport-belt', {{ {x0} + 0.5, {y0} + 16.5 }}) "
+            "for l = 1, 2 do if a then a.get_transport_line(l).insert_at_back({ name = 'iron-plate' }) end "
+            "if b then b.get_transport_line(l).insert_at_back({ name = 'copper-plate' }) end end return true")
+    t0 = time.monotonic()
+    while time.monotonic() - t0 < 35:
+        await L.ev(feed)
+        await asyncio.sleep(0.4)
+    await asyncio.sleep(12)
+    b = Bus(name="fd", x=x0 + 16.5, y=y0 + 6.5, direction="east", side="south", lanes=["iron-plate", "copper-plate"],
+            length=20)
+    ends = []
+    for i in (0, 1):
+        x, y = b.at(19, b.u(i))
+        ends.append(await L.ev(f"""local e = game.surfaces.nauvis.find_entity('transport-belt', {{ {x}, {y} }}) local out = {{}}
+if e then for l = 1, 2 do for _, c in pairs(e.get_transport_line(l).get_contents()) do out[c.name] = (out[c.name] or 0) + c.count end end end
+return out""") or {})
+    check("feed: two supply lines from the same side feed the two lanes of a pair (bus laid, both feeds ok)",
+          r.get("ok") and f0.get("ok") and f1.get("ok"), (f0.get("msg", "")[:200], f1.get("msg", "")[:200]))
+    check("feed: ... lane 0 carries only iron and lane 1 only copper to the far end",
+          set(ends[0]) == {"iron-plate"} and set(ends[1]) == {"copper-plate"}, ends)
+
+
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "pipegap": chk_pipe_gap, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "pipegap": chk_pipe_gap, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed}
 
 
 async def main() -> int:

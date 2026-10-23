@@ -73,7 +73,7 @@ class Order:
 
 
 BUILD_OPS = ("ghosts", "block", "design", "stamp", "place", "build_ghosts", "route", "row", "connect", "merge_lanes",
-             "bus", "tap", "bus_in")
+             "bus", "tap", "bus_in", "feed")
 
 
 def fixed_words(fixed: list[str]) -> str:
