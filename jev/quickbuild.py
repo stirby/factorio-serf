@@ -23,7 +23,13 @@ SAY = {"iron-gear-wheel": "gears", "steel-plate": "steel", "iron-plate": "iron p
        "copper-cable": "copper cable", "electronic-circuit": "green circuits", "firearm-magazine": "ammo",
        "stone-brick": "bricks", "transport-belt": "belts", "inserter": "inserters", "pipe": "pipes",
        "iron-chest": "iron chests", "iron-stick": "iron sticks", "automation-science-pack": "red science",
-       "logistic-science-pack": "green science"}
+       "logistic-science-pack": "green science", "chemical-science-pack": "blue science",
+       "production-science-pack": "purple science", "utility-science-pack": "yellow science",
+       "military-science-pack": "military science", "space-science-pack": "space science"}
+# other names an order may use for a product ("utility science for 15 a minute")
+ALSO = {"automation-science-pack": ["automation science"], "logistic-science-pack": ["logistic science"],
+        "chemical-science-pack": ["chemical science"], "production-science-pack": ["production science"],
+        "utility-science-pack": ["utility science"]}
 
 
 def _tiles(w: World, ln) -> list[tuple[float, float]]:
@@ -262,7 +268,7 @@ def products_named(order: str, products) -> list[str]:
     words = {stem(w) for w in re.findall(r"[a-z]+", order.lower())}
     out = []
     for p in products:
-        names = [p.replace("-", " ")] + ([SAY[p]] if p in SAY else [])
+        names = [p.replace("-", " ")] + ([SAY[p]] if p in SAY else []) + ALSO.get(p, [])
         if any(all(stem(w) in words for w in nm.split()) for nm in names):
             out.append(p)
     return out

@@ -57,6 +57,7 @@ class Order:
     queued_plans: list = field(default_factory=list)  # next parts of a big order (plans submitted with more=true)
     running_more: bool = False  # the plan running now is a part with more to come
     parts_asked: int = 0  # times the thinker was asked for a next part after ending its turn without one
+    rate_asks: int = 0  # times a "done" plan was sent back because the base doesn't make the rate the order names
     quick: bool = False  # built by the actor's quick-build path (no planner)
     belt_len: float = 0  # the longest new belt any of its plans laid (items need time to travel it)
     built_pts: list = field(default_factory=list)  # where its plans built (for "two more just like it")
@@ -1167,6 +1168,11 @@ class Actor(FastPaths):
             if plan and plan.get("_parts_only"):
                 verified, vreport = await self._verify(o, plan)
                 if verified:
+                    gap = await self._order_rate_gap(o)
+                    if gap:
+                        o.history.append(gap)
+                        text = gap
+                        continue
                     await self.say(plan.get("done_text") or "done")
                     return True
                 o.history.append(vreport)
@@ -1204,6 +1210,11 @@ class Actor(FastPaths):
             if ok:
                 verified, vreport = await self._verify(o, plan)
                 if verified:
+                    gap = await self._order_rate_gap(o)
+                    if gap:
+                        o.history.append(gap)
+                        text = gap
+                        continue
                     self.metrics["verified"] += 1
                     await self.say(plan.get("done_text") or "done")
                     return True
@@ -1432,6 +1443,37 @@ class Actor(FastPaths):
         except Exception as ex:  # noqa: BLE001
             self.log({"kind": "error", "where": "verify faults", "error": repr(ex)})
         return False, last
+
+    RATE_WORDS = re.compile(r"(\d+(?:\.\d+)?)\s*(?:a|an|per|/)\s*(?:minute|min)\b", re.I)
+
+    async def _order_rate_gap(self, o: Order) -> str | None:
+        """When the order names a product and a rate ("yellow science for 15 a minute") and the plan said it was
+        finished, the base has to make at least half that rate (it ramps up; the planner can answer with a wait).
+        b12: a planner marked processing units alone as the whole yellow science order. Up to 3 times an order."""
+        if o.rate_asks >= 3:
+            return None
+        m = self.RATE_WORDS.search(o.text or "")
+        if not m:
+            return None
+        want = float(m.group(1))
+        names = quickbuild.products_named(o.text, [r for r in self.recipes if not r.endswith("-barrel")])
+        packs = [n for n in names if n.endswith("-science-pack")]
+        item = packs[0] if len(packs) == 1 else (names[0] if len(names) == 1 else None)
+        if not item or want <= 0:
+            return None
+        try:
+            prod = await self.g.call("production", agent=self.name, limit=1000)  # all items: a pack can rank low
+            made = float((prod.get("per_minute_produced") or {}).get(item, 0))
+        except Exception:  # noqa: BLE001
+            return None
+        self.log({"kind": "rate_gate", "order": o.id, "item": item, "want": want, "made": made})
+        if made >= 0.5 * want:
+            return None
+        o.rate_asks += 1
+        return (f"Your plan for order {o.id} (\"{o.text}\") finished and its checks passed, but the order asks for "
+                f"{item} at {want:g} a minute and the base makes {made:g} a minute now. Submit what's still missing for "
+                "that rate (more=true while more follows); if what's built will reach it on its own, submit a plan "
+                "with just a wait step long enough for it to ramp up.")
 
     async def _check(self, e: dict) -> tuple[bool, str]:
         c = e.get("check")
