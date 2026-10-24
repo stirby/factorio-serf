@@ -26,6 +26,9 @@ local function done_(t) if t.researched then return end for _, q in pairs(t.prer
 for _, t in pairs { 'rocket-silo', 'advanced-material-processing', 'fluid-handling', 'electric-energy-distribution-2' } do
   if f.technologies[t] then done_(f.technologies[t]) end
 end
+-- and every other tech: with any left "available", both first managers took research as unfinished and built red
+-- and green science and labs before anything for the rocket
+f.research_all_technologies()
 local sp = f.get_spawn_position(s)
 s.request_to_generate_chunks(sp, 14)
 s.force_generate_chunk_requests()
@@ -91,7 +94,7 @@ def main() -> None:
         "setup_lua": SETUP.replace("{ STOCK }", "{ " + stock + " }"),
         "objectives": [{
             "name": "launch", "minutes": 900, "hold_samples": 1,
-            "goal": "@{agent} launch a rocket from this map. All the research is done; power is on at the big pole at "
+            "goal": "@{agent} launch a rocket from this map. Every technology is researched (no science or labs needed); power is on at the big pole at "
                     "[gps={power}]; machines, belts, poles and a rocket silo are in the chests at [gps={chests}]. Mine "
                     "and smelt what you need: iron ore at [gps={iron}], copper at [gps={copper}], coal at [gps={coal}], "
                     "stone at [gps={stone}], crude oil at [gps={crude}], water at [gps={water}].",
