@@ -1277,7 +1277,13 @@ class Runner:
                 b = await self._bus(s.get("bus"))
                 i = b.lane_index(item)
             except ValueError as e:
-                return None, f"{item}: {e}; give from={{\"{item}\": [x,y]}} (the last belt of a line carrying it)"
+                # not on a bus: the nearest belt line carrying it that ends in the open (a base without a bus, or a
+                # product of another block: q6's and q10's advanced-circuit orders fed from smelter and plastic belts)
+                end = await self._open_line_end(item, (bcx, bcy))
+                if end:
+                    return end, f"{item} from the line ending at {fmt_xy(end)}"
+                return None, (f"{item}: {e}; and no belt carrying it ends in the open within 80 tiles: give "
+                              f"from={{\"{item}\": [x,y]}} (the last belt of a line carrying it)")
             nx, ny = BD[b.side]
             across = (bcx - b.x) * nx + (bcy - b.y) * ny
             a0 = max(0, min(b.length - 3, b.along_of(*near)))
@@ -1336,6 +1342,22 @@ class Runner:
         msg = (f"supply {s['name']}: fed " + ("; ".join(done) if done else "nothing")
                + (f". Not fed: {'; '.join(failed)}" if failed else ""))
         return {"ok": not failed and bool(done), "msg": msg}
+
+    async def _open_line_end(self, item: str, near: tuple[float, float], radius: int = 80):
+        """The last tile of the nearest belt line carrying item whose end is open (nothing ahead), or None."""
+        from .world import World
+        try:
+            w = World(await self.g.scan(center=near, radius=radius))
+        except Exception:  # noqa: BLE001
+            return None
+        best = None
+        for ln in w.lines:
+            if item not in (ln.items or {}) or ln.end_reason != "ends (nothing ahead)":
+                continue
+            d = (ln.end[0] - near[0]) ** 2 + (ln.end[1] - near[1]) ** 2
+            if best is None or d < best[0]:
+                best = (d, [float(ln.end[0]), float(ln.end[1])])
+        return best[1] if best else None
 
     async def _do_design(self, s):
         """A saved design (library) built at anchor x,y."""
