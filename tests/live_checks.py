@@ -1548,8 +1548,66 @@ return out""") or {})
           r.get("ok") and ok1 and ok2, (str(r.get("msg"))[:200], got))
 
 
+async def chk_supply_silo(L: Live, state: dict):
+    """supply on the rocket silo block (two-lane input entering from the north, a one-item input from the west): the
+    north input carries processing units on its left lane and low density structures on its right, nothing mixed
+    (b13: LDS reached the PU lane)."""
+    from jev import blueprints as bp
+    from jev.busgen import Bus
+    from jev.busgen import DIRS as BD
+    g = L.g
+    x0, y0 = await L.site(44, 44)
+    await L.ev(f"""local f = game.forces.player
+if f.technologies['logistics'] then f.technologies['logistics'].researched = true end
+local c = storage.agents['serf'].char
+for n, k in pairs {{ ['transport-belt'] = 300, ['splitter'] = 6, ['underground-belt'] = 30 }} do c.insert {{ name = n, count = k }} end
+c.teleport {{ {x0} + 14, {y0} + 10 }}
+return true""")
+    runner = Runner(g, lambda r: None)
+    lanes = ["processing-unit", "low-density-structure", "rocket-fuel", "spare"]
+    hx, hy = x0 + 3.5, y0 + 0.5
+    await runner.run({"do": "bus", "name": "sil", "x": hx, "y": hy, "direction": "south", "side": "east",
+                      "lanes": lanes, "length": 40})
+    bx, by = x0 + 22, y0 + 18
+    r = await runner.run({"do": "supply", "name": "rocket-silo-feed", "x": bx, "y": by, "bus": "sil"})
+    print("   ", str(r.get("msg"))[:300])
+    b = Bus(name="sil", x=hx, y=hy, direction="south", side="east", lanes=lanes, length=40)
+    heads = [b.at(0, b.u(i)) for i in range(3)]
+    feed = "local s = game.surfaces.nauvis\n" + "\n".join(
+        f"do local e = s.find_entity('transport-belt', {{{x}, {y}}}) if e then for l = 1, 2 do "
+        f"e.get_transport_line(l).insert_at_back({{ name = '{it}' }}) end end end"
+        for (x, y), it in zip(heads, lanes[:3])) + "\nreturn true"
+    t0 = time.monotonic()
+    while time.monotonic() - t0 < 50:
+        await L.ev(feed)
+        await asyncio.sleep(0.3)
+    await asyncio.sleep(15)
+    p = bp.stamp("rocket-silo-feed", bx, by, 0)["inputs"][0]
+    sx, sy = BD[p["side"]]
+    ex, ey = p["at"][0] + sx + 0.5, p["at"][1] + sy + 0.5
+    got = await L.ev(f"""local e = game.surfaces.nauvis.find_entity('transport-belt', {{ {ex}, {ey} }}) local out = {{}}
+if e then for l = 1, 2 do local t = {{}} for _, c in pairs(e.get_transport_line(l).get_contents()) do t[c.name] = c.count end out[l] = t end out.d = e.direction end
+return out""") or {}
+
+    def lanes2(o, k):
+        if isinstance(o, list):
+            v = o[k - 1] if len(o) >= k else {}
+        else:
+            v = o.get(str(k)) or o.get(k) or {}
+        return set(v) if isinstance(v, dict) else set()
+    left, right = lanes2(got, 1), lanes2(got, 2)
+    if not (left == {"processing-unit"} and right == {"low-density-structure"}):
+        from jev.world import World
+        w = World(await g.scan(center=(x0 + 20, y0 + 20), radius=24))
+        for ln in w.lines:
+            print(f"    line {ln.id}: {ln.length} tiles {ln.start} -> {ln.end} items={ln.items} end: {ln.end_reason}")
+    check("supply silo: the north input gets processing units on the left lane and LDS on the right, unmixed",
+          r.get("ok") and left == {"processing-unit"} and right == {"low-density-structure"},
+          (str(r.get("msg"))[:160], (ex, ey), got))
+
+
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "detour": chk_route_detour, "routepocket": chk_route_pocket, "fetchfar": chk_fetch_far, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "clearworking": chk_clear_working, "pipegap": chk_pipe_gap, "auditlacks": chk_audit_lacks, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe, "supply": chk_supply, "supplyfar": chk_supply_far}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "detour": chk_route_detour, "routepocket": chk_route_pocket, "fetchfar": chk_fetch_far, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "clearworking": chk_clear_working, "pipegap": chk_pipe_gap, "auditlacks": chk_audit_lacks, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe, "supply": chk_supply, "supplyfar": chk_supply_far, "supplysilo": chk_supply_silo}
 
 
 async def main() -> int:

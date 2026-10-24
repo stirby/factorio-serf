@@ -124,6 +124,7 @@ function route.find(surface, from, to, opts)
   end
   local function free(x, y)
     local k = key(x, y)
+    if opts.avoid and opts.avoid[k] then return false end -- kept clear for something the caller builds next
     if cache[k] == nil then
       -- can_place_entity says yes over a belt or pipe it could fast-replace; for a route that's a wall, not a tile.
       cache[k] = (opts.allow and opts.allow[k]) or (surface.can_place_entity {

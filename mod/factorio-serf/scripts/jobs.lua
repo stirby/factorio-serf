@@ -1810,6 +1810,15 @@ H.connect = {
         join_segments = join_segments }
       local fk, tk = route.key(math.floor(from.x), math.floor(from.y)), route.key(math.floor(to.x), math.floor(to.y))
       for k in pairs(port_keys) do ropts.allow[k] = true end -- a port tile is where the pipe must go: no sliding
+      -- avoid = tiles the caller builds on next (a lane merge: its merge tile and the other feed's last tile); a line
+      -- routed through them while they were free mixed both items (b13: LDS on the processing-unit lane)
+      if type(args.avoid) == "table" then
+        ropts.avoid = {}
+        for _, t in pairs(args.avoid) do
+          local q = util.pos(t)
+          if q and q.x and q.y then ropts.avoid[route.key(math.floor(q.x), math.floor(q.y))] = true end
+        end
+      end
       if ent.type == "transport-belt" then
         -- Endpoints name tiles: x,y and x.5,y.5 are the same tile (a bare corner would touch four belts).
         local function tile(p) return { x = math.floor(p.x) + 0.5, y = math.floor(p.y) + 0.5 } end

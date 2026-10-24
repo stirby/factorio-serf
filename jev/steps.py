@@ -1262,6 +1262,11 @@ class Runner:
         bx0, by0 = st["bbox"][0]
         bx1, by1 = st["bbox"][1]
         bcx, bcy = (bx0 + bx1) / 2, (by0 + by1) / 2
+        # every line keeps off the block's footprint and the other inputs' feeding tiles (built yet or not)
+        keep_off = [[x + 0.5, y + 0.5] for x in range(int(bx0), int(bx1)) for y in range(int(by0), int(by1))]
+        for q in ports:
+            qx, qy = BD[q["side"]]
+            keep_off.append([q["at"][0] + 0.5 + qx, q["at"][1] + 0.5 + qy])
         done, failed = [], []
 
         async def source(item: str, near: tuple[float, float]):
@@ -1308,7 +1313,8 @@ class Runner:
                     failed.append(f"{what} input at {fmt_xy((tx, ty))}: " + "; ".join(w for t, w in ((lt, lw), (rt, rw))
                                                                                    if not t))
                     continue
-                r = await self._do_merge_lanes({"left": lt, "right": rt, "at": [mx, my], "direction": d})
+                r = await self._do_merge_lanes({"left": lt, "right": rt, "at": [mx, my], "direction": d,
+                                                "avoid": [t for t in keep_off if (t[0], t[1]) != (mx, my)]})
                 if r.get("ok"):
                     await self._act({"op": "rotate", "x": ex, "y": ey, "direction": d})
                     done.append(f"{what} on their lanes into {fmt_xy((tx, ty))} ({lw}; {rw})")
@@ -1320,7 +1326,8 @@ class Runner:
                     failed.append(f"{what} input at {fmt_xy((tx, ty))}: {w}")
                     continue
                 r = await self._act({"op": "connect", "item": "transport-belt", "from": t, "to": [ex, ey],
-                                     "end_direction": d}, timeout=420)
+                                     "end_direction": d,
+                                     "avoid": [q for q in keep_off if (q[0], q[1]) != (ex, ey)]}, timeout=420)
                 if r.get("ok"):
                     await self._act({"op": "rotate", "x": ex, "y": ey, "direction": d})
                     done.append(f"{what} into {fmt_xy((tx, ty))} ({w})")
@@ -1360,8 +1367,10 @@ class Runner:
                                       ("right", s.get("right"), right_tile, into_from_right)):
             if not src:
                 continue
+            other = right_tile if side == "left" else left_tile
+            avoid = [[ax, ay], other] + [list(t) for t in (s.get("avoid") or []) if isinstance(t, (list, tuple))]
             r = await self._act({"op": "connect", "item": s.get("item", "transport-belt"), "from": list(src),
-                                 "to": tile, "end_direction": face}, timeout=420)
+                                 "to": tile, "end_direction": face, "avoid": avoid}, timeout=420)
             msgs.append(f"{side}: {str(r.get('msg'))[:140]}")
             if not r.get("ok"):
                 return {"ok": False, "msg": "; ".join(msgs)}
