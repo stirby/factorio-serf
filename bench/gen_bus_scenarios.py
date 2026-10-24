@@ -330,6 +330,19 @@ return {{ origin = {{ ox, oy }} }}
 """
 
 
+def with_fluids(setup: str, fluids: list[tuple[str, str, int, int]]) -> str:
+    """A bus setup plus endless fluid sources: (key, fluid, dx, dy) puts an infinity pipe at origin + (dx, dy) and
+    returns its tile as key ("x,y") for the order text."""
+    code = "\nlocal fl_out = {}\n" + "\n".join(
+        f"do local pe = s.create_entity {{ name = 'infinity-pipe', position = {{ ox + {dx} + 0.5, oy + {dy} + 0.5 }}, force = f }} "
+        f"pe.set_infinity_pipe_filter {{ name = '{fluid}', percentage = 1, mode = 'at-least' }} "
+        f"fl_out['{key}'] = math.floor(ox + {dx}) .. ',' .. math.floor(oy + {dy}) end"
+        for key, fluid, dx, dy in fluids)
+    old_ret = "return {{ origin = {{ ox, oy }} }}".replace("{{", "{").replace("}}", "}")
+    assert old_ret in setup
+    return setup.replace(old_ret, code + "\nfl_out.origin = { ox, oy }\nreturn fl_out")
+
+
 ON_BUS = """local b = storage.layout and storage.layout['bus:main'] if not b then return 0 end
 local n = 0
 for _, e in pairs(s.find_entities_filtered { area = { { b.x - 3, b.y + b.length - 8 }, { b.x + 12, b.y + b.length } }, type = 'transport-belt' }) do
@@ -497,6 +510,38 @@ def scenarios() -> list[dict]:
             "score": [{"name": "purple_per_min", "lua": "pm('production-science-pack')", "target": 13}],
         }],
         "score": [{"name": "taps", "lua": TAPS}, {"name": "assemblers", "lua": "count('assembling-machine-2')"}],
+    }, {
+        "name": "b12-bus-yellow",
+        "stage": "crew-test",
+        "minutes": 240,
+        "agents": 1,
+        "kind": "directive",
+        "note": "Next rung after purple: utility (yellow) science at 15/min off a bus carrying iron, copper, steel, "
+                "plastic, green and advanced circuits and engines, with sulfuric acid and lubricant at two pipe ends: "
+                "low density structures, processing units (acid), batteries (acid), electric engines (lubricant) and "
+                "flying robot frames all built off it. Met = 13+/min for 3 samples.",
+        "setup_lua": with_fluids(setup_lua_bus(
+            ["iron-plate", "copper-plate", "steel-plate", "plastic-bar", "electronic-circuit", "advanced-circuit",
+             "engine-unit"], spare=2, n=140,
+            extra_techs=("steel-processing", "advanced-circuit", "advanced-electronics", "plastics", "sulfur-processing",
+                         "battery", "engine", "electric-engine", "lubricant", "robotics", "processing-unit",
+                         "advanced-electronics-2", "low-density-structure", "utility-science-pack",
+                         "chemical-science-pack", "production-science-pack", "fluid-handling"),
+            extra_stock={"assembling-machine-2": 90, "chemical-plant": 12, "pipe": 300, "pipe-to-ground": 60},
+            sinks=("utility-science-pack", "low-density-structure", "processing-unit", "flying-robot-frame",
+                   "electric-engine-unit", "battery", "electronic-circuit", "advanced-circuit")),
+            [("acid", "sulfuric-acid", 60, 30), ("lube", "lubricant", 60, 60)]),
+        "objectives": [{
+            "name": "yellow-15", "minutes": 240, "hold_samples": 3,
+            "goal": "@{agent} our main bus (bus main) carries iron, copper, steel, plastic, green circuits, advanced "
+                    "circuits and engines, with spare lanes; sulfuric acid comes out of the pipe at [gps={acid}] and "
+                    "lubricant out of the pipe at [gps={lube}]. Build utility (yellow) science for 15 a minute off the "
+                    "bus, making the low density structures, processing units, batteries, electric engines and flying "
+                    "robot frames it needs, and put the packs onto the bus.",
+            "score": [{"name": "yellow_per_min", "lua": "pm('utility-science-pack')", "target": 13}],
+        }],
+        "score": [{"name": "taps", "lua": TAPS}, {"name": "assemblers", "lua": "count('assembling-machine-2')"},
+                  {"name": "chem_plants", "lua": "count('chemical-plant')"}],
     }, {
         "name": "b2-bus-red",
         "stage": "crew-test",
