@@ -543,6 +543,30 @@ def scenarios() -> list[dict]:
         "score": [{"name": "taps", "lua": TAPS}, {"name": "assemblers", "lua": "count('assembling-machine-2')"},
                   {"name": "chem_plants", "lua": "count('chemical-plant')"}],
     }, {
+        "name": "b13-bus-rocket",
+        "stage": "crew-test",
+        "minutes": 120,
+        "agents": 1,
+        "kind": "directive",
+        "note": "The last rung: launch a rocket. The bus carries processing units, low density structures and rocket "
+                "fuel (endless chests); a rocket silo is in the supply chest. Build the silo fed off the bus, wait for "
+                "50 rocket parts, launch. Met = one rocket launched.",
+        "setup_lua": setup_lua_bus(["processing-unit", "low-density-structure", "rocket-fuel"], spare=1, n=80,
+                                   extra_techs=("steel-processing", "advanced-circuit", "advanced-electronics",
+                                                "plastics", "sulfur-processing", "battery", "engine", "electric-engine",
+                                                "lubricant", "robotics", "processing-unit", "advanced-electronics-2",
+                                                "low-density-structure", "rocket-fuel", "concrete",
+                                                "rocket-silo"),
+                                   extra_stock={"rocket-silo": 1, "long-handed-inserter": 20}),
+        "objectives": [{
+            "name": "launch", "minutes": 120, "hold_samples": 1,
+            "goal": "@{agent} our main bus (bus main) carries processing units, low density structures and rocket fuel, "
+                    "and there's a rocket silo in the chest by the bus. Build the silo, feed it off the bus and launch "
+                    "a rocket.",
+            "score": [{"name": "rockets", "lua": "return f.rockets_launched", "target": 1}],
+        }],
+        "score": [{"name": "taps", "lua": TAPS}, {"name": "silos", "lua": "count('rocket-silo')"}],
+    }, {
         "name": "b2-bus-red",
         "stage": "crew-test",
         "minutes": 50,
