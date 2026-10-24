@@ -1503,6 +1503,60 @@ return out""") or {}
           r.get("ok") and left == {"iron-plate"} and right == {"copper-plate"}, (str(r.get("msg"))[:200], got))
 
 
+async def chk_supply_walled(L: Live, state: dict):
+    """supply where something already stands beside the input's feeding tile (walls where the merge's feeds would
+    end, as b12's pipes did): the merge moves further out and the input still gets iron left, copper right."""
+    from jev import blueprints as bp
+    from jev.busgen import Bus
+    g = L.g
+    x0, y0 = await L.site(40, 40)
+    await L.ev(f"""local f = game.forces.player
+if f.technologies['logistics'] then f.technologies['logistics'].researched = true end
+local c = storage.agents['serf'].char
+for n, k in pairs {{ ['transport-belt'] = 300, ['splitter'] = 6, ['underground-belt'] = 30 }} do c.insert {{ name = n, count = k }} end
+c.teleport {{ {x0} + 12, {y0} + 10 }}
+return true""")
+    runner = Runner(g, lambda r: None)
+    lanes = ["iron-plate", "copper-plate"]
+    hx, hy = x0 + 3.5, y0 + 0.5
+    await runner.run({"do": "bus", "name": "supw", "x": hx, "y": hy, "direction": "south", "side": "east",
+                      "lanes": lanes, "length": 36})
+    bx, by = x0 + 16, y0 + 14
+    p0 = bp.stamp("electronic-circuit-3-2", bx, by, 0)["inputs"][0]
+    wx, wy = p0["at"][0] - 1, p0["at"][1]  # the feeding tile; walls on both sides of it (north and south)
+    await L.ev(f"""local s, f = game.surfaces.nauvis, game.forces.player
+s.create_entity {{ name = 'stone-wall', position = {{ {wx} + 0.5, {wy} - 0.5 }}, force = f }}
+s.create_entity {{ name = 'stone-wall', position = {{ {wx} + 0.5, {wy} + 1.5 }}, force = f }}
+return true""")
+    r = await runner.run({"do": "supply", "name": "electronic-circuit-3-2", "x": bx, "y": by, "bus": "supw"})
+    print("   ", str(r.get("msg"))[:300])
+    b = Bus(name="supw", x=hx, y=hy, direction="south", side="east", lanes=lanes, length=36)
+    heads = [b.at(0, b.u(i)) for i in range(2)]
+    feed = "local s = game.surfaces.nauvis\n" + "\n".join(
+        f"do local e = s.find_entity('transport-belt', {{{x}, {y}}}) if e then for l = 1, 2 do "
+        f"e.get_transport_line(l).insert_at_back({{ name = '{it}' }}) end end end"
+        for (x, y), it in zip(heads, lanes)) + "\nreturn true"
+    t0 = time.monotonic()
+    while time.monotonic() - t0 < 45:
+        await L.ev(feed)
+        await asyncio.sleep(0.3)
+    await asyncio.sleep(15)
+    p = bp.stamp("electronic-circuit-3-2", bx, by, 0)["inputs"][0]
+    ex, ey = p["at"][0] - 1 + 0.5, p["at"][1] + 0.5  # fed from the west
+    got = await L.ev(f"""local e = game.surfaces.nauvis.find_entity('transport-belt', {{ {ex}, {ey} }}) local out = {{}}
+if e then for l = 1, 2 do local t = {{}} for _, c in pairs(e.get_transport_line(l).get_contents()) do t[c.name] = c.count end out[l] = t end
+out.d = e.direction end
+return out""") or {}
+    left, right = set((got.get("1") or got.get(1) or {})), set((got.get("2") or got.get(2) or {}))
+    if not (left and right):
+        from jev.world import World
+        w = World(await g.scan(center=(x0 + 16, y0 + 16), radius=22))
+        for ln in w.lines:
+            print(f"    line {ln.id}: {ln.length} tiles {ln.start} -> {ln.end} items={ln.items} end: {ln.end_reason}")
+    check("supply walled: with the merge spot taken, it merges further out; iron left, copper right",
+          r.get("ok") and left == {"iron-plate"} and right == {"copper-plate"}, (str(r.get("msg"))[:200], got))
+
+
 async def chk_supply_far(L: Live, state: dict):
     """supply on the bus's far side: the advanced-circuit block turned 180 (inputs face east, toward the bus) west of a
     bus whose taps normally come out east. Its plastic + circuit input gets plastic left, circuits right; its copper
@@ -1727,7 +1781,7 @@ return out""") or {}
 
 
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "detour": chk_route_detour, "routepocket": chk_route_pocket, "fetchfar": chk_fetch_far, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "clearworking": chk_clear_working, "pipegap": chk_pipe_gap, "auditlacks": chk_audit_lacks, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe, "supply": chk_supply, "supplyfar": chk_supply_far, "supplysilo": chk_supply_silo, "supplylines": chk_supply_lines, "supplylds": chk_supply_lds}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "detour": chk_route_detour, "routepocket": chk_route_pocket, "fetchfar": chk_fetch_far, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "clearworking": chk_clear_working, "pipegap": chk_pipe_gap, "auditlacks": chk_audit_lacks, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe, "supply": chk_supply, "supplyfar": chk_supply_far, "supplysilo": chk_supply_silo, "supplylines": chk_supply_lines, "supplylds": chk_supply_lds, "supplywalled": chk_supply_walled}
 
 
 async def main() -> int:

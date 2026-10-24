@@ -1305,6 +1305,14 @@ class Runner:
         LEFTV = {"east": (0, -1), "north": (-1, 0), "west": (0, 1), "south": (1, 0)}
         block = {(x, y) for x in range(int(bx0), int(bx1)) for y in range(int(by0), int(by1))}
         tile = lambda x, y: (int(x // 1), int(y // 1))  # noqa: E731
+        # what already stands around the block: a merge can't use those tiles, and a feed's last tile needs a free
+        # way in (b12: pipes laid before supply walled a feed tile into "a closed pocket of 1 free tiles")
+        from .world import World
+        try:
+            wb = World(await self.g.scan(center=(bcx, bcy), radius=int(max(bx1 - bx0, by1 - by0) / 2 + 10)))
+            taken = set(wb.tile)
+        except Exception:  # noqa: BLE001
+            taken = set()
         plans = []
         reserved: dict = {}  # tile -> index of the input that needs it
         for n, q in enumerate(ports):
@@ -1326,7 +1334,13 @@ class Runner:
                     mx, my = ex + sx * k, ey + sy * k
                     run = {tile(ex + sx * j, ey + sy * j) for j in range(0, k)}
                     need = {tile(mx, my), tile(mx + lx, my + ly), tile(mx - lx, my - ly)} | run
-                    if need & block or any(reserved.get(t, n) != n for t in need):
+                    if need & block or need & taken or any(reserved.get(t, n) != n for t in need):
+                        continue
+                    blocked = block | taken | {t for t, o in reserved.items() if o != n} | need
+
+                    def way_in(t):  # a feed tile needs a free neighbour to come in from (other than the merge)
+                        return any((t[0] + a, t[1] + b) not in blocked for a, b in ((1, 0), (-1, 0), (0, 1), (0, -1)))
+                    if not (way_in(tile(mx + lx, my + ly)) and way_in(tile(mx - lx, my - ly))):
                         continue
                     k_use = k
                     for t in need:
