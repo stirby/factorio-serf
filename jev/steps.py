@@ -1299,28 +1299,65 @@ class Runner:
                 last = str(r.get("msg"))
             return None, f"{item}: tap failed: {last[:160]}"
 
-        for p in ports:
+        # Plan every input's tiles before laying anything: a merge's tile, the two tiles its feeds end on, and its run
+        # into the block must not take another input's feeding tile or approach (b12: the LDS block's two inputs sit
+        # on neighbouring rows, and the first merge's feed ended on the copper input's feeding tile, walling it in).
+        LEFTV = {"east": (0, -1), "north": (-1, 0), "west": (0, 1), "south": (1, 0)}
+        block = {(x, y) for x in range(int(bx0), int(bx1)) for y in range(int(by0), int(by1))}
+        tile = lambda x, y: (int(x // 1), int(y // 1))  # noqa: E731
+        plans = []
+        reserved: dict = {}  # tile -> index of the input that needs it
+        for n, q in enumerate(ports):
+            qx, qy = BD[q["side"]]
+            e_t = (q["at"][0] + qx, q["at"][1] + qy)
+            reserved[e_t] = n
+            reserved.setdefault((e_t[0] + qx, e_t[1] + qy), n)  # a straight way in
+        for n, p in enumerate(ports):
             lanes = p.get("lanes") or {}
             items = [lanes[k] for k in ("left", "right") if lanes.get(k)] or ([p["item"]] if p.get("item") else [])
-            if only and not any(it in only for it in items):
-                continue
             side = p["side"]
             sx, sy = BD[side]
-            d = OPP[side]  # the feeding belt runs into the block
-            tx, ty = p["at"][0] + 0.5, p["at"][1] + 0.5
-            ex, ey = tx + sx, ty + sy  # the tile the input belt is fed from
-            what = " + ".join(items)
+            d = OPP[side]
+            ex, ey = p["at"][0] + 0.5 + sx, p["at"][1] + 0.5 + sy
+            k_use, need = None, set()
             if len(set(items)) >= 2:
-                # merge right on the feeding tile: a merged run before it gets crossed by the second feed's route
-                # while its tiles are still free
-                mx, my = ex, ey
+                lx, ly = LEFTV[d]
+                for k in range(0, 5):
+                    mx, my = ex + sx * k, ey + sy * k
+                    run = {tile(ex + sx * j, ey + sy * j) for j in range(0, k)}
+                    need = {tile(mx, my), tile(mx + lx, my + ly), tile(mx - lx, my - ly)} | run
+                    if need & block or any(reserved.get(t, n) != n for t in need):
+                        continue
+                    k_use = k
+                    for t in need:
+                        reserved[t] = n
+                    break
+            plans.append((p, items, side, d, ex, ey, k_use, need))
+        for n, (p, items, side, d, ex, ey, k_use, need) in enumerate(plans):
+            lanes = p.get("lanes") or {}
+            if only and not any(it in only for it in items):
+                continue
+            sx, sy = BD[side]
+            tx, ty = p["at"][0] + 0.5, p["at"][1] + 0.5
+            what = " + ".join(items)
+            # every route keeps off the block, the other inputs' tiles and this input's merge run
+            others = [[t[0] + 0.5, t[1] + 0.5] for t, owner in reserved.items() if owner != n]
+            if len(set(items)) >= 2:
+                if k_use is None:
+                    failed.append(f"{what} input at {fmt_xy((tx, ty))}: no room to merge its two items next to it "
+                                  "(other inputs or buildings in the way)")
+                    continue
+                mx, my = ex + sx * k_use, ey + sy * k_use
+                run = [[ex + sx * j, ey + sy * j] for j in range(0, k_use)]
                 (lt, lw), (rt, rw) = [await source(it, (mx, my)) for it in (lanes["left"], lanes["right"])]
                 if not (lt and rt):
                     failed.append(f"{what} input at {fmt_xy((tx, ty))}: " + "; ".join(w for t, w in ((lt, lw), (rt, rw))
                                                                                    if not t))
                     continue
                 r = await self._do_merge_lanes({"left": lt, "right": rt, "at": [mx, my], "direction": d,
-                                                "avoid": [t for t in keep_off if (t[0], t[1]) != (mx, my)]})
+                                                **({"to": [ex, ey]} if k_use else {}),
+                                                "avoid": [t for t in keep_off + others + run
+                                                          if (t[0], t[1]) != (mx, my)]})
                 if r.get("ok"):
                     await self._act({"op": "rotate", "x": ex, "y": ey, "direction": d})
                     done.append(f"{what} on their lanes into {fmt_xy((tx, ty))} ({lw}; {rw})")
@@ -1333,7 +1370,7 @@ class Runner:
                     continue
                 r = await self._act({"op": "connect", "item": "transport-belt", "from": t, "to": [ex, ey],
                                      "end_direction": d,
-                                     "avoid": [q for q in keep_off if (q[0], q[1]) != (ex, ey)]}, timeout=420)
+                                     "avoid": [q for q in keep_off + others if (q[0], q[1]) != (ex, ey)]}, timeout=420)
                 if r.get("ok"):
                     await self._act({"op": "rotate", "x": ex, "y": ey, "direction": d})
                     done.append(f"{what} into {fmt_xy((tx, ty))} ({w})")
