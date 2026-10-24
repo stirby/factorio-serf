@@ -567,6 +567,43 @@ def scenarios() -> list[dict]:
         }],
         "score": [{"name": "taps", "lua": TAPS}, {"name": "silos", "lua": "count('rocket-silo')"}],
     }, {
+        "name": "b14-rocket-from-plates",
+        "stage": "crew-test",
+        "minutes": 600,
+        "agents": 1,
+        "kind": "directive",
+        "note": "The largest single order: launch a rocket from plates, coal and crude. The bus carries iron, copper and "
+                "coal; crude and water come out of pipes; a rocket silo is in the chest (crafting one by hand isn't the "
+                "point). Everything else is built off the bus: steel, circuits, plastic, sulfur, sulfuric acid, "
+                "processing units, low density structures, advanced oil processing and rocket fuel, 500 of each part. "
+                "Met = one rocket launched.",
+        "setup_lua": setup_lua_b4(8, coal=True, oil=True,
+                                  extra_techs=("steel-processing", "engine", "advanced-circuit", "advanced-electronics",
+                                               "chemical-science-pack", "lubricant", "plastics", "sulfur-processing",
+                                               "advanced-oil-processing", "battery", "electric-engine", "robotics",
+                                               "processing-unit", "advanced-electronics-2", "low-density-structure",
+                                               "rocket-fuel", "solid-fuel", "flammables", "concrete", "fluid-handling",
+                                               "rocket-silo"),
+                                  extra_stock={"assembling-machine-2": 120, "stone-furnace": 40, "steel-furnace": 40,
+                                               "chemical-plant": 30, "oil-refinery": 8, "pipe": 600,
+                                               "pipe-to-ground": 100, "inserter": 400, "fast-inserter": 120,
+                                               "long-handed-inserter": 60, "transport-belt": 2500,
+                                               "underground-belt": 250, "splitter": 40, "medium-electric-pole": 150,
+                                               "rocket-silo": 1, "storage-tank": 10, "pump": 10}),
+        "objectives": [{
+            "name": "launch", "minutes": 600, "hold_samples": 1,
+            "goal": "@{agent} crude oil and water arrive in the pipes at [gps={crude}] and [gps={water}], our main bus "
+                    "(bus main) has iron, copper and coal, and there's a rocket silo in the chest by the bus. Launch a "
+                    "rocket: build everything it needs off the bus (steel, circuits, plastic, sulfur, processing "
+                    "units, low density structures, rocket fuel), feed the silo and launch.",
+            "score": [{"name": "rockets", "lua": "return f.rockets_launched", "target": 1}],
+        }],
+        "score": [{"name": "taps", "lua": TAPS}, {"name": "assemblers", "lua": "count('assembling-machine-2')"},
+                  {"name": "rocket_parts", "lua": "local n = 0 for _, e in pairs(s.find_entities_filtered { name = 'rocket-silo', force = f }) do n = n + (e.rocket_parts or 0) end return n"},
+                  {"name": "pu_per_min", "lua": "pm('processing-unit')"},
+                  {"name": "lds_per_min", "lua": "pm('low-density-structure')"},
+                  {"name": "fuel_per_min", "lua": "pm('rocket-fuel')"}],
+    }, {
         "name": "b2-bus-red",
         "stage": "crew-test",
         "minutes": 50,
