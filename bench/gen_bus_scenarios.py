@@ -33,7 +33,8 @@ def setup_lua(lanes: list[str] = LANES, techs_extra: tuple = ()) -> str:
     stock = ",".join(f"['{k}']={v}" for k, v in STOCK.items())
     techs = ",".join(f"'{t}'" for t in TECHS)
     return f"""
-for _, t in pairs {{ {techs} }} do if f.technologies[t] then f.technologies[t].researched = true end end
+local function done_(t) if t.researched then return end for _, q in pairs(t.prerequisites) do done_(q) end t.researched = true end  -- a tech and everything before it (b14's manager read the tree as unfinished)
+for _, t in pairs {{ {techs} }} do if f.technologies[t] then done_(f.technologies[t]) end end
 -- a clear 70x70 area near spawn (no buildings, no water, no ore)
 local sp = f.get_spawn_position(s)
 local function clear(x0, y0)
@@ -88,7 +89,8 @@ def setup_lua_b2() -> str:
     stock = ",".join(f"['{k}']={v}" for k, v in dict(STOCK, lab=0).items() if v)
     techs = ",".join(f"'{t}'" for t in TECHS)
     return f"""
-for _, t in pairs {{ {techs} }} do if f.technologies[t] then f.technologies[t].researched = true end end
+local function done_(t) if t.researched then return end for _, q in pairs(t.prerequisites) do done_(q) end t.researched = true end  -- a tech and everything before it (b14's manager read the tree as unfinished)
+for _, t in pairs {{ {techs} }} do if f.technologies[t] then done_(f.technologies[t]) end end
 for _, t in pairs {{ 'military', 'optics', 'turrets', 'stone-wall', 'weapon-shooting-speed-1', 'physical-projectile-damage-1' }} do
   if f.technologies[t] and not f.technologies[t].researched then f.add_research(t) end
 end
@@ -179,7 +181,8 @@ water.set_infinity_pipe_filter {{ name = 'water', percentage = 1, mode = 'at-lea
                                          "plastic-bar", "sulfur", "coal", "chemical-science-pack", "steel-plate",
                                          "engine-unit", "advanced-circuit", "pipe"))
     return f"""
-for _, t in pairs {{ {techs} }} do if f.technologies[t] then f.technologies[t].researched = true end end
+local function done_(t) if t.researched then return end for _, q in pairs(t.prerequisites) do done_(q) end t.researched = true end  -- a tech and everything before it (b14's manager read the tree as unfinished)
+for _, t in pairs {{ {techs} }} do if f.technologies[t] then done_(f.technologies[t]) end end
 local sp = f.get_spawn_position(s)
 local function clear(x0, y0)
   local area = {{ {{ x0 - 6, y0 - 6 }}, {{ x0 + 90, y0 + {n + 8} }} }}
@@ -231,8 +234,22 @@ end
 for k = 0, 7 do s.create_entity {{ name = 'medium-electric-pole', position = {{ ox - 0.5 + 6 * k, oy + {n} + 2.5 }}, force = f }} end
 for k = 0, 13 do s.create_entity {{ name = 'medium-electric-pole', position = {{ ox + 40.5, oy - 3.5 + 8 * k }}, force = f }} end
 for k = 0, 4 do s.create_entity {{ name = 'medium-electric-pole', position = {{ ox + 8.5 + 8 * k, oy - 3.5 }}, force = f }} end
-local chest = s.create_entity {{ name = 'steel-chest', position = {{ ox + 12.5, oy - 4.5 }}, force = f }}
-for nm, k in pairs {{ {stock} }} do chest.insert {{ name = nm, count = k }} end
+-- stock: as many steel chests as it takes (one holds 48 stacks; b14's list didn't fit and the silo was left out)
+local sx_ = 0
+local function stock_chest()
+  local c = s.create_entity {{ name = 'steel-chest', position = {{ ox + 12.5 + sx_, oy - 6.5 }}, force = f }}
+  sx_ = sx_ + 1
+  return c
+end
+local chest = stock_chest()
+for nm, k in pairs {{ {stock} }} do
+  local left = k
+  while left > 0 do
+    local got = chest.insert {{ name = nm, count = left }}
+    left = left - got
+    if left > 0 then chest = stock_chest() end
+  end
+end
 local chest2 = s.create_entity {{ name = 'steel-chest', position = {{ ox + 13.5, oy - 4.5 }}, force = f }}
 chest2.insert {{ name = 'transport-belt', count = 400 }}
 storage.layout = storage.layout or {{}}
@@ -273,7 +290,8 @@ def setup_lua_bus(fed: list[str], spare: int = 3, n: int = 120, feeders: int = 4
     sink = ",".join(f"'{x}'" for x in sinks)
     width = 4 * b.pairs + 4
     return f"""
-for _, t in pairs {{ {techs} }} do if f.technologies[t] then f.technologies[t].researched = true end end
+local function done_(t) if t.researched then return end for _, q in pairs(t.prerequisites) do done_(q) end t.researched = true end  -- a tech and everything before it (b14's manager read the tree as unfinished)
+for _, t in pairs {{ {techs} }} do if f.technologies[t] then done_(f.technologies[t]) end end
 local sp = f.get_spawn_position(s)
 local function clear(x0, y0)
   local area = {{ {{ x0 - 6, y0 - 6 }}, {{ x0 + {width + 80}, y0 + {n + 8} }} }}
@@ -317,8 +335,21 @@ for x = -2, {width}, 6 do s.create_entity {{ name = 'medium-electric-pole', posi
 for k = 0, {n // 8 + 1} do s.create_entity {{ name = 'medium-electric-pole', position = {{ ox + {width + 30}.5, oy - 3.5 + 8 * k }}, force = f }} end
 for x = {width}, {width + 30}, 8 do s.create_entity {{ name = 'medium-electric-pole', position = {{ ox + x + 0.5, oy - 3.5 }}, force = f }} end
 for x = {width}, {width + 30}, 8 do s.create_entity {{ name = 'medium-electric-pole', position = {{ ox + x + 0.5, oy + {n} + 2.5 }}, force = f }} end
-local chest = s.create_entity {{ name = 'steel-chest', position = {{ ox + {width + 4}.5, oy - 4.5 }}, force = f }}
-for nm, k in pairs {{ {stock} }} do chest.insert {{ name = nm, count = k }} end
+local sx_ = 0
+local function stock_chest()
+  local c = s.create_entity {{ name = 'steel-chest', position = {{ ox + {width + 4}.5 + sx_, oy - 6.5 }}, force = f }}
+  sx_ = sx_ + 1
+  return c
+end
+local chest = stock_chest()
+for nm, k in pairs {{ {stock} }} do
+  local left = k
+  while left > 0 do
+    local got = chest.insert {{ name = nm, count = left }}
+    left = left - got
+    if left > 0 then chest = stock_chest() end
+  end
+end
 local chest2 = s.create_entity {{ name = 'steel-chest', position = {{ ox + {width + 5}.5, oy - 4.5 }}, force = f }}
 chest2.insert {{ name = 'transport-belt', count = 800 }}
 storage.layout = storage.layout or {{}}
@@ -561,8 +592,8 @@ def scenarios() -> list[dict]:
         "objectives": [{
             "name": "launch", "minutes": 120, "hold_samples": 1,
             "goal": "@{agent} our main bus (bus main) carries processing units, low density structures and rocket fuel, "
-                    "and there's a rocket silo in the chest by the bus. Build the silo, feed it off the bus and launch "
-                    "a rocket.",
+                    "and there's a rocket silo in the chests by the bus; the research is done. Build the silo, feed it "
+                    "off the bus and launch a rocket.",
             "score": [{"name": "rockets", "lua": "return f.rockets_launched", "target": 1}],
         }],
         "score": [{"name": "taps", "lua": TAPS}, {"name": "silos", "lua": "count('rocket-silo')"}],
@@ -593,8 +624,8 @@ def scenarios() -> list[dict]:
         "objectives": [{
             "name": "launch", "minutes": 600, "hold_samples": 1,
             "goal": "@{agent} crude oil and water arrive in the pipes at [gps={crude}] and [gps={water}], our main bus "
-                    "(bus main) has iron, copper and coal, and there's a rocket silo in the chest by the bus. Launch a "
-                    "rocket: build everything it needs off the bus (steel, circuits, plastic, sulfur, processing "
+                    "(bus main) has iron, copper and coal, and there's a rocket silo (with spare machines) in the chests by "
+                    "the bus. All the research it needs is done. Launch a rocket: build everything it needs off the bus (steel, circuits, plastic, sulfur, processing "
                     "units, low density structures, rocket fuel), feed the silo and launch.",
             "score": [{"name": "rockets", "lua": "return f.rockets_launched", "target": 1}],
         }],
