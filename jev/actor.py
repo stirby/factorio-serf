@@ -73,6 +73,7 @@ class Order:
         return self.points[0] if self.points else None
 
 
+FLUID_NAMES = {"water", "steam", "crude-oil", "petroleum-gas", "light-oil", "heavy-oil", "lubricant", "sulfuric-acid"}
 BUILD_OPS = ("ghosts", "block", "design", "stamp", "place", "build_ghosts", "route", "row", "connect", "merge_lanes",
              "bus", "tap", "bus_in", "feed", "supply")
 
@@ -1447,7 +1448,24 @@ class Actor(FastPaths):
                 if n_ok >= need:
                     return True, ""
                 states = ", ".join(sorted({f"{m['n']} {w.label.get(m['u'])}: {m.get('s')}" for m in ms})[:8])
-                return False, f"{n_ok}/{need} {e.get('recipe') or 'machines'} working near {fmt_xy(near)} ({states or 'none found'})"
+                # which ingredient the starved ones lack (campaign replans kept guessing: q6, q10 and p9's
+                # advanced-circuit rows said only "item_ingredient_shortage")
+                short: dict[str, int] = {}
+                for m in ms:
+                    if m.get("s") != "item_ingredient_shortage" or not m.get("r"):
+                        continue
+                    ings = (self.recipes.get(m["r"]) or {}).get("ingredients") or {}
+                    have = m.get("inp") or {}
+                    for it, amt in (ings.items() if isinstance(ings, dict) else []):
+                        if it in FLUID_NAMES:
+                            continue
+                        n_need = amt if isinstance(amt, (int, float)) else 1
+                        if (have.get(it, 0) if isinstance(have, dict) else 0) < n_need:
+                            short[it] = short.get(it, 0) + 1
+                lack = ("; short of " + ", ".join(f"{it} in {n}" for it, n in sorted(short.items(), key=lambda kv: -kv[1])[:4])
+                        if short else "")
+                return False, (f"{n_ok}/{need} {e.get('recipe') or 'machines'} working near {fmt_xy(near)} "
+                               f"({states or 'none found'}{lack})")
             if c == "built":
                 p = (float(e["x"]), float(e["y"]))
                 sc = await self.g.scan(center=p, radius=int(float(e.get("radius", 10))) + 1)

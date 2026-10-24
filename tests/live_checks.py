@@ -1135,6 +1135,18 @@ return true""")
     w = base_audit.words(a)
     line = next((x for x in w.splitlines() if x.startswith("- electronic-circuit")), "")
     print("   ", line)
+    import tempfile
+    from jev.actor import Actor
+    from jev.typesafe import reader
+    d = Path(tempfile.mkdtemp())
+    act = Actor(g, reader(log_path=d / "jev.jsonl"), d, "serf", think=False)
+    rec = await g.call("recipes", agent="serf", detail=True)
+    act.recipes = rec.get("recipes") or {}
+    ok, why = await act._check({"check": "working", "recipe": "electronic-circuit", "near": [x0 + 3, y0 + 1.5],
+                                "radius": 6, "count": 2})
+    print("   ", why)
+    check("working check: names the ingredient the starved machines lack", not ok and "short of iron-plate in 2" in why,
+          why)
     check("audit: starved circuit assemblers say they lack iron plates (they hold cables)",
           (grp.get("lacks") or {}).get("iron-plate", 0) >= 2 and "copper-cable" not in (grp.get("lacks") or {})
           and "lacking iron-plate" in line, grp)
