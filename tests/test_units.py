@@ -1273,6 +1273,21 @@ def test_lint_unfed_belt_start():
           beside and not end and not ins and not ref and not chain, (beside, end, ins, ref, chain))
 
 
+def test_audit_fix_first():
+    from jev import audit as A
+    a = {"machines": 120, "status": {"no_minable_resources": 26}, "labs": 12,
+         "groups": {"iron-plate": {"n": 66, "working": 10, "starved": 42, "blocked": 14},
+                    "mining iron-ore": {"n": 24, "working": 5, "blocked": 19, "at": [211.5, 218.5]},
+                    "copper-plate": {"n": 36, "working": 12, "starved": 0, "blocked": 24}}}
+    w = A.words(a)
+    b = A.words({**a, "groups": {**a["groups"], "mining iron-ore": {"n": 24, "working": 24, "blocked": 0}}})
+    check("audit words: furnaces starving while their drills sit blocked come first as a broken ore line; with the "
+          "drills fine, as a mine to open; copper (not starved) isn't named",
+          "Fix first: 42 of 66 iron-plate furnaces have no iron-ore while 19 iron-ore drills are blocked" in w
+          and "ore isn't reaching the furnaces" in w and "open a new iron-ore mine" in b and "26 drills" in b
+          and "copper-plate furnaces" not in w, (w[:400], b[:300]))
+
+
 def test_bus_feed_entries():
     from jev.busgen import DIRS, Bus
     ok_all, why = True, []

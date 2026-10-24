@@ -36,6 +36,7 @@ def words(a: dict, groups: int = 14) -> str:
              "Science used by labs per minute: " + (", ".join(f"{SHORT.get(k, k)} {v:g}" for k, v in sci.items())
                                                     or "none") + f" (labs working {a.get('labs_working', 0)} of "
                                                                  f"{a.get('labs', 0)})."]
+    lines += fix_first(a)
     bad = sorted(((k, v) for k, v in (a.get("groups") or {}).items() if v.get("n", 0) > v.get("working", 0)),
                  key=lambda kv: -(kv[1]["n"] - kv[1].get("working", 0)))
     if bad:
@@ -86,6 +87,34 @@ def words(a: dict, groups: int = 14) -> str:
         lines += ["- " + break_words(b) for b in br]
     lines.append(f"Belt tiles per machine {n['belts_per_machine']}, pipe tiles per machine {n['pipes_per_machine']}.")
     return "\n".join(lines)
+
+
+ORE_PLATE = {"iron-ore": "iron-plate", "copper-ore": "copper-plate", "stone": "stone-brick"}
+
+
+def fix_first(a: dict) -> list[str]:
+    """Supply failures every chain downstream waits on, said first (p9 at 4.7% working: 42 of 66 iron furnaces
+    without ore while its far iron drills sat blocked, and the manager kept building processing units)."""
+    g = a.get("groups") or {}
+    dry = int((a.get("status") or {}).get("no_minable_resources", 0))
+    out = []
+    for ore, plate in ORE_PLATE.items():
+        mine, furn = g.get(f"mining {ore}") or {}, g.get(plate) or {}
+        starved, n = int(furn.get("starved", 0)), int(furn.get("n", 0))
+        if not n or starved < 3 or starved < 0.3 * n:
+            continue
+        blocked = int(mine.get("blocked", 0))
+        at = mine.get("at")
+        where = f", e.g. at [gps={at[0]},{at[1]}]" if at else ""
+        if blocked >= 3:
+            out.append(f"Fix first: {starved} of {n} {plate} furnaces have no {ore} while {blocked} {ore} drills are "
+                       f"blocked with full outputs{where}: the ore isn't reaching the furnaces. Follow the ore belt from "
+                       "those drills to where it stops or jams, and mend it before building anything new.")
+        else:
+            out.append(f"Fix first: {starved} of {n} {plate} furnaces have no {ore}"
+                       + (f", and {dry} drills stand on mined-out ground" if dry else "")
+                       + f": open a new {ore} mine (or more drills) feeding them before building anything new.")
+    return out
 
 
 def _gps(p) -> str:
