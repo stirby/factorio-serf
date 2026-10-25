@@ -208,7 +208,10 @@ async def replay(case: Case) -> Replay:
         for ln in case.lines:
             clock.now = clock.t0 + ln.secs
             await _settle()
-            await a._on_chat({"player": ln.speaker, "message": ln.text, "position": [0.0, 0.0]})
+            if ln.speaker == "@serf":  # the serf's own line (as its planner's say tool would)
+                await a.say(ln.text)
+            else:
+                await a._on_chat({"player": ln.speaker, "message": ln.text, "position": [0.0, 0.0]})
             for o in a.orders:  # Order.t is stamped with the real clock: put new ones on replay time
                 if o.id not in seen:
                     seen.add(o.id)
@@ -288,6 +291,43 @@ def expect_flag(r):
     return out
 
 
+def expect_ping_quiet(r):
+    out = []
+    if r.orders or r.said or r.thinker.asked:
+        out.append(f"orders {[o.text for o in r.orders]}, said {r.said}, asked {len(r.thinker.asked)}")
+    if r.actor.pings.get("player", (None, None))[:2] != (10.0, -20.0):
+        out.append(f"pings {r.actor.pings}")
+    return out
+
+
+def expect_ping_joins_order(r):
+    out = []
+    o = r.order(1)
+    if len(r.orders) != 1 or not o:
+        return [f"{len(r.orders)} orders"]
+    if (10.0, -20.0) not in o.points or not any("pinged" in n for n in o.notes):
+        out.append(f"order 1 points {o.points}, notes {o.notes}")
+    if "got it, [gps=10,-20]" not in r.said:
+        out.append(f"said {r.said}")
+    return out
+
+
+def expect_ping_answers_ask(r):
+    out = []
+    o = r.order(1)
+    if len(r.orders) != 1 or not o:
+        return [f"{len(r.orders)} orders"]
+    if o.reopened != 1 or (10.0, -20.0) not in o.points:
+        out.append(f"order 1 reopened {o.reopened}, points {o.points}, status {o.status}")
+    if not r.records("reopen"):
+        out.append("no reopen record")
+    return out
+
+
+PING = L(0, "[gps=10,-20,nauvis]")
+CHESTS = L(0, "serf put a row of 4 iron chests down", J("new_job", 0.95, 0.95, "plan", 1.0))
+
+
 def expect_follow(r):
     out = []
     if len(r.orders) != 1:
@@ -355,6 +395,12 @@ CASES = [
           L(60, "how are you doing bro", J("chatter", 0.57, 0.87, "plan", 1.0))], expect_small_talk),
     Case("a ! line is a flag for the developer, not an order", [
         L(0, "! that was wrong, I meant the red and blue machines", J("new_job", 0.9, 0.9, "plan", 1.0))], expect_flag),
+    Case("a ping on its own is remembered, not an order or a reply", [PING], expect_ping_quiet),
+    Case("a ping right after a player's order is that order's spot", [CHESTS, L(25, "[gps=10,-20,nauvis]")],
+         expect_ping_joins_order),
+    Case("the serf asks for a ping; the next ping reopens that order with the spot",
+         [CHESTS, L(2, "where do you want them? ping where you want it", speaker="@serf"),
+          L(200, "[gps=10,-20,nauvis]")], expect_ping_answers_ask, runs={1: 5}),
     Case("follow me is one order", [L(0, "okay follow me", J("new_job", 0.72, 1.0, "plan", 1.0))], expect_follow,
          runs={1: 0}),
     Case("follow-ups join the queued job", [TELEPORT, GHOSTS, LOOK_AGAIN, HERE], expect_followup_joins),

@@ -3,6 +3,7 @@
 each (for a Monitor while a player tests it in their own world).
 
     .venv/bin/python bench/live_watch.py ~/.local/state/jev/<session>/actor.jsonl
+    .venv/bin/python bench/live_watch.py --latest     # the newest session, switching when the serf restarts
 """
 from __future__ import annotations
 
@@ -12,7 +13,7 @@ import time
 from pathlib import Path
 
 KINDS = {"chat", "order", "say", "order_end", "error", "left", "joined", "limit_wait", "reopen", "preempt", "flag",
-         "dropped", "added_to_queued"}
+         "dropped", "added_to_queued", "ping", "ping_for"}
 
 
 def line(r: dict) -> str | None:
@@ -37,21 +38,41 @@ def line(r: dict) -> str | None:
     return f"[{t}] {k}: {json.dumps({x: y for x, y in r.items() if x not in ('t', 'kind')})[:300]}"
 
 
+STATE = Path.home() / ".local" / "state" / "jev"
+
+
+def newest() -> Path | None:
+    logs = [d / "actor.jsonl" for d in STATE.iterdir() if (d / "actor.jsonl").exists()] if STATE.exists() else []
+    return max(logs, key=lambda p: p.parent.name) if logs else None
+
+
 def main() -> None:
-    p = Path(sys.argv[1]).expanduser()
-    with open(p) as f:
-        f.seek(0, 2)
-        while True:
-            s = f.readline()
-            if not s:
-                time.sleep(1)
-                continue
-            try:
-                out = line(json.loads(s))
-            except ValueError:
-                continue
-            if out:
-                print(out, flush=True)
+    latest = sys.argv[1] == "--latest"
+    p = newest() if latest else Path(sys.argv[1]).expanduser()
+    while p is None:
+        time.sleep(2)
+        p = newest()
+    f = open(p)
+    f.seek(0, 2)
+    idle = 0
+    while True:
+        s = f.readline()
+        if not s:
+            time.sleep(1)
+            idle += 1
+            if latest and idle % 3 == 0:
+                q = newest()
+                if q and q != p:  # the serf restarted: a new session
+                    p, f = q, open(q)
+                    print(f"--- serf restarted: following {q.parent.name}", flush=True)
+            continue
+        idle = 0
+        try:
+            out = line(json.loads(s))
+        except ValueError:
+            continue
+        if out:
+            print(out, flush=True)
 
 
 if __name__ == "__main__":

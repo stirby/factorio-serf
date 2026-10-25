@@ -35,6 +35,7 @@ from .world import CHESTS, World, fmt_xy, items_words
 log = logging.getLogger("jev.actor")
 
 GPS = re.compile(r"\[gps=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)(?:,[^\]]*)?\]")
+PING = re.compile(r"\s*(\[gps=[^\]]*\]\s*)+")  # a chat line that is only map tags: a ping (Ctrl+Alt+click on the map)
 PAIR = re.compile(r"([\w-]+): \[gps=(-?[\d.]+),(-?[\d.]+)\] to \[gps=(-?[\d.]+),(-?[\d.]+)\]")
 RAW = {"iron-ore", "copper-ore", "coal", "stone", "wood", "uranium-ore"}
 
@@ -104,6 +105,8 @@ class Actor(FastPaths):
         # and the recent log with it)
         self.on_flag: Callable[[str, str, dict], Awaitable[str | None]] | None = None
         self.stopped_t = 0.0  # a player's last "stop"
+        self.pings: dict[str, tuple[float, float, str | None, float]] = {}  # player -> their last map ping (x, y, surface, t)
+        self.asked_ping: tuple[float, int] | None = None  # (when, order id): it asked for a ping for that order
         self.runner = Runner(game, self.log)
         self.orders: list[Order] = []
         self.current: Order | None = None
@@ -147,6 +150,8 @@ class Actor(FastPaths):
     async def say(self, text: str) -> None:
         self.last_said, self.last_said_t = text, time.time()
         self.log({"kind": "say", "text": text})
+        if "ping" in text.lower() and self.current:
+            self.asked_ping = (time.time(), self.current.id)  # "ping where you want it": the next ping is for this order
         if "?" in text and self.current and self.current.status in ("working", "thinking"):
             # a question while on an order: the order is done only in part, whatever its checks say (c1: "Want me to
             # divert adv circuits to the PU build?" ended a three-part order as "done", and the player saw nothing)
@@ -301,6 +306,9 @@ class Actor(FastPaths):
                 self._told_away = True
                 await self.say("I'm away right now: /serf join brings me back")
             return
+        if PING.fullmatch(msg):
+            await self._ping(speaker, msg)
+            return
         self.metrics["chat_lines"] += 1
         if self.project and self.project.active:
             self.project.hear(speaker, msg)
@@ -444,6 +452,48 @@ class Actor(FastPaths):
                                          "look around and don't submit a plan.", None))
             else:
                 await self.say("all good here. Free for a job: @" + self.name + " and what you need")
+
+    async def _ping(self, speaker: str, msg: str) -> None:
+        """A map ping (the player's chat line is only a [gps] tag): remembered as their last ping. It answers the
+        serf's own "ping where you want it" (that order gets the spot, reopened if it had ended), and one right after
+        the player's newest order belongs to it. Any other ping stays quiet: in multiplayer most pings are for people
+        (live test: "the serf should be able to ask me 'ping where you want me to build that'")."""
+        m = GPS.search(msg)
+        x, y = float(m.group(1)), float(m.group(2))
+        sm = re.search(r"\[gps=[^,\]]+,[^,\]]+,([^\]]+)\]", msg)
+        now = time.time()
+        self.pings[speaker] = (x, y, sm.group(1) if sm else None, now)
+        self.log({"kind": "ping", "speaker": speaker, "at": [x, y], "surface": sm.group(1) if sm else None})
+        o = None
+        if self.asked_ping and now - self.asked_ping[0] < 300:
+            o = next((q for q in self.orders if q.id == self.asked_ping[1] and q.speaker == speaker), None)
+        if o is None:
+            o = next((q for q in reversed(self.orders) if q.speaker == speaker and q.status in ("new", "thinking", "working")
+                      and now - q.t < 120), None)
+        if o is None:
+            return
+        self.asked_ping = None
+        note = f"{speaker} pinged [gps={x:g},{y:g}]"
+        o.notes.append(note)
+        o.points.append((x, y))
+        self.log({"kind": "ping_for", "order": o.id, "status": o.status})
+        if o.status in ("done", "failed", "cancelled"):
+            o.status = "new"
+            o.reopened += 1
+            self.log({"kind": "reopen", "order": o.id})
+            self.wake.set()
+        elif o.status == "thinking" and self.thinker:
+            self.thinker.ask(Request("report", f"{note}: the spot for this order", o.id))
+        elif o.status == "working" and o is self.current:
+            o.interrupt = note  # the running plan didn't have the spot: replan with it
+        await self.say(f"got it, [gps={x:g},{y:g}]")
+
+    def _ping_words(self) -> str:
+        """Players' recent map pings, for the planner ("build it at my ping")."""
+        now = time.time()
+        recent = [f"{p} [gps={x:g},{y:g}]" + (f" on {sf}" if sf else "") + f" {now - t:.0f}s ago"
+                  for p, (x, y, sf, t) in self.pings.items() if now - t < 900]
+        return ("Players' last map pings: " + "; ".join(recent) + ".") if recent else ""
 
     async def _flag(self, speaker: str, note: str) -> None:
         """Live testing: "! that was wrong, I meant..." marks this moment for the developer. Logged with what the serf
@@ -1202,6 +1252,8 @@ class Actor(FastPaths):
             parts.append(f"{o.speaker} is standing at {fmt_xy(o.speaker_at)}.")
         if o.notes:
             parts.append("The player also said: " + " | ".join(o.notes))
+        if self._ping_words():
+            parts.append(self._ping_words())
         if o.project:
             parts.append(f"This order comes from your own project (goal: {o.project.goal[:200]}). Nobody will answer "
                          "questions about it: decide yourself. Don't start another project for it.")
