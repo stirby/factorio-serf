@@ -26,7 +26,7 @@ for n in "${names[@]}"; do
   sleep 8
 done
 if ! pgrep -f "bench/[a]b_watch.py" > /dev/null; then
-  setsid nohup .venv/bin/python bench/ab_watch.py p6:75 q6:77 p7:85 q7:87 p8:76 p9:86 p10:78 q10:88 p11:79 q11:89 p12:80 q12:90 \
+  setsid nohup .venv/bin/python bench/ab_watch.py p6:75 q6:77 p7:85 q7:87 p8:76 p10:78 q10:88 p11:79 q11:89 p12:80 q12:90 \
     --every 30 >> bench/runs/ab_watch.log 2>&1 < /dev/null &
   disown
   echo "watcher started"
