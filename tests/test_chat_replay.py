@@ -50,6 +50,7 @@ class J:
     qtype: tuple = ("other", 0.5)  # decide.question_type
     not_done: float = 0.0
     changes_plan: float = 0.0
+    same_job: float | dict = 1.0  # decide.same_job: one value, or {words of the job: p}
 
 
 @dataclass
@@ -180,10 +181,14 @@ async def replay(case: Case) -> Replay:
     async def changes_plan(jev, doing, message):
         return reading(message).changes_plan
 
-    saved = {k: getattr(decide, k) for k in ("chat", "question_type", "not_done", "changes_plan")}
+    async def same_job(jev, job, message):
+        v = reading(message).same_job
+        return next((p for k, p in v.items() if k in job), 0.0) if isinstance(v, dict) else v
+
+    saved = {k: getattr(decide, k) for k in ("chat", "question_type", "not_done", "changes_plan", "same_job")}
     real_time = actor_mod.time
-    decide.chat, decide.question_type, decide.not_done, decide.changes_plan = chat, question_type, not_done, \
-        changes_plan
+    decide.chat, decide.question_type, decide.not_done, decide.changes_plan, decide.same_job = \
+        chat, question_type, not_done, changes_plan, same_job
     actor_mod.time = clock
     tmp = tempfile.TemporaryDirectory()
     try:
@@ -343,6 +348,27 @@ def expect_order_ends_follow(r):
     return out
 
 
+def expect_line_goes_to_running_job(r):
+    out = []
+    o3, o4 = r.order(1), r.order(2)
+    if len(r.orders) != 2:
+        return [f"{len(r.orders)} orders: {[(o.id, o.text[:30]) for o in r.orders]}"]
+    if any("construction bots" in n for n in o4.notes):
+        out.append(f"joined the queued roboport order: {o4.notes}")
+    if not any("construction bots" in n for n in o3.notes):
+        out.append(f"the running rock job didn't get it: {o3.notes}")
+    return out
+
+
+# 2026-10-25 14:01-14:05, Vulcanus: rocks running, roboports queued, then a line about the rocks
+ROCKS = L(0, "Serf there are way more boulders to break", J("new_job", 0.9, 0.9, "plan", 1.0))
+ROBOPORTS = L(90, "serf after you're done make a clean grid of robot ports as ghosts and make as many as you can so we "
+                  "have better base coverage", J("new_job", 0.93, 0.95, "plan", 1.0))
+BOTS = L(147, "btw serf you should break all the rocks/boulders vents. Can you mark areas for deletion and use "
+              "construction bots?", J("new_job", 0.9, 0.8, "plan", 1.0,
+                                      same_job={"robot ports": 0.37, "boulders": 0.84}))
+
+
 def expect_follow(r):
     out = []
     if len(r.orders) != 1:
@@ -361,9 +387,9 @@ def expect_followup_joins(r):
     o2 = r.order(2)
     if o2 and (o2.status != "new" or len(o2.notes) != 2):
         out.append(f"order 2 is {o2.status} with {len(o2.notes)} notes")
-    if r.said.count("got it, adding that to the job") != 2:
+    if sum(t.startswith("got it, adding that to #2") for t in r.said) != 2:
         out.append(f"said {r.said}")
-    if any("#2" in t or "#3" in t for t in r.said):
+    if any(("#2" in t or "#3" in t) and "adding that to" not in t for t in r.said):
         out.append("queued a second copy")
     return out
 
@@ -418,6 +444,8 @@ CASES = [
           L(200, "[gps=10,-20,nauvis]")], expect_ping_answers_ask, runs={1: 5}),
     Case("a new order ends the follow job first", [CHESTS], expect_order_ends_follow,
          game={"job": {"id": 7, "op": "follow", "what": "following player"}}),
+    Case("a line about the running job goes to it, not to the queued one", [ROCKS, ROBOPORTS, BOTS],
+         expect_line_goes_to_running_job),
     Case("follow me is one order", [L(0, "okay follow me", J("new_job", 0.72, 1.0, "plan", 1.0))], expect_follow,
          runs={1: 0}),
     Case("follow-ups join the queued job", [TELEPORT, GHOSTS, LOOK_AGAIN, HERE], expect_followup_joins),

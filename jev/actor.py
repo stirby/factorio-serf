@@ -380,11 +380,16 @@ class Actor(FastPaths):
         if kind in ("new_job", "more_info") and queued and not (pts_here and queued.points and all(
                 math.hypot(p[0] - q[0], p[1] - q[1]) > 30 for p in pts_here for q in queued.points)):
             # more about the job they just queued, not another job (live test: three lines about one build became
-            # three orders, run one after another)
-            queued.notes.append(f"{speaker}: {msg}")
-            self.log({"kind": "added_to_queued", "order": queued.id})
-            await self.say("got it, adding that to the job")
-            return
+            # three orders, run one after another), if it is about that job (live test: a line about the running rock
+            # job joined the queued roboport order)
+            same = await self._same_job(queued, msg)
+            if same >= 0.5:
+                queued.notes.append(f"{speaker}: {msg}")
+                self.log({"kind": "added_to_queued", "order": queued.id})
+                await self.say(f"got it, adding that to #{queued.id} ({queued.text[:40].rstrip()}...)")
+                return
+            if doing and self.current and await self._same_job(self.current, msg) >= 0.5:
+                kind = "more_info"  # about the running job: its notes (and a replan if it changes the plan)
         if kind == "new_job" or (kind == "more_info" and not doing and call.kind_conf < 0.5
                                  and call.playbook_conf >= 0.8):
             pts = [(float(a), float(b)) for a, b in GPS.findall(msg)]
@@ -458,6 +463,14 @@ class Actor(FastPaths):
                                          "look around and don't submit a plan.", None))
             else:
                 await self.say("all good here. Free for a job: @" + self.name + " and what you need")
+
+    async def _same_job(self, o: Order, msg: str) -> float:
+        try:
+            p = await decide.same_job(self.jev, o.text, msg)
+        except JevError:
+            p = 1.0  # Jev unreachable: as before, a follow-up joins
+        self.log({"kind": "same_job", "order": o.id, "p": round(p, 3)})
+        return p
 
     async def _learn(self, ev: dict) -> None:
         """Teach serf (a player's blueprint or book: the toolbar button, Ctrl+Shift+T or /serf learn): each blueprint

@@ -195,6 +195,15 @@ async def scope(jev: Jev, order: str) -> float:
     return a["wide"].p
 
 
+async def same_job(jev: Jev, job: str, message: str) -> float:
+    """Probability the message is about that job (details, corrections, additions), not another job or subject (live
+    test: "break all the rocks... can you use construction bots?" joined the queued roboport order)."""
+    a = await jev.ask({"queued_job": job, "message": message}, {"same": noul(
+        "Is `message` more about `queued_job` (details, corrections or additions for that same job), rather than "
+        "about a different job or another subject?")}, kind="same_job")
+    return a["same"].p
+
+
 async def changes_plan(jev: Jev, doing: str, message: str) -> float:
     """Probability the message asks to change how/where the current job is done (so the plan must change)."""
     a = await jev.ask({"current_job": doing, "message": message}, {"change": noul(
