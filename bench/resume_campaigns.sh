@@ -19,14 +19,14 @@ declare -A ARGS=(
   [q12]="--world campaign-w12 --gen-hours 4 --gens 14 --instance 90 --mode project --style classic"
 )
 names=("$@")
-[ ${#names[@]} -eq 0 ] && names=(p6 q6 p7 q7 p8 p10 q10 p11 q11 p12 q12)  # p9: goal met 2026-10-24
+[ ${#names[@]} -eq 0 ] && names=(p6 p7 q7 p8 p10 q10 p11 q11 p12 q12)  # p9, q6: goal met 2026-10-24
 for n in "${names[@]}"; do
   echo "$(date +%H:%M:%S) resuming $n"
   .venv/bin/python scripts/resume_campaign.py "$n" ${ARGS[$n]}
   sleep 8
 done
 if ! pgrep -f "bench/[a]b_watch.py" > /dev/null; then
-  setsid nohup .venv/bin/python bench/ab_watch.py p6:75 q6:77 p7:85 q7:87 p8:76 p10:78 q10:88 p11:79 q11:89 p12:80 q12:90 \
+  setsid nohup .venv/bin/python bench/ab_watch.py p6:75 p7:85 q7:87 p8:76 p10:78 q10:88 p11:79 q11:89 p12:80 q12:90 \
     --every 30 >> bench/runs/ab_watch.log 2>&1 < /dev/null &
   disown
   echo "watcher started"
