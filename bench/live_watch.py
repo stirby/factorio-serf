@@ -25,6 +25,8 @@ def line(r: dict) -> str | None:
         if r.get("speaker") in ("serf", "project", "planner"):
             return None
         return f"[{t}] {r.get('speaker')}: {r.get('msg')}  ({r.get('kind_')}, {r.get('playbook')})"
+    if k == "error" and r.get("where") == "board" and "unknown op" in str(r.get("error")):
+        return None  # a mod before 0.3.4 (no tasks window): expected until the server restarts
     if k == "step":  # only a plan's say steps (what the player reads); the rest is in the log
         st = r.get("step") or {}
         return f"[{t}] serf (plan): {str(st.get('text'))[:300]}" if st.get("do") == "say" else None
