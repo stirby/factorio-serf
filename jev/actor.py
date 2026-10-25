@@ -807,7 +807,7 @@ class Actor(FastPaths):
                 self._recipes_t = time.time()
             except Exception:  # noqa: BLE001
                 pass
-        await self.g.status(text=o.text[:100])
+        await self.g.status(text="")  # the task line shows the order; steps fill this in
         if o.project is None and o.speaker != self.name and self.thinker and self.allow_projects \
                 and OBVIOUS.search(o.text):
             goal = re.sub(r"@\S+\s*", "", o.text).strip()
