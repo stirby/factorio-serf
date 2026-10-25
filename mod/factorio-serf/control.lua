@@ -440,7 +440,9 @@ API.stored = function(req)
   if not proto then return { item = false } end
   local c = live(req).char
   local r = req.radius or 400
-  local src = orders.sources { items = { req.item }, x = c.position.x, y = c.position.y, radius = r, limit = 5 }
+  -- on the character's own planet (live test on Vulcanus: "30 roboports in the chest at 54,127" were on Nauvis)
+  local src = orders.sources { items = { req.item }, x = c.position.x, y = c.position.y, radius = r, limit = 5,
+    surface = c.surface.name }
   local recipe = c.force.recipes[req.item]
   local per = recipe and recipe.enabled and recipe.products[1].name == req.item and (recipe.products[1].amount or 1)
   local okC, runs = pcall(function() return per and c.get_craftable_count(recipe) or 0 end)

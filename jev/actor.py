@@ -1631,11 +1631,29 @@ class Actor(FastPaths):
                              "steps": [{"text": t, "state": st} for t, st in zip(v["steps"], v["states"])]}
         return b
 
+    def _panel_state(self) -> tuple[str, str]:
+        """(state, task) for the mod's panel: the app never told it (live test: the panel said "waiting for orders"
+        while the serf replanned an order; the state was a leftover in the save)."""
+        cur = self.current if self.current and self.current.status in ("working", "thinking") else None
+        if cur:
+            return ("thinking" if cur.status == "thinking" else "working"), f"#{cur.id} {brief(cur.text, 70)}"
+        if self.thinker and self.thinker.busy:
+            return "thinking", ""
+        return "waiting", ""
+
     async def _board_loop(self) -> None:
         last = None
+        last_state = None
         while True:
             await asyncio.sleep(1)
             self.save_orders()
+            st = self._panel_state()
+            if st != last_state:
+                try:
+                    await self.g.status(state=st[0], task=st[1])
+                    last_state = st
+                except Exception:  # noqa: BLE001
+                    pass
             b = self._board()
             key = json.dumps({**b, "now": {k: v for k, v in (b.get("now") or {}).items() if k != "secs"}},
                              sort_keys=True)

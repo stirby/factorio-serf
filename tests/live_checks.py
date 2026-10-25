@@ -1890,6 +1890,10 @@ c.insert { name = 'tungsten-ore', count = 7 } return true""")
     check("planet reads: storage on vulcanus is vulcanus's (from the app and from the mod's own fallback)",
           mats.get("tungsten-ore") == 7 and "iron-plate" not in mats and bare.get("tungsten-ore") == 7,
           (mats, bare))
+    st_t = await g.call("stored", agent="serf", item="tungsten-ore")
+    st_i = await g.call("stored", agent="serf", item="iron-plate")
+    check("planet reads: 'where is it stored' looks on the serf's planet (tungsten here, not Nauvis's plates)",
+          st_t.get("in_storage_total") == 7 and not st_i.get("in_storage_total"), (st_t, st_i))
     again = await runner.run({"do": "hop", "planet": "vulcanus"})
     nowhere = await runner.run({"do": "hop", "planet": "fulgora"})
     check("hop: 'already on' is ok; a planet with no surface is refused with the list",
