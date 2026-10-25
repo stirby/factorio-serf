@@ -140,7 +140,10 @@ def up(save: str | None, biters: bool = False) -> None:
     copy = WORLDS / f"{name}.zip"
     shutil.copy2(src, copy)  # the player's file is only read
     print(f"world: {src.name} ({time.strftime('%m-%d %H:%M', time.localtime(src.stat().st_mtime))}) -> {copy.name}")
-    i = Instance(SLOT, copy, mods="live", biters=biters)
+    extra = sorted((ROOT / "bench" / "live_mods").glob("*.zip"))  # patched mods (bench/live_mods/README.md)
+    i = Instance(SLOT, copy, mods="live", biters=biters, extra_mods=extra)
+    for z in extra:
+        print(f"with {z.name} (players need it in their mods folder too)")
     i.start(300)
     print(f"slot {SLOT} up ({'biters ON' if biters else 'biters removed: ' + str(getattr(i, 'biters_removed', '?'))}); "
           f"join localhost:{i.game_port}")

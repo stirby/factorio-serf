@@ -80,13 +80,14 @@ def _port_free(port: int, kind: int) -> bool:
 
 class Instance:
     def __init__(self, k: int, stage: str | Path | None = None, mods: str = "bench", udp: bool = False,
-                 biters: bool = False):
+                 biters: bool = False, extra_mods: list[Path] | None = None):
         if not 0 <= int(k) < 100:
             raise ValueError("instance id must be 0..99")
         self.k = int(k)
         self.stage = stage
         self.mods = mods  # "bench": pinned vanilla Space Age + the crew mod; "live": the live server's mods too
         self.biters = biters  # True only when the player asks for them (a live session in their world)
+        self.extra_mods = [Path(z) for z in extra_mods or []]  # mod zips to add (e.g. a patched mod under test)
         self.dir = INSTANCES / str(self.k)
         self.game_port = GAME_PORT_BASE + self.k
         self.rcon_port = RCON_PORT_BASE + self.k
@@ -170,6 +171,16 @@ class Instance:
             (mods / "mod-list.json").write_text(json.dumps(ml, indent=2))
             if BENCH_SETTINGS.exists():
                 shutil.copy2(BENCH_SETTINGS, mods / "mod-settings.dat")
+        for z in self.extra_mods:  # in place of any version of the same mod the set above has
+            name = z.name.rsplit("_", 1)[0]
+            for other in mods.glob(f"{name}_*.zip"):
+                if other.is_symlink():
+                    other.unlink()
+            (mods / z.name).symlink_to(z.resolve())
+            ml = json.loads((mods / "mod-list.json").read_text())
+            if not any(m["name"] == name for m in ml["mods"]):
+                ml["mods"].append({"name": name, "enabled": True})
+            (mods / "mod-list.json").write_text(json.dumps(ml, indent=2))
         saves = self.dir / "saves"
         if saves.exists():
             shutil.rmtree(saves)
