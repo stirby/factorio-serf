@@ -228,6 +228,13 @@ class Actor(FastPaths):
         self.recipes = rec.get("recipes") if isinstance(rec, dict) else {}
         self.runner.recipes = self.recipes
         self.items = (await self.g.call("query", what="items")).get("items") or []
+        try:  # steps the game's serf mod can't do yet (the app goes live before the mod: live testing)
+            ver = str((await self.g.call("ping")).get("version") or "0")
+            if tuple(int(x) for x in ver.split(".")[:3]) < (0, 3, 4):
+                self.mod_limits = (f"This game runs serf mod {ver}: the sweep step and the map_tags tool don't work "
+                                   "in it yet (mine rocks by hand; ask players what places are for).")
+        except Exception:  # noqa: BLE001
+            pass
         if self.thinker:
             await self.thinker.start()
         self.load_state()
@@ -258,6 +265,7 @@ class Actor(FastPaths):
             return
         keep = [{"id": o.id, "text": o.text, "speaker": o.speaker, "playbook": o.playbook,
                  "points": [list(p) for p in o.points], "notes": o.notes, "t": o.t, "status": o.status,
+                 "history": [h[:600] for h in o.history[-2:]],
                  "speaker_at": list(o.speaker_at) if o.speaker_at else None}
                 for o in self.orders if o.status in ("new", "working", "thinking") and not o.project]
         d = {"next_id": self.next_id, "saved": time.time(), "orders": keep}
@@ -294,6 +302,9 @@ class Actor(FastPaths):
                 o.speaker_at = tuple(x["speaker_at"])
             if x.get("status") in ("working", "thinking"):
                 o.notes.append("(the serf restarted while on this order: what it built for it is still there)")
+            if x.get("history"):  # what the last tries found (live test: a resumed order retried what had just failed)
+                o.history = list(x["history"])
+                o.notes.append("(before the restart: " + str(x["history"][-1])[:500] + ")")
             out.append(o)
         self.orders.extend(out)
         self.next_id = max(self.next_id, int(d.get("next_id") or 1), *(o.id + 1 for o in out))
@@ -1394,7 +1405,7 @@ class Actor(FastPaths):
         return plan
 
     def _order_context(self, o: Order) -> str:
-        parts = []
+        parts = [self.mod_limits] if getattr(self, "mod_limits", "") else []
         if o.focus:
             parts.append(f"The order points at {fmt_xy(o.focus)}" + (f" (and {', '.join(fmt_xy(p) for p in o.points[1:])})"
                                                                      if len(o.points) > 1 else "") + ".")

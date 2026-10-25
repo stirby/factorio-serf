@@ -1231,6 +1231,7 @@ def test_orders_survive_a_restart():
                 Order(5, "dump stone in lava", "otterplex", "plan", [], status="new"),
                 Order(3, "boulders", "otterplex", "plan", [], status="failed")]
     a.orders[1].notes.append("otterplex: the lava to the east")
+    a.orders[0].history.append("Failed at step 1: take roboport at 54.5,127.5: no entity there")
     a.next_id = 6
     a.save_orders()
     b = Actor(G(), None, d, "serf", think=False)
@@ -1238,7 +1239,8 @@ def test_orders_survive_a_restart():
     got = b.load_orders()
     check("orders survive a restart: the open ones come back queued, with notes and spots; the next id continues",
           [(o.id, o.status) for o in got] == [(4, "new"), (5, "new")] and got[0].points == [(1.0, 2.0)]
-          and "the lava to the east" in got[1].notes[0] and "restarted" in got[0].notes[-1] and b.next_id == 6,
+          and "the lava to the east" in got[1].notes[0] and "restarted" in got[0].notes[-2]
+          and "before the restart: Failed at step 1" in got[0].notes[-1] and b.next_id == 6,
           [(o.id, o.status, o.notes) for o in got])
 
 
