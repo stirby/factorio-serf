@@ -1291,7 +1291,7 @@ def test_todo_bridge():
                   "states": ["ok", "run", "todo"]}
         _a.run(b.tick())
         t1 = todo.tasks[0]
-        r2 = (nxt is o1 and t1["status_kind"] == "working" and "step 2 of 3: ghost them" in t1["status"]
+        r2 = (nxt is o1 and t1["status_kind"] == "progress" and "step 2 of 3: ghost them" in t1["status"]
               and [s["done"] for s in t1["subtasks"]] == [True, False, False] and t1["subtasks"][0]["owner"] == "serf")
         o1.status = "done"
         todo.tasks[1]["assignee"] = "otterplex"
@@ -1302,7 +1302,7 @@ def test_todo_bridge():
         o2b = a.order_by_id(b.by_task[2])
         o2b.status, o2b.fail_reason = "failed", "no lava within 100 tiles"
         _a.run(b.tick())
-        r4 = todo.tasks[1]["status_kind"] == "failed" and "no lava" in todo.tasks[1]["status"] and b.by_task[2] == o2b.id
+        r4 = todo.tasks[1]["status_kind"] == "error" and "no lava" in todo.tasks[1]["status"] and b.by_task[2] == o2b.id
         todo.tasks[1]["task"] = "the lava is east of the furnaces"
         _a.run(b.tick())
         r5 = b.by_task[2] != o2b.id and a.order_by_id(b.by_task[2]).status == "new"

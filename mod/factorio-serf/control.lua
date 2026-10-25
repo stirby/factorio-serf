@@ -270,8 +270,8 @@ end
 API.unmark = function(req) marks.remove(req.id) return {} end
 -- Todo List (the Todo-List mod) through its remote interface, for the serf's task bridge (jev/todo_bridge.py): only
 -- these calls; {available = false} when that mod (or its interface) isn't in this game.
-local TODO_CALLS = { version = true, get_tasks = true, add_assignee = true, remove_assignee = true, add_task = true,
-  update_task = true, set_subtasks = true, mark_complete = true, mark_open = true }
+local TODO_CALLS = { version = true, get_event_ids = true, get_tasks = true, get_task = true, add_assignee = true,
+  remove_assignee = true, add_task = true, update_task = true, set_subtasks = true, mark_complete = true, mark_open = true }
 API.todo = function(req)
   local fn = tostring(req.fn or "")
   if not TODO_CALLS[fn] then error("todo: no call " .. fn, 0) end

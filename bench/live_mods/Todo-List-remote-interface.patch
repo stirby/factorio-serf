@@ -1,75 +1,194 @@
-From 5f4bebe2cc971f8144cd9c3433a0a7ba8a8276cc Mon Sep 17 00:00:00 2001
+From 0b7e19f0da20193c7f55603b04622b74afd03e32 Mon Sep 17 00:00:00 2001
 From: Stephen Kirby <sophendoe@gmail.com>
 Date: Sun, 25 Oct 2026 14:50:47 -0500
-Subject: [PATCH] Remote interface for other mods: read and update tasks, a
- live status line, a mod's own subtasks, extra assignees
+Subject: [PATCH] Remote interface for other mods: read and update tasks,
+ status lines, mod-owned subtasks, extra assignees, a change event
+
+Other mods can now work with the list through remote.call("Todo-List", ...): read tasks (get_tasks, get_task),
+add and update them (add_task, update_task), give a task a short status line under its title coloured by kind
+(info, progress, attention, error, success), manage their own subtasks on a task without touching players'
+(set_subtasks with an owner name), complete or reopen tasks, and register assignees that aren't players
+(add_assignee: offered in the add and edit dialogs after the players). on_tasks_changed (its id from
+get_event_ids) is raised after any change to the list, from the UI or a remote call, and not again while its
+handlers run. Every call validates its input and returns false or nil instead of raising.
+
+Documented in the README ("For mod authors: the remote interface"). Saves from 19.15.x load unchanged; nothing
+looks different until a mod sets a status or registers an assignee.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013M2f33Xu7wX4LwMnJ4eHDJ
 ---
- changelog.txt                          |   7 +
+ .luacheckrc                            |   2 +-
+ README.md                              |  42 ++++
+ changelog.txt                          |   9 +
  src/info.json                          |   2 +-
- src/todo/features/remote_interface.lua | 289 +++++++++++++++++++++++++
+ src/todo/features/main_ui.lua          |   2 +
+ src/todo/features/remote_interface.lua | 333 +++++++++++++++++++++++++
  src/todo/helper.lua                    |   8 +
  src/todo/todo.lua                      |   1 +
  src/todo/ui/edit_dialog.lua            |   5 +
  src/todo/ui/main_frame.lua             |  43 +++-
- 7 files changed, 348 insertions(+), 7 deletions(-)
+ 10 files changed, 439 insertions(+), 8 deletions(-)
  create mode 100644 src/todo/features/remote_interface.lua
 
+diff --git a/.luacheckrc b/.luacheckrc
+index 813fb96..9765c6b 100644
+--- a/.luacheckrc
++++ b/.luacheckrc
+@@ -1,4 +1,4 @@
+-globals = {"todo", "mod_gui", "script", "game", "defines", "data", "serpent", "settings", "storage"}
++globals = {"todo", "mod_gui", "script", "game", "defines", "data", "serpent", "settings", "storage", "remote"}
+ read_globals = {
+     os = {
+         fields = {
+diff --git a/README.md b/README.md
+index 4963f09..d8d88ac 100644
+--- a/README.md
++++ b/README.md
+@@ -92,6 +92,48 @@ screen space?
+ In the settings menu you can disable it. Then you'll only be able to use the
+ hotkey (default shift-t) or the shortcut to show/hide the todo list.
+ 
++## For mod authors: the remote interface
++
++Other mods can read and update the list through the remote interface `Todo-List`. For example, a mod can register an
++assignee that isn't a player (an NPC, a team, a bot), pick up the tasks players assign to it, show progress as a
++status line and its own subtasks, and complete them. Or it can just watch the list.
++
++```lua
++-- an assignee players can pick in the add and edit dialogs, after the players
++remote.call("Todo-List", "add_assignee", "Robot crew")
++
++-- react whenever the list changes (from the UI or another mod)
++script.on_event(remote.call("Todo-List", "get_event_ids").on_tasks_changed, function()
++    for _, task in pairs(remote.call("Todo-List", "get_tasks", false)) do
++        if task.assignee == "Robot crew" then
++            remote.call("Todo-List", "update_task", task.id, { status = "on it", status_kind = "progress" })
++            remote.call("Todo-List", "set_subtasks", task.id, "robot-crew-mod", {
++                { task = "Gather materials", done = true },
++                { task = "Build it", done = false },
++            })
++        end
++    end
++end)
++
++-- and when the work is done
++remote.call("Todo-List", "mark_complete", task_id)
++```
++
++| Call | Returns |
++|---|---|
++| `version()` | `1` |
++| `get_event_ids()` | `{ on_tasks_changed = id }`: raised after any change to the list |
++| `get_tasks(include_done)` | open tasks in list order (then done ones): `{ id, title, task, assignee, created_by, done, status, status_kind, subtasks = { { id, task, done, owner } } }` |
++| `get_task(id)` | one task, or `nil` |
++| `add_task({ title, task, assignee, top, created_by })` | the new task's id, or `nil` |
++| `update_task(id, { title, task, assignee, status, status_kind })` | `true`, or `false` for an unknown id. `status` is a short line under the title (`""` clears it), coloured by `status_kind`: `info`, `progress`, `attention`, `error` or `success`. `assignee = ""` unassigns |
++| `set_subtasks(id, owner, { { task, done } })` | replaces the subtasks `owner` made on the task; players' subtasks and other owners' stay |
++| `mark_complete(id)`, `mark_open(id)` | `true`, or `false` if it wasn't open (or done) |
++| `add_assignee(name)`, `remove_assignee(name)` | `true`/`false` |
++
++Every call checks its input and returns `false` or `nil` instead of raising an error. `on_tasks_changed` isn't raised
++again while its handlers run, so a handler may update tasks; change only what needs changing.
++
+ ## How to contribute?
+ 
+ If you want to contribute feel free to create a [pull request](https://github.com/JonasJurczok/factorio-todo-list/pulls) (with new translations for example).
 diff --git a/changelog.txt b/changelog.txt
-index 5aeb1b8..998b1ac 100644
+index 094c3ff..6e6f4cf 100644
 --- a/changelog.txt
 +++ b/changelog.txt
-@@ -1,4 +1,11 @@
+@@ -1,4 +1,13 @@
  ---------------------------------------------------------------------------------------------------
-+Version: 19.15.90
++Version: 19.16.0
 +Date: 2026-10-25
++  Scripting:
++    - Remote interface "Todo-List" for other mods: read tasks, add tasks, update a task's title, text, assignee and status line, manage their own subtasks on a task, complete or reopen tasks, and register assignees that aren't players. See the README.
++    - Event on_tasks_changed (its id from the remote call get_event_ids), raised after any change to the list.
 +  Features:
-+    - Remote interface "Todo-List" for other mods: read tasks, add tasks, update a task's title, text, assignee and a live status line, set a mod's own subtasks, mark tasks complete or open, and register extra assignees (e.g. an AI helper that isn't a player).
-+    - A task can show a status line under its title, set by another mod (working, queued, needs you, failed, done).
++    - A task can show a status line under its title, set by another mod and coloured by kind (info, progress, attention, error, success).
 +    - The assignee drop-downs list assignees other mods registered, after the players.
 +---------------------------------------------------------------------------------------------------
- Version: 19.15.2
- Date: 2026-05-20
-   Bugfixes:
+ Version: 19.15.3
+ Date: 2026-06-25
+   Changes:
 diff --git a/src/info.json b/src/info.json
-index 445e40f..95f48f3 100644
+index d6841d8..a819c24 100644
 --- a/src/info.json
 +++ b/src/info.json
 @@ -1,6 +1,6 @@
  {
    "name": "Todo-List",
--  "version": "19.15.2",
-+  "version": "19.15.90",
+-  "version": "19.15.3",
++  "version": "19.16.0",
    "title": "✔ Todo List",
    "author": "Jason Miles and many others from the community",
    "contact": "jonasjurczok+factorio@gmail.com",
+diff --git a/src/todo/features/main_ui.lua b/src/todo/features/main_ui.lua
+index 3ef096f..d4028d9 100644
+--- a/src/todo/features/main_ui.lua
++++ b/src/todo/features/main_ui.lua
+@@ -78,6 +78,8 @@ function todo.update_main_task_list_for_everyone()
+     for _, player in pairs(game.players) do
+         todo.refresh_task_table(player)
+     end
++    -- every change to the list ends here: tell other mods (remote interface)
++    todo.raise_tasks_changed()
+ end
+ 
+ function todo.refresh_task_table(player, search_term)
 diff --git a/src/todo/features/remote_interface.lua b/src/todo/features/remote_interface.lua
 new file mode 100644
-index 0000000..ab7f484
+index 0000000..895c5ce
 --- /dev/null
 +++ b/src/todo/features/remote_interface.lua
-@@ -0,0 +1,289 @@
+@@ -0,0 +1,333 @@
 +--[[
-+  Remote interface: lets other mods read and update the todo list, e.g. a mod whose AI helper takes tasks
-+  assigned to it, shows its progress as a status line and subtasks, and marks them complete.
++  Remote interface: lets other mods read and update the todo list. Any mod can, for example, register an assignee
++  that isn't a player (an NPC, a team, a bot), take the tasks assigned to it, report progress on them as a status
++  line and its own subtasks, and complete them; or just watch the list and react when it changes.
 +
-+    remote.call("Todo-List", "version")                         -> 1
-+    remote.call("Todo-List", "get_tasks", include_done)         -> { {id, title, task, assignee, created_by, done,
-+                                                                      status, status_kind, subtasks = {{id, task, done, owner}}} }
-+    remote.call("Todo-List", "add_assignee", name)              -- offered in the assignee drop-downs after the players
++    remote.call("Todo-List", "version")                 -> 1
++    remote.call("Todo-List", "get_event_ids")           -> { on_tasks_changed = <event id> }
++    remote.call("Todo-List", "get_tasks", include_done) -> array of tasks, open ones in list order (then done ones)
++    remote.call("Todo-List", "get_task", id)            -> one task, or nil
++        a task: { id, title, task, assignee, created_by, done, status, status_kind,
++                  subtasks = { { id, task, done, owner } } }
++    remote.call("Todo-List", "add_task", { title, task, assignee, top, created_by }) -> id, or nil
++    remote.call("Todo-List", "update_task", id, { title, task, assignee, status, status_kind }) -> bool
++        status: a short line shown under the task's title ("" clears it); status_kind colours it:
++        "info", "progress", "attention", "error" or "success"; assignee "" unassigns
++    remote.call("Todo-List", "set_subtasks", id, owner, { { task, done } }) -> bool
++        replaces the subtasks `owner` (any name, e.g. your mod's) made on that task; other subtasks stay
++    remote.call("Todo-List", "mark_complete", id) -> bool
++    remote.call("Todo-List", "mark_open", id)     -> bool
++    remote.call("Todo-List", "add_assignee", name)    -- offered in the assignee drop-downs, after the players
 +    remote.call("Todo-List", "remove_assignee", name)
-+    remote.call("Todo-List", "add_task", {title, task, assignee, top, created_by}) -> id
-+    remote.call("Todo-List", "update_task", id, {title, task, assignee, status, status_kind}) -> bool
-+    remote.call("Todo-List", "set_subtasks", id, owner, {{task, done}}) -> bool
-+    remote.call("Todo-List", "mark_complete", id)               -> bool
-+    remote.call("Todo-List", "mark_open", id)                   -> bool
++
++  on_tasks_changed is raised after any change to the list, from the UI or from a remote call:
++    script.on_event(remote.call("Todo-List", "get_event_ids").on_tasks_changed, function(event) ... end)
++  It isn't raised again while its handlers run, so a handler can update tasks; only change what needs changing.
 +
 +  Every call validates its input (a remote caller can pass anything) and returns false or nil instead of raising.
 +]]--
 +
-+todo.STATUS_KINDS = { working = true, queued = true, needs = true, failed = true, done = true }
++todo.STATUS_KINDS = { info = true, progress = true, attention = true, error = true, success = true }
++
++todo.on_tasks_changed = script.generate_event_name()
++
++local raising = false
++
++function todo.raise_tasks_changed()
++    if raising then
++        return
++    end
++    raising = true
++    local ok, err = pcall(script.raise_event, todo.on_tasks_changed, {})
++    raising = false
++    if not ok then
++        todo.log("An on_tasks_changed handler failed: " .. tostring(err))
++    end
++end
 +
 +local function is_text(value)
 +    return type(value) == "string" and value ~= ""
@@ -140,6 +259,21 @@ index 0000000..ab7f484
 +        end
 +    end
 +    return result
++end
++
++function todo.remote_get_task(id)
++    if type(id) ~= "number" then
++        return nil
++    end
++    local i = open_index(id)
++    if i then
++        return copy_task(storage.todo.open[i], false)
++    end
++    i = done_index(id)
++    if i then
++        return copy_task(storage.todo.done[i], true)
++    end
++    return nil
 +end
 +
 +function todo.remote_add_assignee(name)
@@ -331,7 +465,9 @@ index 0000000..ab7f484
 +
 +remote.add_interface("Todo-List", {
 +    version = function() return 1 end,
++    get_event_ids = function() return { on_tasks_changed = todo.on_tasks_changed } end,
 +    get_tasks = function(include_done) return todo.remote_get_tasks(include_done) end,
++    get_task = function(id) return todo.remote_get_task(id) end,
 +    add_assignee = function(name) return todo.remote_add_assignee(name) end,
 +    remove_assignee = function(name) return todo.remote_remove_assignee(name) end,
 +    add_task = function(input) return todo.remote_add_task(input) end,
@@ -388,7 +524,7 @@ index d6a6333..2460dd5 100644
      elseif todo.is_auto_assign(player) and c == 1 then
          assign_index = lookup[player.name]
 diff --git a/src/todo/ui/main_frame.lua b/src/todo/ui/main_frame.lua
-index dfbe9bf..4e71e78 100644
+index dfbe9bf..7aabf0d 100644
 --- a/src/todo/ui/main_frame.lua
 +++ b/src/todo/ui/main_frame.lua
 @@ -186,6 +186,16 @@ function todo.create_task_table(frame, player)
@@ -396,12 +532,12 @@ index dfbe9bf..4e71e78 100644
  end
  
 +local STATUS_COLORS = {
-+    working = "0.96,0.76,0.35", queued = "0.81,0.79,0.76", needs = "0.55,0.77,1",
-+    failed = "0.94,0.48,0.43", done = "0.56,0.84,0.5"
++    info = "0.81,0.79,0.76", progress = "0.96,0.76,0.35", attention = "0.55,0.77,1",
++    error = "0.94,0.48,0.43", success = "0.56,0.84,0.5"
 +}
 +
 +function todo.status_caption(task)
-+    local color = STATUS_COLORS[task.status_kind or ""] or STATUS_COLORS.queued
++    local color = STATUS_COLORS[task.status_kind or ""] or STATUS_COLORS.info
 +    return "[font=default-small][color=" .. color .. "]" .. tostring(task.status) .. "[/color][/font]"
 +end
 +

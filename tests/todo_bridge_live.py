@@ -74,7 +74,7 @@ async def with_todo(k: int, zip_path: Path) -> None:
         t = next((x for x in await tasks(g) if x.get("id") == tid), {})
         check("bridge: a task assigned to the serf becomes its order and says it's queued",
               o is not None and o.text == "Roboport grid: as ghosts, for the bots" and len(b.by_task) == 1
-              and str(t.get("status", "")).startswith("serf · queued") and t.get("status_kind") == "queued", (t, o))
+              and str(t.get("status", "")).startswith("serf · queued") and t.get("status_kind") == "info", (t, o))
         o.status = "working"
         a.view = {"order": o.id, "goal": "g", "steps": ["fetch roboports", "ghost them", "power them"],
                   "states": ["ok", "run", "todo"]}
@@ -82,7 +82,7 @@ async def with_todo(k: int, zip_path: Path) -> None:
         t = next((x for x in await tasks(g) if x.get("id") == tid), {})
         subs = as_list(t.get("subtasks"))
         check("bridge: the task shows the step it's on, and the plan's steps as the serf's subtasks",
-              "step 2 of 3: ghost them" in str(t.get("status")) and t.get("status_kind") == "working"
+              "step 2 of 3: ghost them" in str(t.get("status")) and t.get("status_kind") == "progress"
               and sorted(s.get("task") for s in subs) == ["fetch roboports", "ghost them", "power them"]
               and all(s.get("owner") == "serf" for s in subs)
               and [s.get("done") for s in subs if s.get("task") == "fetch roboports"] == [True], (t.get("status"), subs))

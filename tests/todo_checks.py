@@ -125,7 +125,7 @@ async def phase_new(k: int, saved: Path, patched: Path) -> None:
               and t1.get("done") is False and t3.get("title") == "Gleba labs" and t3.get("created_by") == "script",
               (ids, t1, t3))
 
-        u1 = await rj(g, call + f"'update_task', {id1}, {{ status = 'serf · working · step 4 of 6', status_kind = 'working' }})")
+        u1 = await rj(g, call + f"'update_task', {id1}, {{ status = 'step 4 of 6', status_kind = 'progress' }})")
         t1 = next(t for t in await rj(g, call + "'get_tasks')") if t["id"] == id1)
         u2 = await rj(g, call + f"'update_task', {id1}, {{ status_kind = 'bogus', title = 'Roboport grid v2' }})")
         t1b = next(t for t in await rj(g, call + "'get_tasks')") if t["id"] == id1)
@@ -133,7 +133,7 @@ async def phase_new(k: int, saved: Path, patched: Path) -> None:
         t1c = next(t for t in await rj(g, call + "'get_tasks')") if t["id"] == id1)
         await rj(g, call + f"'update_task', {id1}, {{ assignee = 'serf' }})")
         check("update_task: status and kind; a bad kind clears it; '' clears status and unassigns",
-              u1 is True and t1.get("status") == "serf · working · step 4 of 6" and t1.get("status_kind") == "working"
+              u1 is True and t1.get("status") == "step 4 of 6" and t1.get("status_kind") == "progress"
               and u2 is True and t1b.get("status_kind") is None and t1b.get("title") == "Roboport grid v2"
               and u3 is True and t1c.get("status") is None and t1c.get("assignee") is None, (t1, t1b, t1c))
 
@@ -162,6 +162,29 @@ async def phase_new(k: int, saved: Path, patched: Path) -> None:
         check("mark_complete moves it to done (get_tasks(true) has it, done=true); again is false; mark_open brings it back",
               m1 is True and id1 not in open_ids and any(t["id"] == id1 and t["done"] is True for t in all_t)
               and m2 is False and o1 is True and o2 is False and id1 in open_after, (m1, m2, o1, o2))
+
+        one = await rj(g, call + f"'get_task', {id1})")
+        none = await rj(g, call + "'get_task', 99999)")
+        check("get_task: one task by id (open or done), nil for an unknown id",
+              isinstance(one, dict) and one.get("id") == id1 and none is None, (one, none))
+        ev_out = await ev(g, """storage.n_changed = 0
+local id = remote.call('Todo-List', 'get_event_ids').on_tasks_changed
+script.on_event(id, function() storage.n_changed = storage.n_changed + 1 end)
+local t = remote.call('Todo-List', 'get_tasks', false)[1].id
+remote.call('Todo-List', 'update_task', t, { status = 'event test 1' })
+local a = storage.n_changed
+remote.call('Todo-List', 'update_task', t, { status = 'event test 1' })
+local b = storage.n_changed
+script.on_event(id, function()
+  storage.n_changed = storage.n_changed + 1
+  remote.call('Todo-List', 'update_task', t, { status = 'from a handler ' .. storage.n_changed })
+end)
+remote.call('Todo-List', 'update_task', t, { status = 'event test 2' })
+local c = storage.n_changed
+script.on_event(id, nil)
+return type(id) .. ' ' .. a .. ' ' .. b .. ' ' .. c""")
+        check("on_tasks_changed: raised once per change, not for a no-op update, and not again while its handler "
+              "updates a task", ev_out == "number 1 1 2", ev_out)
 
         junk = await ev(g, """local r = {}
 local function try(name, f) local ok, v = pcall(f) r[#r + 1] = name .. '=' .. (ok and tostring(v) or ('ERROR ' .. tostring(v))) end

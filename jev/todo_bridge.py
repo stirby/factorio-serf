@@ -13,8 +13,6 @@ import asyncio
 import json
 import time
 
-KIND = {"thinking": "working", "working": "working", "new": "queued", "done": "done", "failed": "failed",
-        "cancelled": "failed"}
 
 
 def as_list(x) -> list:
@@ -101,31 +99,32 @@ class TodoBridge:
             await self.push(tid, o)
 
     def status_of(self, o) -> tuple[str, str, list]:
-        """(status line, kind, subtasks) for the order's task."""
+        """(status line, kind, subtasks) for the order's task. Kinds are Todo List's: info, progress, attention, error,
+        success."""
         name = self.a.name
         subtasks = []
         v = getattr(self.a, "view", None)
         if v and v.get("order") == o.id:
             subtasks = [{"task": t, "done": st == "ok"} for t, st in zip(v["steps"], v["states"])]
         if o.status == "thinking":
-            return f"{name} · planning it", "working", subtasks
+            return f"{name} · planning it", "progress", subtasks
         if o.status == "working":
             if getattr(o, "asked", None):
-                return f"{name} · needs you: {o.asked[:120]}", "needs", subtasks
+                return f"{name} · needs you: {o.asked[:120]}", "attention", subtasks
             if v and v.get("order") == o.id and v["steps"]:
                 i = next((k for k, st in enumerate(v["states"]) if st in ("run", "fail")), None)
                 if i is not None:
-                    return f"{name} · working · step {i + 1} of {len(v['steps'])}: {v['steps'][i][:80]}", "working", subtasks
-            return f"{name} · working", "working", subtasks
+                    return f"{name} · working · step {i + 1} of {len(v['steps'])}: {v['steps'][i][:80]}", "progress", subtasks
+            return f"{name} · working", "progress", subtasks
         if o.status == "new":
             queued = [x for x in self.a.orders if x.status == "new"]
             k = self.a.queue_position(o, queued)
-            return f"{name} · queued, #{k} in line", "queued", subtasks
+            return f"{name} · queued, #{k} in line", "info", subtasks
         if o.status == "done":
-            return f"{name} · done", "done", subtasks
+            return f"{name} · done", "success", subtasks
         if o.status == "failed":
-            return f"{name} · couldn't finish: {getattr(o, 'fail_reason', '') or 'the checks never passed'}", "failed", subtasks
-        return f"{name} · stopped", "failed", subtasks
+            return f"{name} · couldn't finish: {getattr(o, 'fail_reason', '') or 'the checks never passed'}", "error", subtasks
+        return f"{name} · stopped", "error", subtasks
 
     async def push(self, tid: int, o) -> None:
         status, kind, subtasks = self.status_of(o)
