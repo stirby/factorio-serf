@@ -103,8 +103,14 @@ local function walk(start, si, max)
       local fl, amt = box_fluid(fb, i)
       if fl and amt > 0 then net.fluid = net.fluid or fl end
       net.amount = net.amount + amt
-      local okC, c = pcall(fb.get_capacity, i)
-      net.capacity = net.capacity + ((okC and c) or 0)
+      -- the piece's own volume: get_capacity gives the whole segment's (74,900 for a 499-pipe line), and summing
+      -- that made every long line read "0% full" (b15: four plans spent mending a water line that was full)
+      local okV, vol = pcall(function() return fb.get_prototype(i).volume end)
+      if not (okV and vol) then
+        local okC, c = pcall(fb.get_capacity, i)
+        vol = okC and c or 0
+      end
+      net.capacity = net.capacity + vol
       local x, y = e.position.x, e.position.y
       local b = net.extent
       b[1], b[2], b[3], b[4] = math.min(b[1], x), math.min(b[2], y), math.max(b[3], x), math.max(b[4], y)

@@ -1217,7 +1217,7 @@ return true""")
     ends = net.get("ends") or []
     print("   ", base_audit.line_words(net))
     check("pipes: from the source, the water line is 5 pieces holding water and ends 1 tile short of the dry pipe",
-          net.get("fluid") == "water" and net.get("pipes") == 5
+          net.get("fluid") == "water" and net.get("pipes") == 5 and net.get("fill", 0) >= 50
           and any((e.get("further") or {}).get("gap") == 1 and e.get("toward") == "west" for e in ends), net)
     import tempfile
     from jev.actor import Actor
