@@ -24,7 +24,8 @@ OUT.mkdir(parents=True, exist_ok=True)
 NOW = time.time()
 CAMPAIGNS = {"p6": ("w6", "player"), "q6": ("w6", "classic"), "p7": ("w7", "player"), "q7": ("w7", "classic"),
              "p8": ("w8", "player"), "p9": ("w9", "player"), "p10": ("w10", "player"), "q10": ("w10", "classic"),
-             "p11": ("w11", "player"), "q11": ("w11", "classic")}
+             "p11": ("w11", "player"), "q11": ("w11", "classic"),
+             "p12": ("w12", "player"), "q12": ("w12", "classic")}
 RUNG = {"b1": "circuits off a bus", "b2": "red science from plates", "b3": "steel", "b4": "red+green 45/min",
         "b5": "double red+green", "b6": "plastic + sulfur from crude", "b7": "blue science from scratch",
         "b8": "purple science", "b9": "fix a broken crude line", "b10": "crude 450 tiles out",

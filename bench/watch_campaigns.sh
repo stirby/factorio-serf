@@ -4,7 +4,7 @@
 #   bench/watch_campaigns.sh [names...]   (default: the ten build-like-a-player campaigns)
 cd "$(dirname "$0")/.."
 names=("$@")
-[ ${#names[@]} -eq 0 ] && names=(p6 q6 p7 q7 p8 p9 p10 q10 p11 q11)
+[ ${#names[@]} -eq 0 ] && names=(p6 q6 p7 q7 p8 p9 p10 q10 p11 q11 p12 q12)
 logs=()
 for n in "${names[@]}"; do logs+=("bench/runs/camp_$n.out"); done
 state=bench/runs/watch_state.txt  # the last milestone reported per campaign, so a new watch doesn't repeat them
