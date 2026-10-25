@@ -45,6 +45,7 @@ Step ops (each step is an object {{"do": op, ...}}):
   purge item x y                            take every `item` off the belts around x,y (wrong items on a belt, e.g. pipes from a wrong recipe); the belts stay
   build_ghosts [x y radius]                 build planned ghosts (also the players' own)
   stamp name x y [direction]                build a blueprint a player taught you (the order message lists them), centred at x,y
+  request items={{item: count}} [wait]      have logistic robots bring items to you (your own requests; you must stand inside roboport coverage, with the items in storage on this planet); waits until they arrive (default 90 s), then clears the requests. In a base with bots this beats walking to chests
   sweep x1 y1 x2 y2                         mark every tree and rock in that area (never a building) for construction bots to clear; they need roboport coverage there. For many rocks this beats mining them by hand
   tag x y text [kind]                       put a labelled map tag (and a floating label) players see: name what a place or chest you built is for (kind note, or provider/requester/storage for a chest)
   insert x y item [count] | take x y [item] [count] | empty_chest x y

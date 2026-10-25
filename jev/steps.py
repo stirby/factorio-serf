@@ -204,6 +204,8 @@ def describe(step: dict) -> str:
         return "say: " + str(step.get("text", ""))[:60]
     if d == "hop":
         return f"hop to {step.get('planet')}"
+    if d == "request":
+        return "have robots bring " + ", ".join(f"{n} {k}" for k, n in (step.get("items") or {}).items())
     if d == "sweep":
         return f"mark rocks and trees {step.get('x1')},{step.get('y1')} to {step.get('x2')},{step.get('y2')} for bots"
     if d == "tag":
@@ -1162,6 +1164,33 @@ class Runner:
         pos = r.get("position") or (0, 0)
         return {"ok": True, "msg": f"on {planet} at its spawn {fmt_xy(pos)}" + (f"; {stored} before leaving" if stored
                                                                                    else "")}
+
+    async def _do_request(self, s):
+        """Have logistic robots bring items to the character (its own requests; it must stand in a roboport network
+        with them in storage): set the requests, wait until they're carried (wait seconds, default 90), then clear
+        them so the bots don't keep bringing more (live test: "you should request stuff from logistics net too")."""
+        items = {str(k): int(v) for k, v in (s.get("items") or {}).items() if int(v) > 0}
+        if not items:
+            return {"ok": False, "msg": "request needs items={item: count}"}
+        before = await self.refresh_inventory()
+        want = {k: before.get(k, 0) + n for k, n in items.items()}
+        r = await self._act({"op": "configure", "self": True, "requests": want}, timeout=30)
+        if not r.get("ok"):
+            return r
+        deadline = time.time() + min(float(s.get("wait") or 90), 600)
+        inv = before
+        while time.time() < deadline:
+            await asyncio.sleep(3)
+            inv = await self.refresh_inventory()
+            if all(inv.get(k, 0) >= n for k, n in want.items()):
+                break
+        await self._act({"op": "configure", "self": True, "requests": {}}, timeout=30)
+        got = {k: inv.get(k, 0) - before.get(k, 0) for k in items}
+        short = {k: items[k] - got[k] for k in items if got[k] < items[k]}
+        if short:
+            return {"ok": False, "msg": f"robots brought {got}; still short {short} (no roboport coverage here, or not in "
+                                        "storage on this planet)"}
+        return {"ok": True, "msg": f"robots brought {got}"}
 
     async def _do_sweep(self, s):
         """Mark the trees and rocks in an area for deconstruction, for construction bots to clear (only those: never a

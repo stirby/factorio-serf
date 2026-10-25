@@ -2027,6 +2027,31 @@ return helpers.table_to_json {{ rock = rock.to_be_deconstructed(), tree = tree.t
                                                                                                  "chest": False}, (r, m))
 
 
+async def chk_request(L: Live, state: dict):
+    """request: logistic robots bring items to the serf (its own requests), then the requests are cleared."""
+    g = L.g
+    x, y = await L.site(12, 12)
+    await L.ev(f"""local s, f = game.surfaces.nauvis, game.forces.player
+for _, t in pairs {{ 'logistic-robotics', 'logistic-system' }} do if f.technologies[t] then f.technologies[t].researched = true end end
+local e = s.create_entity {{ name = 'electric-energy-interface', position = {{ {x + 1}, {y + 1} }}, force = f }}
+e.power_production = 1e8 e.electric_buffer_size = 1e9
+s.create_entity {{ name = 'medium-electric-pole', position = {{ {x + 3.5}, {y + 1.5} }}, force = f }}
+local rp = s.create_entity {{ name = 'roboport', position = {{ {x + 6}, {y + 3} }}, force = f }}
+rp.insert {{ name = 'logistic-robot', count = 10 }}
+rp.energy = 1e8
+local st = s.create_entity {{ name = 'storage-chest', position = {{ {x + 9.5}, {y + 6.5} }}, force = f }}
+st.insert {{ name = 'iron-gear-wheel', count = 50 }}
+local c = storage.agents['serf'].char
+c.teleport {{ {x + 6}, {y + 8} }}
+c.get_main_inventory().remove {{ name = 'iron-gear-wheel', count = 10000 }}
+return true""")
+    r = await Runner(g).run({"do": "request", "items": {"iron-gear-wheel": 20}, "wait": 120})
+    left = await L.ev("""local pt = storage.agents['serf'].char.get_requester_point()
+local n = 0 for i = 1, pt.sections_count do n = n + pt.get_section(i).filters_count end return n""")
+    check("request: robots bring 20 gears to the serf, then its requests are cleared", r.get("ok") and left == 0,
+          (r.get("msg"), left))
+
+
 async def chk_capture(L: Live, state: dict):
     """A player's order as a test case: a /server-save of the world right then (moved out of the server's saves
     folder) and case.json; the order's end adds a run."""
@@ -2057,7 +2082,7 @@ async def chk_capture(L: Live, state: dict):
 
 
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "detour": chk_route_detour, "routepocket": chk_route_pocket, "fetchfar": chk_fetch_far, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "clearworking": chk_clear_working, "pipegap": chk_pipe_gap, "auditlacks": chk_audit_lacks, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe, "supply": chk_supply, "supplyfar": chk_supply_far, "supplysilo": chk_supply_silo, "supplylines": chk_supply_lines, "supplylds": chk_supply_lds, "supplywalled": chk_supply_walled, "leavejoin": chk_leave_join, "capture": chk_capture, "hop": chk_hop, "learn": chk_learn, "storagefilter": chk_storage_filter, "board": chk_board, "tags": chk_tags, "sweep": chk_sweep}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "detour": chk_route_detour, "routepocket": chk_route_pocket, "fetchfar": chk_fetch_far, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "clearworking": chk_clear_working, "pipegap": chk_pipe_gap, "auditlacks": chk_audit_lacks, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe, "supply": chk_supply, "supplyfar": chk_supply_far, "supplysilo": chk_supply_silo, "supplylines": chk_supply_lines, "supplylds": chk_supply_lds, "supplywalled": chk_supply_walled, "leavejoin": chk_leave_join, "capture": chk_capture, "hop": chk_hop, "learn": chk_learn, "storagefilter": chk_storage_filter, "board": chk_board, "tags": chk_tags, "sweep": chk_sweep, "request": chk_request}
 
 
 async def main() -> int:
