@@ -634,6 +634,7 @@ API.audit = function(req)
       elseif st:find('shortage') or st:find('missing') or st == 'no_ingredients' or st == 'no_minable_resources' then
         g.starved = g.starved + 1
         g.at = g.at or util.xy(e.position)
+        g.at_starved = g.at_starved or util.xy(e.position)  -- an example of each problem, not just the first one seen
         g.why = g.why or st
         if st == 'item_ingredient_shortage' and (t == 'assembling-machine' or t == 'furnace') then
           -- which ingredient it's short of: p6's manager read "6 starved" as sulfur and sent the serf after a belt
@@ -654,10 +655,12 @@ API.audit = function(req)
       elseif st:find('full') or st:find('waiting_for_space') then
         g.blocked = g.blocked + 1
         g.at = g.at or util.xy(e.position)
+        g.at_blocked = g.at_blocked or util.xy(e.position)
       else
         g.other = g.other + 1
         g.why_other = g.why_other or st
         g.at = g.at or util.xy(e.position)
+        g.at_other = g.at_other or util.xy(e.position)
       end
       out.groups[what] = g
     elseif t == 'container' then

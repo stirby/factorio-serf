@@ -42,11 +42,23 @@ def words(a: dict, groups: int = 14) -> str:
     if bad:
         lines.append("Not working, by what they make:")
         for k, v in bad[:groups]:
-            at = v.get("at")
-            where = f" e.g. at [gps={at[0]},{at[1]}]" if at else ""
             why = v.get("why") or v.get("why_other") or ""
             lacks = v.get("lacks") if isinstance(v.get("lacks"), dict) else {}
             short = ", ".join(f"{item} in {n}" for item, n in sorted(lacks.items(), key=lambda kv: -kv[1])[:4])
+            if any(v.get(x) for x in ("at_starved", "at_blocked", "at_other")):
+                # an example spot after each problem's count (one spot for the group pointed "24 no_power" at a
+                # blocked machine: live test 2026-10-25)
+                def at(key):
+                    p = v.get(key)
+                    return f" (e.g. [gps={p[0]},{p[1]}])" if p else ""
+                lines.append(f"- {k}: {v['working']}/{v['n']} working, {v.get('starved', 0)} starved"
+                             + (f" ({why}" + (f": lacking {short}" if short else "") + ")" if why and v.get("starved")
+                                else "") + (at("at_starved") if v.get("starved") else "")
+                             + f", {v.get('blocked', 0)} blocked" + (at("at_blocked") if v.get("blocked") else "")
+                             + (f", {v.get('other', 0)} {v.get('why_other')}{at('at_other')}" if v.get("other") else ""))
+                continue
+            p = v.get("at")  # a mod before 0.3.4: one spot for the group
+            where = f" e.g. at [gps={p[0]},{p[1]}]" if p else ""
             lines.append(f"- {k}: {v['working']}/{v['n']} working, {v.get('starved', 0)} starved"
                          + (f" ({why}" + (f": lacking {short}" if short else "") + ")" if why and v.get("starved")
                             else "")
@@ -115,7 +127,7 @@ def fix_first(a: dict) -> list[str]:
         if not n or starved < 3 or starved < 0.3 * n:
             continue
         blocked = int(mine.get("blocked", 0))
-        at = mine.get("at")
+        at = mine.get("at_blocked") or mine.get("at")  # a blocked drill, not just any idle one
         where = f", e.g. at [gps={at[0]},{at[1]}]" if at else ""
         if blocked >= 3:
             out.append(f"Fix first: {starved} of {n} {plate} furnaces have no {ore} while {blocked} {ore} drills are "

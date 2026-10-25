@@ -66,6 +66,7 @@ class Case:
     lines: list
     expect: Callable[["Replay"], list]
     runs: dict = field(default_factory=dict)  # order id -> seconds its job takes (default: until stopped)
+    game: dict = field(default_factory=dict)  # FakeGame attributes to set first (e.g. job: the running job)
 
 
 # ---------------------------------------------------------------------------- fakes
@@ -87,6 +88,7 @@ class FakeGame:
         self.clock, self.name, self.away = clock, name, False
         self.chat, self.events = asyncio.Queue(), asyncio.Queue()
         self.said, self.cancels, self.acts, self.calls = [], [], [], []
+        self.job = None  # the character's running job, as the mod's list op describes it
 
     async def say(self, text):
         self.said.append((round(self.clock.now - self.clock.t0, 1), text))
@@ -102,7 +104,9 @@ class FakeGame:
 
     async def call(self, op, timeout=30, **kw):
         self.calls.append((op, kw))
-        return [] if op == "list" else {}
+        if op == "list":  # the mod's reply shape (a bare list here hid a bug: live test 2026-10-25)
+            return {"agents": [{"name": self.name, "job": self.job}]}
+        return {}
 
     async def act(self, actions, replace=False):
         self.acts.extend(actions)
@@ -184,6 +188,8 @@ async def replay(case: Case) -> Replay:
     tmp = tempfile.TemporaryDirectory()
     try:
         g = FakeGame(clock)
+        for k, v in case.game.items():
+            setattr(g, k, v)
         a = Actor(g, None, Path(tmp.name), "serf", think=False)
         th = FakeThinker(a)
         a.thinker = th
@@ -328,6 +334,15 @@ PING = L(0, "[gps=10,-20,nauvis]")
 CHESTS = L(0, "serf put a row of 4 iron chests down", J("new_job", 0.95, 0.95, "plan", 1.0))
 
 
+def expect_order_ends_follow(r):
+    out = []
+    if "a new order comes before following" not in r.game.cancels:
+        out.append(f"cancels {r.game.cancels}")
+    if r.records("error"):
+        out.append(f"errors {r.records('error')}")
+    return out
+
+
 def expect_follow(r):
     out = []
     if len(r.orders) != 1:
@@ -401,6 +416,8 @@ CASES = [
     Case("the serf asks for a ping; the next ping reopens that order with the spot",
          [CHESTS, L(2, "where do you want them? ping where you want it", speaker="@serf"),
           L(200, "[gps=10,-20,nauvis]")], expect_ping_answers_ask, runs={1: 5}),
+    Case("a new order ends the follow job first", [CHESTS], expect_order_ends_follow,
+         game={"job": {"id": 7, "op": "follow", "what": "following player"}}),
     Case("follow me is one order", [L(0, "okay follow me", J("new_job", 0.72, 1.0, "plan", 1.0))], expect_follow,
          runs={1: 0}),
     Case("follow-ups join the queued job", [TELEPORT, GHOSTS, LOOK_AGAIN, HERE], expect_followup_joins),

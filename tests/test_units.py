@@ -1217,6 +1217,17 @@ def test_underground_pair_off_view():
 
 
 
+def test_audit_spot_per_problem():
+    from jev import audit as A
+    a = {"machines": 48, "groups": {"low-density-structure": {
+        "n": 48, "working": 12, "starved": 0, "blocked": 12, "other": 24, "why_other": "no_power",
+        "at": [-11.5, 169.5], "at_blocked": [-11.5, 169.5], "at_other": [257.5, -184.5]}}}
+    line = next(x for x in A.words(a).splitlines() if "low-density" in x)
+    check("audit words: each problem's count has its own example spot (live test: '24 no_power e.g. at' a blocked "
+          "machine)", "12 blocked (e.g. [gps=-11.5,169.5])" in line and "24 no_power (e.g. [gps=257.5,-184.5])" in line,
+          line)
+
+
 def test_audit_ore_words():
     from jev import audit as A
     a = {"machines": 10, "status": {"working": 6, "no_minable_resources": 4}, "groups": {}, "labs": 0,

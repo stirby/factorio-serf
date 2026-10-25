@@ -594,7 +594,8 @@ class Actor(FastPaths):
                 # following a player is a standing job: a new order comes first (live test: the next order's walk
                 # waited behind it, and the serf stood still)
                 try:
-                    me = next((x for x in await self.g.call("list") if x.get("name") == self.name), {})
+                    ls = (await self.g.call("list")).get("agents") or []  # {"agents": [...]}
+                    me = next((x for x in ls if x.get("name") == self.name), {})
                     if (me.get("job") or {}).get("op") == "follow":
                         await self.g.cancel("a new order comes before following")
                 except Exception as e:  # noqa: BLE001
