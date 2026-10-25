@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 
 KINDS = {"chat", "order", "say", "order_end", "error", "left", "joined", "limit_wait", "reopen", "preempt", "flag",
-         "dropped", "added_to_queued", "ping", "ping_for"}
+         "dropped", "added_to_queued", "ping", "ping_for", "step"}
 
 
 def line(r: dict) -> str | None:
@@ -25,6 +25,9 @@ def line(r: dict) -> str | None:
         if r.get("speaker") in ("serf", "project", "planner"):
             return None
         return f"[{t}] {r.get('speaker')}: {r.get('msg')}  ({r.get('kind_')}, {r.get('playbook')})"
+    if k == "step":  # only a plan's say steps (what the player reads); the rest is in the log
+        st = r.get("step") or {}
+        return f"[{t}] serf (plan): {str(st.get('text'))[:300]}" if st.get("do") == "say" else None
     if k == "flag":
         cur = r.get("current") or {}
         return (f"[{t}] FLAG {r.get('speaker')}: {r.get('note')}  (doing: "

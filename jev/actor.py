@@ -1614,9 +1614,10 @@ class Actor(FastPaths):
         for things to start running."""
         exp = [e for e in (plan.get("expect") or []) if isinstance(e, dict)]
         goal = plan.get("goal") or o.text
-        if not exp and all(st.get("do") in ("say", "wait", "research", "follow", "hop", "upgrade", "clear", "purge")
+        if not exp and all(st.get("do") in ("say", "wait", "research", "follow", "hop", "move", "upgrade", "clear", "purge")
                            for st in plan.get("steps") or []):
-            # an acknowledgement or a research queue, or a step that reports exactly what it did
+            # an acknowledgement or a research queue, or a step that reports exactly what it did (a move: live test,
+            # "hop to vulcanus, walk to the player" got a second plan only to say it was there)
             return True, "nothing more to check"
         # a pipe laid to a machine's inlet for a fluid: done when that fluid arrives there, not when the pipe stands
         for st in plan.get("steps") or []:

@@ -315,7 +315,7 @@ class Runner:
         targets = sorted(([e["x"], e["y"]] for e in (sc.get("ents") or []) if e.get("t") == "container"
                           and not e.get("ghost") and (e.get("free") or 0) >= 4),
                          key=lambda q: (q[0] - x) ** 2 + (q[1] - y) ** 2)[:6]
-        made, moved = 0, {}
+        made, moved, used = 0, {}, []
         carried = next((c for c in ("steel-chest", "iron-chest", "wooden-chest") if inv.get(c)), None)
         # crafting a chest needs a slot for it; with none, only chests in the pocket or already built will do
         can_make = free >= 1 or carried is not None
@@ -346,14 +346,18 @@ class Runner:
                 if put > 0:
                     moved[item] = moved.get(item, 0) + put
                     n -= put
+                    if targets[0] not in used:
+                        used.append(list(targets[0]))
                 if not r.get("ok") or put <= 0 or n > 0:
                     targets.pop(0)  # that chest is full
             free = await self.free_slots()
             if free is not None and free >= want and not everything:
                 break
         chests = made
-        self.log_fn({"t": time.time(), "kind": "tidy", "moved": moved, "chests": chests, "free_after": free})
-        return {"ok": True, "msg": f"put {sum(moved.values())} items in {chests} chest(s); {free} slots free"}
+        self.log_fn({"t": time.time(), "kind": "tidy", "moved": moved, "chests": chests, "free_after": free,
+                     "at": used})
+        return {"ok": True, "msg": f"put {sum(moved.values())} items in {len(used)} chest(s) ({chests} new); {free} "
+                                   "slots free", "at": used}
 
     ESCAPE_THROUGH = ("transport-belt", "underground-belt", "splitter", "pipe", "pipe-to-ground", "electric-pole",
                       "inserter", "container", "wall")
@@ -1134,10 +1138,10 @@ class Runner:
         me = await self.g.me()
         if me.get("surface") == planet:
             return {"ok": True, "msg": f"already on {planet}"}
-        stored = ""
+        stored, at = "", []
         if any(n > 0 for n in (me.get("inventory") or {}).values()):
             t = await self.tidy(everything=True)
-            stored = (t or {}).get("msg", "")
+            stored, at = (t or {}).get("msg", ""), (t or {}).get("at") or []
             left = {k: n for k, n in (await self.refresh_inventory()).items() if n > 0}
             if left:
                 return {"ok": False, "msg": f"can't hop: still carrying {len(left)} kinds of items after storing "
@@ -1147,9 +1151,13 @@ class Runner:
         except Exception as e:  # noqa: BLE001  (the mod's reason: not a planet with a surface, not empty-handed...)
             return {"ok": False, "msg": f"can't hop to {planet}: {e}"[:300]}
         self.inventory = {}
-        at = r.get("position") or (0, 0)
-        return {"ok": True, "msg": f"on {planet} at its spawn {fmt_xy(at)}" + (f"; {stored} before leaving" if stored
-                                                                                  else "")}
+        if at:  # where its things are (live test: 1,810 items went into a chest and nobody was told where)
+            src = me.get("surface") or "nauvis"
+            await self.g.say("left my things in " + ("a chest" if len(at) == 1 else f"{len(at)} chests") + " on "
+                             + src + ": " + " ".join(f"[gps={c[0]:g},{c[1]:g},{src}]" for c in at[:4]))
+        pos = r.get("position") or (0, 0)
+        return {"ok": True, "msg": f"on {planet} at its spawn {fmt_xy(pos)}" + (f"; {stored} before leaving" if stored
+                                                                                   else "")}
 
     async def _do_follow(self, s):
         """Stay near a player (seconds, default 300); the step returns at once and the character keeps following."""
