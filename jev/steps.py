@@ -204,6 +204,8 @@ def describe(step: dict) -> str:
         return "say: " + str(step.get("text", ""))[:60]
     if d == "hop":
         return f"hop to {step.get('planet')}"
+    if d == "sweep":
+        return f"mark rocks and trees {step.get('x1')},{step.get('y1')} to {step.get('x2')},{step.get('y2')} for bots"
     if d == "tag":
         return f"tag {step.get('x')},{step.get('y')} \"{step.get('text')}\""
     if d == "bus":
@@ -1160,6 +1162,22 @@ class Runner:
         pos = r.get("position") or (0, 0)
         return {"ok": True, "msg": f"on {planet} at its spawn {fmt_xy(pos)}" + (f"; {stored} before leaving" if stored
                                                                                    else "")}
+
+    async def _do_sweep(self, s):
+        """Mark the trees and rocks in an area for deconstruction, for construction bots to clear (only those: never a
+        building). Bots need roboport coverage there; the marks wait until then."""
+        try:
+            x1, y1, x2, y2 = (float(s[k]) for k in ("x1", "y1", "x2", "y2"))
+        except (KeyError, TypeError, ValueError):
+            return {"ok": False, "msg": "sweep needs x1 y1 x2 y2 (the area's corners)"}
+        if abs(x2 - x1) * abs(y2 - y1) > 400 * 400:
+            return {"ok": False, "msg": "sweep areas are at most 400x400 tiles: split it"}
+        try:
+            r = await self.g.call("order", kind="deconstruct", x1=x1, y1=y1, x2=x2, y2=y2, nature_only=True)
+        except Exception as e:  # noqa: BLE001
+            return {"ok": False, "msg": f"sweep failed: {e}"[:300]}
+        return {"ok": True, "msg": f"marked {r.get('ordered', 0)} trees and rocks between {x1:g},{y1:g} and "
+                                   f"{x2:g},{y2:g} for construction bots"}
 
     async def _do_tag(self, s):
         """A labelled map tag (and a floating label) players see: what a place or chest is for."""

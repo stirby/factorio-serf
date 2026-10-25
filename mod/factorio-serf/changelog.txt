@@ -4,6 +4,7 @@ Date: 2026-10-25
   Features:
     - Serf tasks window (Ctrl+Shift+J, the Tasks button on the serf panel, or /serf tasks): what each serf is doing, every step of its plan (done, now, failed, to do), its queue and what it finished lately.
     - Serfs read your map tags (your names for places and purpose-built chests) and can put their own labelled tags on the map.
+    - Serfs can mark an area's trees and rocks (only those) for your construction bots to clear.
   Changes:
     - Serfs show on the map: a dot in their color with their name, the same size at any zoom.
     - A serf puts items in a storage chest set to one item only if it's that item, as robots do.

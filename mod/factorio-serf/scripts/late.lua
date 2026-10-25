@@ -262,15 +262,19 @@ function late.order(req)
   local area = { { math.min(req.x1, req.x2), math.min(req.y1, req.y2) }, { math.max(req.x1, req.x2), math.max(req.y1, req.y2) } }
   local n, skipped = 0, 0
   if req.kind == "deconstruct" then
-    local filt = { area = area, force = f }
-    if req.name then filt.name = req.name end
-    for _, e in ipairs(s.find_entities_filtered(filt)) do
-      if e.type ~= "character" and e.minable then
-        if e.order_deconstruction(f) then n = n + 1 else skipped = skipped + 1 end
+    -- nature_only: just the trees and rocks, for construction bots (live test: "can you mark areas for deletion and
+    -- use construction bots?" to clear Vulcanus's rocks); otherwise the force's buildings in the area too
+    if not req.nature_only then
+      local filt = { area = area, force = f }
+      if req.name then filt.name = req.name end
+      for _, e in ipairs(s.find_entities_filtered(filt)) do
+        if e.type ~= "character" and e.minable then
+          if e.order_deconstruction(f) then n = n + 1 else skipped = skipped + 1 end
+        end
       end
     end
     -- trees and rocks in the way, as a player would sweep them
-    if req.trees then
+    if req.trees or req.nature_only then
       for _, e in ipairs(s.find_entities_filtered { area = area, type = { "tree", "simple-entity" } }) do
         if e.order_deconstruction(f) then n = n + 1 end
       end

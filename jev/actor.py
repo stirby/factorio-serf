@@ -35,6 +35,15 @@ from .world import CHESTS, World, fmt_xy, items_words
 log = logging.getLogger("jev.actor")
 
 GPS = re.compile(r"\[gps=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)(?:,[^\]]*)?\]")
+def brief(t: str, n: int = 90, name: str = "serf") -> str:
+    """An order's words for a chat line, in quotes: no @names, not its own name or "okay" in front, the first sentence,
+    cut (live test: "working on: serf after you're done make a clean grid..." read like the serf giving orders)."""
+    t = re.sub(r"@\S+", "", t).strip()
+    t = re.sub(rf"^(?:(?:ok(?:ay)?|hey|yo|btw|so)\W+)*(?:{re.escape(name)}\W+)?", "", t, flags=re.I).strip()
+    t = re.split(r"[?.!]", t)[0].strip()
+    return '"' + (t[:n].rstrip() + ("..." if len(t) > n else "")) + '"'
+
+
 PING = re.compile(r"\s*(\[gps=[^\]]*\]\s*)+")  # a chat line that is only map tags: a ping (Ctrl+Alt+click on the map)
 PAIR = re.compile(r"([\w-]+): \[gps=(-?[\d.]+),(-?[\d.]+)\] to \[gps=(-?[\d.]+),(-?[\d.]+)\]")
 RAW = {"iron-ore", "copper-ore", "coal", "stone", "wood", "uranium-ore"}
@@ -68,6 +77,8 @@ class Order:
     built: list = field(default_factory=list)  # layout entries of what this order built (scans before and after)
     multi: bool = False  # several jobs in one message: the planner sorts them out, not the quick paths
     reopened: int = 0  # times a player said it isn't done after it finished
+    fail_reason: str = ""  # why it gave up, in a line (said, and given when asked what it couldn't finish)
+    ended_t: float = 0.0
     quick_plan: dict | None = None  # the plan a fast path ran (re-checked when it's reopened)
     project: "Project | None" = None  # the project that gave this order (jev/project.py)
     asked: str | None = None  # a question the serf asked while on it: the order is done only in part
@@ -632,16 +643,16 @@ class Actor(FastPaths):
             await self.say("carrying " + items_words(me.get("inventory"), 8))
         else:
             o = self.current
-
-            def brief(t: str) -> str:
-                t = re.sub(r"@\S+", "", t).strip()
-                t = re.split(r"[?.!]", t)[0].strip()
-                return t[:90]
+            failed = next((x for x in reversed(self.orders) if x.status == "failed" and x.fail_reason
+                           and time.time() - x.ended_t < 600), None)
+            if failed:  # what it just couldn't do comes first (live test: "which one could you not finish?")
+                await self.say(f"#{failed.id} {brief(failed.text, 50)} is the one I couldn't finish: "
+                               f"{failed.fail_reason}")
             if o and o.status in ("working", "thinking"):
                 step = "planning it" if o.status == "thinking" else "building it"
-                await self.say(f"working on: {brief(o.text)} ({step})")
+                await self.say(f"working on #{o.id} {brief(o.text)} ({step})")
             elif o:
-                await self.say(f"free now. Last job ({brief(o.text)}) is {o.status}")
+                await self.say(f"free now. Last job, #{o.id} {brief(o.text)}, is {o.status}")
             else:
                 await self.say("nothing right now, free for a job")
         return True
@@ -1532,7 +1543,13 @@ class Actor(FastPaths):
             text = (f"Your plan for order {o.id} (\"{o.text}\") didn't get there.\n{report}\n"
                     "Look at the area again if you need to, then submit a corrected plan (only the steps still "
                     "needed; what was built is still there).")
-        await self.say("I couldn't finish that one, sorry")
+        # which order and why (live test: "I couldn't finish that one, sorry" after 17 minutes; the player had to ask
+        # "which one could you not finish?" and got told what it was doing next)
+        last = (o.history[-1] if o.history else "").strip()
+        reason = re.split(r"(?<=[.!?])\s|\n", last)[0][:160] if last else "the checks never passed"
+        o.fail_reason, o.ended_t = reason, time.time()
+        await self.say(f"couldn't finish #{o.id} {brief(o.text, 50)} after {o.plans} tries: {reason}. "
+                       "Want me to keep at it, or leave it?")
         return False
 
     # ------------------------------------------------------------------ running plans
@@ -1708,7 +1725,8 @@ class Actor(FastPaths):
         for things to start running."""
         exp = [e for e in (plan.get("expect") or []) if isinstance(e, dict)]
         goal = plan.get("goal") or o.text
-        if not exp and all(st.get("do") in ("say", "wait", "research", "follow", "hop", "move", "upgrade", "clear", "purge")
+        if not exp and all(st.get("do") in ("say", "wait", "research", "follow", "hop", "move", "upgrade", "clear", "purge",
+                                            "sweep", "tag")
                            for st in plan.get("steps") or []):
             # an acknowledgement or a research queue, or a step that reports exactly what it did (a move: live test,
             # "hop to vulcanus, walk to the player" got a second plan only to say it was there)
