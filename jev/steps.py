@@ -1172,6 +1172,14 @@ class Runner:
             return {"ok": False, "msg": "sweep needs x1 y1 x2 y2 (the area's corners)"}
         if abs(x2 - x1) * abs(y2 - y1) > 400 * 400:
             return {"ok": False, "msg": "sweep areas are at most 400x400 tiles: split it"}
+        # a mod before 0.3.4 ignores nature_only and would mark the force's buildings there too
+        try:
+            ver = str((await self.g.call("ping")).get("version") or "0")
+            if tuple(int(x) for x in ver.split(".")[:3]) < (0, 3, 4):
+                return {"ok": False, "msg": f"sweep needs the serf mod 0.3.4 (this game runs {ver}): mine the rocks "
+                                           "by hand for now"}
+        except Exception as e:  # noqa: BLE001
+            return {"ok": False, "msg": f"sweep: couldn't check the mod version ({e})"[:300]}
         try:
             r = await self.g.call("order", kind="deconstruct", x1=x1, y1=y1, x2=x2, y2=y2, nature_only=True)
         except Exception as e:  # noqa: BLE001
