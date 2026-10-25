@@ -51,6 +51,19 @@ local function draw_tag(a)
     vertical_alignment = "middle",
     use_rich_text = false,
   }
+  -- and on the map: a script character gets no player marker there (live test: "I can't see the serf on the map")
+  for _, k in pairs { "map_dot", "map_tag" } do
+    if a[k] and a[k].valid then a[k].destroy() end
+  end
+  a.map_dot = rendering.draw_circle {
+    radius = 0.3, filled = true, surface = a.char.surface, target = a.char, color = a.color,
+    render_mode = "chart", scale_with_zoom = true,
+  }
+  a.map_tag = rendering.draw_text {
+    text = a.name, surface = a.char.surface, target = a.char, color = a.color, scale = 1.1,
+    alignment = "center", vertical_alignment = "bottom", render_mode = "chart", scale_with_zoom = true,
+    use_rich_text = false,
+  }
 end
 
 local function default_spawn(surface)
@@ -82,6 +95,7 @@ function agents.spawn(args)
     -- server's RCON app showed "no serf connected")
     a.client = args.client or a.client
     a.owner = args.owner or a.owner
+    if agents.alive(a) and not (a.map_dot and a.map_dot.valid) then draw_tag(a) end  -- from before 0.3.4
     return a  -- away: it stays away until a player types /serf join
   end  -- away: it stays away until a player types /serf join
   if not a then
@@ -167,7 +181,7 @@ end
 local function drop_char(a)
   storage.by_unit[a.char.unit_number] = nil
   a.char.destroy()
-  for _, k in pairs { "tag", "state_tag", "bubble" } do
+  for _, k in pairs { "tag", "state_tag", "bubble", "map_dot", "map_tag" } do
     if a[k] and a[k].valid then a[k].destroy() end
     a[k] = nil
   end
@@ -189,7 +203,7 @@ function agents.leave(a)
     a.left_from = { surface = c.surface.name, position = util.xy(c.position) }
     drop_char(a)
   end
-  for _, k in pairs { "tag", "state_tag", "bubble" } do
+  for _, k in pairs { "tag", "state_tag", "bubble", "map_dot", "map_tag" } do
     if a[k] and a[k].valid then a[k].destroy() end
     a[k] = nil
   end

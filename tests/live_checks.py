@@ -1876,6 +1876,11 @@ return helpers.table_to_json { armor = armor.valid_for_read and armor.name or ''
     while not g.events.empty():
         kinds.append(g.events.get_nowait().get("type"))
     check("hop: the orchestrator gets a 'hopped' event", "hopped" in kinds, kinds)
+    mark = await L.ev("""local a = storage.agents['serf']
+return a.map_dot and a.map_dot.valid and a.map_dot.render_mode == 'chart' and a.map_tag.valid
+  and a.map_dot.surface == a.char.surface and a.map_tag.surface == a.char.surface""")
+    check("map marker: the serf is marked on the map (a dot and its name), on its new planet after a hop", mark is True,
+          mark)
     again = await runner.run({"do": "hop", "planet": "vulcanus"})
     nowhere = await runner.run({"do": "hop", "planet": "fulgora"})
     check("hop: 'already on' is ok; a planet with no surface is refused with the list",
