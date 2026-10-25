@@ -53,6 +53,8 @@ async def play(a) -> None:
                 g.away = False
                 break
     actor = Actor(g, jev, state, a.name, think=not a.no_think, thinker_effort=a.effort)
+    if a.rcon and a.password_file:  # a server's serf: its open orders survive a restart of this app
+        actor.orders_path = Path(a.password_file).resolve().parent / f"{a.name}-orders.json"
     if a.capture:
         if not a.rcon:
             raise SystemExit("--capture needs --rcon (the save is the server's /server-save)")

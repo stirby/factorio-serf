@@ -1217,6 +1217,31 @@ def test_underground_pair_off_view():
 
 
 
+def test_orders_survive_a_restart():
+    import tempfile
+    from jev.actor import Actor, Order
+
+    class G:
+        name, away = "serf", False
+
+    d = Path(tempfile.mkdtemp())
+    a = Actor(G(), None, d, "serf", think=False)
+    a.orders_path = d / "serf-orders.json"
+    a.orders = [Order(4, "make a roboport grid", "otterplex", "plan", [(1.0, 2.0)], status="working"),
+                Order(5, "dump stone in lava", "otterplex", "plan", [], status="new"),
+                Order(3, "boulders", "otterplex", "plan", [], status="failed")]
+    a.orders[1].notes.append("otterplex: the lava to the east")
+    a.next_id = 6
+    a.save_orders()
+    b = Actor(G(), None, d, "serf", think=False)
+    b.orders_path = a.orders_path
+    got = b.load_orders()
+    check("orders survive a restart: the open ones come back queued, with notes and spots; the next id continues",
+          [(o.id, o.status) for o in got] == [(4, "new"), (5, "new")] and got[0].points == [(1.0, 2.0)]
+          and "the lava to the east" in got[1].notes[0] and "restarted" in got[0].notes[-1] and b.next_id == 6,
+          [(o.id, o.status, o.notes) for o in got])
+
+
 def test_surface_ops_get_the_planet():
     import asyncio as _a
     from jev.game import Game

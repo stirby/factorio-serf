@@ -150,6 +150,10 @@ class Actor(FastPaths):
         self.allow_projects = True  # off when someone else already runs the big picture (a bench strategist)
         self.fuelled: list = []
         self.state_path: Path | None = None  # where the keepers' lists are kept between sessions (a bench campaign)
+        # the open orders, kept across a restart of this app (live testing restarts it for each fix: the queue and the
+        # running order were lost every time)
+        self.orders_path: Path | None = None
+        self._orders_saved = None
 
     # ------------------------------------------------------------------ logging / chat
     def log(self, rec: dict) -> None:
@@ -227,9 +231,14 @@ class Actor(FastPaths):
         if self.thinker:
             await self.thinker.start()
         self.load_state()
+        resumed = self.load_orders()
         self._tasks = [asyncio.create_task(self._chat_loop()), asyncio.create_task(self._work_loop()),
                        asyncio.create_task(self._watch_loop()), asyncio.create_task(self._event_loop()),
                        asyncio.create_task(self._board_loop())]
+        if resumed:
+            self.wake.set()
+            await self.say("back after an update; picking up " + ", ".join(f"#{o.id} {brief(o.text, 40)}"
+                                                                         for o in resumed[:4]))
         self.log({"kind": "start", "recipes": len(self.recipes), "items": len(self.items),
                   "kept": {"fuelled": len(self.fuelled), "stocked": len(self.stocked), "watches": len(self.watches)}})
 
@@ -243,6 +252,53 @@ class Actor(FastPaths):
                                                    "watches": self.watches}, default=str))
         except OSError as e:
             self.log({"kind": "error", "where": "save_state", "error": repr(e)})
+
+    def save_orders(self) -> None:
+        if not self.orders_path:
+            return
+        keep = [{"id": o.id, "text": o.text, "speaker": o.speaker, "playbook": o.playbook,
+                 "points": [list(p) for p in o.points], "notes": o.notes, "t": o.t, "status": o.status,
+                 "speaker_at": list(o.speaker_at) if o.speaker_at else None}
+                for o in self.orders if o.status in ("new", "working", "thinking") and not o.project]
+        d = {"next_id": self.next_id, "saved": time.time(), "orders": keep}
+        key = json.dumps({**d, "saved": 0}, sort_keys=True, default=str)
+        if key == self._orders_saved:
+            return
+        try:
+            self.orders_path.write_text(json.dumps(d, indent=1, default=str))
+            self._orders_saved = key
+        except OSError as e:
+            self.log({"kind": "error", "where": "save_orders", "error": repr(e)})
+
+    def load_orders(self, max_age: float = 4 * 3600) -> list:
+        """The orders that were open when the app last stopped, queued again (a running one starts over: what it built
+        is still there)."""
+        if not self.orders_path or not self.orders_path.exists():
+            return []
+        try:
+            d = json.loads(self.orders_path.read_text())
+        except (OSError, ValueError) as e:
+            self.log({"kind": "error", "where": "load_orders", "error": repr(e)})
+            return []
+        if time.time() - float(d.get("saved") or 0) > max_age:
+            return []
+        out = []
+        for x in d.get("orders") or []:
+            try:
+                o = Order(int(x["id"]), str(x["text"]), str(x["speaker"]), str(x.get("playbook") or "plan"),
+                          [tuple(p) for p in x.get("points") or []], t=float(x.get("t") or time.time()))
+            except (KeyError, TypeError, ValueError):
+                continue
+            o.notes = list(x.get("notes") or [])
+            if x.get("speaker_at"):
+                o.speaker_at = tuple(x["speaker_at"])
+            if x.get("status") in ("working", "thinking"):
+                o.notes.append("(the serf restarted while on this order: what it built for it is still there)")
+            out.append(o)
+        self.orders.extend(out)
+        self.next_id = max(self.next_id, int(d.get("next_id") or 1), *(o.id + 1 for o in out))
+        self.log({"kind": "resumed", "orders": [o.id for o in out]})
+        return out
 
     def load_state(self) -> None:
         if not self.state_path or not self.state_path.exists():
@@ -1579,6 +1635,7 @@ class Actor(FastPaths):
         last = None
         while True:
             await asyncio.sleep(1)
+            self.save_orders()
             b = self._board()
             key = json.dumps({**b, "now": {k: v for k, v in (b.get("now") or {}).items() if k != "secs"}},
                              sort_keys=True)
