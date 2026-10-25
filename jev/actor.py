@@ -351,6 +351,16 @@ class Actor(FastPaths):
             self.log({"kind": "reopen", "order": last.id})
             self.wake.set()
             return
+        queued = next((x for x in reversed(self.orders) if x.status == "new" and x.speaker == speaker
+                       and time.time() - x.t < 180), None)
+        if kind in ("new_job", "more_info") and queued and not (pts_here and queued.points and all(
+                math.hypot(p[0] - q[0], p[1] - q[1]) > 30 for p in pts_here for q in queued.points)):
+            # more about the job they just queued, not another job (live test: three lines about one build became
+            # three orders, run one after another)
+            queued.notes.append(f"{speaker}: {msg}")
+            self.log({"kind": "added_to_queued", "order": queued.id})
+            await self.say("got it, adding that to the job")
+            return
         if kind == "new_job" or (kind == "more_info" and not doing and call.kind_conf < 0.5
                                  and call.playbook_conf >= 0.8):
             pts = [(float(a), float(b)) for a, b in GPS.findall(msg)]
@@ -392,6 +402,12 @@ class Actor(FastPaths):
         elif kind == "stop":
             if self.current and self.current.status in ("working", "thinking"):
                 self.current.status = "cancelled"
+            # and what's queued (live test: "STOP QUEUEING" stopped the walk, and the same job queued three times ran next)
+            dropped = [x for x in self.orders if x.status == "new"]
+            for x in dropped:
+                x.status = "cancelled"
+            if dropped:
+                self.log({"kind": "dropped", "orders": [x.id for x in dropped]})
             await self.g.cancel("player said stop")
             if self.project and self.project.active:
                 self.project.stop(f"stopped by {speaker}")
@@ -401,18 +417,30 @@ class Actor(FastPaths):
         elif kind == "question" and await self._quick_answer(msg):
             pass
         elif kind == "question" and self.thinker:
-            self.thinker.ask(Request("question", f"{speaker} asked in chat: \"{msg}\"\nAnswer briefly with the say "
-                                     "tool (look first only if you need to). Don't submit a plan unless they asked "
-                                     "for work.", self.current.id if self.current else None))
+            # (no order id: its words-only answer once closed the order being worked on)
+            self.thinker.ask(Request("question", f"{speaker} asked in chat: \"{msg}\"\n{self._orders_words()}\n"
+                                     "Answer briefly with the say tool (look first only if you need to; check facts "
+                                     "like research and what's built before saying what's missing). Don't submit a "
+                                     "plan unless they asked for work.", None))
         elif kind == "chatter":
             # small talk to it gets a short answer, like a teammate's (live test: "how are you doing" got silence)
             if self.thinker:
-                self.thinker.ask(Request("question", f"{speaker} said to you in chat: \"{msg}\"\nIt's small talk: "
-                                         "reply in one short, friendly line with the say tool (what you're up to, or "
-                                         "that you're free for a job). Don't look around and don't submit a plan.",
-                                         self.current.id if self.current else None))
+                self.thinker.ask(Request("question", f"{speaker} said to you in chat: \"{msg}\"\n"
+                                         f"{self._orders_words()}\nIt's small talk: reply in one short, friendly line "
+                                         "with the say tool (what you're up to, or that you're free for a job). Don't "
+                                         "look around and don't submit a plan.", None))
             else:
                 await self.say("all good here. Free for a job: @" + self.name + " and what you need")
+
+    def _orders_words(self) -> str:
+        """Its own orders, for answering about them (live test: "what is number 1 in your queue" got "nothing
+        queued" while two were)."""
+        cur = self.current if self.current and self.current.status in ("working", "thinking") else None
+        q = [x for x in self.orders if x.status == "new"]
+        out = "Your orders: " + (f"working on #{cur.id} \"{cur.text[:160]}\" ({cur.status})" if cur else "none running")
+        if q:
+            out += "; queued: " + "; ".join(f"#{x.id} \"{x.text[:120]}\"" for x in q[:5])
+        return out + "."
 
     async def _quick_answer(self, msg: str) -> bool:
         """Status/where/inventory questions answered by code; anything else goes to the thinker."""
@@ -461,6 +489,15 @@ class Actor(FastPaths):
                 await self.runner.tidy()  # full pockets quietly break mining, taking and crafting
             except Exception as e:  # noqa: BLE001
                 self.log({"kind": "error", "where": "tidy", "error": repr(e)})
+            if o.speaker not in (self.name, "project", "planner"):
+                # following a player is a standing job: a new order comes first (live test: the next order's walk
+                # waited behind it, and the serf stood still)
+                try:
+                    me = next((x for x in await self.g.call("list") if x.get("name") == self.name), {})
+                    if (me.get("job") or {}).get("op") == "follow":
+                        await self.g.cancel("a new order comes before following")
+                except Exception as e:  # noqa: BLE001
+                    self.log({"kind": "error", "where": "follow cancel", "error": repr(e)})
             pre = await self._mine_near(o)  # what the character had already built there
             self.runner.abort = lambda o=o: o.status == "cancelled"
             try:
