@@ -2,8 +2,9 @@
 """A live test session in a player's own world: a copy of their newest save on a local server (slot 70, biters off,
 the player's mods), the serf on it capturing every order and every "!" flag, and a log a developer can watch.
 
-    .venv/bin/python bench/live_session.py up [SAVE]         # copy SAVE (default: the newest in ~/.factorio/saves)
-                                                             # and (re)start slot 70, then the serf
+    .venv/bin/python bench/live_session.py up [SAVE] [--biters]   # copy SAVE (default: the newest in
+                                                             # ~/.factorio/saves) and (re)start slot 70, then the serf;
+                                                             # biters are removed unless the player asks for --biters
     .venv/bin/python bench/live_session.py serf [--note TEXT] [--force]   # restart only the serf (seconds; the
                                                              # character stays, the player stays connected)
     .venv/bin/python bench/live_session.py status
@@ -95,7 +96,7 @@ def start_serf(note: str | None) -> None:
     (i.dir / "serf.pid").write_text(str(p.pid))
     for _ in range(60):  # up once it prints where its logs are
         time.sleep(0.5)
-        tail = (i.dir / "serf.log").read_text(errors="replace")[-2000:]
+        tail = (i.dir / "serf.log").read_text(errors="replace").rsplit("\n=== ", 1)[-1]  # this start's lines
         if "is in the game" in tail or "is away" in tail:
             print(tail.strip().splitlines()[-1])
             return
@@ -117,7 +118,7 @@ def busy() -> str | None:
     return None
 
 
-def up(save: str | None) -> None:
+def up(save: str | None, biters: bool = False) -> None:
     if save:
         src = Path(save).expanduser()
         if not src.exists():
@@ -139,9 +140,10 @@ def up(save: str | None) -> None:
     copy = WORLDS / f"{name}.zip"
     shutil.copy2(src, copy)  # the player's file is only read
     print(f"world: {src.name} ({time.strftime('%m-%d %H:%M', time.localtime(src.stat().st_mtime))}) -> {copy.name}")
-    i = Instance(SLOT, copy, mods="live")
+    i = Instance(SLOT, copy, mods="live", biters=biters)
     i.start(300)
-    print(f"slot {SLOT} up (biters removed: {getattr(i, 'biters_removed', '?')}); join localhost:{i.game_port}")
+    print(f"slot {SLOT} up ({'biters ON' if biters else 'biters removed: ' + str(getattr(i, 'biters_removed', '?'))}); "
+          f"join localhost:{i.game_port}")
     start_serf(None)
 
 
@@ -150,13 +152,14 @@ def main() -> None:
     sub = ap.add_subparsers(dest="cmd", required=True)
     u = sub.add_parser("up")
     u.add_argument("save", nargs="?")
+    u.add_argument("--biters", action="store_true", help="keep the biters (only when the player asks for them)")
     s = sub.add_parser("serf")
     s.add_argument("--note")
     s.add_argument("--force", action="store_true")
     sub.add_parser("status")
     a = ap.parse_args()
     if a.cmd == "up":
-        up(a.save)
+        up(a.save, a.biters)
     elif a.cmd == "serf":
         if not inst().running():
             raise SystemExit(f"slot {SLOT} isn't running: live_session.py up")
