@@ -35,6 +35,18 @@ from .world import CHESTS, World, fmt_xy, items_words
 log = logging.getLogger("jev.actor")
 
 GPS = re.compile(r"\[gps=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)(?:,[^\]]*)?\]")
+def fail_reason(report: str) -> str:
+    """The line of a failed try's report that says what went wrong, for chat (live test: the first line was the
+    "Steps done:" heading)."""
+    lines = [x.strip() for x in report.splitlines() if x.strip()]
+    for pre in ("Expectations not met:", "Error:", "Failed at step"):
+        for x in lines:
+            if x.startswith(pre):
+                return x[len(pre):].strip(" :")[:160] if pre != "Failed at step" else x[:160]
+    rest = [x for x in lines if not x.endswith(":") and not re.match(r"^\d+\.", x) and not x.startswith("Look at")]
+    return rest[0][:160] if rest else "the checks never passed"
+
+
 def brief(t: str, n: int = 90, name: str = "serf") -> str:
     """An order's words for a chat line, in quotes: no @names, not its own name or "okay" in front, the first sentence,
     cut (live test: "working on: serf after you're done make a clean grid..." read like the serf giving orders)."""
@@ -78,6 +90,8 @@ class Order:
     multi: bool = False  # several jobs in one message: the planner sorts them out, not the quick paths
     reopened: int = 0  # times a player said it isn't done after it finished
     fail_reason: str = ""  # why it gave up, in a line (said, and given when asked what it couldn't finish)
+    todo_id: int | None = None  # its task in Todo List (jev/todo_bridge.py)
+    todo_rank: int = 0  # the task's place in that list (orders from tasks run in list order, after chat orders)
     ended_t: float = 0.0
     quick_plan: dict | None = None  # the plan a fast path ran (re-checked when it's reopened)
     project: "Project | None" = None  # the project that gave this order (jev/project.py)
@@ -242,6 +256,9 @@ class Actor(FastPaths):
         self._tasks = [asyncio.create_task(self._chat_loop()), asyncio.create_task(self._work_loop()),
                        asyncio.create_task(self._watch_loop()), asyncio.create_task(self._event_loop()),
                        asyncio.create_task(self._board_loop())]
+        from .todo_bridge import TodoBridge
+        self.todo = TodoBridge(self)  # does nothing unless the game has Todo List with its remote interface
+        self._tasks.append(asyncio.create_task(self.todo.loop()))
         if resumed:
             self.wake.set()
             await self.say("back after an update; picking up " + ", ".join(f"#{o.id} {brief(o.text, 40)}"
@@ -265,7 +282,7 @@ class Actor(FastPaths):
             return
         keep = [{"id": o.id, "text": o.text, "speaker": o.speaker, "playbook": o.playbook,
                  "points": [list(p) for p in o.points], "notes": o.notes, "t": o.t, "status": o.status,
-                 "history": [h[:600] for h in o.history[-2:]],
+                 "history": [h[:600] for h in o.history[-2:]], "todo_id": o.todo_id, "todo_rank": o.todo_rank,
                  "speaker_at": list(o.speaker_at) if o.speaker_at else None}
                 for o in self.orders if o.status in ("new", "working", "thinking") and not o.project]
         d = {"next_id": self.next_id, "saved": time.time(), "orders": keep}
@@ -298,6 +315,8 @@ class Actor(FastPaths):
             except (KeyError, TypeError, ValueError):
                 continue
             o.notes = list(x.get("notes") or [])
+            if x.get("todo_id") is not None:
+                o.todo_id, o.todo_rank = int(x["todo_id"]), int(x.get("todo_rank") or 0)
             if x.get("speaker_at"):
                 o.speaker_at = tuple(x["speaker_at"])
             if x.get("status") in ("working", "thinking"):
@@ -646,6 +665,30 @@ class Actor(FastPaths):
                   for p, (x, y, sf, t) in self.pings.items() if now - t < 900]
         return ("Players' last map pings: " + "; ".join(recent) + ".") if recent else ""
 
+    def _next_order(self, queued: list | None = None):
+        """What runs next: orders given in chat (and the serf's own), oldest first; then Todo List tasks in the list's
+        order, so a player's sort arrows set what comes first."""
+        q = [x for x in self.orders if x.status == "new"] if queued is None else queued
+        chat = [x for x in q if x.todo_id is None]
+        if chat:
+            return chat[0]
+        return min(q, key=lambda x: x.todo_rank) if q else None
+
+    def queue_position(self, o, queued: list) -> int:
+        order = sorted(queued, key=lambda x: (x.todo_id is not None, x.todo_rank if x.todo_id is not None else 0,
+                                              self.orders.index(x)))
+        return order.index(o) + 1 if o in order else len(order) + 1
+
+    def order_by_id(self, oid: int):
+        return next((x for x in self.orders if x.id == oid), None)
+
+    async def drop_order(self, o, why: str) -> None:
+        was = o.status
+        o.status = "cancelled"
+        self.log({"kind": "dropped", "orders": [o.id], "why": why})
+        if was in ("working", "thinking") and o is self.current:
+            await self.g.cancel(why)
+
     async def _flag(self, speaker: str, note: str) -> None:
         """Live testing: "! that was wrong, I meant..." marks this moment for the developer. Logged with what the serf
         was doing; the hook (jev/capture.py) saves the world and the last minutes of the log; only the player who
@@ -727,7 +770,7 @@ class Actor(FastPaths):
     # ------------------------------------------------------------------ work
     async def _work_loop(self) -> None:
         while True:
-            o = next((x for x in self.orders if x.status == "new"), None)
+            o = self._next_order()
             if not o:
                 self._set_busy(False)
                 self.wake.clear()
@@ -1612,8 +1655,7 @@ class Actor(FastPaths):
                     "needed; what was built is still there).")
         # which order and why (live test: "I couldn't finish that one, sorry" after 17 minutes; the player had to ask
         # "which one could you not finish?" and got told what it was doing next)
-        last = (o.history[-1] if o.history else "").strip()
-        reason = re.split(r"(?<=[.!?])\s|\n", last)[0][:160] if last else "the checks never passed"
+        reason = fail_reason(o.history[-1] if o.history else "")
         o.fail_reason, o.ended_t = reason, time.time()
         await self.say(f"couldn't finish #{o.id} {brief(o.text, 50)} after {o.plans} tries: {reason}. "
                        "Want me to keep at it, or leave it?")
@@ -1631,7 +1673,9 @@ class Actor(FastPaths):
         cur = self.current if self.current and self.current.status in ("working", "thinking") else None
         b: dict = {"thinking": bool(self.thinker and self.thinker.busy),
                    "queue": [{"id": o.id, "text": o.text[:140], "by": o.speaker, "notes": len(o.notes)}
-                             for o in self.orders if o.status == "new"][:15],
+                             for o in sorted((x for x in self.orders if x.status == "new"),
+                                             key=lambda x: self.queue_position(x, [y for y in self.orders
+                                                                                   if y.status == "new"]))][:15],
                    "recent": [{"id": o.id, "text": o.text[:100], "status": o.status}
                               for o in reversed(self.orders) if o.status in ("done", "failed", "cancelled")][:6]}
         if cur:

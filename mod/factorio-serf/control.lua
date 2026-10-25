@@ -267,6 +267,19 @@ API.mark = function(req)
   return { id = m.id }
 end
 API.unmark = function(req) marks.remove(req.id) return {} end
+-- Todo List (the Todo-List mod) through its remote interface, for the serf's task bridge (jev/todo_bridge.py): only
+-- these calls; {available = false} when that mod (or its interface) isn't in this game.
+local TODO_CALLS = { version = true, get_tasks = true, add_assignee = true, remove_assignee = true, add_task = true,
+  update_task = true, set_subtasks = true, mark_complete = true, mark_open = true }
+API.todo = function(req)
+  local fn = tostring(req.fn or "")
+  if not TODO_CALLS[fn] then error("todo: no call " .. fn, 0) end
+  local iface = remote.interfaces["Todo-List"]
+  if not (iface and iface[fn]) then return { available = false } end
+  local args = type(req.args) == "table" and req.args or {}
+  return { available = true, result = remote.call("Todo-List", fn, table.unpack(args, 1, 4)) }
+end
+
 -- The players' map tags on a surface (the agent's planet by default), nearest the center first: how players name
 -- places and purpose-built chests ("foundry feed", "mall"). Live test: "can you read my map tags?"
 API.tags = function(req)

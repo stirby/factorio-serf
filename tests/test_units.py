@@ -1217,6 +1217,112 @@ def test_underground_pair_off_view():
 
 
 
+def test_todo_bridge():
+    """Todo List tasks assigned to the serf become orders in list order (after chat orders); status and plan steps go
+    back to the task; done ticks it; an unassigned task drops its order; a failed task edited by a player is tried
+    again."""
+    import asyncio as _a
+    import tempfile
+    from jev import decide
+    from jev.actor import Actor, Order
+    from jev.todo_bridge import TodoBridge
+
+    class Todo:  # the Todo-List remote interface, in Python
+        def __init__(self):
+            self.tasks, self.assignees, self.calls = [], set(), []
+
+        def handle(self, fn, args):
+            self.calls.append(fn)
+            if fn == "version":
+                return 1
+            if fn == "add_assignee":
+                self.assignees.add(args[0])
+                return True
+            if fn == "get_tasks":
+                return [dict(x) for x in self.tasks if not x["done"]] or {}
+            task = next((x for x in self.tasks if x["id"] == args[0]), None)
+            if task is None:
+                return False
+            if fn == "update_task":
+                task.update(args[1])
+            elif fn == "set_subtasks":
+                task["subtasks"] = [dict(s, owner=args[1]) for s in args[2]]
+            elif fn == "mark_complete":
+                task["done"] = True
+            return True
+
+    class G:
+        name, away = "serf", False
+
+        def __init__(self, todo):
+            self.todo, self.cancels = todo, []
+
+        async def call(self, op, timeout=30, **kw):
+            assert op == "todo"
+            return {"available": True, "result": self.todo.handle(kw["fn"], kw["args"])}
+
+        async def cancel(self, reason="", job=None):
+            self.cancels.append(reason)
+
+    async def chat(jev, me, speaker, msg, doing, last):
+        return decide.ChatCall(1.0, "new_job", 1.0, "plan", 1.0, 0.0)
+
+    saved = decide.chat
+    decide.chat = chat
+    try:
+        todo = Todo()
+        todo.tasks = [{"id": 1, "title": "Roboport grid", "task": "as ghosts", "assignee": "serf", "done": False,
+                       "created_by": "otterplex"},
+                      {"id": 2, "title": "Dump stone", "task": "", "assignee": "serf", "done": False,
+                       "created_by": "otterplex"},
+                      {"id": 3, "title": "Fulgora", "task": "", "assignee": "otterplex", "done": False}]
+        a = Actor(G(todo), None, Path(tempfile.mkdtemp()), "serf", think=False)
+        a.orders.append(Order(50, "follow me", "otterplex", "plan", []))  # a chat order
+        a.next_id = 51
+        b = TodoBridge(a)
+        _a.run(b.tick())
+        o1, o2 = a.order_by_id(b.by_task[1]), a.order_by_id(b.by_task[2])
+        r1 = ("serf" in todo.assignees and o1.text == "Roboport grid: as ghosts" and o2.text == "Dump stone"
+              and 3 not in b.by_task and a._next_order().id == 50 and todo.tasks[1]["status"].startswith("serf · queued"))
+        a.orders[0].status = "done"
+        nxt = a._next_order()
+        o1.status = "working"
+        a.view = {"order": o1.id, "goal": "g", "steps": ["fetch roboports", "ghost them", "power"],
+                  "states": ["ok", "run", "todo"]}
+        _a.run(b.tick())
+        t1 = todo.tasks[0]
+        r2 = (nxt is o1 and t1["status_kind"] == "working" and "step 2 of 3: ghost them" in t1["status"]
+              and [s["done"] for s in t1["subtasks"]] == [True, False, False] and t1["subtasks"][0]["owner"] == "serf")
+        o1.status = "done"
+        todo.tasks[1]["assignee"] = "otterplex"
+        _a.run(b.tick())
+        r3 = todo.tasks[0]["done"] and o2.status == "cancelled" and 2 not in b.by_task
+        todo.tasks[1]["assignee"] = "serf"
+        _a.run(b.tick())
+        o2b = a.order_by_id(b.by_task[2])
+        o2b.status, o2b.fail_reason = "failed", "no lava within 100 tiles"
+        _a.run(b.tick())
+        r4 = todo.tasks[1]["status_kind"] == "failed" and "no lava" in todo.tasks[1]["status"] and b.by_task[2] == o2b.id
+        todo.tasks[1]["task"] = "the lava is east of the furnaces"
+        _a.run(b.tick())
+        r5 = b.by_task[2] != o2b.id and a.order_by_id(b.by_task[2]).status == "new"
+    finally:
+        decide.chat = saved
+    check("todo bridge: tasks become orders after chat orders; status and steps go back; done ticks; unassigned drops;"
+          " a failed task edited is retried", r1 and r2 and r3 and r4 and r5, (r1, r2, r3, r4, r5))
+
+
+def test_fail_reason():
+    from jev.actor import fail_reason
+    a = fail_reason("Steps done:\n1. take at 85,-19: ok\n\nFailed at step 2: {\"do\": \"take\"}\nError: no entity at 54.5,127.5\n"
+                    "10 steps were not run yet.")
+    b = fail_reason("Expectations not met: 1 machines without power near 32,-128; 6 planned buildings still unbuilt\n"
+                    "Look at the area again if you need to")
+    check("fail reason: the error or the unmet expectation, not the 'Steps done:' heading",
+          a == "no entity at 54.5,127.5" and b.startswith("1 machines without power near 32,-128") and
+          fail_reason("") == "the checks never passed", (a, b))
+
+
 def test_orders_survive_a_restart():
     import tempfile
     from jev.actor import Actor, Order
