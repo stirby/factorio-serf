@@ -57,6 +57,7 @@ class Order:
     queued_plans: list = field(default_factory=list)  # next parts of a big order (plans submitted with more=true)
     running_more: bool = False  # the plan running now is a part with more to come
     parts_asked: int = 0  # times the thinker was asked for a next part after ending its turn without one
+    limit_waits: int = 0  # times the order waited for the planner's usage limit to lift
     rate_asks: int = 0  # times a "done" plan was sent back because the base doesn't make the rate the order names
     quick: bool = False  # built by the actor's quick-build path (no planner)
     belt_len: float = 0  # the longest new belt any of its plans laid (items need time to travel it)
@@ -994,17 +995,32 @@ class Actor(FastPaths):
                     self._plan_waiters.pop(o.id, None)
                     return None
 
+    async def _wait_out_limit(self, o: Order) -> bool:
+        """Out of capacity is not an answer: the order waits, still "thinking" so a manager waiting on it waits too,
+        until the planner's usage limit lifts. False if it was cancelled meanwhile. b16 at 22:03: with the order
+        failed at once, each reopen failed within a second for 20 minutes, and the managers took the failures for
+        bad orders and broke sound ones up."""
+        st = self.thinker.stats
+        until = st.lifts_at or st.limited_at + 600
+        o.limit_waits += 1
+        o.status = "thinking"
+        self.log({"kind": "limit_wait", "order": o.id, "until": round(until)})
+        if not getattr(self, "_told_limit", False):
+            self._told_limit = True
+            await self.say(f"my planner is out of capacity until about {time.strftime('%H:%M', time.localtime(until))}"
+                           f"; order {o.id} waits until then")
+        while time.time() < until:
+            if o.status == "cancelled":
+                return False
+            await asyncio.sleep(min(30.0, max(1.0, until - time.time())))
+        st.usage_limited = False
+        self._told_limit = False
+        return o.status != "cancelled"
+
     async def _ask_plan(self, o: Order, text: str, timeout: float = 600) -> dict | None:
         if not self.thinker:
             return None
-        if self.thinker.stats.usage_limited and time.time() - self.thinker.stats.limited_at > 600:
-            self.thinker.stats.usage_limited = False  # usage limits lift: try again every 10 minutes
-            self._told_limit = False
-        if self.thinker.stats.usage_limited:
-            if not getattr(self, "_told_limit", False):
-                self._told_limit = True
-                await self.say("my planner is out of capacity right now (usage limit); I can still fix, deliver and "
-                               "route belts, but bigger builds will have to wait")
+        if self.thinker.stats.usage_limited and not await self._wait_out_limit(o):
             return None
         fut = asyncio.get_running_loop().create_future()
         self._plan_waiters[o.id] = fut
@@ -1101,14 +1117,17 @@ class Actor(FastPaths):
         # up to 4 plans that get nowhere; a plan that got several steps done before failing (a big order built in
         # parts) doesn't use one up, within 10 plans in all
         wasted, total, ok_before = 0, 0, self.metrics["steps_ok"]
+        free = False  # the last ask went unanswered for want of capacity: asking again doesn't use a plan up
         while wasted < 4 and total < 10:
-            total += 1
-            if total > 1:
-                if self.metrics["steps_ok"] - ok_before < 3:
-                    wasted += 1
-                    if wasted >= 4:
-                        break
-                ok_before = self.metrics["steps_ok"]
+            if not free:
+                total += 1
+                if total > 1:
+                    if self.metrics["steps_ok"] - ok_before < 3:
+                        wasted += 1
+                        if wasted >= 4:
+                            break
+                    ok_before = self.metrics["steps_ok"]
+            free = False
             if o.status == "cancelled":
                 return False
             if o.next_plan:
@@ -1185,9 +1204,14 @@ class Actor(FastPaths):
                     await self.say("sorry, I'm stuck on this one (no plan)")
                 return False
             if plan.get("no_plan") and plan.get("limited"):
-                # out of capacity, not an answer: p11's order closed "done" on "You've hit your session limit"
-                await self.say("my planner is out of capacity right now (usage limit); I'll have to leave this one")
-                return False
+                # out of capacity, not an answer (p11's order closed "done" on "You've hit your session limit"): ask
+                # again once the limit lifts (_ask_plan waits for it)
+                o.plans -= 1
+                if o.limit_waits >= 12:
+                    await self.say("my planner stays out of capacity; I'll have to leave this one")
+                    return False
+                plan, free = None, True
+                continue
             if plan.get("no_plan") and plan.get("error"):
                 await self.say("my planner hit an error; trying again")
                 plan = None

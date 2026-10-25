@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -171,6 +172,35 @@ class ThinkStats:
     errors: int = 0
     usage_limited: bool = False
     limited_at: float = 0.0  # when the limit was last hit (it lifts after a while: tried again after RETRY_LIMIT)
+    lifts_at: float = 0.0  # when the limit's message says it lifts (limit_lifts)
+
+
+LIMIT_RESET = re.compile(r"resets (?:([A-Z][a-z]{2}) (\d{1,2}), )?(\d{1,2})(?::(\d\d))?\s*([ap]m)", re.I)
+
+
+def limit_lifts(text: str, now: float | None = None) -> float:
+    """When a usage limit lifts, from its message, in local time (the messages name the machine's zone): "resets
+    10:20pm (America/Chicago)" (the 5-hour session limit) or "resets Oct 28, 8pm" (the weekly one). Ten minutes on
+    when the message doesn't say."""
+    now = time.time() if now is None else now
+    m = LIMIT_RESET.search(text or "")
+    if not m:
+        return now + 600
+    mon, day, h, mi, ap = m.groups()
+    h = int(h) % 12 + (12 if ap.lower() == "pm" else 0)
+    lt = time.localtime(now)
+    if mon:
+        try:
+            month = time.strptime(mon.title(), "%b").tm_mon
+        except ValueError:
+            return now + 600
+        year = lt.tm_year + (1 if month < lt.tm_mon else 0)
+        t = time.mktime((year, month, int(day), h, int(mi or 0), 0, 0, 0, -1))
+    else:
+        t = time.mktime((lt.tm_year, lt.tm_mon, lt.tm_mday, h, int(mi or 0), 0, 0, 0, -1))
+        if t < now - 3600:
+            t += 86400  # "resets 1am" said at 11pm
+    return t + 60  # a minute's slack
 
 
 @dataclass
@@ -339,15 +369,18 @@ class Thinker:
                 self.stats.errors += 1
                 log.exception("thinker turn failed")
                 self.log_fn({"t": time.time(), "kind": "thinker_error", "error": repr(e)})
-                if "session limit" in repr(e).lower() or "usage limit" in repr(e).lower():
+                hit = "session limit" in repr(e).lower() or "usage limit" in repr(e).lower()
+                if hit:
                     # the subscription's limit arrives as an error result, not as text: mark it, so orders wait for
                     # the retry instead of each burning its replans in seconds (11:20 limit: orders failed in bursts)
                     self.stats.usage_limited = True
                     self.stats.limited_at = time.time()
+                    self.stats.lifts_at = limit_lifts(repr(e))
                 await self._restart()
                 # whoever waits on this request gets a no-plan answer instead of waiting forever
                 try:
-                    await self.on_plan({"goal": None, "steps": [], "no_plan": True, "error": repr(e)[:200]}, req)
+                    await self.on_plan({"goal": None, "steps": [], "no_plan": True, "error": repr(e)[:200],
+                                        **({"limited": True} if hit else {})}, req)
                 except Exception:  # noqa: BLE001
                     pass
             finally:
@@ -380,6 +413,7 @@ class Thinker:
                         if "usage limit" in b.text.lower() or "hit your session limit" in b.text:
                             self.stats.usage_limited = True
                             self.stats.limited_at = time.time()
+                            self.stats.lifts_at = limit_lifts(b.text)
                             limited = True
             elif isinstance(msg, ResultMessage):
                 total = msg.total_cost_usd or 0.0

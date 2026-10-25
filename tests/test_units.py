@@ -1391,6 +1391,71 @@ def test_lint_bus_steps_both_sides():
           and isinstance(out[2]["belt"], list) and out[2]["belt"][0] < -1, (east, west, out[2].get("belt")))
 
 
+def test_limit_lifts():
+    from jev.thinker import limit_lifts
+    now = time.mktime((2026, 10, 24, 22, 3, 0, 0, 0, -1))
+    hm = lambda t: time.strftime("%m-%d %H:%M", time.localtime(t))  # noqa: E731
+    got = [hm(limit_lifts(t, now)) for t in ("You've hit your session limit · resets 10:20pm (America/Chicago)",
+                                             "resets Oct 28, 8pm (America/Chicago) (exit code: 1)",
+                                             "resets 12:40pm (America/Chicago)", "an error with no time")]
+    check("limit lifts: the session reset today, the weekly one's date, a clock time already past is tomorrow's, "
+          "else ten minutes", got == ["10-24 22:21", "10-28 20:01", "10-25 12:41", "10-24 22:13"], got)
+
+
+def test_limited_order_waits():
+    """An order whose planner is out of capacity waits for the limit to lift and is asked again; it doesn't fail
+    (b16 at 22:03: the order failed at once and each reopen failed in a second for 20 minutes)."""
+    import asyncio
+    from jev.actor import Actor, Order
+    from jev.thinker import ThinkStats
+
+    class T:
+        def __init__(self):
+            self.stats = ThinkStats(usage_limited=True, limited_at=time.time(), lifts_at=time.time() + 1.5)
+            self.asked = []
+            self.busy, self.current = False, None
+
+        def ask(self, req):
+            self.asked.append(req)
+
+    a = Actor.__new__(Actor)
+    a.thinker, a.prefetch, a._plan_waiters, a._told_limit = T(), False, {}, False
+    said, logged = [], []
+
+    async def say(text):
+        said.append(text)
+    a.say, a.log = say, logged.append
+    o = Order(7, "@serf build green science", "project", "plan", [])
+
+    async def go():
+        task = asyncio.create_task(a._ask_plan(o, "plan it", timeout=5))
+        await asyncio.sleep(0.5)
+        waiting = o.status == "thinking" and not a.thinker.asked
+        await asyncio.sleep(1.6)
+        asked = bool(a.thinker.asked) and a.thinker.asked[0].order_id == 7
+        if 7 in a._plan_waiters:
+            a._plan_waiters[7].set_result({"steps": [], "goal": "g"})
+        return waiting, asked, await asyncio.wait_for(task, 5)
+    waiting, asked, plan = asyncio.run(go())
+    check("limited order: waits as 'thinking' without asking, then asks once the limit lifts and gets its plan",
+          waiting and asked and plan == {"steps": [], "goal": "g"}, (waiting, asked, plan))
+    check("limited order: says when it resumes, logs the wait, clears the limit",
+          said and "out of capacity until about" in said[0] and not a.thinker.stats.usage_limited
+          and any(e.get("kind") == "limit_wait" for e in logged), (said, logged))
+
+    # cancelled while waiting: gives up without asking
+    a.thinker, a._told_limit = T(), False
+    o2 = Order(8, "@serf x", "project", "plan", [])
+
+    async def go2():
+        task = asyncio.create_task(a._ask_plan(o2, "plan it", timeout=5))
+        await asyncio.sleep(0.3)
+        o2.status = "cancelled"
+        return await task
+    check("limited order: cancelled while waiting gives up without asking",
+          asyncio.run(go2()) is None and not a.thinker.asked)
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):

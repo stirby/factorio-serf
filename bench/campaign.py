@@ -168,11 +168,19 @@ class Generation:
 
         async def keeper():
             next_save = time.time() + 1800
+            told_limit = 0.0
             while not stop.is_set():
                 p = await self.probe(pg)
                 if p:
                     say(f"{camp.name} g{self.n}: milestone {p['level']} ({', '.join(p['milestones'][-2:])}), "
                         f"{p['techs']} techs, research {p.get('research')}")
+                st = actor.thinker.stats if actor.thinker else None
+                if st and st.usage_limited and st.limited_at != told_limit:
+                    # in the campaign log, where the watcher sees it (the 22:03 session limit showed only in the
+                    # actors' own logs)
+                    told_limit = st.limited_at
+                    say(f"{camp.name} g{self.n}: planner hit its usage limit (session limit); lifts about "
+                        f"{time.strftime('%H:%M', time.localtime(st.lifts_at or st.limited_at + 600))}")
                 if time.time() >= next_save:
                     await self.save(pg, f"t{int((time.time() - t0) / 60):03d}")
                     next_save += 1800
