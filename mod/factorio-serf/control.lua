@@ -213,6 +213,36 @@ API.status = function(req)
   return {}
 end
 
+-- What the serf's app is doing, for the Serf tasks window (panel.lua): {now = {id, text, status, secs}, plan = {order,
+-- goal, steps = {{text, state = ok|run|fail|todo}}}, queue = {{id, text, by, notes}}, recent = {{id, text, status}},
+-- thinking}. Strings are cut and lists capped here.
+local function cut(s, n) return s ~= nil and tostring(s):sub(1, n) or nil end
+API.board = function(req)
+  local a = agent_of(req)
+  local b = type(req.board) == "table" and req.board or {}
+  local out = { thinking = b.thinking == true, queue = {}, recent = {} }
+  if type(b.now) == "table" then
+    out.now = { id = tonumber(b.now.id), text = cut(b.now.text, 160), status = cut(b.now.status, 20), secs = tonumber(b.now.secs) or 0 }
+  end
+  if type(b.plan) == "table" then
+    out.plan = { order = tonumber(b.plan.order), goal = cut(b.plan.goal, 200), steps = {} }
+    for i, st in ipairs(type(b.plan.steps) == "table" and b.plan.steps or {}) do
+      if i > 60 then break end
+      out.plan.steps[i] = { text = cut(st.text, 120), state = cut(st.state, 8) }
+    end
+  end
+  for i, o in ipairs(type(b.queue) == "table" and b.queue or {}) do
+    if i > 15 then break end
+    out.queue[i] = { id = tonumber(o.id), text = cut(o.text, 140), by = cut(o.by, 40), notes = tonumber(o.notes) or 0 }
+  end
+  for i, o in ipairs(type(b.recent) == "table" and b.recent or {}) do
+    if i > 6 then break end
+    out.recent[i] = { id = tonumber(o.id), text = cut(o.text, 100), status = cut(o.status, 20) }
+  end
+  a.board, a.board_tick = out, game.tick
+  return {}
+end
+
 -- Look and naming for the panel: title (e.g. "otterplex's daemon") and the word for one agent.
 API.brand = function(req)
   storage.brand = { title = tostring(req.title or "Serfs"):sub(1, 60), kind = tostring(req.kind or "agent"):sub(1, 30) }
@@ -1040,6 +1070,8 @@ script.on_event(defines.events.on_lua_shortcut, function(e)
   if e.prototype_name == "factorio-serf-teach" then teach(game.get_player(e.player_index)) end
 end)
 script.on_event("factorio-serf-teach", function(e) teach(game.get_player(e.player_index)) end)
+script.on_event("factorio-serf-tasks", function(e) panel.toggle_tasks(game.get_player(e.player_index)) end)
+script.on_event(defines.events.on_gui_click, panel.on_click)
 
 commands.add_command("serf", "Bring in an AI helper: /serf add [name], /serf remove [name], /serf learn [name], /serf list", function(cmd)
   local p = cmd.player_index and game.get_player(cmd.player_index)
@@ -1107,6 +1139,8 @@ commands.add_command("serf", "Bring in an AI helper: /serf add [name], /serf rem
       dismiss(name, p)
       game.print("[serf] " .. name .. " left (dismissed by " .. p.name .. ").")
     end
+  elseif sub == "tasks" then
+    panel.toggle_tasks(p)
   elseif sub == "list" then
     local lines = {}
     for name, a in pairs(storage.agents) do
@@ -1120,6 +1154,7 @@ commands.add_command("serf", "Bring in an AI helper: /serf add [name], /serf rem
       .. "  /serf leave [name]: it leaves the game, keeping its items.  /serf join [name]: it comes back next to you.\n"
       .. "  /serf learn [name]: teach it the blueprint or book you're holding (or click Teach serf in the toolbar).\n"
       .. "  /serf remove [name]: send yours away (you get its items).  /serf list: who's here.\n"
+      .. "  /serf tasks (or Ctrl+Shift+J): what your serf is doing, its plan's steps and its queue.\n"
       .. "  Talk to it in chat: @serf build more iron smelting")
   end
 end)

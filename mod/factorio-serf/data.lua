@@ -19,4 +19,12 @@ data:extend {
     small_icon = "__base__/graphics/icons/blueprint.png",
     small_icon_size = 64,
   },
+  -- "Serf tasks": the window with what each serf is doing, its plan's steps and its queue
+  {
+    type = "custom-input",
+    name = "factorio-serf-tasks",
+    key_sequence = "CONTROL + SHIFT + J",
+    consuming = "none",
+    action = "lua",
+  },
 }

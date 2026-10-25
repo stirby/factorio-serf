@@ -1964,6 +1964,25 @@ return true""")
           not r1.get("ok") and "filtered to iron-plate" in str(r1.get("msg")) and r2.get("ok"), (r1, r2))
 
 
+async def chk_board(L: Live, state: dict):
+    """The Serf tasks window's data: the app's board (order, plan steps with states, queue, recent) is stored on the
+    agent, cut to size; a malformed one doesn't break it. (The window itself needs a player: not on this server.)"""
+    import json as _json
+    g = L.g
+    long = "x" * 500
+    b = {"thinking": False, "now": {"id": 3, "text": "break the boulders", "status": "working", "secs": 75},
+         "plan": {"order": 3, "goal": "rocks broken", "steps": [{"text": f"step {i}", "state": "ok" if i < 2 else "todo"}
+                                                              for i in range(80)]},
+         "queue": [{"id": 4, "text": long, "by": "otterplex", "notes": 1}], "recent": [{"id": 2, "text": "t", "status": "done"}]}
+    await g.call("board", agent="serf", board=b)
+    got = _json.loads(await L.ev("return helpers.table_to_json(storage.agents['serf'].board)"))
+    check("board: stored with steps capped at 60 and text cut", got["now"]["id"] == 3 and len(got["plan"]["steps"]) == 60
+          and got["plan"]["steps"][0]["state"] == "ok" and len(got["queue"][0]["text"]) == 140, got.get("now"))
+    await g.call("board", agent="serf", board={"queue": "nonsense", "plan": 5})
+    got = _json.loads(await L.ev("return helpers.table_to_json(storage.agents['serf'].board)"))
+    check("board: a malformed board is taken as empty", got.get("queue") in ([], {}) and "plan" not in got, got)
+
+
 async def chk_capture(L: Live, state: dict):
     """A player's order as a test case: a /server-save of the world right then (moved out of the server's saves
     folder) and case.json; the order's end adds a run."""
@@ -1994,7 +2013,7 @@ async def chk_capture(L: Live, state: dict):
 
 
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "detour": chk_route_detour, "routepocket": chk_route_pocket, "fetchfar": chk_fetch_far, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "clearworking": chk_clear_working, "pipegap": chk_pipe_gap, "auditlacks": chk_audit_lacks, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe, "supply": chk_supply, "supplyfar": chk_supply_far, "supplysilo": chk_supply_silo, "supplylines": chk_supply_lines, "supplylds": chk_supply_lds, "supplywalled": chk_supply_walled, "leavejoin": chk_leave_join, "capture": chk_capture, "hop": chk_hop, "learn": chk_learn, "storagefilter": chk_storage_filter}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "detour": chk_route_detour, "routepocket": chk_route_pocket, "fetchfar": chk_fetch_far, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "clearworking": chk_clear_working, "pipegap": chk_pipe_gap, "auditlacks": chk_audit_lacks, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe, "supply": chk_supply, "supplyfar": chk_supply_far, "supplysilo": chk_supply_silo, "supplylines": chk_supply_lines, "supplylds": chk_supply_lds, "supplywalled": chk_supply_walled, "leavejoin": chk_leave_join, "capture": chk_capture, "hop": chk_hop, "learn": chk_learn, "storagefilter": chk_storage_filter, "board": chk_board}
 
 
 async def main() -> int:

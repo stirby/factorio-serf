@@ -217,7 +217,8 @@ class Actor(FastPaths):
             await self.thinker.start()
         self.load_state()
         self._tasks = [asyncio.create_task(self._chat_loop()), asyncio.create_task(self._work_loop()),
-                       asyncio.create_task(self._watch_loop()), asyncio.create_task(self._event_loop())]
+                       asyncio.create_task(self._watch_loop()), asyncio.create_task(self._event_loop()),
+                       asyncio.create_task(self._board_loop())]
         self.log({"kind": "start", "recipes": len(self.recipes), "items": len(self.items),
                   "kept": {"fuelled": len(self.fuelled), "stocked": len(self.stocked), "watches": len(self.watches)}})
 
@@ -1511,6 +1512,44 @@ class Actor(FastPaths):
         return False
 
     # ------------------------------------------------------------------ running plans
+    def _step_state(self, o: Order, i: int, state: str) -> None:
+        v = getattr(self, "view", None)
+        if v and v.get("order") == o.id and i < len(v["states"]):
+            v["states"][i] = state
+
+    def _board(self) -> dict:
+        """What the Serf tasks window shows (the mod's board op): the order it's on with its plan's steps, the queue,
+        what finished lately (live test: "I want to see the full list" of what it's doing)."""
+        cur = self.current if self.current and self.current.status in ("working", "thinking") else None
+        b: dict = {"thinking": bool(self.thinker and self.thinker.busy),
+                   "queue": [{"id": o.id, "text": o.text[:140], "by": o.speaker, "notes": len(o.notes)}
+                             for o in self.orders if o.status == "new"][:15],
+                   "recent": [{"id": o.id, "text": o.text[:100], "status": o.status}
+                              for o in reversed(self.orders) if o.status in ("done", "failed", "cancelled")][:6]}
+        if cur:
+            b["now"] = {"id": cur.id, "text": cur.text[:160], "status": cur.status, "secs": int(time.time() - cur.t)}
+            v = getattr(self, "view", None)
+            if v and v.get("order") == cur.id:
+                b["plan"] = {"order": cur.id, "goal": v.get("goal") or "",
+                             "steps": [{"text": t, "state": st} for t, st in zip(v["steps"], v["states"])]}
+        return b
+
+    async def _board_loop(self) -> None:
+        last = None
+        while True:
+            await asyncio.sleep(1)
+            b = self._board()
+            key = json.dumps({**b, "now": {k: v for k, v in (b.get("now") or {}).items() if k != "secs"}},
+                             sort_keys=True)
+            if key == last:
+                continue
+            try:
+                await self.g.call("board", agent=self.name, board=b)
+                last = key
+            except Exception as e:  # noqa: BLE001  (a mod before 0.3.4 has no board op: try again later)
+                self.log({"kind": "error", "where": "board", "error": repr(e)[:200]})
+                await asyncio.sleep(60)
+
     async def _stop_prefetch(self) -> None:
         """The plan is here: the guesswork fetching stops, with its jobs (live test: a prefetch's grab walked the
         character off while the plan's insert walked it to a chest, and the insert failed)."""
@@ -1527,6 +1566,8 @@ class Actor(FastPaths):
     async def _run_plan(self, o: Order, plan: dict) -> tuple[bool, str]:
         await self._stop_prefetch()
         steps = plan.get("steps") or []
+        self.view = {"order": o.id, "goal": str(plan.get("goal") or "")[:200],
+                     "steps": [describe(st)[:120] for st in steps], "states": ["todo"] * len(steps)}
         try:
             o.built_pts += plan_points([st for st in steps if st.get("do") in BUILD_OPS])
         except Exception:  # noqa: BLE001
@@ -1568,8 +1609,10 @@ class Actor(FastPaths):
             while True:
                 tries += 1
                 await self.g.status(text=f"{describe(st)[:80]}")
+                self._step_state(o, i, "run")
                 r = await self.runner.run(st)
                 self.log({"kind": "step", "order": o.id, "i": i, "step": st, "ok": r.get("ok"), "msg": r.get("msg")})
+                self._step_state(o, i, "ok" if r.get("ok") else "fail")
                 if r.get("ok"):
                     self.metrics["steps_ok"] += 1
                     done.append(f"{i + 1}. {describe(st)}: ok ({str(r.get('msg'))[:120]})")
