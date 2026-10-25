@@ -1897,6 +1897,47 @@ return a.map_dot and a.map_dot.valid and a.map_dot.render_mode == 'chart' and a.
     await L.ev("storage.agents['serf'].char.get_inventory(defines.inventory.character_armor).clear() return true")
 
 
+async def chk_learn(L: Live, state: dict):
+    """Teach serf: the mod's learn event (a player's blueprint) is saved to the learned designs with its size, the
+    serf says what it learned, and a stamp step builds it by name."""
+    import os
+    import tempfile
+    from jev.actor import Actor
+    old = os.environ.get("JEV_LIBRARY")
+    os.environ["JEV_LIBRARY"] = tempfile.mkdtemp(prefix="lib-", dir=str(ROOT / "bench" / "runs"))
+    try:
+        g = L.g
+        string = await L.ev("""local inv = game.create_inventory(1) inv.insert { name = 'blueprint' }
+local bp = inv[1]
+bp.set_blueprint_entities { { entity_number = 1, name = 'iron-chest', position = { 0.5, 0.5 } },
+  { entity_number = 2, name = 'iron-chest', position = { 1.5, 0.5 } } }
+bp.label = 'two chests'
+local s = bp.export_stack() inv.destroy() return s""")
+        a = Actor(g, None, Path(os.environ["JEV_LIBRARY"]), "serf", think=False)
+        said = []
+
+        async def say(text):
+            said.append(text)
+        a.say = say
+        await a._learn({"type": "learn", "designs": [{"name": "two chests", "string": string}], "player": "tester"})
+        from jev import blueprints as bp
+        d = bp.get_design("two-chests")
+        check("learn: a taught blueprint is saved with its size and the serf says so",
+              d.get("string") == string and list(d.get("size")) == [2, 1] and said and "two-chests (2x1)" in said[0],
+              (d.get("size"), said))
+        check("learn: the planner is told about it", "two-chests 2x1" in a._taught_words(), a._taught_words())
+        x, y = await L.site(6, 4)
+        await L.ev("storage.agents['serf'].char.insert { name = 'iron-chest', count = 2 } return true")
+        r = await Runner(g).run({"do": "stamp", "name": "two-chests", "x": x + 2, "y": y + 2})
+        n = await L.ev(f"return game.surfaces.nauvis.count_entities_filtered {{ name = 'iron-chest', area = {{ {{ {x}, {y} }}, {{ {x + 5}, {y + 4} }} }} }}")
+        check("learn: stamp name=... builds it", r.get("ok") and n == 2, (r.get("msg"), n))
+    finally:
+        if old is None:
+            os.environ.pop("JEV_LIBRARY", None)
+        else:
+            os.environ["JEV_LIBRARY"] = old
+
+
 async def chk_capture(L: Live, state: dict):
     """A player's order as a test case: a /server-save of the world right then (moved out of the server's saves
     folder) and case.json; the order's end adds a run."""
@@ -1927,7 +1968,7 @@ async def chk_capture(L: Live, state: dict):
 
 
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "detour": chk_route_detour, "routepocket": chk_route_pocket, "fetchfar": chk_fetch_far, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "clearworking": chk_clear_working, "pipegap": chk_pipe_gap, "auditlacks": chk_audit_lacks, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe, "supply": chk_supply, "supplyfar": chk_supply_far, "supplysilo": chk_supply_silo, "supplylines": chk_supply_lines, "supplylds": chk_supply_lds, "supplywalled": chk_supply_walled, "leavejoin": chk_leave_join, "capture": chk_capture, "hop": chk_hop}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "detour": chk_route_detour, "routepocket": chk_route_pocket, "fetchfar": chk_fetch_far, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "clearworking": chk_clear_working, "pipegap": chk_pipe_gap, "auditlacks": chk_audit_lacks, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe, "supply": chk_supply, "supplyfar": chk_supply_far, "supplysilo": chk_supply_silo, "supplylines": chk_supply_lines, "supplylds": chk_supply_lds, "supplywalled": chk_supply_walled, "leavejoin": chk_leave_join, "capture": chk_capture, "hop": chk_hop, "learn": chk_learn}
 
 
 async def main() -> int:

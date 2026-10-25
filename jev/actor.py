@@ -269,6 +269,12 @@ class Actor(FastPaths):
         items put away) or called it back (/serf join)."""
         while True:
             ev = await self.g.events.get()
+            if ev.get("type") == "learn":  # Teach serf: for whichever serf this app runs
+                try:
+                    await self._learn(ev)
+                except Exception as e:  # noqa: BLE001
+                    self.log({"kind": "error", "where": "learn", "error": repr(e)})
+                continue
             if ev.get("agent") != self.name:
                 continue
             if ev.get("type") == "left":
@@ -452,6 +458,46 @@ class Actor(FastPaths):
                                          "look around and don't submit a plan.", None))
             else:
                 await self.say("all good here. Free for a job: @" + self.name + " and what you need")
+
+    async def _learn(self, ev: dict) -> None:
+        """Teach serf (a player's blueprint or book: the toolbar button, Ctrl+Shift+T or /serf learn): each blueprint
+        into the learned designs (jev/blueprints.py), which a stamp step builds by name (live test: nothing handled
+        the event, so taught blueprints were dropped and the player found the serf "can't access game blueprints")."""
+        from . import blueprints as bp
+        got, bad = [], []
+        for d in ev.get("designs") or []:
+            name = re.sub(r"[^A-Za-z0-9_-]+", "-", str(d.get("name") or "design")).strip("-")[:36] or "design"
+            if bp.is_builtin(name):
+                name += "-t"
+            try:
+                info = await self.g.call("blueprint_info", string=d["string"], timeout=30)
+                note = f"taught by {ev.get('player')}" + (f" from the book {ev['book']}" if ev.get("book") else "")
+                bp.save_learned(name, d["string"], info, note, {"by": ev.get("player"), "tick": ev.get("tick")})
+                got.append(f"{name} ({info['size'][0]}x{info['size'][1]})")
+            except Exception as e:  # noqa: BLE001
+                bad.append(f"{name}: {e}"[:120])
+        self.log({"kind": "learned", "player": ev.get("player"), "designs": got, "failed": bad})
+        if got:
+            await self.say(f"learned {len(got)}: " + ", ".join(got[:8]) + (" ..." if len(got) > 8 else "")
+                           + ". Ask me to build one by name.")
+        if bad:
+            await self.say("couldn't learn " + "; ".join(bad[:3]))
+
+    def _taught_words(self) -> str:
+        """The blueprints players taught it, for the planner."""
+        from . import blueprints as bp
+        try:
+            d = bp.learned_dir()
+            ds = [json.loads(f.read_text()) for f in sorted(d.glob("*.json"))] if d.is_dir() else []
+        except (OSError, ValueError):
+            return ""
+        if not ds:
+            return ""
+        return ("Blueprints players taught you (build one with {\"do\": \"stamp\", \"name\": N, \"x\": X, \"y\": Y}, "
+                "X,Y = where its centre goes; it fetches or crafts what it needs): "
+                + "; ".join(f"{x['name']} {x['size'][0]}x{x['size'][1]}" + (f" ({x['description'][:60]})"
+                                                                         if x.get("description") else "")
+                            for x in ds[:30]) + ".")
 
     async def _ping(self, speaker: str, msg: str) -> None:
         """A map ping (the player's chat line is only a [gps] tag): remembered as their last ping. It answers the
@@ -1255,6 +1301,8 @@ class Actor(FastPaths):
             parts.append("The player also said: " + " | ".join(o.notes))
         if self._ping_words():
             parts.append(self._ping_words())
+        if self._taught_words():
+            parts.append(self._taught_words())
         if o.project:
             parts.append(f"This order comes from your own project (goal: {o.project.goal[:200]}). Nobody will answer "
                          "questions about it: decide yourself. Don't start another project for it.")

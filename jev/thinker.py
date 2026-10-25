@@ -44,6 +44,7 @@ Step ops (each step is an object {{"do": op, ...}}):
   clear x y [radius] [only=[names]] [trees] | clear line=[x,y]   pick up buildings, contents included: line=[x,y] takes exactly the one belt line through that tile (with its undergrounds); x y radius takes EVERYTHING of ours in that square (default 6, max 24; `only` limits it to those names), so neighbouring lines go too (a square with more than 2 separate belt lines, 3+ working machines, or the pipes of a working fluid system is refused, with what's there listed, unless force=true); trees=true clears trees and rocks there instead. For one thing use mine_at.
   purge item x y                            take every `item` off the belts around x,y (wrong items on a belt, e.g. pipes from a wrong recipe); the belts stay
   build_ghosts [x y radius]                 build planned ghosts (also the players' own)
+  stamp name x y [direction]                build a blueprint a player taught you (the order message lists them), centred at x,y
   insert x y item [count] | take x y [item] [count] | empty_chest x y
   refuel x y [fuel]                         put fuel into a burner (fetches coal)
   wait_research tech [minutes]              wait (default 15 min, max 30) until a tech is researched, queueing it if needed; steps after it can use what it unlocks (e.g. feed the labs, wait_research electric-mining-drill, then place the drills). It only waits: the labs need packs

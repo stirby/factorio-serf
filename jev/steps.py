@@ -1788,7 +1788,16 @@ class Runner:
         return r
 
     async def _do_stamp(self, s):
-        a = {"op": "blueprint", "string": s["string"], "x": float(s["x"]), "y": float(s["y"])}
+        string = s.get("string")
+        if not string and s.get("name"):  # a blueprint a player taught it (Teach serf)
+            from . import blueprints as bp
+            try:
+                string = bp.get_design(str(s["name"])).get("string")
+            except KeyError as e:
+                return {"ok": False, "msg": str(e)[:300]}
+        if not string:
+            return {"ok": False, "msg": "stamp needs a blueprint string or the name of a taught blueprint"}
+        a = {"op": "blueprint", "string": string, "x": float(s["x"]), "y": float(s["y"])}
         if s.get("direction"):
             a["direction"] = s["direction"]
         r = await self._act(a)
