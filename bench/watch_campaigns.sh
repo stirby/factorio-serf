@@ -23,5 +23,5 @@ tail -F -n0 "${logs[@]}" 2>/dev/null | awk -v state="$state" '
     }
     next
   }
-  /generation [0-9]+ crashed|stopping|Traceback|weekly limit|session limit|usage limit/ { print; fflush() }
+  /generation [0-9]+ crashed|stopping|Traceback|weekly limit|session limit|usage limit|goal met|goal already met/ { print; fflush() }
 '

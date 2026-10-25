@@ -360,6 +360,9 @@ class Campaign:
         return stage
 
     async def run(self, gens: int, hours: float) -> None:
+        if self.state.get("goal_met"):
+            say(f"{self.name}: goal already met in generation {self.state['goal_met'].get('gen')}; nothing to run")
+            return
         first = self.state["gen"] + 1
         for _ in range(gens):
             self.state["gen"] += 1
@@ -375,6 +378,16 @@ class Campaign:
             self.state["gens"].append(summ)
             say(f"{self.name}: generation {n} ended at milestone {summ.get('level_end')} "
                 f"(from {summ.get('level_start')}), {summ.get('orders_sent')} orders, fix share {summ.get('fix_share')}")
+            if not summ.get("error") and (summ.get("level_end") or 0) >= 10 and \
+                    any(p.get("status") == "done" for p in summ.get("projects") or []):
+                # the game is beaten: the campaign is complete. Without this p9 ran three generations of a few minutes
+                # each (the manager said "done" at once), and the third looked stuck, so it started a new world.
+                self.state["goal_met"] = {"gen": n, "at": time.time(), "world": self.state["stage"]}
+                jsonl(self.dir / "campaign.jsonl", {"kind": "goal_met", "t": time.time(), "gen": n,
+                                                     "stage": self.state["stage"]})
+                say(f"{self.name}: goal met in generation {n} (rocket launched, project done); campaign complete")
+                self.save_state()
+                return
             if summ.get("error") and self.state["gens"][-2:] and all(g.get("error") for g in self.state["gens"][-2:]):
                 say(f"{self.name}: two crashed generations in a row, stopping")
                 self.save_state()

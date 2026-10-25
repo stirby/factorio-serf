@@ -168,9 +168,13 @@ def campaigns() -> tuple[list[dict], list[dict]]:
             later = t
             times.append((t, m))
         times.reverse()
+        try:
+            goal = json.loads((ROOT / "bench" / "campaigns" / name / "campaign.json").read_text()).get("goal_met")
+        except (OSError, ValueError):
+            goal = None
         for t, m in times:
-            if NOW - t > 48 * 3600:
-                continue
+            if NOW - t > 48 * 3600 or (goal and t > goal.get("at", NOW) + 60):
+                continue  # (after its goal: p9 went on to a new world before campaigns knew they could finish)
             level = int(m.group(4))
             if level != prev_level:
                 ms_rows.append({"time": iso(t), "campaign": name, "level": level, "milestones": m.group(5)})
@@ -214,7 +218,9 @@ def campaigns() -> tuple[list[dict], list[dict]]:
                     break
                 except ValueError:
                     continue
-        rows.append({"campaign": name, "world": world, "style": style,
+        if goal:
+            note = f"Goal met in generation {goal.get('gen')}: rocket launched and every science pack automated."
+        rows.append({"campaign": name, "world": world, "style": style, "state": "goal met" if goal else "running",
                      "generation": int(last[1].group(3)) if last else None,
                      "level": int(last[1].group(4)) if last else None,
                      "milestones": last[1].group(5) if last else "", "techs": int(last[1].group(6)) if last else None,

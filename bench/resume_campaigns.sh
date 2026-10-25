@@ -19,7 +19,7 @@ declare -A ARGS=(
   [q12]="--world campaign-w12 --gen-hours 4 --gens 14 --instance 90 --mode project --style classic"
 )
 names=("$@")
-[ ${#names[@]} -eq 0 ] && names=(p6 q6 p7 q7 p8 p9 p10 q10 p11 q11 p12 q12)
+[ ${#names[@]} -eq 0 ] && names=(p6 q6 p7 q7 p8 p10 q10 p11 q11 p12 q12)  # p9: goal met 2026-10-24
 for n in "${names[@]}"; do
   echo "$(date +%H:%M:%S) resuming $n"
   .venv/bin/python scripts/resume_campaign.py "$n" ${ARGS[$n]}
