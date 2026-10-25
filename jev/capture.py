@@ -46,24 +46,54 @@ class Capture:
                 "order": o.text, "points": o.points, "speaker_at": getattr(o, "speaker_at", None),
                 "playbook": o.playbook, "world": self.world, "runs": []}
         name = "live-" + cid.split("-o")[0] + f"-o{o.id}"
-        t0 = time.time()
         try:
-            await self.command(f"/server-save {name}")
-            src = self.server_saves / f"{name}.zip"
-            last = -1
-            for _ in range(120):  # done when the command returns (saving blocks), but wait for the file to settle
-                if src.exists():
-                    size = src.stat().st_size
-                    if size == last and size > 0:
-                        break
-                    last = size
-                await asyncio.sleep(0.5)
-            shutil.move(str(src), d / "save.zip")
-            case["save"], case["save_secs"] = "save.zip", round(time.time() - t0, 1)
+            case["save"], case["save_secs"] = "save.zip", await self._save(name, d / "save.zip")
         except Exception as e:  # noqa: BLE001
             case["save_error"] = repr(e)[:300]
         self.cases[o.id] = d
         self._write(d, case)
+
+    async def _save(self, name: str, to: Path) -> float:
+        """/server-save `name`, then move the file to `to` once it has settled; the seconds it took."""
+        t0 = time.time()
+        await self.command(f"/server-save {name}")
+        src = self.server_saves / f"{name}.zip"
+        last = -1
+        for _ in range(120):  # done when the command returns (saving blocks), but wait for the file to settle
+            if src.exists():
+                size = src.stat().st_size
+                if size == last and size > 0:
+                    break
+                last = size
+            await asyncio.sleep(0.5)
+        shutil.move(str(src), to)
+        return round(time.time() - t0, 1)
+
+    async def flag(self, speaker: str, note: str, ctx: dict) -> str:
+        """A player's "!" line: <out>/flags/<time>-<note>/ with save.zip, flag.json (the note, what the serf was
+        doing) and log.jsonl (the last 10 minutes of actor.jsonl). Returns the folder's name."""
+        fid = time.strftime("%Y%m%d-%H%M%S") + "-" + slug(note or "flag", 30)
+        d = self.out / "flags" / fid
+        d.mkdir(parents=True, exist_ok=True)
+        rec = {"id": fid, "at": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "t": time.time(), "speaker": speaker,
+               "note": note, "world": self.world, **ctx}
+        try:
+            rec["save"], rec["save_secs"] = "save.zip", await self._save("live-" + fid.split("-", 2)[0] + "-"
+                                                                         + fid.split("-", 2)[1] + "-flag", d / "save.zip")
+        except Exception as e:  # noqa: BLE001
+            rec["save_error"] = repr(e)[:300]
+        if self.log_path and self.log_path.exists():
+            since = time.time() - 600
+            keep = []
+            for line in self.log_path.read_text(errors="ignore").splitlines()[-20000:]:
+                try:
+                    if json.loads(line).get("t", 0) >= since:
+                        keep.append(line)
+                except ValueError:
+                    continue
+            (d / "log.jsonl").write_text("\n".join(keep) + "\n")
+        (d / "flag.json").write_text(json.dumps(rec, indent=1, default=str))
+        return fid
 
     def _said(self, since: float) -> list[str]:
         out: list[str] = []

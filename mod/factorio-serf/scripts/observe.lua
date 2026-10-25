@@ -72,6 +72,7 @@ function observe.self(a)
     armor = armor,
     name = a.name,
     surface = c.surface.name,
+    planets = agents.planets(),
     position = util.xy(c.position),
     health = math.floor(c.health),
     inventory = util.contents(c.get_main_inventory()),

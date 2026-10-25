@@ -50,6 +50,7 @@ Step ops (each step is an object {{"do": op, ...}}):
   power x y [from=[x,y]] [item]             run poles from the nearest powered pole (or from) to x,y
   fetch item count | craft recipe count | mine name count | mine_at x y [name] (pick up one entity; with name, only that kind, never a neighbour when x,y is a tile off)
   research tech [first=true: to the front of the queue, with its unresearched prerequisites] [remove=true: take it out of the queue] (or tech="cheapest") | move x y | follow player [seconds] | wait seconds | say text
+  hop planet                                go to another planet's spawn (nauvis, vulcanus, ...: only planets someone has been to). It stores everything carried in chests here first (armor, guns and ammo go along) and arrives empty-handed. Coordinates after it are that planet's. The only way to another planet: never plan a walk to one
   configure x y requests={{..}}|filter=item | limit x y slots
   launch x y                                launch the rocket in the silo at x,y once it holds a finished rocket (walks there)
 
@@ -354,10 +355,15 @@ class Thinker:
     async def _loop(self) -> None:
         while True:
             req = await self.queue.get()
-            # fold anything else already waiting into this turn
-            extra = []
+            # fold what else is waiting for the same order into this turn; the rest keeps its place in line. A turn's
+            # plan is filed under req, so a folded request for another order lost its plan (live test: a question
+            # first, an order's plan request behind it)
+            extra, rest = [], []
             while not self.queue.empty():
-                extra.append(self.queue.get_nowait())
+                x = self.queue.get_nowait()
+                (extra if x.order_id == req.order_id else rest).append(x)
+            for x in rest:
+                self.queue.put_nowait(x)
             self.current = req
             self.busy = True
             prompt = req.text + "".join(f"\n\nAlso: {x.text}" for x in extra)

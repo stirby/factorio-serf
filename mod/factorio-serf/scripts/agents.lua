@@ -77,7 +77,13 @@ function agents.spawn(args)
   local name = args.name
   if not name or name == "" then error("spawn needs a name") end
   local a = storage.agents[name]
-  if a and (agents.alive(a) or a.away) then return a end  -- away: it stays away until a player types /serf join
+  if a and (agents.alive(a) or a.away) then
+    -- an app taking over a serf a save already has (live test: a single-player save's serf kept client p1, so the
+    -- server's RCON app showed "no serf connected")
+    a.client = args.client or a.client
+    a.owner = args.owner or a.owner
+    return a  -- away: it stays away until a player types /serf join
+  end  -- away: it stays away until a player types /serf join
   if not a then
     local n = 0
     for _ in pairs(storage.agents) do n = n + 1 end
@@ -118,6 +124,56 @@ end
 local STASH_OUT = { "character_main", "character_trash", "character_guns", "character_ammo", "character_armor" }
 local STASH_BACK = { "character_armor", "character_main", "character_guns", "character_ammo", "character_trash" }
 
+-- Whole stacks out of the character into script inventories (a.stash), and back into a new character.
+local function stash_out(a, c, kinds)
+  a.stash = a.stash or {}
+  for _, k in ipairs(kinds) do
+    local inv = c.get_inventory(defines.inventory[k])
+    if inv and not inv.is_empty() then
+      local box = game.create_inventory(#inv)
+      for i = 1, #inv do
+        if inv[i].valid_for_read then box[i].transfer_stack(inv[i]) end
+      end
+      a.stash[k] = box
+    end
+  end
+end
+
+local function stash_back(a, c)
+  local surface = c.surface
+  local main = c.get_inventory(defines.inventory.character_main)
+  for _, k in ipairs(STASH_BACK) do
+    local box = a.stash and a.stash[k]
+    if box and box.valid then
+      local inv = c.get_inventory(defines.inventory[k])
+      for i = 1, #box do
+        local s = box[i]
+        if s.valid_for_read and inv and i <= #inv then inv[i].transfer_stack(s) end
+        if s.valid_for_read and main then  -- that slot isn't there now: any free one
+          local free = main.find_empty_stack(s.name)
+          if free then free.transfer_stack(s) end
+        end
+        if s.valid_for_read then  -- no room: at its feet
+          surface.spill_item_stack { position = c.position, stack = s, enable_looted = true }
+          s.clear()
+        end
+      end
+      box.destroy()
+    end
+  end
+  a.stash = nil
+end
+
+local function drop_char(a)
+  storage.by_unit[a.char.unit_number] = nil
+  a.char.destroy()
+  for _, k in pairs { "tag", "state_tag", "bubble" } do
+    if a[k] and a[k].valid then a[k].destroy() end
+    a[k] = nil
+  end
+  a.char = nil
+end
+
 function agents.leave(a)
   if a.away then return end
   if agents.alive(a) then
@@ -129,19 +185,9 @@ function agents.leave(a)
       end
     end)
     a.stash = {}
-    for _, k in ipairs(STASH_OUT) do
-      local inv = c.get_inventory(defines.inventory[k])
-      if inv and not inv.is_empty() then
-        local box = game.create_inventory(#inv)
-        for i = 1, #inv do
-          if inv[i].valid_for_read then box[i].transfer_stack(inv[i]) end
-        end
-        a.stash[k] = box
-      end
-    end
+    stash_out(a, c, STASH_OUT)
     a.left_from = { surface = c.surface.name, position = util.xy(c.position) }
-    storage.by_unit[c.unit_number] = nil
-    c.destroy()
+    drop_char(a)
   end
   for _, k in pairs { "tag", "state_tag", "bubble" } do
     if a[k] and a[k].valid then a[k].destroy() end
@@ -163,28 +209,59 @@ function agents.join(a, player)
     near = util.pos(lf.position) or default_spawn(surface)
   end
   local c = create_char(a, surface, near)
-  local main = c.get_inventory(defines.inventory.character_main)
-  for _, k in ipairs(STASH_BACK) do
-    local box = a.stash and a.stash[k]
-    if box and box.valid then
-      local inv = c.get_inventory(defines.inventory[k])
-      for i = 1, #box do
-        local s = box[i]
-        if s.valid_for_read and inv and i <= #inv then inv[i].transfer_stack(s) end
-        if s.valid_for_read and main then  -- that slot isn't there now: any free one
-          local free = main.find_empty_stack(s.name)
-          if free then free.transfer_stack(s) end
-        end
-        if s.valid_for_read then  -- no room: at its feet
-          surface.spill_item_stack { position = c.position, stack = s, enable_looted = true }
-          s.clear()
-        end
-      end
-      box.destroy()
-    end
-  end
-  a.stash, a.away, a.left_from = nil, nil, nil
+  stash_back(a, c)
+  a.away, a.left_from = nil, nil
   agents.event { type = "joined", agent = a.name, position = util.xy(c.position) }
+end
+
+-- The planets with a surface (someone has been there), for the planner and for hop.
+function agents.planets()
+  local out = {}
+  for _, sf in pairs(game.surfaces) do
+    if sf.planet then out[#out + 1] = sf.name end
+  end
+  table.sort(out)
+  return out
+end
+
+-- Planet hop: to another planet's spawn, as a teammate who'd otherwise need a rocket and a platform ride. Only
+-- empty-handed: main inventory, trash, cursor and hand-crafting must be empty, so nothing crosses planets that a
+-- player would have to ship. Armor, guns and ammo go along (as they would on a player). can_hop says whether it may
+-- (the surface, or nil and why); the caller cancels the agent's jobs between the two.
+function agents.can_hop(a, planet)
+  local c = a.char
+  local sf = game.surfaces[planet or ""]
+  if not (sf and sf.planet) then
+    return nil, "no planet surface called " .. tostring(planet) .. " (planets with a surface: "
+      .. table.concat(agents.planets(), ", ") .. ")"
+  end
+  if c.surface == sf then return nil, "already on " .. sf.name end
+  local held = {}
+  for _, k in ipairs { "character_main", "character_trash" } do
+    local inv = c.get_inventory(defines.inventory[k])
+    if inv and not inv.is_empty() then held[#held + 1] = k:gsub("character_", "") .. " inventory" end
+  end
+  if c.cursor_stack and c.cursor_stack.valid_for_read then held[#held + 1] = "cursor" end
+  if c.crafting_queue_size > 0 then held[#held + 1] = "hand-crafting" end
+  if #held > 0 then
+    return nil, "can only hop empty-handed: " .. table.concat(held, ", ") .. " not empty (store it in a chest first)"
+  end
+  return sf
+end
+
+function agents.hop(a, sf)
+  local c = a.char
+  local from = { surface = c.surface.name, position = util.xy(c.position) }
+  local spawn = game.forces.player.get_spawn_position(sf)
+  sf.request_to_generate_chunks(spawn, 2)
+  sf.force_generate_chunk_requests()
+  a.stash = {}
+  stash_out(a, c, { "character_armor", "character_guns", "character_ammo" })
+  drop_char(a)
+  local nc = create_char(a, sf, spawn)
+  stash_back(a, nc)
+  agents.event { type = "hopped", agent = a.name, from = from, to = sf.name, position = util.xy(nc.position) }
+  return nc
 end
 
 function agents.despawn(name)

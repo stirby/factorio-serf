@@ -1829,6 +1829,69 @@ return helpers.table_to_json { plates = c.get_item_count('iron-plate'), uncommon
           and kinds.index("left") < kinds.index("joined"), kinds)
 
 
+async def chk_hop(L: Live, state: dict):
+    """The planet hop: refused while carrying anything; the hop step stores what it carries in chests here, then it
+    stands at the other planet's spawn with armor (and its equipment) kept and nothing else; a planet nobody has a
+    surface for is refused with the list; back again empty-handed. Also: an app's spawn takes over a serf another
+    client had (a save's p1), and a test copy is marked so joiners are warned."""
+    import json as _json
+    g = L.g
+    await L.ev("""if not game.surfaces.vulcanus then game.planets.vulcanus.create_surface() end
+local c = storage.agents['serf'].char
+c.get_inventory(defines.inventory.character_main).clear()
+c.get_inventory(defines.inventory.character_armor).clear()
+c.get_inventory(defines.inventory.character_armor).insert { name = 'modular-armor' }
+c.get_inventory(defines.inventory.character_armor)[1].grid.put { name = 'solar-panel-equipment' }
+c.insert { name = 'iron-plate', count = 60 }
+c.insert { name = 'copper-cable', count = 40 }
+return true""")
+    me = await g.me()
+    check("hop: the serf knows its planet and the planets it can hop to",
+          me.get("surface") == "nauvis" and {"nauvis", "vulcanus"} <= set(me.get("planets") or []), me.get("planets"))
+    try:
+        await g.call("hop", agent="serf", planet="vulcanus")
+        refused = ""
+    except Exception as e:  # noqa: BLE001
+        refused = str(e)
+    check("hop: refused while carrying anything", "empty-handed" in refused and "main inventory" in refused, refused)
+    x0, y0 = me["position"]
+    while not g.events.empty():
+        g.events.get_nowait()
+    runner = Runner(g)
+    r = await runner.run({"do": "hop", "planet": "vulcanus"})
+    after = await g.me()
+    kept = _json.loads(await L.ev("""local c = storage.agents['serf'].char
+local armor = c.get_inventory(defines.inventory.character_armor)[1]
+local stored = 0
+for _, ch in pairs(game.surfaces.nauvis.find_entities_filtered { type = 'container', position = { %f, %f }, radius = 40 }) do
+  stored = stored + ch.get_item_count('iron-plate') + ch.get_item_count('copper-cable')
+end
+return helpers.table_to_json { armor = armor.valid_for_read and armor.name or '', eq = armor.valid_for_read and #armor.grid.equipment or 0,
+  stored = stored, main = c.get_main_inventory().get_item_count() }""" % (x0, y0)))
+    check("hop: the step stores everything in chests, then it's on vulcanus at its spawn, armor and equipment kept",
+          r.get("ok") and after.get("surface") == "vulcanus" and kept["armor"] == "modular-armor" and kept["eq"] == 1
+          and kept["main"] == 0 and kept["stored"] >= 60 + 40 - 8, (r.get("msg"), after.get("surface"), kept))
+    await asyncio.sleep(1)
+    kinds = []
+    while not g.events.empty():
+        kinds.append(g.events.get_nowait().get("type"))
+    check("hop: the orchestrator gets a 'hopped' event", "hopped" in kinds, kinds)
+    again = await runner.run({"do": "hop", "planet": "vulcanus"})
+    nowhere = await runner.run({"do": "hop", "planet": "fulgora"})
+    check("hop: 'already on' is ok; a planet with no surface is refused with the list",
+          again.get("ok") and not nowhere.get("ok") and "vulcanus" in str(nowhere.get("msg")),
+          (again.get("msg"), nowhere.get("msg")))
+    back = await runner.run({"do": "hop", "planet": "nauvis"})
+    check("hop: back to nauvis empty-handed", back.get("ok") and (await g.me()).get("surface") == "nauvis", back)
+    await L.ev("storage.agents['serf'].client = 'p1' return true")
+    await g.call("spawn", name="serf", client="rcon")
+    cl = await L.ev("return storage.agents['serf'].client")
+    check("spawn: an app takes over a serf a save gave another client (p1)", cl == "rcon", cl)
+    tc = await L.ev("return storage.test_copy == true")
+    check("test copy: marked when the biters are removed (joiners are warned)", tc is True, tc)
+    await L.ev("storage.agents['serf'].char.get_inventory(defines.inventory.character_armor).clear() return true")
+
+
 async def chk_capture(L: Live, state: dict):
     """A player's order as a test case: a /server-save of the world right then (moved out of the server's saves
     folder) and case.json; the order's end adds a run."""
@@ -1859,7 +1922,7 @@ async def chk_capture(L: Live, state: dict):
 
 
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "detour": chk_route_detour, "routepocket": chk_route_pocket, "fetchfar": chk_fetch_far, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "clearworking": chk_clear_working, "pipegap": chk_pipe_gap, "auditlacks": chk_audit_lacks, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe, "supply": chk_supply, "supplyfar": chk_supply_far, "supplysilo": chk_supply_silo, "supplylines": chk_supply_lines, "supplylds": chk_supply_lds, "supplywalled": chk_supply_walled, "leavejoin": chk_leave_join, "capture": chk_capture}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "detour": chk_route_detour, "routepocket": chk_route_pocket, "fetchfar": chk_fetch_far, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "clearworking": chk_clear_working, "pipegap": chk_pipe_gap, "auditlacks": chk_audit_lacks, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe, "supply": chk_supply, "supplyfar": chk_supply_far, "supplysilo": chk_supply_silo, "supplylines": chk_supply_lines, "supplylds": chk_supply_lds, "supplywalled": chk_supply_walled, "leavejoin": chk_leave_join, "capture": chk_capture, "hop": chk_hop}
 
 
 async def main() -> int:

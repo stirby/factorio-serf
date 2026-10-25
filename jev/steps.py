@@ -202,6 +202,8 @@ def describe(step: dict) -> str:
         return f"put {step.get('count', '')} {step.get('item')} into the thing{at}"
     if d == "say":
         return "say: " + str(step.get("text", ""))[:60]
+    if d == "hop":
+        return f"hop to {step.get('planet')}"
     if d == "bus":
         return f"lay bus {step.get('name') or 'main'}" + (f" ({', '.join(map(str, step['lanes']))})" if step.get(
             "lanes") else "")
@@ -290,17 +292,20 @@ class Runner:
         except Exception:  # noqa: BLE001
             return None
 
-    async def tidy(self, low: int = 10, want: int = 20) -> dict | None:
+    async def tidy(self, low: int = 10, want: int = 20, everything: bool = False) -> dict | None:
         """Pockets nearly full (fewer than `low` free slots): drop raw resources and the surplus of plates and
         intermediates into a chest placed beside the character, until `want` slots are free. Fetching takes from
         chests, so nothing is lost. A full inventory quietly breaks mining, taking and hand-crafting: five of eight
         serfs were at 0 free slots after a night of campaigns (3,952 iron plates, 1,700 coal...)."""
         free = await self.free_slots()
-        if free is None or free >= low:
+        if free is None or (free >= low and not everything):
             return None
         inv = await self.refresh_inventory()
-        dump = sorted(((k, n - self.KEEP[k]) for k, n in inv.items() if k in self.KEEP and n > self.KEEP[k]),
-                      key=lambda t: -t[1])
+        if everything:  # every item, buildings too (hop: only empty-handed)
+            dump = sorted(inv.items(), key=lambda t: -t[1])
+        else:
+            dump = sorted(((k, n - self.KEEP[k]) for k, n in inv.items() if k in self.KEEP and n > self.KEEP[k]),
+                          key=lambda t: -t[1])
         if not dump:
             return {"ok": False, "msg": f"{free} free slots and nothing to drop"}
         me = await self.g.me()
@@ -332,6 +337,9 @@ class Runner:
                     made += 1
                     targets.append(spot)
                 have = (await self.refresh_inventory()).get(item, 0)
+                n = min(n, have)  # crafting a chest may have used some (iron plates)
+                if n <= 0:
+                    break
                 r = await self._act({"op": "insert", "x": targets[0][0], "y": targets[0][1], "item": item,
                                      "count": n})
                 put = have - (await self.refresh_inventory()).get(item, 0)
@@ -341,7 +349,7 @@ class Runner:
                 if not r.get("ok") or put <= 0 or n > 0:
                     targets.pop(0)  # that chest is full
             free = await self.free_slots()
-            if free is not None and free >= want:
+            if free is not None and free >= want and not everything:
                 break
         chests = made
         self.log_fn({"t": time.time(), "kind": "tidy", "moved": moved, "chests": chests, "free_after": free})
@@ -1117,6 +1125,31 @@ class Runner:
     async def _do_move(self, s):
         p = _xy(s)
         return await self._act({"op": "move", "x": p[0], "y": p[1]}, timeout=300)
+
+    async def _do_hop(self, s):
+        """To another planet's spawn (the mod's hop: a teammate's stand-in for a rocket ride). Only empty-handed:
+        everything it carries goes into chests here first (nearby ones with room, else new ones beside it); armor,
+        guns and ammo go along."""
+        planet = str(s.get("planet") or s.get("to") or "").lower()
+        me = await self.g.me()
+        if me.get("surface") == planet:
+            return {"ok": True, "msg": f"already on {planet}"}
+        stored = ""
+        if any(n > 0 for n in (me.get("inventory") or {}).values()):
+            t = await self.tidy(everything=True)
+            stored = (t or {}).get("msg", "")
+            left = {k: n for k, n in (await self.refresh_inventory()).items() if n > 0}
+            if left:
+                return {"ok": False, "msg": f"can't hop: still carrying {len(left)} kinds of items after storing "
+                        f"({stored or 'no chest for them'}); empty the inventory into a chest first"}
+        try:
+            r = await self.g.call("hop", agent=self.g.name, planet=planet, timeout=30)
+        except Exception as e:  # noqa: BLE001  (the mod's reason: not a planet with a surface, not empty-handed...)
+            return {"ok": False, "msg": f"can't hop to {planet}: {e}"[:300]}
+        self.inventory = {}
+        at = r.get("position") or (0, 0)
+        return {"ok": True, "msg": f"on {planet} at its spawn {fmt_xy(at)}" + (f"; {stored} before leaving" if stored
+                                                                                  else "")}
 
     async def _do_follow(self, s):
         """Stay near a player (seconds, default 300); the step returns at once and the character keeps following."""

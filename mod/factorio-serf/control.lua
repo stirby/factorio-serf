@@ -92,6 +92,17 @@ local function serf_join(p, a)
   game.print("[serf] " .. a.name .. " joined the game.")
 end
 
+-- A test copy of someone's world (jev/peace.py marks it when it removes the biters): say so to everyone who joins, so
+-- nobody saves it over their real game (it happened: a client's local save of the test server replaced theirs).
+script.on_event(defines.events.on_player_joined_game, function(e)
+  if not storage.test_copy then return end
+  local p = game.get_player(e.player_index)
+  if p then
+    p.print("[serf] TEST COPY: biters were removed from this world. Don't save it over your real game.",
+      { color = { 1, 0.4, 0.3 } })
+  end
+end)
+
 script.on_event(defines.events.on_console_chat, function(e)
   if not e.player_index then return end
   local p = game.get_player(e.player_index)
@@ -145,6 +156,16 @@ API.join = function(req)
   local a = agent_of(req)
   agents.join(a, req.player and util.find_player(req.player))
   return { position = util.xy(a.char.position) }
+end
+
+-- To another planet's spawn, empty-handed (agents.can_hop): the teammate's stand-in for a rocket ride.
+API.hop = function(req)
+  local a = live(req)
+  local sf, why = agents.can_hop(a, req.planet)
+  if not sf then error(why, 0) end
+  jobs.cancel(a, "hopped to " .. sf.name)
+  local c = agents.hop(a, sf)
+  return { surface = sf.name, position = util.xy(c.position) }
 end
 
 API.despawn = function(req) agents.despawn(req.agent) return {} end

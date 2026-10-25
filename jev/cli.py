@@ -5,7 +5,8 @@
     # a server you run: RCON
     .venv/bin/python -m jev.cli play --rcon 127.0.0.1:27015 --password-file server/rcon-password
 Options: --name serf, --no-think (Jev + code only, no Opus), --effort for the thinker, --capture DIR (players'
-orders become test cases, jev/capture.py).
+orders become test cases, and a "!" line in chat saves a flag for the developer: jev/capture.py), --note TEXT (said
+after the greeting: what changed since the last restart).
 Logs go to ~/.local/state/jev/<time>/ (actor.jsonl, jev.jsonl). The library (lessons, designs) is JEV_LIBRARY or
 <repo>/library. Ctrl-C stops it; the character stays in the game.
 """
@@ -59,11 +60,13 @@ async def play(a) -> None:
         saves = Path(a.server_saves) if a.server_saves else Path(a.password_file).resolve().parent / "saves"
         world = next((z.stem for z in sorted(saves.glob("*.zip")) if not z.name.startswith("live-")), "")
         cap = Capture(r.command, Path(a.capture), saves, world=world, log_path=state / "actor.jsonl")
-        actor.on_new_order, actor.on_order_end = cap.order, cap.end
+        actor.on_new_order, actor.on_order_end, actor.on_flag = cap.order, cap.end, cap.flag
         print(f"capturing players' orders as test cases in {a.capture} (world {world})", flush=True)
     await actor.start()
     await g.say(f"{a.name} here (Jev acting, {'Opus planning' if not a.no_think else 'no planner'}). "
                 f"Talk to me with @{a.name}; /serf leave sends me away, /serf join brings me back.")
+    if a.note:  # live testing: what changed since the last restart
+        await g.say(f"[update] {a.note}")
     print(f"{a.name} is in the game. Logs: {state}. Ctrl-C to stop.", flush=True)
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
@@ -92,6 +95,7 @@ def main() -> None:
                     "(jev/capture.py); RCON only")
     pl.add_argument("--server-saves", metavar="DIR", help="where the server writes /server-save (default: the "
                     "password file's folder + /saves, as for scripts/instance.py servers)")
+    pl.add_argument("--note", help="said in game after the greeting (live testing: what changed since the restart)")
     pl.add_argument("--no-think", action="store_true")
     pl.add_argument("--effort")
     pl.add_argument("--reader", choices=["jev", "sonnet", "hybrid"], help="who reads orders and makes quick decisions "

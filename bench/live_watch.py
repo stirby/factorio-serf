@@ -11,7 +11,8 @@ import sys
 import time
 from pathlib import Path
 
-KINDS = {"chat", "order", "say", "order_end", "error", "left", "joined", "limit_wait", "reopen", "preempt"}
+KINDS = {"chat", "order", "say", "order_end", "error", "left", "joined", "limit_wait", "reopen", "preempt", "flag",
+         "dropped", "added_to_queued"}
 
 
 def line(r: dict) -> str | None:
@@ -23,6 +24,10 @@ def line(r: dict) -> str | None:
         if r.get("speaker") in ("serf", "project", "planner"):
             return None
         return f"[{t}] {r.get('speaker')}: {r.get('msg')}  ({r.get('kind_')}, {r.get('playbook')})"
+    if k == "flag":
+        cur = r.get("current") or {}
+        return (f"[{t}] FLAG {r.get('speaker')}: {r.get('note')}  (doing: "
+                + (f"#{cur.get('id')} {str(cur.get('text'))[:80]}" if cur else "nothing") + ")")
     if k == "order":
         return f"[{t}] ORDER {r.get('order')}: {str(r.get('text'))[:300]}"
     if k == "say":

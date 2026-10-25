@@ -100,6 +100,10 @@ class Actor(FastPaths):
         # hooks: a player's new order (before any work on it) and an order's end (jev/capture.py uses both)
         self.on_new_order: Callable[[Order], Awaitable[None]] | None = None
         self.on_order_end: Callable[[Order, float], Awaitable[None]] | None = None
+        # a player's "!" line: a note for whoever develops the serf, not for the serf (jev/capture.py saves the world
+        # and the recent log with it)
+        self.on_flag: Callable[[str, str, dict], Awaitable[str | None]] | None = None
+        self.stopped_t = 0.0  # a player's last "stop"
         self.runner = Runner(game, self.log)
         self.orders: list[Order] = []
         self.current: Order | None = None
@@ -289,6 +293,9 @@ class Actor(FastPaths):
         speaker, msg = str(c.get("player") or "?"), str(c.get("message") or "")
         if speaker == self.name or not msg.strip():
             return
+        if msg.lstrip().startswith("!"):
+            await self._flag(speaker, msg.lstrip()[1:].strip())
+            return
         if self.g.away:
             if f"@{self.name}".lower() in msg.lower() and not getattr(self, "_told_away", False):
                 self._told_away = True
@@ -335,7 +342,10 @@ class Actor(FastPaths):
             self.log({"kind": "elsewhere_is_new", "msg": msg})
             kind = "new_job"
         reopen = False
-        if kind in ("more_info",) and not doing and last and last.status in ("done", "failed") \
+        # a stopped job counts too, for a few minutes (live test: "STOP QUEUEING SHIT" dropped the queued job, then
+        # "JUST FINISH THE LOGISTICS AUTOMATION I STATED HERE" became a note on it and nothing ran)
+        if kind in ("more_info",) and not doing and last and (last.status in ("done", "failed") or (
+                last.status == "cancelled" and time.time() - self.stopped_t < 600)) \
                 and time.time() - last.t < 1800:
             try:
                 p_nd = await decide.not_done(self.jev, last.text, msg)
@@ -403,6 +413,7 @@ class Actor(FastPaths):
             if self.current and self.current.status in ("working", "thinking"):
                 self.current.status = "cancelled"
             # and what's queued (live test: "STOP QUEUEING" stopped the walk, and the same job queued three times ran next)
+            self.stopped_t = time.time()
             dropped = [x for x in self.orders if x.status == "new"]
             for x in dropped:
                 x.status = "cancelled"
@@ -418,7 +429,8 @@ class Actor(FastPaths):
             pass
         elif kind == "question" and self.thinker:
             # (no order id: its words-only answer once closed the order being worked on)
-            self.thinker.ask(Request("question", f"{speaker} asked in chat: \"{msg}\"\n{self._orders_words()}\n"
+            self.thinker.ask(Request("question", f"{speaker} asked in chat: \"{msg}\"\n{await self._where_words()}"
+                                     f"{self._orders_words()}\n"
                                      "Answer briefly with the say tool (look first only if you need to; check facts "
                                      "like research and what's built before saying what's missing). Don't submit a "
                                      "plan unless they asked for work.", None))
@@ -426,11 +438,50 @@ class Actor(FastPaths):
             # small talk to it gets a short answer, like a teammate's (live test: "how are you doing" got silence)
             if self.thinker:
                 self.thinker.ask(Request("question", f"{speaker} said to you in chat: \"{msg}\"\n"
-                                         f"{self._orders_words()}\nIt's small talk: reply in one short, friendly line "
+                                         f"{await self._where_words()}{self._orders_words()}\nIt's small talk: "
+                                         "reply in one short, friendly line "
                                          "with the say tool (what you're up to, or that you're free for a job). Don't "
                                          "look around and don't submit a plan.", None))
             else:
                 await self.say("all good here. Free for a job: @" + self.name + " and what you need")
+
+    async def _flag(self, speaker: str, note: str) -> None:
+        """Live testing: "! that was wrong, I meant..." marks this moment for the developer. Logged with what the serf
+        was doing; the hook (jev/capture.py) saves the world and the last minutes of the log; only the player who
+        flagged sees the confirmation."""
+        cur = self.current if self.current and self.current.status in ("working", "thinking") else None
+        ctx = {"current": {"id": cur.id, "text": cur.text, "status": cur.status} if cur else None,
+               "last": [{"id": x.id, "text": x.text[:200], "status": x.status} for x in self.orders[-3:]],
+               "queued": [x.id for x in self.orders if x.status == "new"]}
+        self.log({"kind": "flag", "speaker": speaker, "note": note, **ctx})
+        where = None
+        if self.on_flag:
+            try:
+                where = await self.on_flag(speaker, note, ctx)
+            except Exception as e:  # noqa: BLE001
+                self.log({"kind": "error", "where": "on_flag", "error": repr(e)})
+        try:
+            await self.g.call("tell", player=speaker, text="flag saved" + (f" ({where})" if where else ""))
+        except Exception:  # noqa: BLE001
+            pass
+
+    @staticmethod
+    def _planet_words(me: dict) -> str:
+        """Which planet it's on and where it can hop (live test on Vulcanus: "teleport back to nauvis spawn" became a
+        walk to Vulcanus's 0,0)."""
+        sf = str(me.get("surface") or "nauvis")
+        others = [x for x in (me.get("planets") or []) if x != sf]
+        out = f"You're on {sf}: coordinates and 'spawn' are this planet's."
+        if others:
+            out += (f" A hop step takes you to the spawn of {', '.join(others)} (empty-handed: it stores what you "
+                    "carry in chests first).")
+        return out
+
+    async def _where_words(self) -> str:
+        try:
+            return self._planet_words(await self.g.me()) + "\n"
+        except Exception:  # noqa: BLE001
+            return ""
 
     def _orders_words(self) -> str:
         """Its own orders, for answering about them (live test: "what is number 1 in your queue" got "nothing
@@ -1190,7 +1241,8 @@ class Actor(FastPaths):
         except Exception as e:  # noqa: BLE001
             self.log({"kind": "error", "where": "buses", "error": repr(e)})
         me = await self.g.me()
-        text += f"\n\nThe character is at {fmt_xy(me.get('position') or (0, 0))}, carrying {items_words(me.get('inventory'), 12)}."
+        text += (f"\n\nThe character is at {fmt_xy(me.get('position') or (0, 0))}, carrying "
+                 f"{items_words(me.get('inventory'), 12)}. {self._planet_words(me)}")
         try:
             mats = await self.materials()
             if mats:
@@ -1461,7 +1513,7 @@ class Actor(FastPaths):
         for things to start running."""
         exp = [e for e in (plan.get("expect") or []) if isinstance(e, dict)]
         goal = plan.get("goal") or o.text
-        if not exp and all(st.get("do") in ("say", "wait", "research", "follow", "upgrade", "clear", "purge")
+        if not exp and all(st.get("do") in ("say", "wait", "research", "follow", "hop", "upgrade", "clear", "purge")
                            for st in plan.get("steps") or []):
             # an acknowledgement or a research queue, or a step that reports exactly what it did
             return True, "nothing more to check"

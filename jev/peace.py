@@ -6,6 +6,7 @@ from __future__ import annotations
 
 BITERS_OFF_LUA = """
 local removed = 0
+storage.test_copy = true  -- the mod tells everyone who joins (don't save this over a real game)
 game.map_settings.enemy_expansion.enabled = false
 game.map_settings.enemy_evolution.enabled = false
 for _, s in pairs(game.surfaces) do

@@ -1,4 +1,12 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.3.3
+Date: 2026-10-25
+  Features:
+    - A serf can hop to another planet's spawn (any planet someone has been to), but only empty-handed: it stores everything it carries in chests first. Armor, guns and ammo go along.
+  Changes:
+    - A serf app taking over a serf from a save (one another player's app had) now gets it, instead of the panel saying no serf is connected.
+    - A test copy of a world (biters removed by the serf's test tools) warns everyone who joins not to save it over their real game.
+---------------------------------------------------------------------------------------------------
 Version: 0.3.2
 Date: 2026-10-24
   Features:
