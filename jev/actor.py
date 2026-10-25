@@ -1679,7 +1679,9 @@ class Actor(FastPaths):
                    "recent": [{"id": o.id, "text": o.text[:100], "status": o.status}
                               for o in reversed(self.orders) if o.status in ("done", "failed", "cancelled")][:6]}
         if cur:
-            b["now"] = {"id": cur.id, "text": cur.text[:160], "status": cur.status, "secs": int(time.time() - cur.t)}
+            b["now"] = {"id": cur.id, "text": brief(cur.text, 150), "status": cur.status, "secs": int(time.time() - cur.t)}
+            if cur.asked:  # it asked the player something on this order
+                b["now"]["needs"] = cur.asked[:160]
             v = getattr(self, "view", None)
             if v and v.get("order") == cur.id:
                 b["plan"] = {"order": cur.id, "goal": v.get("goal") or "",

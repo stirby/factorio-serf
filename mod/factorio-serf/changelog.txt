@@ -3,6 +3,8 @@ Version: 0.3.4
 Date: 2026-10-25
   Features:
     - Serf tasks window (Ctrl+Shift+J, the Tasks button on the serf panel, or /serf tasks): what each serf is doing, every step of its plan (done, now, failed, to do), its queue and what it finished lately.
+    - The serf panel is a compact strip: what it's doing, the step it's on with a progress bar, its order, and how many orders wait, need you or failed lately.
+    - With Todo List (and its remote interface), tasks you assign to the serf become its orders: its status shows under the task, its plan's steps are the task's subtasks, and it ticks the task off when done.
     - Serfs read your map tags (your names for places and purpose-built chests) and can put their own labelled tags on the map.
     - Serfs can mark an area's trees and rocks (only those) for your construction bots to clear.
   Changes:

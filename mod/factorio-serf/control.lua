@@ -222,7 +222,8 @@ API.board = function(req)
   local b = type(req.board) == "table" and req.board or {}
   local out = { thinking = b.thinking == true, queue = {}, recent = {} }
   if type(b.now) == "table" then
-    out.now = { id = tonumber(b.now.id), text = cut(b.now.text, 160), status = cut(b.now.status, 20), secs = tonumber(b.now.secs) or 0 }
+    out.now = { id = tonumber(b.now.id), text = cut(b.now.text, 160), status = cut(b.now.status, 20), secs = tonumber(b.now.secs) or 0,
+      needs = cut(b.now.needs, 160) }
   end
   if type(b.plan) == "table" then
     out.plan = { order = tonumber(b.plan.order), goal = cut(b.plan.goal, 200), steps = {} }

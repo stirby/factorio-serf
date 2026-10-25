@@ -95,19 +95,9 @@ function panel.refresh()
       if a.state_tag and a.state_tag.valid then a.state_tag.destroy() end
       a.state_tag = nil
     else
-      local long, short, c = state_of(a)
+      local _, short, c = state_of(a)
       update_overhead(a, short, c)
-      local who = (a.owner and name ~= a.owner) and ("  [font=default-small]" .. color(C.dim, "with " .. a.owner) .. "[/font]") or ""
-      local lines = { color(a.color, "[font=default-bold]" .. name .. "[/font]") .. who
-        .. (a.model and ("  [font=default-small]" .. color(C.dim, a.model) .. "[/font]") or "") }
-      lines[#lines + 1] = color(c, long)
-      if a.task_text and a.task_text ~= "" then lines[#lines + 1] = "[font=default-small]task: " .. a.task_text .. "[/font]" end
-      if a.thought and a.thought ~= "" then
-        lines[#lines + 1] = "[font=default-small]" .. color(C.thought, "\"" .. a.thought .. "\"") .. "[/font]"
-      elseif a.status_text and a.status_text ~= "" then
-        lines[#lines + 1] = "[font=default-small]" .. color(C.dim, a.status_text) .. "[/font]"
-      end
-      cards[#cards + 1] = lines
+      cards[#cards + 1] = a
     end
   end
   for _, p in pairs(game.connected_players) do
@@ -135,16 +125,51 @@ function panel.draw_left(p, cards, brand)
       f.caption = brand.title
       local body = f.body
       body.clear()
-      for i, lines in ipairs(cards) do
+      for i, a in ipairs(cards) do
         if i > 1 then body.add { type = "line" } end
-        for _, l in ipairs(lines) do
-          local lbl = body.add { type = "label", caption = l }
-          lbl.style.single_line = false
-          lbl.style.maximal_width = 420
-        end
+        panel.draw_strip(body, a)
       end
     end
   end
+end
+
+-- The always-on strip for one serf (mockup C): name and state, the step it's on with a progress bar, its order, and
+-- how many orders wait, need the player or failed lately. From the board its app sends (API.board).
+function panel.draw_strip(parent, a)
+  local long, _, c = state_of(a)
+  local b = a.board or {}
+  local now, plan = b.now, b.plan
+  local steps = (now and plan and plan.order == now.id and plan.steps) or {}
+  local done, cur = 0, nil
+  for i, st in ipairs(steps) do
+    if st.state == "ok" then done = done + 1 end
+    if not cur and (st.state == "run" or st.state == "fail") then cur = i end
+  end
+  local top = parent.add { type = "flow", direction = "horizontal" }
+  top.style.horizontal_spacing = 8
+  top.add { type = "label", caption = color(a.color, "[font=default-bold]" .. a.name .. "[/font]") }
+  local st = top.add { type = "label", caption = color(c, long) }
+  st.style.maximal_width = 290
+  if #steps > 0 then
+    local pad = top.add { type = "label", caption = "" }
+    pad.style.horizontally_stretchable = true
+    top.add { type = "label", caption = "[font=default-small]" .. color(C.dim, "step " .. (cur or done) .. " of " .. #steps) .. "[/font]" }
+    local bar = parent.add { type = "progressbar", value = done / #steps }
+    bar.style.horizontally_stretchable = true
+    bar.style.minimal_width = 380
+  end
+  if now then
+    local l = parent.add { type = "label", caption = "[font=default-small]#" .. tostring(now.id) .. " " .. tostring(now.text or "") .. "[/font]" }
+    l.style.single_line = false
+    l.style.maximal_width = 420
+  end
+  local failed = 0
+  for _, o in ipairs(b.recent or {}) do if o.status == "failed" then failed = failed + 1 end end
+  local chips = {}
+  if #(b.queue or {}) > 0 then chips[#chips + 1] = color(C.dim, #b.queue .. " queued") end
+  if now and now.needs then chips[#chips + 1] = color(C.thinking, "needs you") end
+  if failed > 0 then chips[#chips + 1] = color(C.bad, failed .. " failed lately") end
+  if #chips > 0 then parent.add { type = "label", caption = "[font=default-small]" .. table.concat(chips, "   ") .. "[/font]" } end
 end
 
 -- Serf tasks: a window (open it with Ctrl+Shift+J, the panel's Tasks button or /serf tasks) with each serf's order and
