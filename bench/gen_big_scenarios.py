@@ -79,6 +79,21 @@ return { power = math.floor(ox + 4) .. ',' .. math.floor(oy + 2), chests = math.
 """
 
 
+# b16: the same start with the research still to do: only the first techs are known, so the serf builds every
+# science pack and researches its way to the silo (a game minus crafting its own machines)
+RESEARCH_BASICS = ("automation", "electronics", "logistics", "electric-mining-drill", "steel-processing")
+
+
+def setup_b16(stock: str) -> str:
+    s = SETUP.replace("{ STOCK }", "{ " + stock + " }")
+    research_all = s[s.index("-- research: the rocket silo"):s.index("local sp = f.get_spawn_position(s)")]
+    basics = ("-- research: only the basics; the rest is the order's job\n"
+              "for _, t in pairs { " + ", ".join(f"'{t}'" for t in RESEARCH_BASICS) + " } do\n"
+              "  if f.technologies[t] then f.technologies[t].researched = true end\n"
+              "end\n")
+    return s.replace(research_all, basics)
+
+
 def main() -> None:
     stock = ", ".join(f"['{k}'] = {v}" for k, v in STOCK.items())
     scn = {
@@ -110,6 +125,32 @@ def main() -> None:
     }
     out = ROOT / "bench" / "scenarios" / "b15-rocket-from-ore.json"
     out.write_text(json.dumps(scn, indent=1))
+    print(out)
+    stock16 = ", ".join(f"['{k}'] = {v}" for k, v in {**STOCK, "lab": 20}.items())
+    b16 = {
+        "name": "b16-rocket-with-research",
+        "stage": "crew-test",
+        "minutes": 1200,
+        "agents": 1,
+        "kind": "directive",
+        "note": "b15's start with the research still to do: only " + ", ".join(RESEARCH_BASICS) + " are known. The "
+                "serf builds red, green, blue, purple and yellow science and researches its way to the rocket silo, "
+                "on top of everything b15 builds. Machines, labs and the silo are in the chests; power at spawn. Met = "
+                "one rocket launched.",
+        "setup_lua": setup_b16(stock16),
+        "objectives": [{
+            "name": "launch", "minutes": 1200, "hold_samples": 1,
+            "goal": "@{agent} launch a rocket from this map. Only the first technologies are researched: build the "
+                    "science and research what the rocket needs (labs are in the chests). Power is on at the big pole "
+                    "at [gps={power}]; machines, belts, poles and a rocket silo are in the chests at [gps={chests}]. "
+                    "Mine and smelt what you need: iron ore at [gps={iron}], copper at [gps={copper}], coal at "
+                    "[gps={coal}], stone at [gps={stone}], crude oil at [gps={crude}], water at [gps={water}].",
+            "score": [{"name": "rockets", "lua": "return f.rockets_launched", "target": 1}],
+        }],
+        "score": scn["score"] + [{"name": "techs", "lua": "local n = 0 for _, t in pairs(f.technologies) do if t.researched then n = n + 1 end end return n"}],
+    }
+    out = ROOT / "bench" / "scenarios" / "b16-rocket-with-research.json"
+    out.write_text(json.dumps(b16, indent=1))
     print(out)
 
 
