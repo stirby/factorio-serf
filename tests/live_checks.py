@@ -1983,6 +1983,25 @@ async def chk_board(L: Live, state: dict):
     check("board: a malformed board is taken as empty", got.get("queue") in ([], {}) and "plan" not in got, got)
 
 
+async def chk_tags(L: Live, state: dict):
+    """Map tags: the players' tags come back nearest first (their names for places and chests), and a tag step puts a
+    labelled tag the players see, which the same op then reads."""
+    g = L.g
+    x, y = await L.site(6, 4)
+    await L.ev(f"""local s = game.surfaces.nauvis
+game.forces.player.add_chart_tag(s, {{ position = {{ {x + 1}, {y + 1} }}, text = 'foundry feed' }})
+game.forces.player.add_chart_tag(s, {{ position = {{ {x + 300}, {y + 300} }}, text = 'far away' }})
+return true""")
+    r = await g.call("tags", center=[x, y], radius=40)
+    texts = [t.get("text") for t in r.get("tags") or []]
+    check("tags: the players' tags near a spot (not the far one)", "foundry feed" in texts and "far away" not in texts,
+          texts)
+    t = await Runner(g).run({"do": "tag", "x": x + 3, "y": y + 2, "text": "mall chest", "kind": "note"})
+    r2 = await g.call("tags", center=[x, y], radius=40)
+    check("tags: a tag step puts a labelled tag the op reads back", t.get("ok") and any(
+        "mall chest" in (q.get("text") or "") for q in r2.get("tags") or []), (t, r2.get("tags")))
+
+
 async def chk_capture(L: Live, state: dict):
     """A player's order as a test case: a /server-save of the world right then (moved out of the server's saves
     folder) and case.json; the order's end adds a run."""
@@ -2013,7 +2032,7 @@ async def chk_capture(L: Live, state: dict):
 
 
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "detour": chk_route_detour, "routepocket": chk_route_pocket, "fetchfar": chk_fetch_far, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "clearworking": chk_clear_working, "pipegap": chk_pipe_gap, "auditlacks": chk_audit_lacks, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe, "supply": chk_supply, "supplyfar": chk_supply_far, "supplysilo": chk_supply_silo, "supplylines": chk_supply_lines, "supplylds": chk_supply_lds, "supplywalled": chk_supply_walled, "leavejoin": chk_leave_join, "capture": chk_capture, "hop": chk_hop, "learn": chk_learn, "storagefilter": chk_storage_filter, "board": chk_board}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "detour": chk_route_detour, "routepocket": chk_route_pocket, "fetchfar": chk_fetch_far, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "clearworking": chk_clear_working, "pipegap": chk_pipe_gap, "auditlacks": chk_audit_lacks, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe, "supply": chk_supply, "supplyfar": chk_supply_far, "supplysilo": chk_supply_silo, "supplylines": chk_supply_lines, "supplylds": chk_supply_lds, "supplywalled": chk_supply_walled, "leavejoin": chk_leave_join, "capture": chk_capture, "hop": chk_hop, "learn": chk_learn, "storagefilter": chk_storage_filter, "board": chk_board, "tags": chk_tags}
 
 
 async def main() -> int:

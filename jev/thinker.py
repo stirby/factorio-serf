@@ -45,6 +45,7 @@ Step ops (each step is an object {{"do": op, ...}}):
   purge item x y                            take every `item` off the belts around x,y (wrong items on a belt, e.g. pipes from a wrong recipe); the belts stay
   build_ghosts [x y radius]                 build planned ghosts (also the players' own)
   stamp name x y [direction]                build a blueprint a player taught you (the order message lists them), centred at x,y
+  tag x y text [kind]                       put a labelled map tag (and a floating label) players see: name what a place or chest you built is for (kind note, or provider/requester/storage for a chest)
   insert x y item [count] | take x y [item] [count] | empty_chest x y
   refuel x y [fuel]                         put fuel into a burner (fetches coal)
   wait_research tech [minutes]              wait (default 15 min, max 30) until a tech is researched, queueing it if needed; steps after it can use what it unlocks (e.g. feed the labs, wait_research electric-mining-drill, then place the drills). It only waits: the labs need packs
@@ -66,7 +67,7 @@ Plans must be complete: every step needed to reach the goal, in order. An order 
 submit_plan fields: goal (what done looks like, one line), steps, expect (machine-checkable conditions: {{"check":"working","recipe":R,"count":N,"near":[x,y],"radius":r}}, {{"check":"has_item","x":..,"y":..,"item":I,"count":N}} (a chest or machine holds it), {{"check":"powered","near":[x,y],"radius":r}}, {{"check":"belt_carries","x":..,"y":..,"item":I}}, {{"check":"fluid_reaches","x":..,"y":..,"fluid":F}} (the machine there gets F at an inlet; added by itself for every connect with to_fluid), {{"check":"rate","item":I,"per_min":N,"near":[x,y],"radius":r}} (the machines making I there make at least 85% of N a minute, measured over a minute: use it when the order names a rate)), say (short chat line to the player now, optional), done_text (chat line when verified).
 Chat lines are short and plain, like a player in game chat.
 What players can hand you besides words: a map ping (Ctrl+Alt+click on the map posts a [gps] tag as their chat line; it reaches you, and the order message lists a player's last ping), so when an order needs a spot and names none, ask with the say tool "ping where you want it" and their next ping comes back to this order; and blueprints: a player holding a blueprint or a whole book clicks Teach serf in the toolbar (or Ctrl+Shift+T, or types /serf learn) and each blueprint goes into your saved designs, named from its label. You can't open their blueprint library yourself.
-Storage chests (yellow) can be set to one item: put things only in an unfiltered one or one set to that item (the insert step refuses the others). Raw ore and stone a player didn't ask to keep go in an unfiltered storage chest.
+Players name places and purpose-built chests and machines with map tags (the map_tags tool; the order message lists the tags near its spot): a chest or machine you didn't build is someone's, for what its tag or its belts and inserters say; don't put things in it unless the order says so. When you build something with a purpose, tag it. Storage chests (yellow) can be set to one item: put things only in an unfiltered one or one set to that item (the insert step refuses the others). Raw ore and stone a player didn't ask to keep go in an unfiltered storage chest.
 After submit_plan, end your turn immediately: no summary, no commentary (nobody reads it; the actor is already working).
 Only use items that exist: the order message lists what's in storage chests and what the character carries; anything else must be hand-craftable from those (wooden chests need wood; use iron chests when there's no wood).
 Routing puzzles (many belts between pairs of points, crossings): don't work out paths by hand; use one route step with all the pairs (from = where items are put on, to = where they're picked up). It returns quickly.
@@ -122,6 +123,10 @@ TOOLS = [
      {"type": "object", "properties": {"x": {"type": "number"}, "y": {"type": "number"},
                                        "fluid": {"type": "string", "description": "only the port for this fluid"}},
       "required": ["x", "y"]}),
+    ("map_tags", "The players' map tags on your planet (text, icon, position, who): their names for places and "
+                 "purpose-built chests. With x,y: nearest that spot first (radius, default 60).",
+     {"type": "object", "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "radius": {"type": "number"},
+                                       "limit": {"type": "integer"}}}),
     ("techs", "Research: what's being researched, the queue, and what can be researched next with its packs "
               "(trigger techs say what unlocks them instead).", {"type": "object", "properties": {}}),
     ("block_info", "Where a built-in block would sit if placed at x,y with that rotation: its footprint, where each "

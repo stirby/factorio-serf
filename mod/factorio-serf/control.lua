@@ -267,6 +267,25 @@ API.mark = function(req)
   return { id = m.id }
 end
 API.unmark = function(req) marks.remove(req.id) return {} end
+-- The players' map tags on a surface (the agent's planet by default), nearest the center first: how players name
+-- places and purpose-built chests ("foundry feed", "mall"). Live test: "can you read my map tags?"
+API.tags = function(req)
+  local s = surface_for(req)
+  local c = util.pos(req.center)
+  local area = c and req.radius and { { c.x - req.radius, c.y - req.radius }, { c.x + req.radius, c.y + req.radius } } or nil
+  local out = {}
+  for _, t in pairs(game.forces.player.find_chart_tags(s, area)) do
+    local icon = t.icon and (t.icon.name or "") or ""
+    out[#out + 1] = { text = t.text or "", icon = icon, x = math.floor(t.position.x * 10) / 10,
+      y = math.floor(t.position.y * 10) / 10, by = t.last_user and t.last_user.name or nil }
+  end
+  if c then
+    table.sort(out, function(p, q) return (p.x - c.x) ^ 2 + (p.y - c.y) ^ 2 < (q.x - c.x) ^ 2 + (q.y - c.y) ^ 2 end)
+  end
+  local n = #out
+  while #out > (tonumber(req.limit) or 60) do table.remove(out) end
+  return { surface = s.name, tags = out, total = n }
+end
 API.marks = function() return { marks = marks.list() } end
 
 -- Ghosts waiting to be built: count and the items they need, near a point (or the whole map).

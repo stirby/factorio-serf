@@ -14,7 +14,7 @@ log = logging.getLogger("jev.game")
 # (live test on Vulcanus: "what's in storage" listed Nauvis's chests, so a prefetch went after drills Vulcanus didn't
 # have)
 SURFACE_OPS = {"query", "audit", "alerts", "vitals", "ghosts", "blockers", "diagnose", "copy", "paste", "order",
-               "network", "find_space", "zone", "sources", "check", "belt_items", "progress", "calc"}
+               "network", "find_space", "zone", "sources", "check", "belt_items", "progress", "calc", "tags"}
 
 
 class Game:

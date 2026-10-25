@@ -465,6 +465,19 @@ class Actor(FastPaths):
             else:
                 await self.say("all good here. Free for a job: @" + self.name + " and what you need")
 
+    async def _tags_near(self, at, radius: float = 40) -> str:
+        """The players' map tags near a spot: how they name purpose-built chests and machines (live test: rock loot went
+        into two passive providers that fed the foundry belts)."""
+        try:
+            r = await self.g.call("tags", center=[float(at[0]), float(at[1])], radius=radius, limit=12)
+        except Exception:  # noqa: BLE001  (a mod before 0.3.4)
+            return ""
+        tags = [t for t in r.get("tags") or [] if t.get("text") or t.get("icon")]
+        if not tags:
+            return ""
+        return ("\nMap tags near there (players' names for places and chests; respect what they're for): "
+                + "; ".join(f"\"{t.get('text') or t.get('icon')}\" at [gps={t['x']:g},{t['y']:g}]" for t in tags) + ".")
+
     async def _same_job(self, o: Order, msg: str) -> float:
         try:
             p = await decide.same_job(self.jev, o.text, msg)
@@ -1015,7 +1028,7 @@ class Actor(FastPaths):
             return json.dumps(await self.g.call("production", agent=self.name), separators=(",", ":"))[:6000]
 
         async def diagnose(a):
-            return json.dumps(await self.g.call("diagnose", item=a.get("item", "iron-plate"), surface="nauvis"),
+            return json.dumps(await self.g.call("diagnose", item=a.get("item", "iron-plate")),
                               separators=(",", ":"))[:8000]
         async def rates(a):
             from .ratios import solve, table
@@ -1081,9 +1094,18 @@ class Actor(FastPaths):
             if o and o.project:
                 return "refused: this order already comes from a project; plan it as an order (smaller, if need be)"
             return self.start_project(str(a.get("goal") or (o.text if o else "")), o.speaker if o else "a player")
+        async def map_tags(a):
+            kw = {"limit": int(a.get("limit") or 40)}
+            if a.get("x") is not None and a.get("y") is not None:
+                kw.update(center=[float(a["x"]), float(a["y"])], radius=float(a.get("radius") or 60))
+            try:
+                return json.dumps(await self.g.call("tags", **kw), separators=(",", ":"))[:6000]
+            except Exception as e:  # noqa: BLE001  (a mod before 0.3.4 has no tags op)
+                return f"map tags aren't readable yet ({e}); ask the player what the place is for"
+
         return {"area": area, "find": find, "recipe": recipe, "free_space": free_space, "me": me, "say": say,
                 "techs": techs, "production": production, "diagnose": diagnose, "start_project": start_project,
-                "rates": rates, "audit": audit, "pipes": pipes}
+                "rates": rates, "audit": audit, "pipes": pipes, "map_tags": map_tags}
 
     async def _bus_steps_as_ghosts(self, steps: list[dict]) -> list[dict]:
         """For the plan checker: bus, tap and bus_in steps as the entities they lay (worked out from the buses in
@@ -1325,6 +1347,8 @@ class Actor(FastPaths):
     async def _planned(self, o: Order, intro: str) -> bool:
         """Thinker plans, actor runs, code/Jev verify; failures and misses go back to the thinker (up to 4 plans)."""
         text = intro + "\n" + self._order_context(o)
+        if o.focus:
+            text += await self._tags_near(o.focus)
         if o.focus:
             # the area around each point the order names (far-apart ones get their own summary), so the thinker can
             # usually plan without a look of its own

@@ -204,6 +204,8 @@ def describe(step: dict) -> str:
         return "say: " + str(step.get("text", ""))[:60]
     if d == "hop":
         return f"hop to {step.get('planet')}"
+    if d == "tag":
+        return f"tag {step.get('x')},{step.get('y')} \"{step.get('text')}\""
     if d == "bus":
         return f"lay bus {step.get('name') or 'main'}" + (f" ({', '.join(map(str, step['lanes']))})" if step.get(
             "lanes") else "")
@@ -1158,6 +1160,17 @@ class Runner:
         pos = r.get("position") or (0, 0)
         return {"ok": True, "msg": f"on {planet} at its spawn {fmt_xy(pos)}" + (f"; {stored} before leaving" if stored
                                                                                    else "")}
+
+    async def _do_tag(self, s):
+        """A labelled map tag (and a floating label) players see: what a place or chest is for."""
+        p = _xy(s)
+        kind = s.get("kind") if s.get("kind") in ("provider", "requester", "storage", "note") else "note"
+        try:
+            r = await self.g.call("mark", agent=self.g.name, x=p[0], y=p[1], text=str(s.get("text") or "")[:80],
+                                  kind=kind)
+        except Exception as e:  # noqa: BLE001
+            return {"ok": False, "msg": f"tag failed: {e}"[:300]}
+        return {"ok": True, "msg": f"tagged {fmt_xy(p)} \"{s.get('text')}\" (mark {r.get('id')})"}
 
     async def _do_follow(self, s):
         """Stay near a player (seconds, default 300); the step returns at once and the character keeps following."""
