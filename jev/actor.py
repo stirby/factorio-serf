@@ -141,7 +141,7 @@ class Actor(FastPaths):
             f.write(json.dumps(rec, default=str) + "\n")
 
     async def say(self, text: str) -> None:
-        self.last_said = text
+        self.last_said, self.last_said_t = text, time.time()
         self.log({"kind": "say", "text": text})
         if "?" in text and self.current and self.current.status in ("working", "thinking"):
             # a question while on an order: the order is done only in part, whatever its checks say (c1: "Want me to
@@ -297,7 +297,15 @@ class Actor(FastPaths):
         self.metrics["chat_lines"] += 1
         if self.project and self.project.active:
             self.project.hear(speaker, msg)
-        explicit = f"@{self.name}".lower() in msg.lower() or "@all" in msg.lower()
+        explicit = f"@{self.name}".lower() in msg.lower() or "@all" in msg.lower() \
+            or bool(re.match(rf"^\W*{re.escape(self.name)}\b", msg, re.I))  # "serf how are you doing"
+        if re.fullmatch(rf"\W*@?{re.escape(self.name)}\W*", msg, re.I):
+            # just its name (live test: "@serf" and "serf" got no answer at all)
+            await self.say("yes? what do you need?")
+            return
+        # a player answering right after it spoke to them is talking to it ("how are you doing bro" a second after its
+        # question went unanswered)
+        talking = time.time() - getattr(self, "last_said_t", 0.0) < 90
         doing = self.current.text if self.current and self.current.status in ("working", "thinking") else None
         try:
             call = await decide.chat(self.jev, self.name, speaker, msg, doing, self.last_said)
@@ -309,7 +317,7 @@ class Actor(FastPaths):
         self.log({"kind": "chat", "speaker": speaker, "msg": msg, "addressed": round(call.addressed, 3),
                   "kind_": call.kind, "kind_conf": round(call.kind_conf, 3), "playbook": call.playbook,
                   "playbook_conf": round(call.playbook_conf, 3), "multi": round(call.multi, 3)})
-        if not explicit and call.addressed < 0.5:
+        if not explicit and call.addressed < 0.5 and not (talking and call.addressed >= 0.2):
             return
         kind = call.kind
         # "no gears coming out of [gps], what's up with it?": a complaint put as a question, about a place. Jev isn't
@@ -396,6 +404,15 @@ class Actor(FastPaths):
             self.thinker.ask(Request("question", f"{speaker} asked in chat: \"{msg}\"\nAnswer briefly with the say "
                                      "tool (look first only if you need to). Don't submit a plan unless they asked "
                                      "for work.", self.current.id if self.current else None))
+        elif kind == "chatter":
+            # small talk to it gets a short answer, like a teammate's (live test: "how are you doing" got silence)
+            if self.thinker:
+                self.thinker.ask(Request("question", f"{speaker} said to you in chat: \"{msg}\"\nIt's small talk: "
+                                         "reply in one short, friendly line with the say tool (what you're up to, or "
+                                         "that you're free for a job). Don't look around and don't submit a plan.",
+                                         self.current.id if self.current else None))
+            else:
+                await self.say("all good here. Free for a job: @" + self.name + " and what you need")
 
     async def _quick_answer(self, msg: str) -> bool:
         """Status/where/inventory questions answered by code; anything else goes to the thinker."""
