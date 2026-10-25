@@ -160,7 +160,8 @@ KITS = {
                          "underground-belt": 4}},
     "belts": {"what": "route a belt or connect belts from one place to another",
               "items": {"transport-belt": 60, "underground-belt": 6, "splitter": 2, "inserter": 2}},
-    "none": {"what": "no building: a question, research, moving, delivering items, fixing a setting", "items": {}},
+    "none": {"what": "no building: a question, research, moving, delivering items, breaking rocks or trees by hand, "
+                     "fixing a setting", "items": {}},
 }
 
 

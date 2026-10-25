@@ -4,7 +4,13 @@ local util = require("scripts.util")
 
 local orders = {}
 
-local function surface_of(req) return game.surfaces[req.surface or "nauvis"] or game.surfaces.nauvis end
+local function surface_of(req)  -- the named surface, else the agent's planet, else nauvis
+  local s = req.surface and game.surfaces[req.surface]
+  if s then return s end
+  local a = req.agent and storage.agents[req.agent]
+  if a and a.char and a.char.valid then return a.char.surface end
+  return game.surfaces.nauvis
+end
 
 local function area_of(req)
   local z = req.zone or { req.x1, req.y1, req.x2, req.y2 }

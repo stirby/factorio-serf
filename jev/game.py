@@ -10,6 +10,12 @@ from .rcon import Crew, GameError, Rcon, RconError
 
 log = logging.getLogger("jev.game")
 
+# ops that read one surface and take it as `surface` (most default to nauvis): they get the character's own planet
+# (live test on Vulcanus: "what's in storage" listed Nauvis's chests, so a prefetch went after drills Vulcanus didn't
+# have)
+SURFACE_OPS = {"query", "audit", "alerts", "vitals", "ghosts", "blockers", "diagnose", "copy", "paste", "order",
+               "network", "find_space", "zone", "sources", "check", "belt_items", "progress", "calc"}
+
 
 class Game:
     def __init__(self, crew: Crew, name: str = "serf", poll_secs: float = 0.25):
@@ -22,6 +28,7 @@ class Game:
         self.tick = 0
         self.last_poll = 0.0
         self.away = False  # a player sent the character away (/serf leave); /serf join brings it back
+        self.surface: str | None = None  # the character's planet, from its last self report or hop
 
     @classmethod
     async def connect(cls, host: str, port: int, password: str, name: str = "serf") -> "Game":
@@ -30,7 +37,12 @@ class Game:
         return cls(Crew(rcon), name)
 
     async def call(self, op: str, timeout: float = 30, **kw):
-        return await self.crew.call(op, timeout=timeout, **kw)
+        if op in SURFACE_OPS and "surface" not in kw and self.surface:
+            kw["surface"] = self.surface
+        r = await self.crew.call(op, timeout=timeout, **kw)
+        if op == "hop" and isinstance(r, dict) and r.get("surface"):
+            self.surface = r["surface"]
+        return r
 
     async def start(self, spawn: bool = True, **spawn_args) -> None:
         """Spawn (or take over) the character. Over RCON pass client="rcon" (the default); over UDP the mod sets
@@ -39,6 +51,11 @@ class Game:
             args = {"client": "rcon", **spawn_args} if not hasattr(self.crew, "port") else dict(spawn_args)
             d = await self.call("spawn", name=self.name, **args)
             self.away = bool(isinstance(d, dict) and d.get("away"))
+            if not self.away:
+                try:
+                    await self.me()  # its planet, for the surface ops
+                except Exception:  # noqa: BLE001
+                    pass
         await self.call("poll")  # start the feed now: no stale chat
         self._task = asyncio.create_task(self._poll_loop())
 
@@ -207,7 +224,10 @@ class Game:
 
     # ------------------------------------------------------------------ reading
     async def me(self) -> dict:
-        return await self.call("self", agent=self.name)
+        d = await self.call("self", agent=self.name)
+        if isinstance(d, dict) and d.get("surface"):
+            self.surface = d["surface"]
+        return d
 
     async def scan(self, center=None, radius: int = 24, tiles: bool = False) -> dict:
         kw = {"radius": radius, "agent": self.name}

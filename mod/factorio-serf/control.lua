@@ -120,6 +120,16 @@ end)
 ---------------------------------------------------------------------- API
 local API = {}
 
+-- The surface a request is about: the one it names, else its agent's planet, else nauvis (on Vulcanus the reads all
+-- defaulted to nauvis: "what's in storage" listed Nauvis's chests).
+local function surface_for(req)
+  local s = req.surface and game.surfaces[req.surface]
+  if s then return s end
+  local a = req.agent and storage.agents[req.agent]
+  if a and a.char and a.char.valid then return a.char.surface end
+  return game.surfaces.nauvis
+end
+
 local function agent_of(req) return agents.get(req.agent) end
 local function live(req)
   local a = agent_of(req)
@@ -231,7 +241,7 @@ API.marks = function() return { marks = marks.list() } end
 
 -- Ghosts waiting to be built: count and the items they need, near a point (or the whole map).
 API.ghosts = function(req)
-  local surface = game.surfaces.nauvis
+  local surface = surface_for(req)
   local f = { type = "entity-ghost", force = "player" }
   if req.x then f.position, f.radius = { req.x, req.y }, req.radius or 64 end
   local need, n, nearest = {}, 0, nil
@@ -247,7 +257,7 @@ end
 
 -- What's in the way of building in an area: entities (trees/rocks are clearable by mining) and water tiles.
 API.blockers = function(req)
-  local surface = game.surfaces.nauvis
+  local surface = surface_for(req)
   local area = { { req.x1, req.y1 }, { req.x2, req.y2 } }
   local out, clearable = {}, 0
   for _, e in pairs(surface.find_entities_filtered { area = area }) do
@@ -268,7 +278,7 @@ end
 
 -- Base health, like the game's alert icons: what's out of fuel or power, and whether labs are researching.
 API.alerts = function(req)
-  local surface = game.surfaces.nauvis
+  local surface = surface_for(req)
   local force = game.forces.player
   local S = defines.entity_status
   local watch = { [S.no_fuel] = "no_fuel", [S.no_power] = "no_power", [S.low_power] = "low_power",
@@ -298,7 +308,7 @@ end
 
 -- The numbers a player keeps glancing at: research, lab utilisation, science and plate flow per minute.
 API.vitals = function(req)
-  local f, s = game.forces.player, game.surfaces.nauvis
+  local f, s = game.forces.player, surface_for(req)
   local st = f.get_item_production_statistics(s)
   local function pm(n, cat)
     local ok, v = pcall(st.get_flow_count, { name = n, category = cat or "input",
@@ -405,7 +415,7 @@ API.production = function(req) return observe.production(live(req), req) end
 --   items_near   totals of the given items in containers near x,y (radius), e.g. a belt puzzle's kit
 --   tech         one technology `name`: researched, current, queued, progress (0..1), unlocks {recipe = detail}
 API.query = function(req)
-  local s = game.surfaces[req.surface or "nauvis"] or game.surfaces.nauvis
+  local s = surface_for(req)
   local w = req.what
   if w == "items" then
     local t = {}
@@ -594,7 +604,7 @@ end
 -- machine, and the science the labs took in the last minute. Read-only; the serf's audit tool and the campaign's
 -- unattended score use it.
 API.audit = function(req)
-  local s, f = game.surfaces.nauvis, game.forces.player
+  local s, f = surface_for(req), game.forces.player
   local names = {}
   for n, v in pairs(defines.entity_status) do names[v] = n end
   local feeders, takers = {}, {}
@@ -771,7 +781,7 @@ end
 -- Items on the belts at the given tiles (req.tiles = {{x, y}, ...}), for reading how full a bus lane is along its
 -- length. Read-only.
 API.belt_items = function(req)
-  local s = game.surfaces[req.surface or "nauvis"] or game.surfaces.nauvis
+  local s = surface_for(req)
   local out = {}
   for i, t in ipairs(req.tiles or {}) do
     local n, what = 0, {}
@@ -789,7 +799,7 @@ API.belt_items = function(req)
 end
 
 API.progress = function(req)
-  local f, s = game.forces.player, game.surfaces.nauvis
+  local f, s = game.forces.player, surface_for(req)
   local out = { tick = game.tick, techs = 0, items = {}, fluids = {}, ents = {}, by_recipe = {}, rockets = 0,
     labs_working = 0 }
   for _, t in pairs(f.technologies) do if t.researched then out.techs = out.techs + 1 end end

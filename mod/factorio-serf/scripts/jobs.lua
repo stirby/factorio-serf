@@ -741,6 +741,18 @@ H.insert = {
     job.target = entity_at(a, args)
     if not job.target then return fail("no entity at " .. tostring(args.x) .. "," .. tostring(args.y)) end
     if not job.target.operable then return fail(locked(job.target)) end
+    -- a storage chest set to one item takes only that item, as the robots treat it (live test: ore went into yellow
+    -- chests filtered to other items; a hand insert ignores the filter, a teammate shouldn't)
+    local t = job.target
+    if t.type == "logistic-container" and t.prototype.logistic_mode == "storage" then
+      local ok, f = pcall(function() return t.storage_filter end)
+      local fname = ok and f and (type(f) == "string" and f or (f.name and (type(f.name) == "string" and f.name
+        or f.name.name))) or nil
+      if fname and fname ~= args.item then
+        return fail("the storage chest at " .. xystr(t.position) .. " is filtered to " .. fname .. ": put "
+          .. args.item .. " in an unfiltered storage chest or one filtered to " .. args.item)
+      end
+    end
   end,
   tick = function(a, job)
     local c, args, e = a.char, job.args, job.target

@@ -1881,6 +1881,15 @@ return a.map_dot and a.map_dot.valid and a.map_dot.render_mode == 'chart' and a.
   and a.map_dot.surface == a.char.surface and a.map_tag.surface == a.char.surface""")
     check("map marker: the serf is marked on the map (a dot and its name), on its new planet after a hop", mark is True,
           mark)
+    # reads follow the serf to its planet (Game passes its surface; the mod falls back to the agent's planet)
+    await L.ev("""local s = game.surfaces.vulcanus
+local c = s.create_entity { name = 'steel-chest', position = { 6.5, 6.5 }, force = 'player' }
+c.insert { name = 'tungsten-ore', count = 7 } return true""")
+    mats = (await g.call("query", what="materials")).get("materials") or {}
+    bare = (await g.crew.call("query", what="materials", agent="serf")).get("materials") or {}
+    check("planet reads: storage on vulcanus is vulcanus's (from the app and from the mod's own fallback)",
+          mats.get("tungsten-ore") == 7 and "iron-plate" not in mats and bare.get("tungsten-ore") == 7,
+          (mats, bare))
     again = await runner.run({"do": "hop", "planet": "vulcanus"})
     nowhere = await runner.run({"do": "hop", "planet": "fulgora"})
     check("hop: 'already on' is ok; a planet with no surface is refused with the list",
@@ -1938,6 +1947,23 @@ local s = bp.export_stack() inv.destroy() return s""")
             os.environ["JEV_LIBRARY"] = old
 
 
+async def chk_storage_filter(L: Live, state: dict):
+    """A storage chest set to one item takes only that item from the serf (live test: ore went into yellow chests
+    filtered to other items); an unfiltered one takes anything."""
+    g = L.g
+    x, y = await L.site(6, 4)
+    await L.ev(f"""local s = game.surfaces.nauvis
+local a = s.create_entity {{ name = 'storage-chest', position = {{ {x + 1.5}, {y + 1.5} }}, force = 'player' }}
+a.storage_filter = 'iron-plate'
+s.create_entity {{ name = 'storage-chest', position = {{ {x + 3.5}, {y + 1.5} }}, force = 'player' }}
+storage.agents['serf'].char.insert {{ name = 'iron-ore', count = 20 }}
+return true""")
+    r1 = await g.run({"op": "insert", "x": x + 1.5, "y": y + 1.5, "item": "iron-ore", "count": 10})
+    r2 = await g.run({"op": "insert", "x": x + 3.5, "y": y + 1.5, "item": "iron-ore", "count": 10})
+    check("storage filter: a chest set to iron-plate refuses iron ore, saying why; an unfiltered one takes it",
+          not r1.get("ok") and "filtered to iron-plate" in str(r1.get("msg")) and r2.get("ok"), (r1, r2))
+
+
 async def chk_capture(L: Live, state: dict):
     """A player's order as a test case: a /server-save of the world right then (moved out of the server's saves
     folder) and case.json; the order's end adds a run."""
@@ -1968,7 +1994,7 @@ async def chk_capture(L: Live, state: dict):
 
 
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "detour": chk_route_detour, "routepocket": chk_route_pocket, "fetchfar": chk_fetch_far, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "clearworking": chk_clear_working, "pipegap": chk_pipe_gap, "auditlacks": chk_audit_lacks, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe, "supply": chk_supply, "supplyfar": chk_supply_far, "supplysilo": chk_supply_silo, "supplylines": chk_supply_lines, "supplylds": chk_supply_lds, "supplywalled": chk_supply_walled, "leavejoin": chk_leave_join, "capture": chk_capture, "hop": chk_hop, "learn": chk_learn}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "detour": chk_route_detour, "routepocket": chk_route_pocket, "fetchfar": chk_fetch_far, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "clearworking": chk_clear_working, "pipegap": chk_pipe_gap, "auditlacks": chk_audit_lacks, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe, "supply": chk_supply, "supplyfar": chk_supply_far, "supplysilo": chk_supply_silo, "supplylines": chk_supply_lines, "supplylds": chk_supply_lds, "supplywalled": chk_supply_walled, "leavejoin": chk_leave_join, "capture": chk_capture, "hop": chk_hop, "learn": chk_learn, "storagefilter": chk_storage_filter}
 
 
 async def main() -> int:

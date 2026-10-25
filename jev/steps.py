@@ -405,7 +405,7 @@ class Runner:
         finally:
             self._escaping = False
 
-    async def stock(self, need: dict) -> dict:
+    async def stock(self, need: dict, fallback: bool = True) -> dict:
         """Get everything in `need` ({item: count}) in one trip: fetches queued back to back, so the character walks
         to storage once. Returns {item: error} for what it couldn't get."""
         inv = await self.refresh_inventory()
@@ -451,7 +451,7 @@ class Runner:
                 await self.g.cancel(f"stocking {i} took too long", job=jid)
             if not r.get("ok"):
                 fails[i] = r.get("msg")
-        for i in list(fails):  # storage couldn't: try belts and crafting from belt items
+        for i in list(fails) if fallback else []:  # storage couldn't: try belts and crafting from belt items
             r = await self.ensure(i, short[i])
             if r.get("ok"):
                 fails.pop(i)

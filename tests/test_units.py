@@ -1217,6 +1217,40 @@ def test_underground_pair_off_view():
 
 
 
+def test_surface_ops_get_the_planet():
+    import asyncio as _a
+    from jev.game import Game
+
+    class Crew:
+        def __init__(self):
+            self.calls = []
+
+        async def call(self, op, timeout=30, **kw):
+            self.calls.append((op, kw))
+            if op == "self":
+                return {"surface": "vulcanus", "position": [0, 0]}
+            if op == "hop":
+                return {"surface": "nauvis", "position": [0, 0]}
+            return {}
+
+    async def go():
+        c = Crew()
+        g = Game(c, "serf")
+        await g.call("query", what="materials")
+        await g.me()
+        await g.call("query", what="materials")
+        await g.call("act", actions=[])
+        await g.call("query", what="materials", surface="fulgora")
+        await g.call("hop", agent="serf", planet="nauvis")
+        await g.call("audit")
+        return c.calls
+
+    calls = _a.run(go())
+    got = [kw.get("surface") for op, kw in calls if op in ("query", "act", "audit")]
+    check("surface ops: before it knows, none; then the serf's planet, never on other ops, an explicit one kept, and "
+          "a hop moves it", got == [None, "vulcanus", None, "fulgora", "nauvis"], got)
+
+
 def test_audit_spot_per_problem():
     from jev import audit as A
     a = {"machines": 48, "groups": {"low-density-structure": {

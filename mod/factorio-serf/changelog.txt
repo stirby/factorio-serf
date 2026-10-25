@@ -3,6 +3,9 @@ Version: 0.3.4
 Date: 2026-10-25
   Changes:
     - Serfs show on the map: a dot in their color with their name, the same size at any zoom.
+    - A serf puts items in a storage chest set to one item only if it's that item, as robots do.
+    - On other planets a serf reads its own planet: storage, base checks, ghosts, alerts and production no longer default to Nauvis.
+    - The base check gives an example spot for each problem (starved, blocked, no power) instead of one for the whole group.
 ---------------------------------------------------------------------------------------------------
 Version: 0.3.3
 Date: 2026-10-25

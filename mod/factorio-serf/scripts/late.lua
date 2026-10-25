@@ -8,8 +8,12 @@ local late = {}
 local STATUS = {}
 for k, v in pairs(defines.entity_status) do STATUS[v] = k end
 
-local function surface_of(req)
-  return game.surfaces[req.surface or "nauvis"] or game.surfaces.nauvis
+local function surface_of(req)  -- the named surface, else the agent's planet, else nauvis
+  local s = req.surface and game.surfaces[req.surface]
+  if s then return s end
+  local a = req.agent and storage.agents[req.agent]
+  if a and a.char and a.char.valid then return a.char.surface end
+  return game.surfaces.nauvis
 end
 
 local function per_min(stats, name, cat, idx)

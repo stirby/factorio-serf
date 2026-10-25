@@ -1207,7 +1207,7 @@ class Actor(FastPaths):
             if "assembling-machine-2" in want:
                 want.pop("assembling-machine-1", None)
             if want:
-                await self.runner.stock(want)
+                await self.runner.stock(want, fallback=False)  # storage only: nothing grabbed or crafted on a guess
         except Exception as e:  # noqa: BLE001
             self.log({"kind": "error", "where": "prefetch", "error": repr(e)})
         # head for the site while the planner is still thinking (the plan's first steps start there anyway)
@@ -1268,7 +1268,7 @@ class Actor(FastPaths):
         o.status = "thinking"
         self.thinker.ask(Request("order" if o.plans == 0 else "report", text, o.id))
         if o.plans == 0 and self.prefetch:
-            asyncio.create_task(self._prefetch(o))
+            self._prefetching = asyncio.create_task(self._prefetch(o))
         t0 = time.time()
         plan = None
         told = False
@@ -1498,7 +1498,21 @@ class Actor(FastPaths):
         return False
 
     # ------------------------------------------------------------------ running plans
+    async def _stop_prefetch(self) -> None:
+        """The plan is here: the guesswork fetching stops, with its jobs (live test: a prefetch's grab walked the
+        character off while the plan's insert walked it to a chest, and the insert failed)."""
+        t = getattr(self, "_prefetching", None)
+        self._prefetching = None
+        if t and not t.done():
+            t.cancel()
+            try:
+                await self.g.cancel("the plan is ready: prefetch stops")
+            except Exception:  # noqa: BLE001
+                pass
+            self.log({"kind": "prefetch_stopped"})
+
     async def _run_plan(self, o: Order, plan: dict) -> tuple[bool, str]:
+        await self._stop_prefetch()
         steps = plan.get("steps") or []
         try:
             o.built_pts += plan_points([st for st in steps if st.get("do") in BUILD_OPS])
