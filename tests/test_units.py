@@ -1288,6 +1288,17 @@ def test_audit_fix_first():
           and "copper-plate furnaces" not in w, (w[:400], b[:300]))
 
 
+def test_audit_power_first():
+    from jev import audit as A
+    a = {"machines": 279, "status": {"no_power": 154, "no_ingredients": 62}, "labs": 12,
+         "groups": {"mining coal": {"n": 21, "working": 0, "other": 21, "why_other": "no_power"},
+                    "iron-plate": {"n": 47, "working": 0, "starved": 44}}}
+    w = A.words(a)
+    lines = [x for x in w.splitlines() if x.startswith("Fix first")]
+    check("audit words: a blackout comes first, naming the coal drills it stopped",
+          lines and "154 of 279 machines have no power" in lines[0] and "21 coal drills" in lines[0], lines)
+
+
 def test_bus_feed_entries():
     from jev.busgen import DIRS, Bus
     ok_all, why = True, []

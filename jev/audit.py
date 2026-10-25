@@ -96,8 +96,19 @@ def fix_first(a: dict) -> list[str]:
     """Supply failures every chain downstream waits on, said first (p9 at 4.7% working: 42 of 66 iron furnaces
     without ore while its far iron drills sat blocked, and the manager kept building processing units)."""
     g = a.get("groups") or {}
-    dry = int((a.get("status") or {}).get("no_minable_resources", 0))
+    st = a.get("status") or {}
+    dry = int(st.get("no_minable_resources", 0))
     out = []
+    machines = int(a.get("machines") or 0)
+    dark = int(st.get("no_power", 0)) + int(st.get("low_power", 0))
+    if dark >= 10 and dark >= 0.2 * max(machines, 1):
+        coal = g.get("mining coal") or {}
+        spiral = (f" {coal.get('n')} coal drills are among them: if the boilers burn coal those drills mine, the "
+                  "blackout has stopped their own fuel.") if coal and coal.get("other") else ""
+        out.append(f"Fix first: {dark} of {machines} machines have no power (or too little): the power plant is down "
+                   f"or short.{spiral} Put fuel into the boilers by hand to restart it, give them a supply that "
+                   "doesn't need power (a chest of coal they draw from, burner drills, or more steam engines and "
+                   "boilers if the load outgrew them), then check the pole line to whatever is still dark.")
     for ore, plate in ORE_PLATE.items():
         mine, furn = g.get(f"mining {ore}") or {}, g.get(plate) or {}
         starved, n = int(furn.get("starved", 0)), int(furn.get("n", 0))
