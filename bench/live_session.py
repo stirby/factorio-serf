@@ -5,6 +5,8 @@ the player's mods), the serf on it capturing every order and every "!" flag, and
     .venv/bin/python bench/live_session.py up [SAVE] [--biters]   # copy SAVE (default: the newest in
                                                              # ~/.factorio/saves) and (re)start slot 70, then the serf;
                                                              # biters are removed unless the player asks for --biters
+    .venv/bin/python bench/live_session.py up --keep --wait [--biters]   # when nobody's on, save the running world and
+                                                             # restart from it (a mod update mid-session)
     .venv/bin/python bench/live_session.py serf [--note TEXT] [--force]   # restart only the serf (seconds; the
                                                              # character stays, the player stays connected)
     .venv/bin/python bench/live_session.py status
@@ -118,7 +120,39 @@ def busy() -> str | None:
     return None
 
 
-def up(save: str | None, biters: bool = False) -> None:
+def keep_save() -> Path:
+    """The running server's world saved now (/server-save), once the file has settled: what `up --keep` restarts from
+    (a restart for a mod update without losing what was done since the session began)."""
+    name = "live-keep-" + time.strftime("%Y%m%d-%H%M%S")
+    asyncio.run(_rcon(f"/server-save {name}"))
+    src = inst().dir / "saves" / f"{name}.zip"
+    last = -1
+    for _ in range(240):
+        if src.exists():
+            size = src.stat().st_size
+            if size == last and size > 0:
+                break
+            last = size
+        time.sleep(0.5)
+    else:
+        raise SystemExit(f"the server never wrote {src}")
+    WORLDS.mkdir(parents=True, exist_ok=True)
+    out = WORLDS / src.name
+    shutil.move(str(src), out)
+    return out
+
+
+def up(save: str | None, biters: bool = False, keep: bool = False, wait: bool = False) -> None:
+    if wait and inst().running():  # until nobody's on (a restart kicks players)
+        while online():
+            time.sleep(3)
+    if keep:
+        if not inst().running():
+            raise SystemExit(f"--keep: slot {SLOT} isn't running")
+        if online():
+            raise SystemExit("--keep: players are on; --wait waits for them to leave")
+        save = str(keep_save())
+        print(f"saved the running world: {save}")
     if save:
         src = Path(save).expanduser()
         if not src.exists():
@@ -156,13 +190,15 @@ def main() -> None:
     u = sub.add_parser("up")
     u.add_argument("save", nargs="?")
     u.add_argument("--biters", action="store_true", help="keep the biters (only when the player asks for them)")
+    u.add_argument("--keep", action="store_true", help="restart from the running server's world as it is now")
+    u.add_argument("--wait", action="store_true", help="wait until nobody is on the server first")
     s = sub.add_parser("serf")
     s.add_argument("--note")
     s.add_argument("--force", action="store_true")
     sub.add_parser("status")
     a = ap.parse_args()
     if a.cmd == "up":
-        up(a.save, a.biters)
+        up(a.save, a.biters, a.keep, a.wait)
     elif a.cmd == "serf":
         if not inst().running():
             raise SystemExit(f"slot {SLOT} isn't running: live_session.py up")
