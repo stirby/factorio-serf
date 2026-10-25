@@ -56,10 +56,53 @@ end)
 script.on_event(defines.events.on_entity_died, function(e) agents.on_died(e.entity) end,
   { { filter = "type", type = "character" } })
 
+-- /serf leave and /serf join (also "@serf leave" / "@serf join" in chat): the named serf, else the player's own,
+-- else the first one anyone can call (one hosted by the server).
+local function pick_serf(p, arg, away)
+  if arg then
+    local a = storage.agents[arg]
+    if not a then return nil, "No serf called " .. arg .. "." end
+    return a
+  end
+  local mine, open = nil, nil
+  local names = {}
+  for name in pairs(storage.agents) do names[#names + 1] = name end
+  table.sort(names)
+  for _, name in ipairs(names) do
+    local a = storage.agents[name]
+    if (a.away == true) == away then
+      if a.owner == p.name then mine = mine or a elseif not a.owner then open = open or a end
+    end
+  end
+  return mine or open, away and "No serf is away." or "No serf here to send away."
+end
+
+local function serf_leave(p, a)
+  if a.owner and a.owner ~= p.name and not p.admin then return p.print("[serf] " .. a.name .. " isn't yours.") end
+  if a.away then return p.print("[serf] " .. a.name .. " is already away. /serf join brings it back.") end
+  jobs.cancel(a, "left the game")
+  agents.leave(a)
+  game.print("[serf] " .. a.name .. " left the game (" .. p.name .. "). /serf join brings it back.")
+end
+
+local function serf_join(p, a)
+  if a.owner and a.owner ~= p.name and not p.admin then return p.print("[serf] " .. a.name .. " isn't yours.") end
+  if not a.away and agents.alive(a) then return p.print("[serf] " .. a.name .. " is already here.") end
+  agents.join(a, p)
+  game.print("[serf] " .. a.name .. " joined the game.")
+end
+
 script.on_event(defines.events.on_console_chat, function(e)
   if not e.player_index then return end
   local p = game.get_player(e.player_index)
   if not p then return end
+  local nm, verb = (e.message or ""):match("^%s*@([%w_%-]+)[%s,:]+(%a+)[%s%.!]*$")
+  local a = nm and (storage.agents[nm] or storage.agents[nm:lower()])
+  verb = verb and verb:lower()
+  if a and (verb == "leave" or verb == "join") then
+    if verb == "leave" then serf_leave(p, a) else serf_join(p, a) end
+    return  -- a command, not an order for it
+  end
   link.push("chat", { tick = game.tick, player = p.name, message = e.message, position = util.xy(p.position) })
 end)
 
@@ -69,6 +112,7 @@ local API = {}
 local function agent_of(req) return agents.get(req.agent) end
 local function live(req)
   local a = agent_of(req)
+  if a.away then error("agent " .. a.name .. " is away (a player types /serf join to bring it back)") end
   if not agents.alive(a) then error("agent " .. a.name .. " is dead (respawning)") end
   return a
 end
@@ -86,7 +130,21 @@ end
 
 API.spawn = function(req)
   local a = agents.spawn(req)
+  if a.away then return { agent = a.name, away = true } end
   return { agent = a.name, position = util.xy(a.char.position) }
+end
+
+-- The orchestrator's (and tests') way to what /serf leave and /serf join do.
+API.leave = function(req)
+  local a = agent_of(req)
+  jobs.cancel(a, "left the game")
+  agents.leave(a)
+  return { away = true }
+end
+API.join = function(req)
+  local a = agent_of(req)
+  agents.join(a, req.player and util.find_player(req.player))
+  return { position = util.xy(a.char.position) }
 end
 
 API.despawn = function(req) agents.despawn(req.agent) return {} end
@@ -955,6 +1013,14 @@ commands.add_command("serf", "Bring in an AI helper: /serf add [name], /serf rem
   local words = {}
   for w in (cmd.parameter or ""):gmatch("%S+") do words[#words + 1] = w end
   local sub, arg = words[1] or "help", words[2]
+  if sub == "leave" then
+    local a, why = pick_serf(p, arg, false)
+    if a then serf_leave(p, a) else p.print("[serf] " .. why) end
+    return
+  end
+  if sub == "join" and pick_serf(p, arg, true) then
+    return serf_join(p, (pick_serf(p, arg, true)))
+  end
   if sub == "add" or sub == "join" then
     if not settings.global["factorio-serf-player-serfs"].value then
       p.print("[serf] This server doesn't allow player serfs (mod setting).")
@@ -1017,6 +1083,7 @@ commands.add_command("serf", "Bring in an AI helper: /serf add [name], /serf rem
     p.print(#lines > 0 and ("[serf] In this world:\n" .. table.concat(lines, "\n")) or "[serf] No serfs in this world yet.")
   else
     p.print("[serf] /serf add [name]: bring in a helper (runs on your computer with your Claude login).\n"
+      .. "  /serf leave [name]: it leaves the game, keeping its items.  /serf join [name]: it comes back next to you.\n"
       .. "  /serf learn [name]: teach it the blueprint or book you're holding (or click Teach serf in the toolbar).\n"
       .. "  /serf remove [name]: send yours away (you get its items).  /serf list: who's here.\n"
       .. "  Talk to it in chat: @serf build more iron smelting")

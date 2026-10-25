@@ -77,7 +77,7 @@ function agents.spawn(args)
   local name = args.name
   if not name or name == "" then error("spawn needs a name") end
   local a = storage.agents[name]
-  if a and agents.alive(a) then return a end
+  if a and (agents.alive(a) or a.away) then return a end  -- away: it stays away until a player types /serf join
   if not a then
     local n = 0
     for _ in pairs(storage.agents) do n = n + 1 end
@@ -112,6 +112,81 @@ function agents.spawn(args)
   return a
 end
 
+-- Leaving and coming back (/serf leave, /serf join): whole stacks move to script inventories and back, so armor keeps
+-- its equipment and items their quality. Main before armor on the way out (taking the armor off first would spill its
+-- bonus slots), armor first on the way back. The caller cancels the agent's jobs first.
+local STASH_OUT = { "character_main", "character_trash", "character_guns", "character_ammo", "character_armor" }
+local STASH_BACK = { "character_armor", "character_main", "character_guns", "character_ammo", "character_trash" }
+
+function agents.leave(a)
+  if a.away then return end
+  if agents.alive(a) then
+    local c = a.char
+    pcall(function()  -- hand-crafting in progress gives its ingredients back
+      while c.crafting_queue_size > 0 do
+        local q = c.crafting_queue
+        c.cancel_crafting { index = q[#q].index, count = q[#q].count }
+      end
+    end)
+    a.stash = {}
+    for _, k in ipairs(STASH_OUT) do
+      local inv = c.get_inventory(defines.inventory[k])
+      if inv and not inv.is_empty() then
+        local box = game.create_inventory(#inv)
+        for i = 1, #inv do
+          if inv[i].valid_for_read then box[i].transfer_stack(inv[i]) end
+        end
+        a.stash[k] = box
+      end
+    end
+    a.left_from = { surface = c.surface.name, position = util.xy(c.position) }
+    storage.by_unit[c.unit_number] = nil
+    c.destroy()
+  end
+  for _, k in pairs { "tag", "state_tag", "bubble" } do
+    if a[k] and a[k].valid then a[k].destroy() end
+    a[k] = nil
+  end
+  a.char, a.away, a.dead_until = nil, true, nil
+  agents.event { type = "left", agent = a.name }
+end
+
+-- Back next to the player who called it (if they have a character), else where it left.
+function agents.join(a, player)
+  if not a.away and agents.alive(a) then return end
+  local surface, near
+  if player and player.valid and player.connected and player.character then
+    surface, near = player.surface, player.position
+  else
+    local lf = a.left_from or {}
+    surface = game.surfaces[lf.surface or a.surface or "nauvis"] or game.surfaces.nauvis
+    near = util.pos(lf.position) or default_spawn(surface)
+  end
+  local c = create_char(a, surface, near)
+  local main = c.get_inventory(defines.inventory.character_main)
+  for _, k in ipairs(STASH_BACK) do
+    local box = a.stash and a.stash[k]
+    if box and box.valid then
+      local inv = c.get_inventory(defines.inventory[k])
+      for i = 1, #box do
+        local s = box[i]
+        if s.valid_for_read and inv and i <= #inv then inv[i].transfer_stack(s) end
+        if s.valid_for_read and main then  -- that slot isn't there now: any free one
+          local free = main.find_empty_stack(s.name)
+          if free then free.transfer_stack(s) end
+        end
+        if s.valid_for_read then  -- no room: at its feet
+          surface.spill_item_stack { position = c.position, stack = s, enable_looted = true }
+          s.clear()
+        end
+      end
+      box.destroy()
+    end
+  end
+  a.stash, a.away, a.left_from = nil, nil, nil
+  agents.event { type = "joined", agent = a.name, position = util.xy(c.position) }
+end
+
 function agents.despawn(name)
   local a = agents.get(name)
   if agents.alive(a) then
@@ -119,6 +194,9 @@ function agents.despawn(name)
     a.char.destroy()
   end
   if a.tag and a.tag.valid then a.tag.destroy() end
+  for _, box in pairs(a.stash or {}) do
+    if box.valid then box.destroy() end
+  end
   storage.agents[name] = nil
 end
 

@@ -74,6 +74,12 @@ local function update_overhead(a, short, c)
   end
 end
 
+-- Only an agent that's here and has its app connected gets a card, a state over its head and the Teach shortcut:
+-- with none, the mod shows nothing.
+local function shown(a)
+  return not a.away and link.online(link.client_of(a)) and a.state ~= "offline"
+end
+
 function panel.refresh()
   storage.panel_hidden = storage.panel_hidden or {}
   local brand = storage.brand or { title = "Serfs" }
@@ -83,21 +89,28 @@ function panel.refresh()
   local cards = {}
   for _, name in ipairs(names) do
     local a = storage.agents[name]
-    local long, short, c = state_of(a)
-    update_overhead(a, short, c)
-    local who = (a.owner and name ~= a.owner) and ("  [font=default-small]" .. color(C.dim, "with " .. a.owner) .. "[/font]") or ""
-    local lines = { color(a.color, "[font=default-bold]" .. name .. "[/font]") .. who
-      .. (a.model and ("  [font=default-small]" .. color(C.dim, a.model) .. "[/font]") or "") }
-    lines[#lines + 1] = color(c, long)
-    if a.task_text and a.task_text ~= "" then lines[#lines + 1] = "[font=default-small]task: " .. a.task_text .. "[/font]" end
-    if a.thought and a.thought ~= "" then
-      lines[#lines + 1] = "[font=default-small]" .. color(C.thought, "\"" .. a.thought .. "\"") .. "[/font]"
-    elseif a.status_text and a.status_text ~= "" then
-      lines[#lines + 1] = "[font=default-small]" .. color(C.dim, a.status_text) .. "[/font]"
+    if not shown(a) then
+      if a.state_tag and a.state_tag.valid then a.state_tag.destroy() end
+      a.state_tag = nil
+    else
+      local long, short, c = state_of(a)
+      update_overhead(a, short, c)
+      local who = (a.owner and name ~= a.owner) and ("  [font=default-small]" .. color(C.dim, "with " .. a.owner) .. "[/font]") or ""
+      local lines = { color(a.color, "[font=default-bold]" .. name .. "[/font]") .. who
+        .. (a.model and ("  [font=default-small]" .. color(C.dim, a.model) .. "[/font]") or "") }
+      lines[#lines + 1] = color(c, long)
+      if a.task_text and a.task_text ~= "" then lines[#lines + 1] = "[font=default-small]task: " .. a.task_text .. "[/font]" end
+      if a.thought and a.thought ~= "" then
+        lines[#lines + 1] = "[font=default-small]" .. color(C.thought, "\"" .. a.thought .. "\"") .. "[/font]"
+      elseif a.status_text and a.status_text ~= "" then
+        lines[#lines + 1] = "[font=default-small]" .. color(C.dim, a.status_text) .. "[/font]"
+      end
+      cards[#cards + 1] = lines
     end
-    cards[#cards + 1] = lines
   end
   for _, p in pairs(game.connected_players) do
+    local on = #cards > 0
+    if p.is_shortcut_available("factorio-serf-teach") ~= on then p.set_shortcut_available("factorio-serf-teach", on) end
     local f = p.gui.left[NAME]
     if #cards == 0 or storage.panel_hidden[p.index] then
       if f then f.destroy() end

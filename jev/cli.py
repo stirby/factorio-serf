@@ -4,7 +4,8 @@
     .venv/bin/python -m jev.cli play --udp 27200
     # a server you run: RCON
     .venv/bin/python -m jev.cli play --rcon 127.0.0.1:27015 --password-file server/rcon-password
-Options: --name serf, --no-think (Jev + code only, no Opus), --effort for the thinker.
+Options: --name serf, --no-think (Jev + code only, no Opus), --effort for the thinker, --capture DIR (players'
+orders become test cases, jev/capture.py).
 Logs go to ~/.local/state/jev/<time>/ (actor.jsonl, jev.jsonl). The library (lessons, designs) is JEV_LIBRARY or
 <repo>/library. Ctrl-C stops it; the character stays in the game.
 """
@@ -42,10 +43,27 @@ async def play(a) -> None:
     state.mkdir(parents=True, exist_ok=True)
     jev = reader(log_path=state / "jev.jsonl")
     await g.start(**spawn)
+    if g.away:
+        # sent away in an earlier session: it stays away until a player calls it back
+        print(f"{a.name} is away (a player sent it off); waiting for /serf join", flush=True)
+        while True:
+            ev = await g.events.get()
+            if ev.get("agent") == a.name and ev.get("type") == "joined":
+                g.away = False
+                break
     actor = Actor(g, jev, state, a.name, think=not a.no_think, thinker_effort=a.effort)
+    if a.capture:
+        if not a.rcon:
+            raise SystemExit("--capture needs --rcon (the save is the server's /server-save)")
+        from .capture import Capture
+        saves = Path(a.server_saves) if a.server_saves else Path(a.password_file).resolve().parent / "saves"
+        world = next((z.stem for z in sorted(saves.glob("*.zip")) if not z.name.startswith("live-")), "")
+        cap = Capture(r.command, Path(a.capture), saves, world=world, log_path=state / "actor.jsonl")
+        actor.on_new_order, actor.on_order_end = cap.order, cap.end
+        print(f"capturing players' orders as test cases in {a.capture} (world {world})", flush=True)
     await actor.start()
     await g.say(f"{a.name} here (Jev acting, {'Opus planning' if not a.no_think else 'no planner'}). "
-                f"Talk to me with @{a.name}.")
+                f"Talk to me with @{a.name}; /serf leave sends me away, /serf join brings me back.")
     print(f"{a.name} is in the game. Logs: {state}. Ctrl-C to stop.", flush=True)
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
@@ -70,6 +88,10 @@ def main() -> None:
     pl.add_argument("--password-file")
     pl.add_argument("--password")
     pl.add_argument("--name", default="serf")
+    pl.add_argument("--capture", metavar="DIR", help="save each player's order with a save of the world as a test case "
+                    "(jev/capture.py); RCON only")
+    pl.add_argument("--server-saves", metavar="DIR", help="where the server writes /server-save (default: the "
+                    "password file's folder + /saves, as for scripts/instance.py servers)")
     pl.add_argument("--no-think", action="store_true")
     pl.add_argument("--effort")
     pl.add_argument("--reader", choices=["jev", "sonnet", "hybrid"], help="who reads orders and makes quick decisions "

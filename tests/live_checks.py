@@ -1780,8 +1780,86 @@ return out""") or {}
           (str(r.get("msg"))[:200], got))
 
 
+async def chk_leave_join(L: Live, state: dict):
+    """/serf leave and /serf join (here through the API they share): the character goes and its jobs are cancelled;
+    calls say it's away; it comes back with every item, armor with its equipment and items with their quality; and
+    the events tell the orchestrator."""
+    g = L.g
+    await L.ev("""local c = storage.agents['serf'].char
+c.get_inventory(defines.inventory.character_main).clear()
+c.get_inventory(defines.inventory.character_armor).insert { name = 'modular-armor' }
+local grid = c.get_inventory(defines.inventory.character_armor)[1].grid
+grid.put { name = 'solar-panel-equipment' } grid.put { name = 'solar-panel-equipment' }
+c.insert { name = 'iron-plate', count = 333 }
+c.insert { name = 'assembling-machine-2', count = 7, quality = 'uncommon' }
+return true""")
+    jid = (await g.act([{"op": "move", "x": 200, "y": 200}]))[0]
+    while not g.events.empty():
+        g.events.get_nowait()
+    r = await g.call("leave", agent="serf")
+    res = await g.wait_job(jid, 10)
+    gone = await L.ev("local a = storage.agents['serf'] return (a.char == nil) and a.away == true")
+    try:
+        await g.me()
+        refused = ""
+    except Exception as e:  # noqa: BLE001
+        refused = str(e)
+    check("leave: the character goes, its running job ends cancelled, calls say it's away",
+          r.get("away") and gone and not res.get("ok") and "left the game" in str(res.get("msg"))
+          and "away" in refused, (r, gone, res, refused[:120]))
+    sp = await g.call("spawn", name="serf", client="rcon")
+    check("leave: spawning it again (a restarted app) keeps it away", sp.get("away") is True, sp)
+    j = await g.call("join", agent="serf")
+    back = await L.ev("""local c = storage.agents['serf'].char
+local armor = c.get_inventory(defines.inventory.character_armor)[1]
+local q = 0 for _, it in pairs(c.get_main_inventory().get_contents()) do if it.name == 'assembling-machine-2' and it.quality == 'uncommon' then q = it.count end end
+return helpers.table_to_json { plates = c.get_item_count('iron-plate'), uncommon = q,
+  armor = armor.valid_for_read and armor.name or '', equipment = armor.valid_for_read and armor.grid and #armor.grid.equipment or 0,
+  away = storage.agents['serf'].away == true }""")
+    import json as _json
+    b = _json.loads(back)
+    check("join: back with every item: 333 plates, 7 uncommon assemblers, armor with its 2 solar panels",
+          j.get("position") and b == {"plates": 333, "uncommon": 7, "armor": "modular-armor", "equipment": 2, "away": False}, b)
+    await asyncio.sleep(1)
+    evs = []
+    while not g.events.empty():
+        evs.append(g.events.get_nowait())
+    kinds = [e.get("type") for e in evs if e.get("agent") == "serf"]
+    check("leave/join: the orchestrator gets 'left' then 'joined'", "left" in kinds and "joined" in kinds
+          and kinds.index("left") < kinds.index("joined"), kinds)
+
+
+async def chk_capture(L: Live, state: dict):
+    """A player's order as a test case: a /server-save of the world right then (moved out of the server's saves
+    folder) and case.json; the order's end adds a run."""
+    import json as _json
+    import tempfile
+    from jev.capture import Capture
+    out = Path(tempfile.mkdtemp(prefix="cases-", dir=str(ROOT / "bench" / "runs")))
+    saves = Path(state["inst_dir"]) / "saves"
+    cap = Capture(L.g.crew.rcon.command, out, saves, world="crew-test")
+
+    class FakeOrder:  # the fields an Order has
+        id, text, speaker, points, playbook, plans, reopened, notes, history = 3, "@serf make more gears at [gps=1,2]", \
+            "otterplex", [(1.0, 2.0)], "plan", 1, 0, ["otterplex: faster please"], ["built 2 gear assemblers"]
+        status, speaker_at = "done", (5.0, 6.0)
+    await cap.order(FakeOrder)
+    d = next(out.iterdir(), None)
+    case = _json.loads((d / "case.json").read_text()) if d else {}
+    leftover = [z.name for z in saves.glob("live-*.zip")]
+    check("capture: the case has the world's save and the order, and the server's saves folder keeps no copy",
+          d and (d / "save.zip").stat().st_size > 100000 and case.get("order") == FakeOrder.text
+          and case.get("speaker") == "otterplex" and not leftover and "make-more-gears" in d.name,
+          (d and d.name, case.get("save_error"), leftover))
+    await cap.end(FakeOrder, 125)
+    case = _json.loads((d / "case.json").read_text())
+    run = (case.get("runs") or [{}])[-1]
+    check("capture: the order's end adds a run (status, minutes, follow-ups)",
+          run.get("status") == "done" and run.get("minutes") == 2.1 and run.get("notes") == FakeOrder.notes, run)
+
+
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "detour": chk_route_detour, "routepocket": chk_route_pocket, "fetchfar": chk_fetch_far, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "clearworking": chk_clear_working, "pipegap": chk_pipe_gap, "auditlacks": chk_audit_lacks, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe, "supply": chk_supply, "supplyfar": chk_supply_far, "supplysilo": chk_supply_silo, "supplylines": chk_supply_lines, "supplylds": chk_supply_lds, "supplywalled": chk_supply_walled}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "detour": chk_route_detour, "routepocket": chk_route_pocket, "fetchfar": chk_fetch_far, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "clearworking": chk_clear_working, "pipegap": chk_pipe_gap, "auditlacks": chk_audit_lacks, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe, "supply": chk_supply, "supplyfar": chk_supply_far, "supplysilo": chk_supply_silo, "supplylines": chk_supply_lines, "supplylds": chk_supply_lds, "supplywalled": chk_supply_walled, "leavejoin": chk_leave_join, "capture": chk_capture}
 
 
 async def main() -> int:
@@ -1802,6 +1880,7 @@ async def main() -> int:
         g = await Game.connect(inst.host, inst.rcon_port, inst.password, "serf")
         await g.start(spawn=True)
         L = Live(g)
+        state["inst_dir"] = str(inst.dir)
         for name in only:
             try:
                 await asyncio.wait_for(CHECKS[name](L, state), 300)

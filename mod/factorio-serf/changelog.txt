@@ -1,4 +1,12 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.3.2
+Date: 2026-10-24
+  Features:
+    - /serf leave [name] sends a serf out of the game and /serf join [name] brings it back next to you, with all its items (armor keeps its equipment, items their quality). "@serf leave" and "@serf join" in chat do the same.
+  Changes:
+    - The serf panel, the state over a serf's head and the Teach serf shortcut show only while its app is connected and it's in the game.
+    - /serf join brings back a serf that left; with none away it calls one as /serf add does.
+---------------------------------------------------------------------------------------------------
 Version: 0.3.1
 Date: 2026-10-19
   Features:

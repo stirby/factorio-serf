@@ -20,6 +20,7 @@ import time
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Awaitable, Callable
 
 from . import craft, decide, quickbuild
 from .project import OBVIOUS, Project
@@ -96,6 +97,9 @@ class Actor(FastPaths):
         self.g, self.jev, self.name = game, jev, name
         self.workdir = workdir
         self.log_path = workdir / "actor.jsonl"
+        # hooks: a player's new order (before any work on it) and an order's end (jev/capture.py uses both)
+        self.on_new_order: Callable[[Order], Awaitable[None]] | None = None
+        self.on_order_end: Callable[[Order, float], Awaitable[None]] | None = None
         self.runner = Runner(game, self.log)
         self.orders: list[Order] = []
         self.current: Order | None = None
@@ -204,7 +208,7 @@ class Actor(FastPaths):
             await self.thinker.start()
         self.load_state()
         self._tasks = [asyncio.create_task(self._chat_loop()), asyncio.create_task(self._work_loop()),
-                       asyncio.create_task(self._watch_loop())]
+                       asyncio.create_task(self._watch_loop()), asyncio.create_task(self._event_loop())]
         self.log({"kind": "start", "recipes": len(self.recipes), "items": len(self.items),
                   "kept": {"fuelled": len(self.fuelled), "stocked": len(self.stocked), "watches": len(self.watches)}})
 
@@ -251,6 +255,26 @@ class Actor(FastPaths):
             self.busy_since = None
             self._idle_mark = now
 
+    async def _event_loop(self) -> None:
+        """The mod's events for this character: a player sent it away (/serf leave: its jobs were cancelled and its
+        items put away) or called it back (/serf join)."""
+        while True:
+            ev = await self.g.events.get()
+            if ev.get("agent") != self.name:
+                continue
+            if ev.get("type") == "left":
+                self.g.away = True
+                for o in self.orders:
+                    if o.status in ("new", "working", "thinking"):
+                        o.status = "cancelled"
+                if self.project and self.project.active:
+                    self.project.stop("the serf left the game")
+                self.log({"kind": "left"})
+            elif ev.get("type") == "joined":
+                self.g.away, self._told_away = False, False
+                self.log({"kind": "joined", "position": ev.get("position")})
+                await self.say("back. What's next?")
+
     # ------------------------------------------------------------------ chat
     async def _chat_loop(self) -> None:
         while True:
@@ -264,6 +288,11 @@ class Actor(FastPaths):
     async def _on_chat(self, c: dict) -> None:
         speaker, msg = str(c.get("player") or "?"), str(c.get("message") or "")
         if speaker == self.name or not msg.strip():
+            return
+        if self.g.away:
+            if f"@{self.name}".lower() in msg.lower() and not getattr(self, "_told_away", False):
+                self._told_away = True
+                await self.say("I'm away right now: /serf join brings me back")
             return
         self.metrics["chat_lines"] += 1
         if self.project and self.project.active:
@@ -325,6 +354,11 @@ class Actor(FastPaths):
             self.next_id += 1
             self.orders.append(o)
             self.metrics["orders"] += 1
+            if self.on_new_order:  # e.g. jev/capture.py: a save of the world as the player asked, before any work
+                try:
+                    await self.on_new_order(o)
+                except Exception as e:  # noqa: BLE001
+                    self.log({"kind": "error", "where": "on_new_order", "error": repr(e)})
             if doing and self.current and self.current.speaker == self.name and self.current.text.startswith("(noticed)"):
                 # something it noticed by itself waits for a player's order
                 self.current.status = "cancelled"
@@ -426,6 +460,11 @@ class Actor(FastPaths):
                 self.runner.abort = None
             self.log({"kind": "order_end", "order": o.id, "status": o.status, "secs": round(time.time() - t0, 1),
                       "plans": o.plans})
+            if self.on_order_end:
+                try:
+                    await self.on_order_end(o, time.time() - t0)
+                except Exception as e:  # noqa: BLE001
+                    self.log({"kind": "error", "where": "on_order_end", "error": repr(e)})
             if o.status == "done" and pre is not None:  # exactly what this order built, for "two more like it"
                 post = await self._mine_near(o, full=True)
                 o.built = [e for u, e in (post or {}).items() if u not in pre]
@@ -612,7 +651,7 @@ class Actor(FastPaths):
         while True:
             await asyncio.sleep(self.watch_every)
             self.save_state()
-            if self._busy():
+            if self._busy() or self.g.away:
                 continue
             # chests a plan stocked by hand (e.g. coal for a boiler or plastic plant): top them up before they run dry
             for c in list(self.stocked):

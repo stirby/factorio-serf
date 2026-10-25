@@ -21,6 +21,7 @@ class Game:
         self._task: asyncio.Task | None = None
         self.tick = 0
         self.last_poll = 0.0
+        self.away = False  # a player sent the character away (/serf leave); /serf join brings it back
 
     @classmethod
     async def connect(cls, host: str, port: int, password: str, name: str = "serf") -> "Game":
@@ -36,7 +37,8 @@ class Game:
         the client and owner from the packet, so pass nothing."""
         if spawn:
             args = {"client": "rcon", **spawn_args} if not hasattr(self.crew, "port") else dict(spawn_args)
-            await self.call("spawn", name=self.name, **args)
+            d = await self.call("spawn", name=self.name, **args)
+            self.away = bool(isinstance(d, dict) and d.get("away"))
         await self.call("poll")  # start the feed now: no stale chat
         self._task = asyncio.create_task(self._poll_loop())
 
