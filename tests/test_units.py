@@ -1634,6 +1634,45 @@ def test_limited_order_waits():
           asyncio.run(go2()) is None and not a.thinker.asked)
 
 
+def test_knowledge():
+    """The knowledge library (no network: the wiki is faked): lookups counted per page, a note asked for after the
+    3rd, save_note refused before that and for a copy of the page, and the note given first after that."""
+    import os
+    import tempfile
+    from jev import knowledge as kn
+    old = os.environ.get("JEV_LIBRARY")
+    os.environ["JEV_LIBRARY"] = tempfile.mkdtemp()
+    page_text = ("Roboport | Roboport\nSupply area | 50x50 tiles\nConstruction area | 110x110 tiles\n"
+                 "The roboport is the resting place for all construction robots and logistic robots. It emits an "
+                 "area of 50x50 tiles, in which logistic robots can interact with logistic network entities.")
+    real = kn.resolve, kn.page
+    kn.resolve = lambda q: ("Roboport", [])
+    kn.page = lambda title, section=None: (page_text, ["Storage", "History"])
+    try:
+        outs = [kn.lookup("roboport coverage") for _ in range(3)]
+        early = kn.save_note("Roboport", "Logistic area 50x50, construction 110x110, centred on the port.")
+        fourth = kn.lookup("roboport")
+        copied = kn.save_note("Roboport", page_text[60:])
+        saved = kn.save_note("Roboport", "Logistic area 50x50 tiles (bots bring and take items), construction area "
+                                         "110x110 (bots build, repair, remove), both centred on the port.")
+        fifth = kn.lookup("Roboport")
+        led = json.loads((kn.knowledge_dir() / "lookups.json").read_text())
+        check("knowledge: a lookup gives the page with its sections and counts it; no note asked for at 3",
+              "lookup #3" in outs[2] and "Construction area | 110x110" in outs[2] and "Sections" in outs[2]
+              and "save_note" not in outs[2], outs[2][:200])
+        check("knowledge: the 4th lookup asks for a note; save_note refuses before that and refuses a copy",
+              "save_note" in fourth and early.startswith("not saved") and copied.startswith("not saved")
+              and "own words" in copied, (fourth[-200:], early, copied))
+        check("knowledge: the note is written with its source and is given first after that; the ledger counts 5",
+              saved.startswith("saved knowledge/roboport.md") and "Your note" in fifth and "wiki.factorio.com/Roboport"
+              in fifth and led["Roboport"]["count"] == 5 and kn.notes_index() == ["Roboport"], (saved, fifth[:200]))
+    finally:
+        kn.resolve, kn.page = real
+        if old is None:
+            os.environ.pop("JEV_LIBRARY", None)
+        else:
+            os.environ["JEV_LIBRARY"] = old
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):

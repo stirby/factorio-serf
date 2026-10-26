@@ -151,6 +151,19 @@ TOOLS = [
      {"type": "object", "properties": {"name": {"type": "string"}, "note": {"type": "string"},
                                        "entities": {"type": "array", "items": {"type": "object"}}},
       "required": ["name", "entities"]}),
+    ("wiki", "Look up a game concept on the Factorio wiki (2.0 with Space Age): a building, item, planet, mechanic "
+             "(e.g. Roboport, Fluid system, Space platform, Quality). Gives the page's top part with its infobox "
+             "(sizes, ranges, recipe, power) and its section names; section=... for one section. Use it when the "
+             "rules or numbers of something matter and you aren't sure of them. Once you've written a note on a page "
+             "(save_note), you get your note first.",
+     {"type": "object", "properties": {"query": {"type": "string"}, "section": {"type": "string"},
+                                       "fresh": {"type": "boolean", "description": "the page even if you have a note"}},
+      "required": ["query"]}),
+    ("save_note", "Save a note on a wiki page you keep looking up (the wiki tool asks for one after the 3rd lookup): "
+                  "the facts that mattered for this game, in your own words, short. It goes into your knowledge "
+                  "library and later lookups give it first.",
+     {"type": "object", "properties": {"title": {"type": "string", "description": "the page's title"},
+                                       "text": {"type": "string"}}, "required": ["title", "text"]}),
     ("save_lesson", "Save one general rule for your future self (no coordinates): what would have made a first plan "
                     "work. Only when asked for a lesson. About the game, not about avoiding a step op: when an op "
                     "misbehaves (crashes, refuses a fair request), say so plainly; that goes to the harness's "
@@ -271,6 +284,14 @@ class Thinker:
                         elif n == "save_design":
                             from .library import save_design
                             out = save_design(args.get("name", ""), args.get("entities") or [], args.get("note", ""))
+                        elif n == "wiki":
+                            from . import knowledge
+                            out = await asyncio.to_thread(knowledge.lookup, str(args.get("query", "")),
+                                                          args.get("section"), bool(args.get("fresh")))
+                        elif n == "save_note":
+                            from . import knowledge
+                            out = await asyncio.to_thread(knowledge.save_note, str(args.get("title", "")),
+                                                          str(args.get("text", "")))
                         elif n == "save_lesson":
                             from .library import save_lesson
                             out = save_lesson(args.get("text", ""), {"order": getattr(self.current, "order_id", None)})
@@ -297,6 +318,11 @@ class Thinker:
         if ds:
             system += "\n\nSaved designs (build one with {\"do\": \"design\", \"name\": N, \"x\": X, \"y\": Y}; X,Y = where its 0,0 anchor goes):\n" + \
                 "\n".join(f"- {n}: {d.get('note') or ''} ({len(d['entities'])} entities)" for n, d in ds.items())
+        from .knowledge import notes_index
+        notes = notes_index()
+        if notes:
+            system += ("\n\nYour knowledge notes (pages you kept looking up; the wiki tool gives your note first): "
+                       + ", ".join(notes))
         if learned:
             system += "\n\nLessons from earlier games (rules you wrote after plans that failed):\n" + \
                 "\n".join(f"- {x}" for x in learned)
