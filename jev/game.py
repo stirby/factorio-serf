@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 
 from .rcon import Crew, GameError, Rcon, RconError
@@ -15,6 +16,9 @@ log = logging.getLogger("jev.game")
 # have)
 SURFACE_OPS = {"query", "audit", "alerts", "vitals", "ghosts", "blockers", "diagnose", "copy", "paste", "order",
                "network", "find_space", "zone", "sources", "check", "belt_items", "progress", "calc", "tags"}
+
+
+GPS = re.compile(r"\[gps=\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*\]")  # [gps=x,y]: no planet named
 
 
 class Game:
@@ -216,6 +220,9 @@ class Game:
             pass
 
     async def say(self, text: str) -> None:
+        if self.surface and self.surface != "nauvis":
+            # a map ping without a planet opens Nauvis (live test on Vulcanus: "the bot pings always show nauvis")
+            text = GPS.sub(lambda m: f"[gps={m.group(1)},{m.group(2)},{self.surface}]", text)
         try:
             await self.call("say", agent=self.name, text=text[:500])
         except GameError as e:

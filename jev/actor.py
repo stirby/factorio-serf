@@ -1215,6 +1215,12 @@ class Actor(FastPaths):
             if o and o.project:
                 return "refused: this order already comes from a project; plan it as an order (smaller, if need be)"
             return self.start_project(str(a.get("goal") or (o.text if o else "")), o.speaker if o else "a player")
+        async def network(a):
+            kw = {k: float(a[k]) for k in ("x", "y", "x1", "y1", "x2", "y2") if a.get(k) is not None}
+            if isinstance(a.get("items"), list):
+                kw["items"] = [str(x) for x in a["items"]][:20]
+            return json.dumps(await self.g.call("network", agent=self.name, **kw), separators=(",", ":"))[:8000]
+
         async def map_tags(a):
             kw = {"limit": int(a.get("limit") or 40)}
             if a.get("x") is not None and a.get("y") is not None:
@@ -1226,7 +1232,7 @@ class Actor(FastPaths):
 
         return {"area": area, "find": find, "recipe": recipe, "free_space": free_space, "me": me, "say": say,
                 "techs": techs, "production": production, "diagnose": diagnose, "start_project": start_project,
-                "rates": rates, "audit": audit, "pipes": pipes, "map_tags": map_tags}
+                "rates": rates, "audit": audit, "pipes": pipes, "map_tags": map_tags, "network": network}
 
     async def _bus_steps_as_ghosts(self, steps: list[dict]) -> list[dict]:
         """For the plan checker: bus, tap and bus_in steps as the entities they lay (worked out from the buses in

@@ -50,10 +50,12 @@ local function state_of(a)
   elseif st == "error" then
     return "retrying: " .. detail, "retrying", C.warn
   elseif st == "thinking" then
+    -- the seconds come back apart, for the strip to show at its right edge (live test: "the seconds passed should be
+    -- right justified", not pushed about by the dots)
     local dots = string.rep(".", 1 + math.floor(game.tick / 30) % 3)
-    local t = "thinking" .. dots .. " " .. secs .. "s"
-    if doing then return doing .. "  +  " .. t, (doing:gsub(" %(.*", "")), C.doing end
-    return t, "thinking" .. dots, C.thinking
+    local t = "thinking" .. dots
+    if doing then return doing .. "  +  " .. t, (doing:gsub(" %(.*", "")), C.doing, secs .. "s" end
+    return t, t, C.thinking, secs .. "s"
   end
   if doing then return doing, doing:gsub(" %(.*", ""), C.doing end
   if st == "waiting" then
@@ -136,7 +138,7 @@ end
 -- The always-on strip for one serf (mockup C): name and state, the step it's on with a progress bar, its order, and
 -- how many orders wait, need the player or failed lately. From the board its app sends (API.board).
 function panel.draw_strip(parent, a)
-  local long, _, c = state_of(a)
+  local long, _, c, clock = state_of(a)
   local b = a.board or {}
   local now, plan = b.now, b.plan
   local steps = (now and plan and plan.order == now.id and plan.steps) or {}
@@ -147,13 +149,19 @@ function panel.draw_strip(parent, a)
   end
   local top = parent.add { type = "flow", direction = "horizontal" }
   top.style.horizontal_spacing = 8
+  top.style.minimal_width = 380  -- as wide as the progress bar, so what sits at the right edge stays put
   top.add { type = "label", caption = color(a.color, "[font=default-bold]" .. a.name .. "[/font]") }
   local st = top.add { type = "label", caption = color(c, long) }
   st.style.maximal_width = 290
-  if #steps > 0 then
+  local right = {}
+  if #steps > 0 then right[#right + 1] = "step " .. (cur or done) .. " of " .. #steps end
+  if clock then right[#right + 1] = clock end
+  if #right > 0 then
     local pad = top.add { type = "label", caption = "" }
     pad.style.horizontally_stretchable = true
-    top.add { type = "label", caption = "[font=default-small]" .. color(C.dim, "step " .. (cur or done) .. " of " .. #steps) .. "[/font]" }
+    top.add { type = "label", caption = "[font=default-small]" .. color(C.dim, table.concat(right, "   ")) .. "[/font]" }
+  end
+  if #steps > 0 then
     local bar = parent.add { type = "progressbar", value = done / #steps }
     bar.style.horizontally_stretchable = true
     bar.style.minimal_width = 380
@@ -203,8 +211,9 @@ local function fill_tasks(box)
     if shown(a) then
       any = true
       local b = a.board or {}
-      local long, _, c = state_of(a)
-      add_line(box, color(a.color, "[font=default-bold]" .. name .. "[/font]") .. "  " .. color(c, long))
+      local long, _, c, clock = state_of(a)
+      add_line(box, color(a.color, "[font=default-bold]" .. name .. "[/font]") .. "  " .. color(c, long)
+        .. (clock and color(C.dim, "  " .. clock) or ""))
       local now = b.now
       if now then
         local secs = (now.secs or 0) + (game.tick - (a.board_tick or game.tick)) / 60

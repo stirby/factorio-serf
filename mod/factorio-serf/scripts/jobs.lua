@@ -849,7 +849,7 @@ H.take = {
       local hint = ""
       if args.item then
         local okS, src = pcall(order_queries.sources,
-          { items = { args.item }, x = c.position.x, y = c.position.y, radius = 300 })
+          { items = { args.item }, x = c.position.x, y = c.position.y, radius = 300, surface = c.surface.name })
         local list = okS and src.sources[args.item] or {}
         if list[1] then
           hint = "; nearest with " .. args.item .. ": " .. list[1].n .. " at " .. list[1].p[1] .. "," .. list[1].p[2]
@@ -1281,8 +1281,10 @@ local function supply_tick(a, job)
       st.k, st.srcs = st.k + 1, nil
     else
       if not st.srcs then
+        -- on the character's own planet (live test on Vulcanus: it searched Nauvis, found nothing and hand-crafted
+        -- belts that sat in a passive provider next to it)
         local okS, src = pcall(order_queries.sources, { items = { name }, x = c.position.x, y = c.position.y,
-          radius = SUPPLY_RADIUS, limit = 8, exclude = job.supply_exclude })
+          radius = SUPPLY_RADIUS, limit = 8, exclude = job.supply_exclude, surface = c.surface.name })
         st.srcs, st.j = okS and src.sources[name] or {}, 1
       end
       local s = st.srcs[st.j]
@@ -1293,7 +1295,7 @@ local function supply_tick(a, job)
         local tried = {}
         for _, x in pairs(st.srcs) do tried[#tried + 1] = x end
         local okS, src = pcall(order_queries.sources, { items = { name }, x = c.position.x, y = c.position.y,
-          radius = SUPPLY_FAR, limit = 8, exclude = job.supply_exclude })
+          radius = SUPPLY_FAR, limit = 8, exclude = job.supply_exclude, surface = c.surface.name })
         local more = {}
         for _, x in pairs(okS and src.sources[name] or {}) do
           local seen = false

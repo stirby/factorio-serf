@@ -298,31 +298,117 @@ function late.order(req)
   error("kind must be deconstruct, upgrade or cancel")
 end
 
--- The logistic network(s): robots, storage, and what construction is waiting on.
+-- Roboports' cells of a network (not a character's personal roboport, which moves).
+local function fixed_cells(net)
+  local out = {}
+  for _, cell in pairs(net.cells) do
+    if not cell.mobile and cell.owner and cell.owner.valid then out[#out + 1] = cell end
+  end
+  return out
+end
+
+-- Each roboport's square areas as { network, x, y, logistic radius, construction radius }.
+local function squares(nets)
+  local out = {}
+  for _, net in pairs(nets) do
+    for _, cell in pairs(fixed_cells(net)) do
+      local p = cell.owner.position
+      out[#out + 1] = { net.network_id, p.x, p.y, cell.logistic_radius, cell.construction_radius }
+    end
+  end
+  return out
+end
+
+-- Where x,y stands with the roboports: which network's logistic area (robots bring and take items) and construction
+-- area (robots build, repair, remove) cover it, and (nearest=true) the nearest spot inside a logistic area, a little
+-- in from its edge.
+local function coverage_at(sq, x, y, nearest)
+  local out = { logistic = false, construction = false }
+  local best
+  for _, q in ipairs(sq) do
+    local dx, dy, lr, cr = math.abs(x - q[2]), math.abs(y - q[3]), q[4], q[5]
+    if lr > 0 and dx <= lr and dy <= lr then out.logistic = q[1] end
+    if cr > 0 and dx <= cr and dy <= cr then out.construction = q[1] end
+    if nearest and lr > 2 then
+      local tx = math.max(q[2] - lr + 2, math.min(x, q[2] + lr - 2))
+      local ty = math.max(q[3] - lr + 2, math.min(y, q[3] + lr - 2))
+      local d = util.dist({ x = x, y = y }, { x = tx, y = ty })
+      if not best or d < best.d then best = { network = q[1], x = tx, y = ty, d = d } end
+    end
+  end
+  if best then best.d = math.floor(best.d) end
+  if nearest then out.nearest_logistic = best end
+  return out
+end
+
+-- The logistic network(s) on a planet: robots, what's in storage, where the roboports cover, and what construction
+-- is waiting on. item= (or items=[...]) counts items in each network; x,y says whether that spot is covered (and the
+-- nearest covered spot); x1,y1,x2,y2 says how much of an area construction robots reach. Players see all of this.
 function late.network(req)
   local s, f = surface_of(req), game.forces.player
+  local nets = (f.logistic_networks or {})[s.name] or {}
   local out = {}
-  for _, net in pairs((f.logistic_networks or {})[s.name] or {}) do
+  for _, net in pairs(nets) do
     local items, top = {}, {}
     local okC, contents = pcall(net.get_contents)
     for _, c in pairs(okC and contents or {}) do
       if type(c) == "table" and c.name then items[#items + 1] = { c.name, c.count } end
     end
     table.sort(items, function(p, q) return p[2] > q[2] end)
-    for i = 1, math.min(#items, 25) do top[items[i][1]] = items[i][2] end
-    local cells = net.cells
-    local center = cells[1] and cells[1].owner and util.xy(cells[1].owner.position) or nil
-    out[#out + 1] = { id = net.network_id, roboports = #cells, at = center,
+    for i = 1, math.min(#items, tonumber(req.top) or 40) do top[items[i][1]] = items[i][2] end
+    local cells = fixed_cells(net)
+    local center = cells[1] and util.xy(cells[1].owner.position) or nil
+    local la, ca  -- bounding boxes of the logistic and construction areas (there can be holes: ask with x,y)
+    for _, cell in pairs(cells) do
+      local p, lr, cr = cell.owner.position, cell.logistic_radius, cell.construction_radius
+      if lr > 0 then
+        la = la or { p.x, p.y, p.x, p.y }
+        la = { math.min(la[1], p.x - lr), math.min(la[2], p.y - lr), math.max(la[3], p.x + lr), math.max(la[4], p.y + lr) }
+      end
+      if cr > 0 then
+        ca = ca or { p.x, p.y, p.x, p.y }
+        ca = { math.min(ca[1], p.x - cr), math.min(ca[2], p.y - cr), math.max(ca[3], p.x + cr), math.max(ca[4], p.y + cr) }
+      end
+    end
+    local n = { id = net.network_id, roboports = #cells, at = center, logistic_area = la, construction_area = ca,
       construction_robots = net.all_construction_robots, idle_construction = net.available_construction_robots,
       logistic_robots = net.all_logistic_robots, idle_logistic = net.available_logistic_robots,
-      storage_items = top, requesters = #net.requesters, providers = #net.providers }
+      storage_items = top, distinct_items = #items, requesters = #net.requesters, providers = #net.providers }
+    if req.item or req.items then  -- how many of these are in its storage
+      n.item_counts = {}
+      for _, name in ipairs(req.items or { req.item }) do
+        local okI, count = pcall(net.get_item_count, name)
+        n.item_counts[name] = okI and count or 0
+      end
+    end
+    if #cells > 0 then out[#out + 1] = n end
   end
-  local ghosts = s.count_entities_filtered { type = "entity-ghost", force = f }
-  local decon = 0
+  local res = { networks = out }
+  local sq = squares(nets)
+  if req.x and req.y then res.at = coverage_at(sq, tonumber(req.x), tonumber(req.y), true) end
+  if req.x1 and req.y1 and req.x2 and req.y2 then
+    local x1, y1 = math.min(req.x1, req.x2), math.min(req.y1, req.y2)
+    local x2, y2 = math.max(req.x1, req.x2), math.max(req.y1, req.y2)
+    local step = math.max(2, math.ceil(math.max(x2 - x1, y2 - y1) / 40))
+    local all, con, lg = 0, 0, 0
+    for x = x1, x2, step do
+      for y = y1, y2, step do
+        all = all + 1
+        local c = coverage_at(sq, x, y)
+        if c.construction then con = con + 1 end
+        if c.logistic then lg = lg + 1 end
+      end
+    end
+    res.area = { construction_covered = all > 0 and math.floor(100 * con / all) or 0,
+      logistic_covered = all > 0 and math.floor(100 * lg / all) or 0, unit = "percent of the area" }
+  end
+  res.ghosts = s.count_entities_filtered { type = "entity-ghost", force = f }
   local okD = pcall(function()
-    decon = #s.find_entities_filtered { to_be_deconstructed = true }
+    res.marked_for_deconstruction = #s.find_entities_filtered { to_be_deconstructed = true }
   end)
-  return { networks = out, ghosts = ghosts, marked_for_deconstruction = okD and decon or nil }
+  if not okD then res.marked_for_deconstruction = nil end
+  res.surface = s.name
+  return res
 end
 
 -- Ratio calculator from the game's own recipes: what it takes to make `per_minute` of `item` with what's unlocked.

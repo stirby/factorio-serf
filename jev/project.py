@@ -17,7 +17,7 @@ from .thinker import TOOLS
 
 MODEL = "claude-opus-5-5"
 LOOK_TOOLS = ("area", "find", "recipe", "free_space", "me", "production", "diagnose", "techs", "rates", "audit",
-              "pipes")
+              "pipes", "network")
 ORDER_LIMIT = 45 * 60  # one order that runs longer is stopped and reported as unfinished
 
 # an order that is a project on its face, no planner turn needed to see it

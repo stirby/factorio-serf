@@ -2052,6 +2052,79 @@ local n = 0 for i = 1, pt.sections_count do n = n + pt.get_section(i).filters_co
           (r.get("msg"), left))
 
 
+async def chk_request_walk(L: Live, state: dict):
+    """request from outside coverage (live test: it waited 4 minutes 300 tiles from any roboport): the network op says
+    the spot isn't covered and where the nearest covered spot is; the request walks there, brings what the network
+    holds and says what it doesn't, without waiting the full time for it."""
+    g = L.g
+    x, y = await L.site(16, 90)
+    await L.ev(f"""local s, f = game.surfaces.nauvis, game.forces.player
+for _, t in pairs {{ 'logistic-robotics', 'logistic-system' }} do if f.technologies[t] then f.technologies[t].researched = true end end
+local e = s.create_entity {{ name = 'electric-energy-interface', position = {{ {x + 1}, {y + 1} }}, force = f }}
+e.power_production = 1e8 e.electric_buffer_size = 1e9
+s.create_entity {{ name = 'medium-electric-pole', position = {{ {x + 3.5}, {y + 1.5} }}, force = f }}
+local rp = s.create_entity {{ name = 'roboport', position = {{ {x + 6}, {y + 3} }}, force = f }}
+rp.insert {{ name = 'logistic-robot', count = 10 }}
+rp.energy = 1e8
+local st = s.create_entity {{ name = 'storage-chest', position = {{ {x + 9.5}, {y + 6.5} }}, force = f }}
+st.insert {{ name = 'iron-gear-wheel', count = 50 }}
+local c = storage.agents['serf'].char
+c.teleport {{ {x + 6}, {y + 85} }}
+c.get_main_inventory().remove {{ name = 'iron-gear-wheel', count = 10000 }}
+c.get_main_inventory().remove {{ name = 'processing-unit', count = 10000 }}
+return true""")
+    n = await g.call("network", agent=g.name, x=x + 6, y=y + 85, items=["iron-gear-wheel", "processing-unit"])
+    nets = n.get("networks") or []
+    near = (n.get("at") or {}).get("nearest_logistic") or {}
+    n2 = await g.call("network", agent=g.name, x=near.get("x", 0), y=near.get("y", 0)) if near else {}
+    counts = nets[0].get("item_counts", {}) if nets else {}
+    check("network: a spot 82 tiles off isn't covered; the nearest covered spot it names is covered; item counts",
+          n.get("at", {}).get("logistic") is False and 0 < near.get("d", 0) <= 82
+          and n2.get("at", {}).get("logistic") == near.get("network") and counts.get("iron-gear-wheel", 0) >= 50
+          and counts.get("processing-unit") == 0 and nets[0].get("logistic_area") and nets[0].get("construction_area"),
+          (n.get("at"), n2.get("at"), nets[:1]))
+    t0 = time.time()
+    r = await Runner(g).run({"do": "request", "items": {"iron-gear-wheel": 20, "processing-unit": 5}, "wait": 300})
+    took = time.time() - t0
+    inv = (await g.me()).get("inventory") or {}
+    msg = str(r.get("msg"))
+    check("request: walks into coverage, gets the 20 gears, says the network has no processing units, and doesn't "
+          "wait out the 300 s", inv.get("iron-gear-wheel", 0) >= 20 and "walked" in msg and "no processing-unit" in msg
+          and took < 150, (msg, inv.get("iron-gear-wheel"), round(took)))
+
+
+async def chk_fetch_planet(L: Live, state: dict):
+    """fetch on another planet takes from that planet's chests (live test on Vulcanus: it searched Nauvis, found
+    nothing and hand-crafted belts that sat in a passive provider next to it)."""
+    g = L.g
+    await L.ev("""if not game.surfaces.vulcanus then game.planets.vulcanus.create_surface() end
+local s = game.surfaces.vulcanus
+s.request_to_generate_chunks({ 0, 0 }, 2)
+s.force_generate_chunk_requests()
+local tiles = {}
+for x = -20, 20 do for y = -20, 20 do tiles[#tiles + 1] = { name = 'refined-concrete', position = { x, y } } end end
+s.set_tiles(tiles)
+for _, e in pairs(s.find_entities_filtered { area = { { -20, -20 }, { 20, 20 } } }) do
+  if e.type ~= 'character' then e.destroy() end
+end
+local ch = s.create_entity { name = 'passive-provider-chest', position = { 6.5, 0.5 }, force = game.forces.player }
+ch.insert { name = 'processing-unit', count = 30 }
+local c = storage.agents['serf'].char
+c.get_main_inventory().remove { name = 'processing-unit', count = 10000 }
+c.teleport({ 0, 0 }, 'vulcanus')
+return true""")
+    await g.me()  # its planet, for the surface ops
+    r = await Runner(g).run({"do": "fetch", "item": "processing-unit", "count": 10})
+    inv = (await g.me()).get("inventory") or {}
+    check("fetch on Vulcanus takes the processing units from the Vulcanus chest", r.get("ok") and
+          inv.get("processing-unit", 0) >= 10, (r.get("msg"), inv.get("processing-unit")))
+    await L.ev("""local c = storage.agents['serf'].char
+c.get_main_inventory().remove { name = 'processing-unit', count = 10000 }
+c.teleport(game.forces.player.get_spawn_position(game.surfaces.nauvis), 'nauvis')
+return true""")
+    await g.me()
+
+
 async def chk_capture(L: Live, state: dict):
     """A player's order as a test case: a /server-save of the world right then (moved out of the server's saves
     folder) and case.json; the order's end adds a run."""
@@ -2082,7 +2155,7 @@ async def chk_capture(L: Live, state: dict):
 
 
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "detour": chk_route_detour, "routepocket": chk_route_pocket, "fetchfar": chk_fetch_far, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "clearworking": chk_clear_working, "pipegap": chk_pipe_gap, "auditlacks": chk_audit_lacks, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe, "supply": chk_supply, "supplyfar": chk_supply_far, "supplysilo": chk_supply_silo, "supplylines": chk_supply_lines, "supplylds": chk_supply_lds, "supplywalled": chk_supply_walled, "leavejoin": chk_leave_join, "capture": chk_capture, "hop": chk_hop, "learn": chk_learn, "storagefilter": chk_storage_filter, "board": chk_board, "tags": chk_tags, "sweep": chk_sweep, "request": chk_request}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "detour": chk_route_detour, "routepocket": chk_route_pocket, "fetchfar": chk_fetch_far, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "clearworking": chk_clear_working, "pipegap": chk_pipe_gap, "auditlacks": chk_audit_lacks, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe, "supply": chk_supply, "supplyfar": chk_supply_far, "supplysilo": chk_supply_silo, "supplylines": chk_supply_lines, "supplylds": chk_supply_lds, "supplywalled": chk_supply_walled, "leavejoin": chk_leave_join, "capture": chk_capture, "hop": chk_hop, "learn": chk_learn, "storagefilter": chk_storage_filter, "board": chk_board, "tags": chk_tags, "sweep": chk_sweep, "request": chk_request, "requestwalk": chk_request_walk, "fetchplanet": chk_fetch_planet}
 
 
 async def main() -> int:

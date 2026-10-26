@@ -1165,32 +1165,82 @@ class Runner:
         return {"ok": True, "msg": f"on {planet} at its spawn {fmt_xy(pos)}" + (f"; {stored} before leaving" if stored
                                                                                    else "")}
 
+    async def _network_here(self, items: list[str]) -> dict | None:
+        """The logistic networks on the character's planet, with whether its spot is in a roboport's logistic area,
+        the nearest spot that is, and how many of `items` each network holds (None from a mod before 0.3.5)."""
+        me = await self.g.me()
+        x, y = me["position"]
+        try:
+            r = await self.g.call("network", agent=self.g.name, x=float(x), y=float(y), items=items)
+        except Exception:  # noqa: BLE001
+            return None
+        return r if isinstance(r, dict) and "at" in r else None
+
     async def _do_request(self, s):
-        """Have logistic robots bring items to the character (its own requests; it must stand in a roboport network
-        with them in storage): set the requests, wait until they're carried (wait seconds, default 90), then clear
-        them so the bots don't keep bringing more (live test: "you should request stuff from logistics net too")."""
+        """Have logistic robots bring items to the character (its own requests): it walks into a roboport's logistic
+        area first if it isn't in one, asks only for what the network holds, waits until the items arrive (wait
+        seconds, default 90) or nothing has come for a while, then clears the requests so the bots don't keep
+        bringing more. Live tests: "you should request stuff from logistics net too"; and it once waited 4 minutes
+        outside every roboport's reach, 300 tiles from the build, for robots that couldn't come."""
         items = {str(k): int(v) for k, v in (s.get("items") or {}).items() if int(v) > 0}
         if not items:
             return {"ok": False, "msg": "request needs items={item: count}"}
+        notes = []
+        net = await self._network_here(list(items))
+        if net is not None:  # an older mod doesn't say where coverage is: request where it stands
+            if not net.get("at", {}).get("logistic"):
+                near = net["at"].get("nearest_logistic")
+                if not near:
+                    return {"ok": False, "msg": "no roboport network on this planet: fetch or take the items from "
+                                                "chests instead"}
+                mv = await self._act({"op": "move", "x": near["x"], "y": near["y"], "radius": 2})
+                if not mv.get("ok"):
+                    return {"ok": False, "msg": f"couldn't walk into roboport coverage at {near['x']:.0f},"
+                                                f"{near['y']:.0f}: {mv.get('msg')}"}
+                notes.append(f"walked {near['d']} tiles into roboport coverage")
+                net = await self._network_here(list(items)) or net
+            nid = net.get("at", {}).get("logistic")
+            held = next((n.get("item_counts") for n in net.get("networks") or [] if n.get("id") == nid), None)
+            if held is not None:
+                missing = [k for k in items if held.get(k, 0) <= 0]
+                fewer = {k: held[k] for k in items if 0 < held.get(k, 0) < items[k]}
+                if missing:
+                    notes.append("the network has no " + ", ".join(missing))
+                if fewer:
+                    notes.append("it holds only " + ", ".join(f"{n} {k}" for k, n in fewer.items()))
+                asked = {k: min(n, held.get(k, 0)) for k, n in items.items() if held.get(k, 0) > 0}
+                if not asked:
+                    return {"ok": False, "msg": "; ".join(notes) + ": fetch or craft them instead"}
+            else:
+                asked = dict(items)
+        else:
+            asked = dict(items)
         before = await self.refresh_inventory()
-        want = {k: before.get(k, 0) + n for k, n in items.items()}
+        want = {k: before.get(k, 0) + n for k, n in asked.items()}
         r = await self._act({"op": "configure", "self": True, "requests": want}, timeout=30)
         if not r.get("ok"):
             return r
-        deadline = time.time() + min(float(s.get("wait") or 90), 600)
-        inv = before
+        t0 = time.time()
+        deadline = t0 + min(float(s.get("wait") or 90), 600)
+        inv, last, last_gain = before, dict(before), t0
         while time.time() < deadline:
             await asyncio.sleep(3)
             inv = await self.refresh_inventory()
             if all(inv.get(k, 0) >= n for k, n in want.items()):
                 break
+            if any(inv.get(k, 0) > last.get(k, 0) for k in want):
+                last, last_gain = dict(inv), time.time()
+            elif time.time() - last_gain > (30 if last_gain > t0 else 60):
+                notes.append(f"nothing arrived for {time.time() - last_gain:.0f} s, so it stopped waiting")
+                break
         await self._act({"op": "configure", "self": True, "requests": {}}, timeout=30)
         got = {k: inv.get(k, 0) - before.get(k, 0) for k in items}
         short = {k: items[k] - got[k] for k in items if got[k] < items[k]}
+        said = ("; ".join(notes) + "; ") if notes else ""
         if short:
-            return {"ok": False, "msg": f"robots brought {got}; still short {short} (no roboport coverage here, or not in "
-                                        "storage on this planet)"}
-        return {"ok": True, "msg": f"robots brought {got}"}
+            why = "" if net is not None else " (no roboport coverage here, or not in storage on this planet)"
+            return {"ok": False, "msg": f"{said}robots brought {got}; still short {short}{why}"}
+        return {"ok": True, "msg": f"{said}robots brought {got}"}
 
     async def _do_sweep(self, s):
         """Mark the trees and rocks in an area for deconstruction, for construction bots to clear (only those: never a

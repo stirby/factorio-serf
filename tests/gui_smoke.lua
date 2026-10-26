@@ -184,5 +184,26 @@ run("panel: an away serf shows nothing", function()
   assert(not player.gui.left.factorio_serf_panel, "panel still shown")
 end)
 
+storage.agents = { serf = serf({ thinking = true, now = { id = 7, text = '"x"', status = "thinking", secs = 3 },
+  queue = {}, recent = {} }, { state = "thinking", state_since = 0 }) }
+run("panel: thinking keeps its seconds at the right edge, apart from the moving dots", function()
+  local labels = {}
+  local function walk(e) for _, c in ipairs(e.children) do if c.type == "label" then labels[#labels + 1] = c end walk(c) end end
+  for _, t in ipairs({ 600, 630, 660 }) do
+    game.tick = t
+    if player.gui.left.factorio_serf_panel then player.gui.left.factorio_serf_panel.destroy() end
+    panel.refresh()
+    labels = {}
+    walk(player.gui.left.factorio_serf_panel)
+    local state, right
+    for i, l in ipairs(labels) do
+      if tostring(l.caption):find("thinking") then state, right = l, labels[i + 2] end
+    end
+    assert(state and not tostring(state.caption):find("%ds"), "seconds still in the state text: " .. tostring(state and state.caption))
+    assert(right and tostring(right.caption):find(math.floor(t / 60) .. "s", 1, true), "no seconds at the right: "
+      .. tostring(right and right.caption))
+  end
+end)
+
 print(FAILS == 0 and "\nALL OK" or ("\n" .. FAILS .. " FAILED"))
 os.exit(FAILS == 0 and 0 or 1)

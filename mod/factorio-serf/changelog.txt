@@ -1,4 +1,11 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.3.5
+Date: 2026-10-25
+  Changes:
+    - On another planet a serf gathers items from that planet's chests instead of searching Nauvis and hand-crafting what sat next to it.
+    - Serfs see the logistic networks as players do: what's in storage, and where the roboports' logistic and construction areas reach.
+    - The serf panel keeps the thinking time at its right edge, steady while the dots move.
+---------------------------------------------------------------------------------------------------
 Version: 0.3.4
 Date: 2026-10-25
   Features:

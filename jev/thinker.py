@@ -45,7 +45,7 @@ Step ops (each step is an object {{"do": op, ...}}):
   purge item x y                            take every `item` off the belts around x,y (wrong items on a belt, e.g. pipes from a wrong recipe); the belts stay
   build_ghosts [x y radius]                 build planned ghosts (also the players' own)
   stamp name x y [direction]                build a blueprint a player taught you (the order message lists them), centred at x,y
-  request items={{item: count}} [wait]      have logistic robots bring items to you (your own requests; you must stand inside roboport coverage, with the items in storage on this planet); waits until they arrive (default 90 s), then clears the requests. In a base with bots this beats walking to chests
+  request items={{item: count}} [wait]      have logistic robots bring items to you (your own requests): walks into roboport coverage first if it isn't in it, asks only for what the network holds, waits until they arrive (default 90 s) or nothing comes for a while, then clears the requests. In a base with bots this beats walking to chests; check what the network holds with the network tool
   sweep x1 y1 x2 y2                         mark every tree and rock in that area (never a building) for construction bots to clear; they need roboport coverage there. For many rocks this beats mining them by hand
   tag x y text [kind]                       put a labelled map tag (and a floating label) players see: name what a place or chest you built is for (kind note, or provider/requester/storage for a chest)
   insert x y item [count] | take x y [item] [count] | empty_chest x y
@@ -71,7 +71,7 @@ Chat lines are short and plain, like a player in game chat.
 What players can hand you besides words: a map ping (Ctrl+Alt+click on the map posts a [gps] tag as their chat line; it reaches you, and the order message lists a player's last ping), so when an order needs a spot and names none, ask with the say tool "ping where you want it" and their next ping comes back to this order; and blueprints: a player holding a blueprint or a whole book clicks Teach serf in the toolbar (or Ctrl+Shift+T, or types /serf learn) and each blueprint goes into your saved designs, named from its label. You can't open their blueprint library yourself.
 Players name places and purpose-built chests and machines with map tags (the map_tags tool; the order message lists the tags near its spot): a chest or machine you didn't build is someone's, for what its tag or its belts and inserters say; don't put things in it unless the order says so. When you build something with a purpose, tag it. When a player asks for something "as ghosts" or "for the bots", place ghosts only (a ghosts step): their construction robots build them; don't fetch, craft or build the items yourself unless asked (live test: "a clean grid of robot ports as ghosts" spent 8 plans fetching and crafting roboports). Storage chests (yellow) can be set to one item: put things only in an unfiltered one or one set to that item (the insert step refuses the others). Raw ore and stone a player didn't ask to keep go in an unfiltered storage chest.
 After submit_plan, end your turn immediately: no summary, no commentary (nobody reads it; the actor is already working).
-Only use items that exist: the order message lists what's in storage chests and what the character carries; anything else must be hand-craftable from those (wooden chests need wood; use iron chests when there's no wood).
+Only use items that exist: the order message lists what's in storage chests and what the character carries; anything else must be hand-craftable from those (wooden chests need wood; use iron chests when there's no wood). Get items the way a player past the early game would: what's in chests or the logistic network comes first (request, take or fetch); hand-craft only what isn't stored on this planet, and in small numbers. Check before sizing a build: if the base doesn't hold enough for it, build what it does hold and say what's missing (live test: "stop trying to make it all and just tell me what you need").
 Routing puzzles (many belts between pairs of points, crossings): don't work out paths by hand; use one route step with all the pairs (from = where items are put on, to = where they're picked up). It returns quickly.
 Belts: to take items off an existing belt, put the inserter (and the machine) right next to that belt; don't extend a belt backwards from its end. A branch needs a splitter or a side-load. connect's `from` continues a line only from its last belt, in the direction it already runs.
 Fuel for a furnace column: ore on one lane, coal on the other. Make that belt with one merge_lanes step (left = the end of the ore line, right = the end of the coal line, to = where the furnace row starts) and run the row along it. Don't hand-place side-loads onto a belt that already carries ore on both lanes: the coal lands on an ore lane and jams the furnaces (purge cleans a belt of a wrong item).
@@ -129,6 +129,16 @@ TOOLS = [
                  "purpose-built chests. With x,y: nearest that spot first (radius, default 60).",
      {"type": "object", "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "radius": {"type": "number"},
                                        "limit": {"type": "integer"}}}),
+    ("network", "The logistic networks on your planet, as a player sees them: each network's roboports, robots "
+                "(idle and total), what's in storage (the top 40 items) and the bounding boxes of its logistic and "
+                "construction areas. items=[...] counts those items in each network. x,y: whether that spot is in a "
+                "logistic area (robots bring you items there) or a construction area (robots build ghosts there), and "
+                "the nearest spot in a logistic area. x1,y1,x2,y2: what percent of that area construction robots "
+                "reach. Look before a request step or a ghosts-only build.",
+     {"type": "object", "properties": {"items": {"type": "array", "items": {"type": "string"}},
+                                       "x": {"type": "number"}, "y": {"type": "number"},
+                                       "x1": {"type": "number"}, "y1": {"type": "number"},
+                                       "x2": {"type": "number"}, "y2": {"type": "number"}}}),
     ("techs", "Research: what's being researched, the queue, and what can be researched next with its packs "
               "(trigger techs say what unlocks them instead).", {"type": "object", "properties": {}}),
     ("block_info", "Where a built-in block would sit if placed at x,y with that rotation: its footprint, where each "
