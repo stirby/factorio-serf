@@ -18,8 +18,12 @@ SURFACE_OPS = {"query", "audit", "alerts", "vitals", "ghosts", "blockers", "diag
 
 
 class Game:
-    def __init__(self, crew: Crew, name: str = "serf", poll_secs: float = 0.25):
+    def __init__(self, crew: Crew, name: str = "serf", poll_secs: float = 0.25, idle_when_empty: bool = False):
         self.crew, self.name, self.poll_secs = crew, name, poll_secs
+        # Nobody connected: a server that auto-pauses still runs a tick for each command it gets, so polling 4 times a
+        # second kept an empty live world moving at ~4 ticks/s, biters included. With idle_when_empty the app polls
+        # every 5 s and its board, todo and watch loops rest until someone joins.
+        self.idle_when_empty, self.empty = idle_when_empty, False
         self.chat: asyncio.Queue = asyncio.Queue()
         self.events: asyncio.Queue = asyncio.Queue()
         self._waiters: dict[int, asyncio.Future] = {}
@@ -77,6 +81,7 @@ class Game:
                 d = await self.call("poll", timeout=15)
                 self.last_poll = time.time()
                 self.tick = d.get("tick", self.tick)
+                self.empty = self.idle_when_empty and d.get("players") == 0  # a mod before this field: never empty
                 for c in d.get("chat") or []:
                     await self.chat.put(c)
                 for ev in d.get("events") or []:
@@ -100,7 +105,7 @@ class Game:
             except (GameError, RconError, asyncio.TimeoutError) as e:
                 log.warning("poll failed: %r", e)
                 await asyncio.sleep(1)
-            await asyncio.sleep(self.poll_secs)
+            await asyncio.sleep(5.0 if self.empty else self.poll_secs)
 
     # ------------------------------------------------------------------ actions
     async def act(self, actions: list[dict], replace: bool = False) -> list[int]:

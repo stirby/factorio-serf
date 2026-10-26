@@ -51,6 +51,8 @@ class TodoBridge:
                 self.by_task[o.todo_id] = o.id
         while True:
             await asyncio.sleep(self.POLL)
+            if self.a.g.empty:
+                continue
             try:
                 await self.tick()
                 self.errors = 0

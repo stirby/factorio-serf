@@ -1001,7 +1001,7 @@ class Actor(FastPaths):
         while True:
             await asyncio.sleep(self.watch_every)
             self.save_state()
-            if self._busy() or self.g.away:
+            if self._busy() or self.g.away or self.g.empty:
                 continue
             # chests a plan stocked by hand (e.g. coal for a boiler or plastic plant): top them up before they run dry
             for c in list(self.stocked):
@@ -1704,6 +1704,8 @@ class Actor(FastPaths):
         while True:
             await asyncio.sleep(1)
             self.save_orders()
+            if self.g.empty:
+                continue
             st = self._panel_state()
             if st != last_state:
                 try:

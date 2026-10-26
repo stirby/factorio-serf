@@ -189,7 +189,8 @@ class Instance:
         (self.dir / "server-settings.json").write_text(json.dumps({
             "name": f"Serf bench {self.k}", "description": "experiment instance",
             "visibility": {"public": False, "lan": False}, "require_user_verification": False,
-            "max_players": 0, "auto_pause": False, "auto_pause_when_players_connect": False,
+            # a live world pauses while nobody's on (it ran for hours unattended once); benches have no players
+            "max_players": 0, "auto_pause": self.mods == "live", "auto_pause_when_players_connect": False,
             "only_admins_can_pause_the_game": True,
             "autosave_interval": 100000, "autosave_slots": 1, "autosave_only_on_server": True,  # effectively off
             "non_blocking_saving": False, "allow_commands": "admins-only",

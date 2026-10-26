@@ -32,7 +32,7 @@ async def play(a) -> None:
         pw = Path(a.password_file).read_text().strip() if a.password_file else a.password
         r = Rcon(host, int(port), pw)
         await r.connect()
-        g = Game(Crew(r), a.name)
+        g = Game(Crew(r), a.name, idle_when_empty=True)
         spawn = {"client": "rcon"}
     else:
         from .udp import UdpCrew

@@ -78,7 +78,8 @@ function link.poll(ctx, req)
       a.results = {}
     end
   end
-  local out = { tick = game.tick, chat = chat, results = results, events = events, client = ctx.client }
+  local out = { tick = game.tick, chat = chat, results = results, events = events, client = ctx.client,
+    players = #game.connected_players }
   local p = ctx.player_index and ctx.player_index > 0 and game.get_player(ctx.player_index)
   if p then out.you = p.name end
   if fresh and p then
