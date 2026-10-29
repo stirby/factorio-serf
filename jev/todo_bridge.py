@@ -37,7 +37,16 @@ class TodoBridge:
         self.by_task: dict[int, int] = {}  # task id -> order id
         self.sig: dict[int, str] = {}  # task id -> its words when its order was made (an edit means try again)
         self.pushed: dict[int, str] = {}  # task id -> what was last written to it
+        self.settled: dict[int, str] = {}  # task id -> its words when found already tried and given up on (no order)
         self.errors = 0
+
+    def gave_up(self, t: dict) -> bool:
+        """The task's status line, kept in the save, says this serf already tried it and couldn't finish or was
+        stopped: after a restart of the app that's the only memory of it (live test 25 Oct: a task given up on after
+        6 plans was taken again as a new order once the app restarted)."""
+        st = str(t.get("status") or "")
+        return t.get("status_kind") == "error" and (st.startswith(f"{self.a.name} · couldn't finish")
+                                                    or st == f"{self.a.name} · stopped")
 
     async def call(self, fn: str, *args):
         r = await self.a.g.call("todo", fn=fn, args=list(args), timeout=15)
@@ -85,9 +94,17 @@ class TodoBridge:
             self.by_task.pop(tid, None)
             self.sig.pop(tid, None)
             self.pushed.pop(tid, None)
+        for tid in [k for k in self.settled if k not in ids]:
+            self.settled.pop(tid)
         for rank, t in enumerate(mine):
             tid = int(t["id"])
             o = self.a.order_by_id(self.by_task.get(tid, -1))
+            if o is None and tid not in self.by_task and self.gave_up(t):
+                self.settled.setdefault(tid, signature(t))
+            if tid in self.settled:
+                if signature(t) == self.settled[tid]:
+                    continue  # left as it is; editing the task tries it again
+                self.settled.pop(tid)
             if o is None or (o.status in ("failed", "cancelled") and signature(t) != self.sig.get(tid)):
                 # a new task for the serf, or a failed one the player edited: an order
                 text = (t.get("title") or "").strip()

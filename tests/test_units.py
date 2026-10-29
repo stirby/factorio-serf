@@ -1673,6 +1673,60 @@ def test_knowledge():
         else:
             os.environ["JEV_LIBRARY"] = old
 
+def test_todo_restart_memory():
+    """After the app restarts, a Todo task the serf already gave up on (its status line in the save says so) isn't
+    taken again as a new order; editing the task tries it again (live test 25 Oct: task 3 came back as order 4)."""
+    import asyncio
+    from jev.todo_bridge import TodoBridge
+
+    class Ord:
+        def __init__(self, oid, text):
+            self.id, self.text, self.status, self.todo_id, self.todo_rank = oid, text, "new", None, 0
+
+    class A:
+        name = "serf"
+
+        def __init__(self, tasks):
+            self.tasks, self.orders, self.logs = tasks, [], []
+            self.g = self
+
+        async def call(self, op, fn, args, timeout=15):
+            if fn == "get_tasks":
+                return {"available": True, "result": self.tasks}
+            return {"available": True, "result": True}
+
+        def order_by_id(self, oid):
+            return next((o for o in self.orders if o.id == oid), None)
+
+        async def add_order(self, text, speaker):
+            o = Ord(len(self.orders) + 1, text)
+            self.orders.append(o)
+            return o
+
+        def queue_position(self, o, queued):
+            return 1
+
+        def log(self, rec):
+            self.logs.append(rec)
+
+    tasks = [{"id": 3, "title": "Cover the calcite patch", "task": "", "assignee": "serf", "done": False,
+              "status": "serf · couldn't finish: no room for the drills", "status_kind": "error"},
+             {"id": 4, "title": "Belt the coal", "task": "", "assignee": "serf", "done": False,
+              "status": "serf · queued, #1 in line", "status_kind": "info"}]
+    a = A(tasks)
+    b = TodoBridge(a)
+    b.available = True
+    asyncio.run(b.tick())
+    asyncio.run(b.tick())
+    check("todo restart: a task given up on before the restart is left alone; an open one is picked up",
+          [o.text for o in a.orders] == ["Belt the coal"], [o.text for o in a.orders])
+    tasks[0]["title"] = "Cover the calcite patch, leave room to walk"
+    asyncio.run(b.tick())
+    check("todo restart: editing the given-up task tries it again",
+          [o.text for o in a.orders] == ["Belt the coal", "Cover the calcite patch, leave room to walk"],
+          [o.text for o in a.orders])
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):
