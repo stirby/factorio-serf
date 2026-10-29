@@ -185,9 +185,6 @@ TOOLS = [
          "expect": {"type": "array", "items": {"type": "object"}},
          "say": {"type": "string"},
          "done_text": {"type": "string"},
-         "watch": {"type": "array", "items": {"type": "string"},
-                   "description": "optional: problems to keep an eye out for at this build afterwards, in words "
-                                  "(e.g. 'the output chest is full', 'the boiler is out of coal')"},
          "force": {"type": "boolean", "description": "run it even though the checker reported problems"},
          "more": {"type": "boolean", "description": "false only when this plan finishes everything the order asks. "
                                                     "true = it's one part and more must follow: the actor starts "

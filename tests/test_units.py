@@ -1727,6 +1727,25 @@ def test_todo_restart_memory():
           [o.text for o in a.orders])
 
 
+def test_recovery_rules():
+    """After a failed step, code rules pick what's next from the facts in the message (Jev used to, and picked the
+    code default, replan, 25 times in 26)."""
+    import asyncio
+    from jev.actor import Actor
+    a = Actor.__new__(Actor)
+    st = {"do": "place", "name": "inserter", "x": 1, "y": 2}
+
+    def rec(msg, tries=1, missing=None):
+        return asyncio.run(a._recovery("goal", st, msg, tries, missing or {}))[0]
+    got = [rec("blocked by character@3,4"), rec("move timed out after 60 s"), rec("already researched"),
+           rec("nothing minable at 3,4; nothing minable within 3 tiles either"),
+           rec("no iron-gear-wheel in inventory", missing={"iron-gear-wheel": 1}),
+           rec("no chest or machine output has it and you can't hand-craft it", missing={"processing-unit": 1}),
+           rec("no path to 5,5"), rec("blocked by character@3,4", tries=3)]
+    check("recovery rules: retry, retry, skip, skip, get items, replan, replan, replan after 3 tries",
+          got == ["retry", "retry", "skip", "skip", "get_items", "replan", "replan", "replan"], got)
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):

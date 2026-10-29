@@ -996,8 +996,7 @@ class Actor(FastPaths):
         self.watches = self.watches[-12:]
 
     async def _watch_loop(self) -> None:
-        """While idle: look at the areas it built; fix what code can see (fuel, full chests, power, belts) and what
-        the planner asked to watch for (Jev judges those)."""
+        """While idle: look at the areas it built; fix what code can see (fuel, full chests, power, belts)."""
         while True:
             await asyncio.sleep(self.watch_every)
             self.save_state()
@@ -1060,18 +1059,9 @@ class Actor(FastPaths):
                         await self.say(f"noticed: {dark[0]['text']}. refuelling them")
                         await self._refuel_grid(w, dark[0]["grid"])
                         continue
+                    # (conditions in words the planner asked to watch for were judged by Jev: 5,926 asks in live play,
+                    # never one alert, as it never saw coordinates. Only what code can see is watched now.)
                     found = fl[0]["text"] if fl else None
-                    if not found and wt["what"] and time.time() - wt.get("warned", 0) > 600:
-                        # a condition the planner asked to watch, judged by Jev: tell the players, don't act on it
-                        # (nothing code can see to fix there)
-                        ps = await decide.trouble(self.jev, wt["what"], w.summary(coords=False, focus=wt["at"]))
-                        hit = [c for c, p in zip(wt["what"], ps) if p >= 0.8]
-                        if hit:
-                            wt["warned"] = time.time()
-                            self.log({"kind": "watch_warn", "at": wt["at"], "what": hit[0]})
-                            await self.say(f"heads up: near [gps={wt['at'][0]:.0f},{wt['at'][1]:.0f}] it looks like "
-                                           f"{hit[0]}")
-                            break
                     if found:
                         self.log({"kind": "watch_hit", "at": wt["at"], "what": found})
                         o = Order(self.next_id, f"(noticed) {found}", self.name, "fix", [wt["at"]])
@@ -1358,22 +1348,8 @@ class Actor(FastPaths):
             await self.g.cancel("plan revised")
 
     async def _prefetch(self, o: Order) -> None:
-        """While the thinker plans a new order: Jev guesses the kind of build, code fetches that kit from storage
-        (only what storage has; nothing is crafted on speculation). The plan's own stock-up then finds most of it."""
-        try:
-            k, conf = await decide.kit(self.jev, o.text)
-            self.log({"kind": "prefetch", "order": o.id, "kit": k, "conf": round(conf, 3)})
-            if k == "none" or conf < 0.5:
-                return
-            stock = dict(await self.materials())
-            want = {i: n for i, n in decide.KITS[k]["items"].items() if stock.get(i, 0) >= n}
-            if "assembling-machine-2" in want:
-                want.pop("assembling-machine-1", None)
-            if want:
-                await self.runner.stock(want, fallback=False)  # storage only: nothing grabbed or crafted on a guess
-        except Exception as e:  # noqa: BLE001
-            self.log({"kind": "error", "where": "prefetch", "error": repr(e)})
-        # head for the site while the planner is still thinking (the plan's first steps start there anyway)
+        """While the thinker plans a new order: head for the site (the plan's first steps start there anyway). (A
+        kit Jev guessed used to be fetched first: none of 20 guesses in live play saved a trip.)"""
         try:
             if o.focus and o.status == "thinking":
                 me = await self.g.me()
@@ -1846,25 +1822,25 @@ class Actor(FastPaths):
         return True, "all steps ran:\n" + "\n".join(done[-20:])
 
     async def _recovery(self, goal: str, st: dict, msg: str, tries: int, missing: dict) -> tuple[str, float]:
+        """What to do after a failed step, by code rules on the facts read off the message. (Jev used to choose: it
+        picked replan 25 times in 26 in live play, the code default, so the rules do it now.)"""
         if tries >= 3:
             return "replan", 1.0
-        opts = dict(decide.RECOVERY)
-        if not missing:
-            opts.pop("get_items")
-        try:
-            c, conf = await decide.recovery(self.jev, goal, describe(st), msg, tries, opts)
-        except JevError:
-            return "replan", 0.0
-        if conf < 0.5 and c != "replan":
-            return "replan", conf
-        return c, conf
+        f = decide.failure_facts(msg)
+        if f["already_done"] or f["thing_to_remove_is_gone"]:
+            return "skip", 1.0
+        if f["blocked_only_by_the_character"] or f["timed_out"]:
+            return "retry", 1.0
+        if missing and not f["item_exists_nowhere"]:
+            return "get_items", 1.0
+        return "replan", 1.0
 
     # ------------------------------------------------------------------ verifying
     async def _verify(self, o: Order, plan: dict) -> tuple[bool, str]:
-        """Machine checks from the plan's expect list; Jev on the goal words if there are none. Waits up to ~60 s
-        for things to start running."""
+        """Machine checks from the plan's expect list (a build gets a `built` check by itself). Waits up to ~60 s
+        for things to start running. A plan with no checks at all is done once its steps ran. (Jev used to judge
+        those from the goal's words: it said "not met" all 15 times in live play, and each one cost a replan.)"""
         exp = [e for e in (plan.get("expect") or []) if isinstance(e, dict)]
-        goal = plan.get("goal") or o.text
         if not exp and all(st.get("do") in ("say", "wait", "research", "follow", "hop", "move", "upgrade", "clear", "purge",
                                             "sweep", "tag")
                            for st in plan.get("steps") or []):
@@ -1886,8 +1862,9 @@ class Actor(FastPaths):
                 xs, ys = [p[0] for p in pts], [p[1] for p in pts]
                 exp.append({"check": "built", "x": (min(xs) + max(xs)) / 2, "y": (min(ys) + max(ys)) / 2,
                             "radius": max(max(xs) - min(xs), max(ys) - min(ys)) / 2 + 2})
+        if not exp:
+            return True, "all steps ran (the plan had no checks)"
         last = ""
-        jev_checks = 0
         # a plan that already waited has given things time to start: don't wait as long again
         end_wait = float(plan.get("_end_wait") or 0)  # trailing waits the checker polls through instead
         waited = sum(float(st.get("seconds") or 0) for st in plan.get("steps") or [] if st.get("do") == "wait")
@@ -1911,25 +1888,13 @@ class Actor(FastPaths):
             rounds = max(rounds, min(40, 4 + int((belt / 1.875 - waited) / 6)))
         for k in range(rounds):
             await asyncio.sleep(6 if k else 4)
-            if exp:
-                results = [(e, *await self._check(e)) for e in exp]
-                bad = [msg for _, ok, msg in results if not ok]
-                if not bad:
-                    return True, "all expectations met"
-                last = "Expectations not met: " + "; ".join(bad)
-                if any(e.get("check") == "built" for e, ok, _ in results if not ok):
-                    break  # missing buildings won't appear by waiting
-            else:
-                jev_checks += 1
-                if jev_checks > 3:
-                    break
-                center = o.focus or tuple((await self.g.me()).get("position") or (0, 0))
-                w = await self.world(center, 20)
-                p = await decide.goal_met(self.jev, goal, w.summary(coords=False, focus=center))
-                self.log({"kind": "goal_met", "order": o.id, "p": round(p, 3)})
-                if p >= 0.8:
-                    return True, "looks done"
-                last = f"Goal not visibly met yet (judged {p:.2f})."
+            results = [(e, *await self._check(e)) for e in exp]
+            bad = [msg for _, ok, msg in results if not ok]
+            if not bad:
+                return True, "all expectations met"
+            last = "Expectations not met: " + "; ".join(bad)
+            if any(e.get("check") == "built" for e, ok, _ in results if not ok):
+                break  # missing buildings won't appear by waiting
         center = o.focus or tuple((await self.g.me()).get("position") or (0, 0))
         try:
             w = await self.world(center, 20)
