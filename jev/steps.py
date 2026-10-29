@@ -240,6 +240,7 @@ class Runner:
         self._escaping = False
         self.routed: list[dict] = []  # what each route step laid: {"ends": endpoint tiles, "tiles": belt tiles}
         self._minable: dict = {}  # (surface, item) -> (time, can it be mined near the serf)
+        self.boxed_in = ""  # set when the character is shut in and couldn't get out: added to no-path failures
 
     async def can_mine(self, item: str) -> bool:
         """Whether a raw item can be mined near the serf. Wood needs trees that drop it: on Vulcanus the only trees
@@ -317,10 +318,15 @@ class Runner:
             self.no_path_streak += 1
             if self.no_path_streak >= 3:
                 self.no_path_streak = 0
+                self.boxed_in = ""
                 if await self.escape():
                     return await self._act(action, timeout)
+            if self.boxed_in:
+                r = {**r, "msg": f"{r['msg']}; {self.boxed_in}"}
         elif r.get("ok"):
             self.no_path_streak = 0
+            if action.get("op") == "move":
+                self.boxed_in = ""
         return r
 
     # what may go into a dump chest when the pockets fill up, and how much of it to keep (buildings always stay)
@@ -411,12 +417,15 @@ class Runner:
                                    "slots free", "at": used}
 
     ESCAPE_THROUGH = ("transport-belt", "underground-belt", "splitter", "pipe", "pipe-to-ground", "electric-pole",
-                      "inserter", "container", "wall")
+                      "inserter", "container", "wall", "furnace", "mining-drill")
+    # furnaces and drills go last (a burner loses its fuel to the pocket; it's given back after). The live test on
+    # Vulcanus (25 Oct) boxed itself in among its own electric drills and stayed stuck: neither was on the list.
+    LIFT_LAST = ("furnace", "mining-drill")
 
     async def escape(self) -> bool:
         """Several places in a row have no path: if the character can't walk anywhere, it has walled itself in
-        (belts, pipes, machines round it). Do what a player does: pick up the nearest belt, pipe, pole or chest beside
-        it, step out through the gap, and put the piece back from outside. True when it got out."""
+        (belts, pipes, drills, furnaces round it). Do what a player does: pick up the nearest piece beside it, step
+        out through the gap, and put the piece back from outside. True when it got out."""
         self._escaping = True
         try:
             me = await self.g.me()
@@ -426,11 +435,15 @@ class Runner:
                 if r.get("ok"):
                     self.log_fn({"t": time.time(), "kind": "escape", "trapped": False})
                     return False  # it can walk: the places it wanted are unreachable, not the character stuck
-            sc = await self.g.scan(center=(x, y), radius=4)
+            sc = await self.g.scan(center=(x, y), radius=5)
+
+            def beside(e):  # touching the character: big machines' centres sit farther off (an electric drill: 1.5+)
+                lim = 3.4 if e.get("t") in self.LIFT_LAST else 2.6
+                return abs(e["x"] - x) <= lim and abs(e["y"] - y) <= lim
             near = [e for e in (sc.get("ents") or []) if not e.get("ghost") and e.get("t") in self.ESCAPE_THROUGH
-                    and abs(e["x"] - x) <= 2.6 and abs(e["y"] - y) <= 2.6]
-            near.sort(key=lambda e: (e["x"] - x) ** 2 + (e["y"] - y) ** 2)
-            for e in near[:4]:
+                    and beside(e)]
+            near.sort(key=lambda e: (e.get("t") in self.LIFT_LAST, (e["x"] - x) ** 2 + (e["y"] - y) ** 2))
+            for e in near[:5]:
                 took = await self.g.run({"op": "mine", "x": e["x"], "y": e["y"], "name": e["n"]}, timeout=30)
                 if not took.get("ok"):
                     continue
@@ -444,11 +457,21 @@ class Runner:
                 if e.get("ug"):
                     back["type"] = e["ug"]
                 put = await self.g.run(back, timeout=60)
+                if put.get("ok") and e.get("t") in self.LIFT_LAST:
+                    # a burner's fuel went into the pocket with it: give some back (an electric one just refuses)
+                    inv = await self.refresh_inventory()
+                    fuel = next((f for f in FUELS if inv.get(f, 0) > 0), None)
+                    if fuel:
+                        await self.g.run({"op": "insert", "x": e["x"], "y": e["y"], "item": fuel,
+                                          "count": min(10, inv[fuel])}, timeout=30)
                 self.log_fn({"t": time.time(), "kind": "escape", "trapped": True, "through": e["n"],
                              "at": [e["x"], e["y"]], "out": out.get("ok"), "put_back": put.get("ok")})
                 if out.get("ok"):
                     return True
             self.log_fn({"t": time.time(), "kind": "escape", "trapped": True, "out": False})
+            ring = sorted({e["n"] for e in (sc.get("ents") or []) if not e.get("ghost") and beside(e)})
+            self.boxed_in = (f"the character itself is boxed in at {x:.0f},{y:.0f} (it can't walk 14 tiles any way)"
+                             + (f" by {', '.join(ring[:5])}" if ring else "") + ": it has to be cleared out first")
             return False
         except Exception as ex:  # noqa: BLE001
             self.log_fn({"t": time.time(), "kind": "error", "where": "escape", "error": repr(ex)})
