@@ -124,6 +124,12 @@ local function find_mine_target(a, args)
   local filter = { name = args.name }
   if args.name == "tree" then filter = { type = "tree" } end
   if args.name == "rock" then filter = { type = "simple-entity" } end
+  if args.item and (args.name == "tree" or args.name == "rock") then
+    -- only those that give the item: a lichen tree is a tree, but gives carbon, not wood
+    local names = util.mined_for(args.item)
+    if #names == 0 then return nil end
+    filter = { name = names }
+  end
   for _, r in ipairs { 16, 48, 128, 256 } do
     filter.position, filter.radius = c.position, r
     local list = c.surface.find_entities_filtered(filter)
@@ -209,6 +215,9 @@ H.mine = {
           return ok("mined " .. job.got .. ", no more " .. (args.name or "") .. " nearby", { mined = job.got })
         end
         if job.positional then return fail(missed_at(c, args)) end
+        if args.item and (args.name == "tree" or args.name == "rock") then
+          return fail("no " .. args.name .. " that gives " .. args.item .. " within 256 tiles of " .. xystr(c.position))
+        end
         return fail("nothing minable" .. (args.name and (" named " .. args.name) or "") .. " found near " .. xystr(c.position))
       end
       local mate = e.unit_number and storage.built_by[e.unit_number]

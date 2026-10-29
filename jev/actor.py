@@ -1763,7 +1763,7 @@ class Actor(FastPaths):
             steps = steps[:tail]
         done = []
         goal = plan.get("goal") or o.text
-        need = plan_needs(steps)
+        need = plan_needs(steps, pole=await self.runner.pick_pole(8))
         if need:
             await self.g.status(text="getting materials")
             fails = await self.runner.stock(need)
@@ -1827,8 +1827,8 @@ class Actor(FastPaths):
                         have = (await self.runner.refresh_inventory()).get(item, 0)
                         r2 = await self.runner.ensure(item, have + max(1, int(n)))
                         if not r2.get("ok") and item in RAW:
-                            await self.runner.run({"do": "mine", "name": "tree" if item == "wood" else item,
-                                                   "count": max(10, int(n))})
+                            # by the item: wood comes only from trees that drop it (the mine step checks)
+                            await self.runner.run({"do": "mine", "name": item, "count": max(10, int(n))})
                     continue
                 if choice_ == "skip":
                     done.append(f"{i + 1}. {describe(st)}: FAILED ({msg[:160]}) - skipped")

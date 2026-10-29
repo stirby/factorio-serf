@@ -110,6 +110,23 @@ function util.grid_pole(surface, force, p, r)
   return best, bd
 end
 
+-- The trees and rocks whose mining gives `item`, by prototype name. Wood comes only from some trees: on Vulcanus the
+-- only trees are lichen, which give carbon (live test 25 Oct: every plan walked to one for wood that never came).
+local gives = {}
+function util.mined_for(item)
+  if gives[item] then return gives[item] end
+  local names = {}
+  for name, p in pairs(prototypes.get_entity_filtered { { filter = "type", type = "tree" },
+    { filter = "type", type = "simple-entity", mode = "or" } }) do
+    local mp = p.mineable_properties
+    for _, pr in pairs(mp and mp.minable and mp.products or {}) do
+      if pr.name == item then names[#names + 1] = name break end
+    end
+  end
+  gives[item] = names
+  return names
+end
+
 -- "powered", "low power NN%", "no power: ..." for anything that runs on electricity; nil otherwise.
 function util.power(e)
   if not util.needs_power(e) then return nil end

@@ -2125,6 +2125,57 @@ return true""")
     await g.me()
 
 
+async def chk_wood(L: Live, state: dict):
+    """No wood on Vulcanus: its only trees are lichen, which give carbon. The serf doesn't walk to them for wood
+    (live test, 25 Oct: every plan did), small poles show as unobtainable up front, and plans pick medium poles."""
+    g = L.g
+    await L.ev("""if not game.surfaces.vulcanus then game.planets.vulcanus.create_surface() end
+local s = game.surfaces.vulcanus
+s.request_to_generate_chunks({ 0, 0 }, 2)
+s.force_generate_chunk_requests()
+local tiles = {}
+for x = -20, 20 do for y = -20, 20 do tiles[#tiles + 1] = { name = 'refined-concrete', position = { x, y } } end end
+s.set_tiles(tiles)
+for _, e in pairs(s.find_entities_filtered { area = { { -20, -20 }, { 20, 20 } } }) do
+  if e.type ~= 'character' then e.destroy() end
+end
+s.create_entity { name = 'ashland-lichen-tree', position = { 12.5, 12.5 } }
+s.create_entity { name = 'ashland-lichen-tree', position = { -14.5, 9.5 } }
+local ch = s.create_entity { name = 'iron-chest', position = { 6.5, 0.5 }, force = game.forces.player }
+ch.insert { name = 'medium-electric-pole', count = 20 }
+local c = storage.agents['serf'].char
+local inv = c.get_main_inventory()
+for _, n in ipairs { 'wood', 'small-electric-pole', 'medium-electric-pole', 'carbon' } do inv.remove { name = n, count = 10000 } end
+c.teleport({ 0, 0 }, 'vulcanus')
+return true""")
+    await g.me()  # its planet, for the surface ops
+    rn = Runner(g)
+    rn.recipes = (await g.call("recipes", agent=g.name, detail=True)).get("recipes") or {}
+    q = await g.call("query", what="mine_for", item="wood", agent=g.name)
+    qc = await g.call("query", what="mine_for", item="carbon", agent=g.name)
+    check("wood: no tree that gives wood on Vulcanus; lichen is found as a source of carbon",
+          not q.get("nearest") and (qc.get("nearest") or [""])[0] == "ashland-lichen-tree", (q, qc))
+    p0 = await L.pos()
+    t0 = time.time()
+    r = await rn.run({"do": "mine", "name": "wood", "count": 4})
+    r2 = await rn._act({"op": "mine", "name": "tree", "item": "wood", "count": 1}, timeout=30)
+    p1 = await L.pos()
+    check("wood: mining wood fails at once with the reason, and the serf stays put",
+          not r.get("ok") and r.get("unobtainable") and "drop wood" in str(r.get("msg")) and not r2.get("ok")
+          and "gives wood" in str(r2.get("msg")) and math.hypot(p1[0] - p0[0], p1[1] - p0[1]) < 1
+          and time.time() - t0 < 20, (r.get("msg"), r2.get("msg"), p0, p1, round(time.time() - t0, 1)))
+    pole = await rn.pick_pole(8)
+    fails = await rn.stock({"small-electric-pole": 4})
+    check("wood: plans pick medium poles, and small ones are reported as unobtainable without a walk",
+          pole == "medium-electric-pole" and "small-electric-pole" in fails, (pole, fails))
+    await L.ev("""local c = storage.agents['serf'].char
+c.teleport(game.forces.player.get_spawn_position(game.surfaces.nauvis), 'nauvis')
+return true""")
+    await g.me()
+    q2 = await g.call("query", what="mine_for", item="wood", agent=g.name)
+    check("wood: on Nauvis a tree that gives wood is found", bool(q2.get("nearest")), q2)
+
+
 async def chk_capture(L: Live, state: dict):
     """A player's order as a test case: a /server-save of the world right then (moved out of the server's saves
     folder) and case.json; the order's end adds a run."""
@@ -2155,7 +2206,7 @@ async def chk_capture(L: Live, state: dict):
 
 
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "detour": chk_route_detour, "routepocket": chk_route_pocket, "fetchfar": chk_fetch_far, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "clearworking": chk_clear_working, "pipegap": chk_pipe_gap, "auditlacks": chk_audit_lacks, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe, "supply": chk_supply, "supplyfar": chk_supply_far, "supplysilo": chk_supply_silo, "supplylines": chk_supply_lines, "supplylds": chk_supply_lds, "supplywalled": chk_supply_walled, "leavejoin": chk_leave_join, "capture": chk_capture, "hop": chk_hop, "learn": chk_learn, "storagefilter": chk_storage_filter, "board": chk_board, "tags": chk_tags, "sweep": chk_sweep, "request": chk_request, "requestwalk": chk_request_walk, "fetchplanet": chk_fetch_planet}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "detour": chk_route_detour, "routepocket": chk_route_pocket, "fetchfar": chk_fetch_far, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "clearworking": chk_clear_working, "pipegap": chk_pipe_gap, "auditlacks": chk_audit_lacks, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe, "supply": chk_supply, "supplyfar": chk_supply_far, "supplysilo": chk_supply_silo, "supplylines": chk_supply_lines, "supplylds": chk_supply_lds, "supplywalled": chk_supply_walled, "leavejoin": chk_leave_join, "capture": chk_capture, "hop": chk_hop, "learn": chk_learn, "storagefilter": chk_storage_filter, "board": chk_board, "tags": chk_tags, "sweep": chk_sweep, "request": chk_request, "requestwalk": chk_request_walk, "fetchplanet": chk_fetch_planet, "wood": chk_wood}
 
 
 async def main() -> int:

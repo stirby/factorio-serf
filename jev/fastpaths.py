@@ -312,8 +312,7 @@ class FastPaths:
             stock = dict((await self.g.call("query", what="materials", outputs=True)).get("materials") or {})
             for k, v in (await self.runner.refresh_inventory()).items():
                 stock[k] = stock.get(k, 0) + v
-            pole = ("small-electric-pole" if craft.most("small-electric-pole", stock, self.recipes, 12) >= 8
-                    else "medium-electric-pole")
+            pole = await self.runner.pick_pole(8)
             # the quick mine is electric drills on a belt: an order for burner drills, or a base that can't get
             # electric drills or power them (a fresh map), is the planner's
             if re.search(r"\bburner", o.text, re.I) or craft.most("electric-mining-drill", stock, self.recipes, 2) < 2:

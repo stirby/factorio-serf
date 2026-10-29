@@ -479,6 +479,8 @@ API.production = function(req) return observe.production(live(req), req) end
 --   ore          the tiles of resource `name` within radius (default 16, max 32) of x,y
 --   items_near   totals of the given items in containers near x,y (radius), e.g. a belt puzzle's kit
 --   tech         one technology `name`: researched, current, queued, progress (0..1), unlocks {recipe = detail}
+--   mine_for     the nearest tree or rock whose mining gives `item`, within radius (default 256, max 512) of x,y
+--                (or of the agent): {kinds = prototype names, nearest = {name, x, y, d} or nil}
 API.query = function(req)
   local s = surface_for(req)
   local w = req.what
@@ -556,6 +558,27 @@ API.query = function(req)
       out[#out + 1] = { e.name, e.position.x, e.position.y }
     end
     return { clutter = out }
+  elseif w == "mine_for" then
+    local p = { x = tonumber(req.x), y = tonumber(req.y) }
+    if not (p.x and p.y) then
+      local a = req.agent and storage.agents[req.agent]
+      p = (a and a.char and a.char.valid) and a.char.position or { x = 0, y = 0 }
+    end
+    local kinds = util.mined_for(req.item or "")
+    if #kinds == 0 then return { kinds = kinds } end
+    local far = math.min(tonumber(req.radius) or 256, 512)
+    for _, r in ipairs { 32, 128, far } do
+      local best, bd
+      for _, e in pairs(s.find_entities_filtered { name = kinds, position = p, radius = math.min(r, far), limit = 200 }) do
+        local d = util.dist(e.position, p)
+        if not bd or d < bd then best, bd = e, d end
+      end
+      if best then
+        return { kinds = kinds, nearest = { best.name, best.position.x, best.position.y, math.floor(bd) } }
+      end
+      if r >= far then break end
+    end
+    return { kinds = kinds }
   end
   error("unknown query " .. tostring(w))
 end

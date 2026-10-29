@@ -239,6 +239,51 @@ class Runner:
         self.abort = None  # set while an order runs: true once that order is cancelled, so its remaining actions stop
         self._escaping = False
         self.routed: list[dict] = []  # what each route step laid: {"ends": endpoint tiles, "tiles": belt tiles}
+        self._minable: dict = {}  # (surface, item) -> (time, can it be mined near the serf)
+
+    async def can_mine(self, item: str) -> bool:
+        """Whether a raw item can be mined near the serf. Wood needs trees that drop it: on Vulcanus the only trees
+        are lichen, which drop carbon, and every plan there walked to one for wood that never came (live test,
+        25 Oct). Ores, stone and coal are assumed. Asked of the mod at most every 5 minutes per planet."""
+        if item != "wood":
+            return True
+        key = (self.g.surface, item)
+        hit = self._minable.get(key)
+        if hit and time.time() - hit[0] < 300:
+            return hit[1]
+        try:
+            q = await self.g.call("query", what="mine_for", item=item, agent=self.g.name)
+            ok = bool(q.get("nearest"))
+        except Exception as e:  # noqa: BLE001
+            # an older mod has no mine_for: assume trees, as before
+            log.info("mine_for query failed (%r); assuming %s can be mined", e, item)
+            ok = True
+        self._minable[key] = (time.time(), ok)
+        return ok
+
+    async def pick_pole(self, n: int = 8) -> str:
+        """The pole a plan should stock and lay when it doesn't name one: small ones when n are carried or stored or
+        can be crafted (with wood that is stored or can be mined here), else medium ones when those can be had."""
+        small, medium = "small-electric-pole", "medium-electric-pole"
+        try:
+            from . import craft
+            have = dict((await self.g.call("query", what="materials", outputs=True)).get("materials") or {})
+            for k, v in (await self.refresh_inventory()).items():
+                have[k] = have.get(k, 0) + v
+            if have.get(small, 0) >= n:
+                return small
+            if not self.recipes:
+                return medium if have.get(medium, 0) >= n else small
+            raw = dict(have)
+            for item in ("stone", "coal") + (("wood",) if await self.can_mine("wood") else ()):
+                raw[item] = raw.get(item, 0) + 10000
+            if craft.most(small, raw, self.recipes, cap=n) >= n:
+                return small
+            if have.get(medium, 0) >= 3 or craft.most(medium, raw, self.recipes, cap=n) >= n:
+                return medium
+        except Exception as e:  # noqa: BLE001
+            log.warning("pole choice failed: %r", e)
+        return small
 
     async def refresh_inventory(self) -> dict:
         try:
@@ -420,7 +465,7 @@ class Runner:
             return {}
         t0 = time.time()
         # what can't be had at all is reported now, not after a long walk collecting ingredients for it: storage,
-        # machine outputs and pockets, crafting (wood, stone and coal count as minable)
+        # machine outputs and pockets, crafting (stone and coal count as minable, wood where it grows)
         known_short = {}
         if self.recipes:
             try:
@@ -428,8 +473,9 @@ class Runner:
                 have = dict((await self.g.call("query", what="materials", outputs=True)).get("materials") or {})
                 for k, v in inv.items():
                     have[k] = have.get(k, 0) + v
-                for raw in ("wood", "stone", "coal"):
-                    have[raw] = have.get(raw, 0) + 10000
+                for raw in ("wood", "stone", "coal"):  # wood only where trees that drop it grow
+                    if await self.can_mine(raw):
+                        have[raw] = have.get(raw, 0) + 10000
                 for i, n in list(short.items()):
                     can = craft.most(i, have, self.recipes, cap=n)
                     if can < n and i in self.recipes:
@@ -496,10 +542,10 @@ class Runner:
                     if not gi.get("ok"):
                         fi = await self._act({"op": "fetch", "item": ing, "count": need}, timeout=300)
                         if not fi.get("ok") and ing in MINEABLE:
-                            # raw: mine it (wood from trees: 4 per tree)
+                            # raw: mine it (wood from trees that drop it: 4 per tree)
                             short_ing = need - (await self.refresh_inventory()).get(ing, 0)
-                            if short_ing <= 300:
-                                await self._act({"op": "mine", "name": MINEABLE[ing],
+                            if short_ing <= 300 and await self.can_mine(ing):
+                                await self._act({"op": "mine", "name": MINEABLE[ing], "item": ing,
                                                  "count": max(1, -(-short_ing // 4)) if ing == "wood" else short_ing},
                                                 timeout=600)
                         elif not fi.get("ok") and depth < 3:
@@ -637,9 +683,16 @@ class Runner:
     async def _do_mine(self, s):
         # by the item it gives ("wood" is mined from trees, "raw-wood" too) or by the entity's name
         name = s.get("name") or s.get("item")
-        item = name if name in MINEABLE else None
+        item = "wood" if name == "raw-wood" else (name if name in MINEABLE else None)
         name = {"raw-wood": "tree"}.get(name, MINEABLE.get(name, name))
         n = int(s.get("count", 10))
+        if item == "wood":
+            if not await self.can_mine("wood"):
+                return {"ok": False, "unobtainable": True,
+                        "msg": "no trees that drop wood grow near here (on this planet trees give other things): wood "
+                               "has to come from storage, or use parts that need none (medium poles, iron chests)"}
+            return await self._act({"op": "mine", "name": name, "item": "wood", "count": n},
+                                   timeout=max(400, 6 * n + 60))
         if item and item != "wood" and not s.get("by_hand"):
             # what a drill already dropped into a chest nearby is quicker to pick up than to mine (a bootstrap's coal
             # drill fills its chest while the character mines by hand)
@@ -734,7 +787,7 @@ class Runner:
                 if inv.get("wood", 0) < 10:
                     r = await self.ensure("wood", want)
                     if not r.get("ok"):
-                        r = await self._act({"op": "mine", "name": "tree", "count": max(4, want // 4)}, timeout=400)
+                        r = await self._do_mine({"name": "wood", "count": max(4, want // 4)})
                 inv = await self.refresh_inventory()
                 if inv.get("wood", 0) <= 0:
                     return {"ok": False, "msg": f"no fuel: no coal anywhere and no wood ({r.get('msg')})",
@@ -753,7 +806,7 @@ class Runner:
         bridge from the nearest live pole to the closest unpowered pole (or machine), rescan, repeat."""
         p = _xy(s)
         rad = float(s.get("radius", 6))
-        item = s.get("item", "small-electric-pole")
+        item = s.get("item")
         msgs = []
         prev_off, stuck, stocked = None, 0, False
         for rnd in range(10):
@@ -798,6 +851,7 @@ class Runner:
                 # poles in hand first, the full way (storage, crafting, wood from trees): the game's line routing
                 # only fetches from storage; medium poles will do if small ones can't be had
                 stocked = True
+                item = item or await self.pick_pole(8)
                 got = await self.ensure(item, 8)
                 if not got.get("ok") and not s.get("item"):
                     if (await self.refresh_inventory()).get("medium-electric-pole", 0) >= 3:
@@ -1349,11 +1403,13 @@ class Runner:
         sides = [x for x in DIRS if DIRS[x][0] * DIRS[d][0] + DIRS[x][1] * DIRS[d][1] == 0]
         side = s.get("side")
         cands = [side] if side else sides
+        pole = s.get("pole") or await self.pick_pole(2 * int(s.get("count", 1)) + 2)
         best = None
         for sd in cands:
             ents, info = row_entities((e["x"], e["y"]), d, sd, s.get("machine", "assembling-machine-1"),
                                       s.get("recipe"), int(s.get("count", 1)), bool(s.get("second_belt")),
-                                      s.get("output", "chest"), s.get("inserter", "inserter"), int(s.get("offset", 0)))
+                                      s.get("output", "chest"), s.get("inserter", "inserter"), int(s.get("offset", 0)),
+                                      pole=pole)
             blocked = sum(1 for x in ents if w.at(x["x"], x["y"]) is not None)
             if best is None or blocked < best[0]:
                 best = (blocked, ents, info, sd)
@@ -1999,9 +2055,11 @@ def parse_missing(msg: str) -> dict:
     return out
 
 
-def plan_needs(steps: list[dict]) -> dict:
+def plan_needs(steps: list[dict], pole: str = "small-electric-pole") -> dict:
     """Items a plan will use, so they can be fetched in one trip before it starts. Lines (connect) are estimated
-    from the distance: belts/pipes ~ the walking distance plus a margin, poles ~ one per 5 tiles."""
+    from the distance: belts/pipes ~ the walking distance plus a margin, poles ~ one per 5 tiles. `pole` is the one
+    rows, power steps and spares will lay when a step doesn't name one (Runner.pick_pole): stocking small poles a
+    medium-pole base can't make sent the serf off for wood on every plan (live test, 25 Oct)."""
     need: dict = {}
 
     def add(item, n):
@@ -2028,7 +2086,7 @@ def plan_needs(steps: list[dict]) -> dict:
                 add("iron-chest", n)
             else:
                 add("transport-belt", n * 3 + 2)
-            add("small-electric-pole", n * 2 + 4)
+            add(s.get("pole") or pole, n * 2 + 4)
         elif d == "block":
             from . import blueprints as bp
             try:
@@ -2044,7 +2102,7 @@ def plan_needs(steps: list[dict]) -> dict:
             elif item:
                 add(item, dist * 1.2 + 4)
         elif d == "power":
-            add(s.get("item", "small-electric-pole"), 6)
+            add(s.get("item") or pole, 6)
         elif d == "merge_lanes":
             for k in ("left", "right"):
                 src = s.get(k)
@@ -2075,7 +2133,7 @@ def plan_needs(steps: list[dict]) -> dict:
     electric = {"assembling-machine-1", "assembling-machine-2", "assembling-machine-3", "inserter", "fast-inserter",
                 "electric-mining-drill", "lab", "electric-furnace", "long-handed-inserter"}
     if any(k in electric for k in need):
-        need["small-electric-pole"] = need.get("small-electric-pole", 0) + 4
+        need[pole] = need.get(pole, 0) + 4
     if "transport-belt" in need:
         need["transport-belt"] += 6
     return need
