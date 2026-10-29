@@ -17,7 +17,6 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 from instance import Instance  # noqa: E402
-from jev import decide  # noqa: E402
 from jev.actor import Actor  # noqa: E402
 from jev.game import Game  # noqa: E402
 from jev.todo_bridge import TodoBridge, as_list  # noqa: E402
@@ -55,11 +54,6 @@ async def with_todo(k: int, zip_path: Path) -> None:
     await asyncio.to_thread(inst.start, 300)
     g = None
 
-    async def chat(jev, me, speaker, msg, doing, last):
-        return decide.ChatCall(1.0, "new_job", 1.0, "plan", 1.0, 0.0)
-
-    saved = decide.chat
-    decide.chat = chat
     try:
         g = await Game.connect(inst.host, inst.rcon_port, inst.password, "serf")
         await g.start(spawn=True)
@@ -93,7 +87,6 @@ async def with_todo(k: int, zip_path: Path) -> None:
         check("bridge: a done order ticks its task off", done and done[0].get("done") is True and not open_,
               (done, open_))
     finally:
-        decide.chat = saved
         if g:
             await g.stop()
             await g.crew.close()

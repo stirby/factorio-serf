@@ -28,6 +28,7 @@ class Game:
         # second kept an empty live world moving at ~4 ticks/s, biters included. With idle_when_empty the app polls
         # every 5 s and its board, todo and watch loops rest until someone joins.
         self.idle_when_empty, self.empty = idle_when_empty, False
+        self.players: int | None = None
         self.chat: asyncio.Queue = asyncio.Queue()
         self.events: asyncio.Queue = asyncio.Queue()
         self._waiters: dict[int, asyncio.Future] = {}
@@ -86,6 +87,7 @@ class Game:
                 self.last_poll = time.time()
                 self.tick = d.get("tick", self.tick)
                 self.empty = self.idle_when_empty and d.get("players") == 0  # a mod before this field: never empty
+                self.players = d.get("players")  # players online (None from a mod before 0.3.5)
                 for c in d.get("chat") or []:
                     await self.chat.put(c)
                 for ev in d.get("events") or []:

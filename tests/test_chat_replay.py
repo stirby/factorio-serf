@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Chat replay (no game, no model calls, $0, seconds): a live conversation, line by line with its timing, through the
-actor's real chat handling and work loop, against a fake game and a fake planner. Jev's reading of each line is the
-one the live log recorded, so a case replays what the serf saw. Seeded with the 2026-10-25 live session (player
-renamed).
+actor's real chat handling and work loop, against a fake game and a fake planner. The chat reader's decision on each
+line (Opus's, in play) is given by the case, so a case checks what the serf does with a decision. Seeded with the
+2026-10-25 live session (player renamed).
 
-A case: Case(name, lines=[L(secs, text, J(kind, addressed, kind_conf, ...)), ...], expect=fn, runs={order id:
-secs}). secs counts from the first line; J is Jev's reading (none needed for a line that's only the serf's name);
-expect(r: Replay) returns what went wrong (empty = pass); orders run until stopped unless `runs` ends them sooner.
-For a flagged live moment, `--from-log <actor.jsonl> [HH:MM:SS HH:MM:SS]` prints its lines as L(...) to paste.
+A case: Case(name, lines=[L(secs, text, D(action, order, ...)), ...], expect=fn, runs={order id: secs}). secs counts
+from the first line; D is the decision (none needed for a line that's only the serf's name); expect(r: Replay)
+returns what went wrong (empty = pass); orders run until stopped unless `runs` ends them sooner. For a flagged live
+moment, `--from-log <actor.jsonl> [HH:MM:SS HH:MM:SS]` prints its lines as L(...) to paste.
 
     Run: .venv/bin/python tests/test_chat_replay.py
 """
@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 import jev.actor as actor_mod  # noqa: E402
-from jev import decide  # noqa: E402
+from jev.chat_reader import ChatDecision, ChatReaderError  # noqa: E402
 from jev.actor import Actor  # noqa: E402
 from jev.thinker import Request, Thinker  # noqa: E402
 
@@ -38,26 +38,19 @@ def check(name, cond, info=""):
 
 
 # ---------------------------------------------------------------------------- case shape
-@dataclass
-class J:
-    """Jev's reading of a line (the live log's chat record), plus its answers to the follow-up questions."""
-    kind: str
-    addressed: float = 0.9
-    kind_conf: float = 0.9
-    playbook: str = "plan"
-    playbook_conf: float = 1.0
-    multi: float = 0.0
-    qtype: tuple = ("other", 0.5)  # decide.question_type
-    not_done: float = 0.0
-    changes_plan: float = 0.0
-    same_job: float | dict = 1.0  # decide.same_job: one value, or {words of the job: p}
+def D(action, order=None, playbook="plan", reply="", for_me=True, multi=False):
+    """The chat reader's decision on a line (the live log's chat record has the same fields)."""
+    return ChatDecision(for_me, action, order, playbook, multi, reply, "replay")
+
+
+ERROR = "error"  # a line the reader fails on (Opus unreachable): the plain rules decide
 
 
 @dataclass
 class L:
     secs: float
     text: str
-    jev: J | None = None
+    d: ChatDecision | str | None = None
     speaker: str = "player"
 
 
@@ -114,6 +107,25 @@ class FakeGame:
         return []
 
 
+class FakeReader:
+    """The chat reader: each line's decision from the case; what it was shown is kept."""
+
+    def __init__(self, table):
+        self.table, self.seen = table, []
+
+    async def decide(self, situation):
+        self.seen.append(situation)
+        d = self.table.get(situation["message"])
+        if d is None:
+            raise AssertionError(f"no decision for line {situation['message']!r}")
+        if d == ERROR:
+            raise ChatReaderError("unreachable (replay)")
+        return d
+
+    async def close(self):
+        pass
+
+
 class FakeThinker:
     """Takes requests as the real one does; a question or small talk is answered at once (a line through the actor's
     say, as the say tool does, then a no-plan answer). Plan requests aren't made: the orders' work is stubbed."""
@@ -136,6 +148,7 @@ class Replay:
     actor: Actor
     game: FakeGame
     thinker: FakeThinker
+    reader: FakeReader
 
     @property
     def orders(self):
@@ -161,34 +174,7 @@ async def _settle(n=15):
 
 async def replay(case: Case) -> Replay:
     clock = Clock()
-    table = {ln.text: ln.jev for ln in case.lines if ln.jev}
-
-    def reading(msg):
-        if msg not in table:
-            raise AssertionError(f"no Jev reading for line {msg!r}")
-        return table[msg]
-
-    async def chat(jev, me, speaker, message, doing, last_said):
-        j = reading(message)
-        return decide.ChatCall(j.addressed, j.kind, j.kind_conf, j.playbook, j.playbook_conf, j.multi)
-
-    async def question_type(jev, message):
-        return reading(message).qtype
-
-    async def not_done(jev, job, message):
-        return reading(message).not_done
-
-    async def changes_plan(jev, doing, message):
-        return reading(message).changes_plan
-
-    async def same_job(jev, job, message):
-        v = reading(message).same_job
-        return next((p for k, p in v.items() if k in job), 0.0) if isinstance(v, dict) else v
-
-    saved = {k: getattr(decide, k) for k in ("chat", "question_type", "not_done", "changes_plan", "same_job")}
     real_time = actor_mod.time
-    decide.chat, decide.question_type, decide.not_done, decide.changes_plan, decide.same_job = \
-        chat, question_type, not_done, changes_plan, same_job
     actor_mod.time = clock
     tmp = tempfile.TemporaryDirectory()
     try:
@@ -198,6 +184,8 @@ async def replay(case: Case) -> Replay:
         a = Actor(g, None, Path(tmp.name), "serf", think=False)
         th = FakeThinker(a)
         a.thinker = th
+        rd = FakeReader({ln.text: ln.d for ln in case.lines if ln.d})
+        a.chat_reader = rd
 
         async def no_tidy(*args, **kw):
             return None
@@ -235,30 +223,26 @@ async def replay(case: Case) -> Replay:
             await work
         except BaseException:  # noqa: BLE001
             pass
-        r = Replay(a, g, th)
+        r = Replay(a, g, th, rd)
         r.problems = case.expect(r)
         return r
     finally:
-        for k, v in saved.items():
-            setattr(decide, k, v)
         actor_mod.time = real_time
         tmp.cleanup()
 
 
 # ---------------------------------------------------------------------------- the 2026-10-25 session
-TELEPORT = L(0, "can you teleport back to nauvis spawn", J("new_job", 0.78, 0.56, "plan", 0.97))
+TELEPORT = L(0, "can you teleport back to nauvis spawn", D("new_job"))
 GHOSTS = L(70, "Okay serf here's what I'm thinking I need you to finish laying the ghosts for this logistics "
-               "automation right here up to blue belts with space to add green", J("new_job", 0.92, 0.96, "plan", 1.0))
+               "automation right here up to blue belts with space to add green", D("new_job"))
 LOOK_AGAIN = L(135, "serf do you see the gear and iron plate input? i don't have the rest of the machiens for you but "
-                    "look agian before working just figure it out make it clean", J("new_job", 0.94, 0.33, "plan", 0.83))
-TF = L(145, "tf is number 1", J("question", 0.69, 0.82, "plan", 0.95, qtype=("other", 0.52)))
-NUMBER_1 = L(156, "what is number 1 in your queue", J("question", 0.72, 0.95, "plan", 0.97, qtype=("other", 0.72)))
+                    "look agian before working just figure it out make it clean", D("add_to_queued", 2))
+TF = L(145, "tf is number 1", D("ask_planner"))
+NUMBER_1 = L(156, "what is number 1 in your queue", D("ask_planner"))
 HERE = L(187, "no I want you to do the logistics automation here. Usually following me is a short task like 10 seconds",
-         J("new_job", 0.77, 0.78, "plan", 1.0))
-STOP = L(199, "JESUS CHRIST STOP QUEUEING SHIT SERF", J("stop", 0.94, 0.88, "plan", 0.79))
-# not_done 0.69: Jev's reading of this line against the logistics job (asked 2026-10-25; "ok thanks that's enough" 0.16)
-JUST_FINISH = L(212, "JUST FINISH THE LOGISTICS AUTOMATION I STATED HERE", J("more_info", 0.84, 0.76, "plan", 1.0,
-                                                                            not_done=0.69))
+         D("add_to_queued", 2))
+STOP = L(199, "JESUS CHRIST STOP QUEUEING SHIT SERF", D("stop"))
+JUST_FINISH = L(212, "JUST FINISH THE LOGISTICS AUTOMATION I STATED HERE", D("reopen", 2))
 
 
 def expect_name_only(r):
@@ -276,13 +260,13 @@ def expect_small_talk(r):
     out = []
     if r.orders:
         out.append(f"{len(r.orders)} order(s) made")
-    asks = r.thinker.asked
-    if len(asks) != 2 or any(q.kind != "question" or q.order_id is not None for q in asks):
-        out.append(f"planner asks {[(q.kind, q.order_id) for q in asks]}")
-    elif not all("small talk" in q.text for q in asks):
-        out.append("not asked as small talk")
-    if len(r.said) != 2:
+    if r.thinker.asked:
+        out.append(f"asked the planner {[q.kind for q in r.thinker.asked]}")
+    if r.said != ["doing good, free for a job", "all good, nothing queued"]:
         out.append(f"said {r.said}")
+    seen = r.reader.seen
+    if len(seen) != 2 or "doing good, free for a job" not in " ".join(seen[1]["recent_chat"]):
+        out.append("the second line's situation doesn't show the conversation so far")
     return out
 
 
@@ -336,7 +320,7 @@ def expect_ping_answers_ask(r):
 
 
 PING = L(0, "[gps=10,-20,nauvis]")
-CHESTS = L(0, "serf put a row of 4 iron chests down", J("new_job", 0.95, 0.95, "plan", 1.0))
+CHESTS = L(0, "serf put a row of 4 iron chests down", D("new_job"))
 
 
 def expect_order_ends_follow(r):
@@ -361,12 +345,11 @@ def expect_line_goes_to_running_job(r):
 
 
 # 2026-10-25 14:01-14:05, Vulcanus: rocks running, roboports queued, then a line about the rocks
-ROCKS = L(0, "Serf there are way more boulders to break", J("new_job", 0.9, 0.9, "plan", 1.0))
+ROCKS = L(0, "Serf there are way more boulders to break", D("new_job"))
 ROBOPORTS = L(90, "serf after you're done make a clean grid of robot ports as ghosts and make as many as you can so we "
-                  "have better base coverage", J("new_job", 0.93, 0.95, "plan", 1.0))
+                  "have better base coverage", D("new_job"))
 BOTS = L(147, "btw serf you should break all the rocks/boulders vents. Can you mark areas for deletion and use "
-              "construction bots?", J("new_job", 0.9, 0.8, "plan", 1.0,
-                                      same_job={"robot ports": 0.37, "boulders": 0.84}))
+              "construction bots?", D("change_running", 1))
 
 
 def expect_follow(r):
@@ -429,13 +412,46 @@ def expect_question_keeps_order(r):
     return out
 
 
+def expect_change_running(r):
+    o = r.order(1)
+    out = []
+    if not o or not o.interrupt or "other side" not in o.interrupt:
+        out.append(f"order 1 interrupt {o and o.interrupt}")
+    if "player changed the job" not in r.game.cancels:
+        out.append(f"cancels {r.game.cancels}")
+    if "ok, switching sides" not in r.said or len(r.orders) != 1:
+        out.append(f"said {r.said}, {len(r.orders)} orders")
+    return out
+
+
+def expect_situation(r):
+    sit = r.reader.seen[-1]
+    out = []
+    if (sit.get("running") or {}).get("id") != 1 or [q["id"] for q in sit.get("queued") or []] != [2]:
+        out.append(f"running {sit.get('running')}, queued {sit.get('queued')}")
+    if "#2, the logistics ghosts" not in r.said:
+        out.append(f"said {r.said}")
+    return out
+
+
+def expect_rules_fallback(r):
+    out = []
+    if len(r.orders) != 1 or r.orders[0].status != "cancelled":
+        out.append(f"orders {[(o.text[:20], o.status) for o in r.orders]}")
+    if "ok, stopped" not in r.said:
+        out.append(f"said {r.said}")
+    if any("weather" in o.text for o in r.orders):
+        out.append("a line not for it became an order")
+    return out
+
+
 CASES = [
     Case("name only gets an answer, no order", [L(0, "serf"), L(3, "@serf")], expect_name_only),
     Case("small talk gets a one-line reply, no order",
-         [L(0, "serf how are you doing", J("chatter", 0.88, 0.62, "plan", 1.0)),
-          L(60, "how are you doing bro", J("chatter", 0.57, 0.87, "plan", 1.0))], expect_small_talk),
+         [L(0, "serf how are you doing", D("answer", reply="doing good, free for a job")),
+          L(60, "how are you doing bro", D("answer", reply="all good, nothing queued"))], expect_small_talk),
     Case("a ! line is a flag for the developer, not an order", [
-        L(0, "! that was wrong, I meant the red and blue machines", J("new_job", 0.9, 0.9, "plan", 1.0))], expect_flag),
+        L(0, "! that was wrong, I meant the red and blue machines", D("new_job"))], expect_flag),
     Case("a ping on its own is remembered, not an order or a reply", [PING], expect_ping_quiet),
     Case("a ping right after a player's order is that order's spot", [CHESTS, L(25, "[gps=10,-20,nauvis]")],
          expect_ping_joins_order),
@@ -446,13 +462,21 @@ CASES = [
          game={"job": {"id": 7, "op": "follow", "what": "following player"}}),
     Case("a line about the running job goes to it, not to the queued one", [ROCKS, ROBOPORTS, BOTS],
          expect_line_goes_to_running_job),
-    Case("follow me is one order", [L(0, "okay follow me", J("new_job", 0.72, 1.0, "plan", 1.0))], expect_follow,
+    Case("follow me is one order", [L(0, "okay follow me", D("new_job"))], expect_follow,
          runs={1: 0}),
     Case("follow-ups join the queued job", [TELEPORT, GHOSTS, LOOK_AGAIN, HERE], expect_followup_joins),
     Case("stop ends the job and clears the queue", [TELEPORT, GHOSTS, STOP], expect_stop),
     Case("after stop, 'just finish the X I stated' does X", [TELEPORT, GHOSTS, STOP, JUST_FINISH],
          expect_finish_after_stop),
     Case("a question about the queue keeps the orders", [TELEPORT, GHOSTS, TF, NUMBER_1], expect_question_keeps_order),
+    Case("a change to the running job stops its plan to redo it", [
+        CHESTS, L(30, "serf put them on the other side of the belt", D("change_running", 1, reply="ok, switching sides"))],
+         expect_change_running),
+    Case("the reader sees the queue and the running job", [TELEPORT, GHOSTS, L(100, "serf what's next", D(
+        "answer", reply="#2, the logistics ghosts"))], expect_situation),
+    Case("with Opus unreachable, an @ is still an order and stop still stops", [
+        L(0, "@serf build a wall around the base", ERROR), L(20, "stop", ERROR), L(30, "nice weather", ERROR)],
+         expect_rules_fallback),
 ]
 
 
@@ -536,28 +560,20 @@ def test_thinker_folding():
 
 # ---------------------------------------------------------------------------- new cases from a live log
 def from_log(path: str, start: str | None = None, end: str | None = None) -> None:
-    """Print a live log's chat lines (between HH:MM:SS start and end, local time) as L(...) entries, Jev's readings
-    included, to paste into a new Case."""
+    """Print a live log's chat lines (between HH:MM:SS start and end, local time) as L(...) entries, with the chat
+    reader's decisions, to paste into a new Case."""
     rows = [json.loads(x) for x in Path(path).expanduser().read_text().splitlines() if x.strip()]
     t0 = None
-    for i, r in enumerate(rows):
-        if r.get("kind") != "chat" or r.get("speaker") in ("serf", "project", "planner"):
+    for r in rows:
+        if r.get("kind") != "chat" or r.get("speaker") in ("serf", "project", "planner") or r.get("assigned"):
             continue
         hms = time.strftime("%H:%M:%S", time.localtime(r["t"]))
         if (start and hms < start) or (end and hms > end):
             continue
         t0 = r["t"] if t0 is None else t0
-        extra = ""
-        for nxt in rows[i + 1:i + 6]:
-            if nxt.get("kind") == "chat":
-                break
-            if nxt.get("kind") == "question":
-                extra += f", qtype=({nxt.get('type')!r}, {nxt.get('conf')})"
-            elif nxt.get("kind") in ("not_done", "changes_plan"):
-                extra += f", {nxt['kind']}={nxt.get('p')}"
-        j = (f"J({r.get('kind_')!r}, {r.get('addressed')}, {r.get('kind_conf')}, {r.get('playbook')!r}, "
-             f"{r.get('playbook_conf')}{extra})")
-        print(f"    L({r['t'] - t0:.0f}, {r.get('msg')!r}, {j}, speaker={r.get('speaker')!r}),  # {hms}")
+        d = (f"D({r.get('action')!r}, {r.get('order')!r}, {r.get('playbook')!r}, reply={r.get('reply') or ''!r}"
+             + (", for_me=False" if not r.get("for_me") else "") + (", multi=True" if r.get("multi") else "") + ")")
+        print(f"    L({r['t'] - t0:.0f}, {r.get('msg')!r}, {d}, speaker={r.get('speaker')!r}),  # {hms}")
 
 
 if __name__ == "__main__":

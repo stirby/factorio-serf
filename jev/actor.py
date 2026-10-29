@@ -28,8 +28,9 @@ from .fastpaths import FastPaths
 from .game import Game
 from .lint import lint, plan_points
 from .steps import Runner, describe, parse_missing, plan_needs, resolve_refs, step_end
+from .chat_reader import ChatDecision, ChatReader, ChatReaderError
 from .thinker import Request, Thinker
-from .typesafe import Jev, JevError
+from .typesafe import Jev
 from .world import CHESTS, World, fmt_xy, items_words
 
 log = logging.getLogger("jev.actor")
@@ -147,6 +148,10 @@ class Actor(FastPaths):
         self.review_quick = True  # the planner looks over what the quick paths built, when it's free
         self.thinker = Thinker(name, self._thinker_tools(), self._on_plan, workdir / "thinker", self.log,
                                effort=thinker_effort, lint_fn=self._lint) if think else None
+        # Opus reads each chat line (what it's for, what to do, the reply); without Opus, plain rules
+        self.chat_reader = ChatReader(name) if think else None
+        self.heard: list[tuple[float, str, str]] = []  # the chat so far (time, who, line), its own lines too
+        self.last_said_t = 0.0
         self.metrics = {"orders": 0, "fast_path": 0, "plans": 0, "steps_ok": 0, "steps_failed": 0,
                         "recoveries": {}, "verified": 0, "unverified": 0, "chat_lines": 0}
         self._tasks: list[asyncio.Task] = []
@@ -178,6 +183,7 @@ class Actor(FastPaths):
 
     async def say(self, text: str) -> None:
         self.last_said, self.last_said_t = text, time.time()
+        self._heard(self.name, text)
         self.log({"kind": "say", "text": text})
         if "ping" in text.lower() and self.current:
             self.asked_ping = (time.time(), self.current.id)  # "ping where you want it": the next ping is for this order
@@ -191,20 +197,16 @@ class Actor(FastPaths):
 
     # ------------------------------------------------------------------ orders and projects
     async def add_order(self, msg: str, speaker: str) -> Order:
-        """An order that didn't come through chat (a project's): triaged for its playbook the same way."""
-        try:
-            call = await decide.chat(self.jev, self.name, speaker, msg, None, self.last_said)
-            playbook = call.playbook if call.playbook_conf >= 0.6 else "plan"
-            multi = call.multi >= 0.75
-        except JevError:
-            playbook, multi = "plan", True
+        """An order that didn't come through chat (a project's, a Todo List task): read for its playbook the same way."""
+        d = await self._read_chat(speaker, msg, True, assigned=True)
+        playbook, multi = d.playbook, d.multi
         o = Order(self.next_id, msg, speaker, playbook, [(float(a), float(b)) for a, b in GPS.findall(msg)])
         o.multi = multi
         self.next_id += 1
         self.orders.append(o)
         self.metrics["orders"] += 1
-        self.log({"kind": "chat", "speaker": speaker, "msg": msg, "addressed": 1.0, "kind_": "new_job",
-                  "kind_conf": 1.0, "playbook": playbook, "playbook_conf": 1.0, "multi": float(multi)})
+        self.log({"kind": "chat", "speaker": speaker, "msg": msg, "for_me": True, "action": "new_job",
+                  "playbook": playbook, "multi": multi, "reader": d.reader, "assigned": True})
         self.wake.set()
         return o
 
@@ -352,6 +354,8 @@ class Actor(FastPaths):
                 pass
         if self.thinker:
             await self.thinker.stop()
+        if self.chat_reader:
+            await self.chat_reader.close()
 
     def _set_busy(self, busy: bool) -> None:
         now = time.time()
@@ -398,6 +402,10 @@ class Actor(FastPaths):
                 log.exception("chat handling failed")
                 self.log({"kind": "error", "where": "chat", "error": repr(e)})
 
+    def _heard(self, who: str, text: str) -> None:
+        self.heard.append((time.time(), who, text))
+        del self.heard[:-30]
+
     async def _on_chat(self, c: dict) -> None:
         speaker, msg = str(c.get("player") or "?"), str(c.get("message") or "")
         if speaker == self.name or not msg.strip():
@@ -420,115 +428,57 @@ class Actor(FastPaths):
             or bool(re.match(rf"^\W*{re.escape(self.name)}\b", msg, re.I))  # "serf how are you doing"
         if re.fullmatch(rf"\W*@?{re.escape(self.name)}\W*", msg, re.I):
             # just its name (live test: "@serf" and "serf" got no answer at all)
+            self._heard(speaker, msg)
             await self.say("yes? what do you need?")
             return
-        # a player answering right after it spoke to them is talking to it ("how are you doing bro" a second after its
-        # question went unanswered)
-        talking = time.time() - getattr(self, "last_said_t", 0.0) < 90
-        doing = self.current.text if self.current and self.current.status in ("working", "thinking") else None
-        try:
-            call = await decide.chat(self.jev, self.name, speaker, msg, doing, self.last_said)
-        except JevError as e:
-            self.log({"kind": "error", "where": "jev chat", "error": str(e)})
-            # Jev is unreachable: an explicit @ is an order for the planner, and a plain "stop" still stops
-            stop = re.match(r"^\W*(@\S+\s*)?(stop|cancel|halt|wait)\b", msg.strip(), re.I)
-            call = decide.ChatCall(1.0 if explicit or stop else 0.0, "stop" if stop else "new_job", 0.0, "plan", 0.0)
-        self.log({"kind": "chat", "speaker": speaker, "msg": msg, "addressed": round(call.addressed, 3),
-                  "kind_": call.kind, "kind_conf": round(call.kind_conf, 3), "playbook": call.playbook,
-                  "playbook_conf": round(call.playbook_conf, 3), "multi": round(call.multi, 3)})
-        if not explicit and call.addressed < 0.5 and not (talking and call.addressed >= 0.2):
+        d = await self._read_chat(speaker, msg, explicit)
+        self._heard(speaker, msg)
+        self.log({"kind": "chat", "speaker": speaker, "msg": msg, "for_me": d.for_me, "action": d.action,
+                  "order": d.order, "playbook": d.playbook, "multi": d.multi, "reply": d.reply, "why": d.why,
+                  "reader": d.reader})
+        if not (d.for_me or explicit):
             return
-        kind = call.kind
-        # "no gears coming out of [gps], what's up with it?": a complaint put as a question, about a place. Jev isn't
-        # sure it's a question and is sure it's a fix: it's a job (answering it alone would leave it broken)
-        if kind == "question" and call.kind_conf < 0.7 and call.playbook == "fix" and call.playbook_conf >= 0.8 \
-                and GPS.search(msg):
-            self.log({"kind": "question_as_job", "msg": msg})
-            kind = "new_job"
-        last = self.orders[-1] if self.orders else None
-        # "more about the last job" that points somewhere else entirely ("the gear chest at [gps] should be filling up"
-        # right after a mine was finished) is a new job there, not a reopened one
-        pts_here = [(float(a), float(b)) for a, b in GPS.findall(msg)]
-        if kind == "more_info" and last and pts_here and last.points and all(
-                math.hypot(p[0] - q[0], p[1] - q[1]) > 30 for p in pts_here for q in last.points):
-            self.log({"kind": "elsewhere_is_new", "msg": msg})
-            kind = "new_job"
-        reopen = False
-        # a stopped job counts too, for a few minutes (live test: "STOP QUEUEING SHIT" dropped the queued job, then
-        # "JUST FINISH THE LOGISTICS AUTOMATION I STATED HERE" became a note on it and nothing ran)
-        if kind in ("more_info",) and not doing and last and (last.status in ("done", "failed") or (
-                last.status == "cancelled" and time.time() - self.stopped_t < 600)) \
-                and time.time() - last.t < 1800:
-            try:
-                p_nd = await decide.not_done(self.jev, last.text, msg)
-            except JevError:
-                p_nd = 0.0
-            self.log({"kind": "not_done", "order": last.id, "p": round(p_nd, 3)})
-            reopen = p_nd >= 0.6
-        if reopen:
-            # "not done yet" / a correction after it finished: reopen that order with the note
-            last.notes.append(f"{speaker}: {msg}")
-            last.status = "new"
-            last.reopened += 1
-            self.log({"kind": "reopen", "order": last.id})
+        doing = self.current if self.current and self.current.status in ("working", "thinking") else None
+        act, target = d.action, (self.order_by_id(d.order) if d.order is not None else None)
+        ended = ("done", "failed", "cancelled")
+        # an id that doesn't fit the action: go by what the orders are now
+        if act == "add_to_queued" and not (target and target.status == "new"):
+            act = "change_running" if doing and target is doing else "new_job"
+        if act in ("change_running", "note_running") and not doing:
+            act = "reopen" if target and target.status in ended else ("new_job" if act == "change_running" else "answer")
+        if act == "reopen" and not (target and target.status in ended):
+            act = "new_job"
+        if act == "new_job":
+            await self._chat_order(c, speaker, msg, d, doing)
+        elif act == "add_to_queued":
+            # more about the job they queued, not another job (live test: three lines about one build became three
+            # orders, run one after another)
+            target.notes.append(f"{speaker}: {msg}")
+            self.log({"kind": "added_to_queued", "order": target.id})
+            await self.say(d.reply or f"got it, adding that to #{target.id} ({target.text[:40].rstrip()}...)")
+        elif act in ("change_running", "note_running"):
+            doing.notes.append(f"{speaker}: {msg}")
+            if self.thinker and doing.status == "thinking":
+                self.thinker.ask(Request("report", f"The player added: \"{msg}\"", doing.id))
+            elif doing.status == "working" and act == "change_running":
+                self.log({"kind": "changes_plan", "order": doing.id})
+                doing.interrupt = f"{speaker}: {msg}"
+                await self.g.cancel("player changed the job")
+            if d.reply:
+                await self.say(d.reply)
+        elif act == "reopen":
+            # "not done yet" or a correction after it ended, a stopped job too (live test: "JUST FINISH THE LOGISTICS
+            # AUTOMATION I STATED HERE" right after a stop)
+            target.notes.append(f"{speaker}: {msg}")
+            target.status = "new"
+            target.reopened += 1
+            self.log({"kind": "reopen", "order": target.id})
+            if d.reply:
+                await self.say(d.reply)
             self.wake.set()
-            return
-        queued = next((x for x in reversed(self.orders) if x.status == "new" and x.speaker == speaker
-                       and time.time() - x.t < 180), None)
-        if kind in ("new_job", "more_info") and queued and not (pts_here and queued.points and all(
-                math.hypot(p[0] - q[0], p[1] - q[1]) > 30 for p in pts_here for q in queued.points)):
-            # more about the job they just queued, not another job (live test: three lines about one build became
-            # three orders, run one after another), if it is about that job (live test: a line about the running rock
-            # job joined the queued roboport order)
-            same = await self._same_job(queued, msg)
-            if same >= 0.5:
-                queued.notes.append(f"{speaker}: {msg}")
-                self.log({"kind": "added_to_queued", "order": queued.id})
-                await self.say(f"got it, adding that to #{queued.id} ({queued.text[:40].rstrip()}...)")
-                return
-            if doing and self.current and await self._same_job(self.current, msg) >= 0.5:
-                kind = "more_info"  # about the running job: its notes (and a replan if it changes the plan)
-        if kind == "new_job" or (kind == "more_info" and not doing and call.kind_conf < 0.5
-                                 and call.playbook_conf >= 0.8):
-            pts = [(float(a), float(b)) for a, b in GPS.findall(msg)]
-            o = Order(self.next_id, msg, speaker, call.playbook if call.playbook_conf >= 0.6 else "plan", pts)
-            o.multi = call.multi >= 0.75
-            sp = c.get("position")
-            if isinstance(sp, (list, tuple)) and len(sp) == 2:
-                o.speaker_at = (float(sp[0]), float(sp[1]))
-            self.next_id += 1
-            self.orders.append(o)
-            self.metrics["orders"] += 1
-            if self.on_new_order:  # e.g. jev/capture.py: a save of the world as the player asked, before any work
-                try:
-                    await self.on_new_order(o)
-                except Exception as e:  # noqa: BLE001
-                    self.log({"kind": "error", "where": "on_new_order", "error": repr(e)})
-            if doing and self.current and self.current.speaker == self.name and self.current.text.startswith("(noticed)"):
-                # something it noticed by itself waits for a player's order
-                self.current.status = "cancelled"
-                self.log({"kind": "preempt", "order": self.current.id, "by": o.id})
-                await self.g.cancel("a player's order comes first")
-            elif doing:
-                waiting = sum(1 for x in self.orders if x.status == "new")
-                await self.say("got it, I'll do that next" if waiting <= 1 else f"got it, that's #{waiting} in my queue")
-            self.wake.set()
-        elif kind in ("more_info", "approval") and self.current:
-            self.current.notes.append(f"{speaker}: {msg}")
-            if self.thinker and self.current.status == "thinking":
-                self.thinker.ask(Request("report", f"The player added: \"{msg}\"", self.current.id))
-            elif self.current.status == "working" and kind == "more_info":
-                try:
-                    p = await decide.changes_plan(self.jev, self.current.text, msg)
-                except JevError:
-                    p = 0.0
-                self.log({"kind": "changes_plan", "order": self.current.id, "p": round(p, 3)})
-                if p >= 0.6:
-                    self.current.interrupt = f"{speaker}: {msg}"
-                    await self.g.cancel("player changed the job")
-        elif kind == "stop":
-            if self.current and self.current.status in ("working", "thinking"):
-                self.current.status = "cancelled"
+        elif act == "stop":
+            if doing:
+                doing.status = "cancelled"
             # and what's queued (live test: "STOP QUEUEING" stopped the walk, and the same job queued three times ran next)
             self.stopped_t = time.time()
             dropped = [x for x in self.orders if x.status == "new"]
@@ -541,26 +491,102 @@ class Actor(FastPaths):
                 self.project.stop(f"stopped by {speaker}")
                 await self.say("ok, stopped (the project too; its notes are kept)")
             else:
-                await self.say("ok, stopped")
-        elif kind == "question" and await self._quick_answer(msg):
-            pass
-        elif kind == "question" and self.thinker:
+                await self.say(d.reply or "ok, stopped")
+        elif act == "answer" and d.reply:
+            await self.say(d.reply)
+        elif act in ("answer", "ask_planner") and self.thinker:
+            if d.reply:
+                await self.say(d.reply)
             # (no order id: its words-only answer once closed the order being worked on)
             self.thinker.ask(Request("question", f"{speaker} asked in chat: \"{msg}\"\n{await self._where_words()}"
                                      f"{self._orders_words()}\n"
                                      "Answer briefly with the say tool (look first only if you need to; check facts "
                                      "like research and what's built before saying what's missing). Don't submit a "
                                      "plan unless they asked for work.", None))
-        elif kind == "chatter":
-            # small talk to it gets a short answer, like a teammate's (live test: "how are you doing" got silence)
-            if self.thinker:
-                self.thinker.ask(Request("question", f"{speaker} said to you in chat: \"{msg}\"\n"
-                                         f"{await self._where_words()}{self._orders_words()}\nIt's small talk: "
-                                         "reply in one short, friendly line "
-                                         "with the say tool (what you're up to, or that you're free for a job). Don't "
-                                         "look around and don't submit a plan.", None))
-            else:
-                await self.say("all good here. Free for a job: @" + self.name + " and what you need")
+        elif act in ("answer", "ask_planner") and explicit:
+            await self.say("can't look into that right now (no planner): " + self._orders_words())
+
+    async def _chat_order(self, c: dict, speaker: str, msg: str, d: ChatDecision, doing) -> None:
+        o = Order(self.next_id, msg, speaker, d.playbook, [(float(a), float(b)) for a, b in GPS.findall(msg)])
+        o.multi = d.multi
+        sp = c.get("position")
+        if isinstance(sp, (list, tuple)) and len(sp) == 2:
+            o.speaker_at = (float(sp[0]), float(sp[1]))
+        self.next_id += 1
+        self.orders.append(o)
+        self.metrics["orders"] += 1
+        if self.on_new_order:  # e.g. jev/capture.py: a save of the world as the player asked, before any work
+            try:
+                await self.on_new_order(o)
+            except Exception as e:  # noqa: BLE001
+                self.log({"kind": "error", "where": "on_new_order", "error": repr(e)})
+        if doing and doing.speaker == self.name and doing.text.startswith("(noticed)"):
+            # something it noticed by itself waits for a player's order
+            doing.status = "cancelled"
+            self.log({"kind": "preempt", "order": doing.id, "by": o.id})
+            await self.g.cancel("a player's order comes first")
+        elif doing:
+            waiting = sum(1 for x in self.orders if x.status == "new")
+            await self.say(d.reply or ("got it, I'll do that next" if waiting <= 1 else f"got it, that's #{waiting} in "
+                                                                                          "my queue"))
+        elif d.reply:
+            await self.say(d.reply)
+        self.wake.set()
+
+    async def _read_chat(self, speaker: str, msg: str, explicit: bool, assigned: bool = False) -> ChatDecision:
+        """Opus's decision on a chat line (or an assigned order's playbook); plain rules when Opus can't be asked:
+        an @ is a job for the planner, a plain "stop" still stops."""
+        if self.chat_reader:
+            try:
+                return await self.chat_reader.decide(await self._chat_situation(speaker, msg, explicit, assigned))
+            except ChatReaderError as e:
+                self.log({"kind": "error", "where": "chat reader", "error": str(e)})
+        if not assigned and re.match(r"^\W*(@\S+\s*)?(stop|cancel|halt|wait)\b", msg.strip(), re.I):
+            return ChatDecision(True, "stop", reader="rules")
+        if explicit or assigned:
+            return ChatDecision(True, "new_job", multi=assigned, reader="rules")
+        return ChatDecision(False, "none", reader="rules")
+
+    async def _chat_situation(self, speaker: str, msg: str, explicit: bool, assigned: bool = False) -> dict:
+        """What the chat reader needs to place a line: the conversation, the running job and its step, the queue, what
+        ended lately and why, where the serf is and what it carries."""
+        now = time.time()
+        cur = self.current if self.current and self.current.status in ("working", "thinking") else None
+        sit: dict = {"me": self.name, "speaker": speaker, "message": msg, "names_me": explicit,
+                     "players_online": getattr(self.g, "players", None), "my_last_line": self.last_said,
+                     "seconds_since_my_last_line": round(now - self.last_said_t) if self.last_said else None,
+                     "recent_chat": [f"{now - t:.0f}s ago {who}: {text[:200]}" for t, who, text in self.heard[-12:]]}
+        if assigned:
+            sit["assigned"] = ("given through the Todo List or by a project, not said in chat: it is a new_job; pick "
+                               "its playbook and multi")
+        if cur:
+            r = {"id": cur.id, "text": cur.text[:300], "status": "planning it" if cur.status == "thinking" else "working"}
+            v = getattr(self, "view", None)
+            if v and v.get("order") == cur.id and v.get("steps"):
+                i = next((k for k, st in enumerate(v["states"]) if st in ("run", "fail")), None)
+                if i is not None:
+                    r["step"] = f"{i + 1} of {len(v['steps'])}: {v['steps'][i][:100]}"
+            if cur.notes:
+                r["notes"] = cur.notes[-3:]
+            if getattr(cur, "asked", None):
+                r["it_asked_the_player"] = cur.asked[:200]
+            sit["running"] = r
+        sit["queued"] = [{"id": x.id, "text": x.text[:200], "by": x.speaker, "secs_ago": round(now - x.t)}
+                         for x in self.orders if x.status == "new"][:8]
+        sit["recent_ended"] = [{"id": x.id, "text": x.text[:200], "status": x.status, "why": x.fail_reason[:200],
+                                "mins_ago": round((now - (x.ended_t or x.t)) / 60, 1)}
+                               for x in reversed([x for x in self.orders if x.status in ("done", "failed",
+                                                                                          "cancelled")][-5:])]
+        if self.project and self.project.active:
+            sit["project"] = self.project.goal[:200]
+        try:
+            me = await self.g.me()
+            sit["where"] = (f"on {me.get('surface') or 'nauvis'} at [gps={me['position'][0]:.0f},"
+                            f"{me['position'][1]:.0f}]")
+            sit["carrying"] = items_words(me.get("inventory"), 10)
+        except Exception:  # noqa: BLE001
+            pass
+        return sit
 
     async def _tags_near(self, at, radius: float = 40) -> str:
         """The players' map tags near a spot: how they name purpose-built chests and machines (live test: rock loot went
@@ -574,14 +600,6 @@ class Actor(FastPaths):
             return ""
         return ("\nMap tags near there (players' names for places and chests; respect what they're for): "
                 + "; ".join(f"\"{t.get('text') or t.get('icon')}\" at [gps={t['x']:g},{t['y']:g}]" for t in tags) + ".")
-
-    async def _same_job(self, o: Order, msg: str) -> float:
-        try:
-            p = await decide.same_job(self.jev, o.text, msg)
-        except JevError:
-            p = 1.0  # Jev unreachable: as before, a follow-up joins
-        self.log({"kind": "same_job", "order": o.id, "p": round(p, 3)})
-        return p
 
     async def _learn(self, ev: dict) -> None:
         """Teach serf (a player's blueprint or book: the toolbar button, Ctrl+Shift+T or /serf learn): each blueprint
@@ -736,36 +754,6 @@ class Actor(FastPaths):
         if q:
             out += "; queued: " + "; ".join(f"#{x.id} \"{x.text[:120]}\"" for x in q[:5])
         return out + "."
-
-    async def _quick_answer(self, msg: str) -> bool:
-        """Status/where/inventory questions answered by code; anything else goes to the thinker."""
-        try:
-            qt, conf = await decide.question_type(self.jev, msg)
-        except JevError:
-            return False
-        self.log({"kind": "question", "type": qt, "conf": round(conf, 3)})
-        if conf < 0.7 or qt == "other":
-            return False
-        me = await self.g.me()
-        if qt == "where":
-            await self.say(f"I'm at [gps={me['position'][0]:.0f},{me['position'][1]:.0f}]")
-        elif qt == "carrying":
-            await self.say("carrying " + items_words(me.get("inventory"), 8))
-        else:
-            o = self.current
-            failed = next((x for x in reversed(self.orders) if x.status == "failed" and x.fail_reason
-                           and time.time() - x.ended_t < 600), None)
-            if failed:  # what it just couldn't do comes first (live test: "which one could you not finish?")
-                await self.say(f"#{failed.id} {brief(failed.text, 50)} is the one I couldn't finish: "
-                               f"{failed.fail_reason}")
-            if o and o.status in ("working", "thinking"):
-                step = "planning it" if o.status == "thinking" else "building it"
-                await self.say(f"working on #{o.id} {brief(o.text)} ({step})")
-            elif o:
-                await self.say(f"free now. Last job, #{o.id} {brief(o.text)}, is {o.status}")
-            else:
-                await self.say("nothing right now, free for a job")
-        return True
 
     # ------------------------------------------------------------------ work
     async def _work_loop(self) -> None:

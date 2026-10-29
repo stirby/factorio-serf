@@ -796,7 +796,8 @@ def test_question_marks_order():
     o = Order(1, "@serf build PU", "boss", "plan", [])
     o.status = "working"
     said = []
-    a = SimpleNamespace(current=o, project=None, log=lambda r: None, last_said=None,
+    a = SimpleNamespace(name="serf", current=o, project=None, log=lambda r: None, last_said=None,
+                        _heard=lambda who, t: None,
                         g=SimpleNamespace(say=lambda t: asyncio.sleep(0, said.append(t))))
     asyncio.run(Actor.say(a, "acid plant has sulfur now. Want me to divert adv circuits to the PU build?"))
     asyncio.run(Actor.say(a, "on it"))
@@ -1223,7 +1224,6 @@ def test_todo_bridge():
     again."""
     import asyncio as _a
     import tempfile
-    from jev import decide
     from jev.actor import Actor, Order
     from jev.todo_bridge import TodoBridge
 
@@ -1264,12 +1264,7 @@ def test_todo_bridge():
         async def cancel(self, reason="", job=None):
             self.cancels.append(reason)
 
-    async def chat(jev, me, speaker, msg, doing, last):
-        return decide.ChatCall(1.0, "new_job", 1.0, "plan", 1.0, 0.0)
-
-    saved = decide.chat
-    decide.chat = chat
-    try:
+    if True:  # (no planner here: Todo tasks are read by the plain rules, as orders for the planner)
         todo = Todo()
         todo.tasks = [{"id": 1, "title": "Roboport grid", "task": "as ghosts", "assignee": "serf", "done": False,
                        "created_by": "otterplex"},
@@ -1306,8 +1301,6 @@ def test_todo_bridge():
         todo.tasks[1]["task"] = "the lava is east of the furnaces"
         _a.run(b.tick())
         r5 = b.by_task[2] != o2b.id and a.order_by_id(b.by_task[2]).status == "new"
-    finally:
-        decide.chat = saved
     check("todo bridge: tasks become orders after chat orders; status and steps go back; done ticks; unassigned drops;"
           " a failed task edited is retried", r1 and r2 and r3 and r4 and r5, (r1, r2, r3, r4, r5))
 
