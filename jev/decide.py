@@ -268,3 +268,28 @@ async def upgrade(jev: Jev, order: str) -> tuple[str | None, float, float]:
     if t == "none_of_these":  # (the actor only asks when the order says upgrade, swap, replace or "in place of")
         return None, 0.0, 0.0
     return t, float(a["into"].probs.get(t) or 0), a["line"].p
+
+
+EFFORTS = {
+    "low": {"what": "small and obvious: bring or fetch items, move, follow, start one research, place a single machine "
+                    "or chest, change a setting",
+            "examples": ["bring me 50 iron plates", "follow me", "research solar", "put a chest here"]},
+    "medium": {"what": "a small build in one spot with a plain layout, or one clear fix",
+               "examples": ["make gears off this belt with 2 assemblers", "the boiler is out of coal",
+                            "belt the coal from the drills to the boiler"]},
+    "high": {"what": "a build with several parts to fit together (belts and power to route, a production line), or a "
+                     "fix whose cause isn't clear",
+             "examples": ["set up an iron mine on that patch and belt it to the smelters", "red science stopped, sort it"]},
+    "max": {"what": "a large job: a whole production chain or block, a rate to hit, a layout across a big or crowded "
+                    "area, oil or other fluids, several builds in a row",
+            "examples": ["automate green science at 30 a minute", "cover the whole calcite patch with drills and belt "
+                         "it to the foundries", "set up oil processing"]},
+}
+
+
+async def effort(jev: Jev, order: str) -> tuple[str, float]:
+    """How hard the planner should think about `order`: low, medium, high or max (the user: Jev "for deciding thinking
+    effort on a given task"). Logged next to each order's outcome for now, not used."""
+    a = await jev.ask({"order": order}, {"effort": choice("How much thinking does planning `order` need?", EFFORTS)},
+                      kind="effort")
+    return a["effort"].choice, a["effort"].confidence

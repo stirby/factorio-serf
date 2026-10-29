@@ -73,6 +73,7 @@ class Order:
     status: str = "new"  # new | working | thinking | done | failed | cancelled
     notes: list[str] = field(default_factory=list)
     plans: int = 0
+    escalated: bool = False  # its replans are thought through at max effort
     history: list[str] = field(default_factory=list)
     speaker_at: tuple | None = None
     interrupt: str | None = None  # a player correction that should stop the running plan
@@ -1385,7 +1386,19 @@ class Actor(FastPaths):
         self._told_limit = False
         return o.status != "cancelled"
 
-    async def _ask_plan(self, o: Order, text: str, timeout: float = 600) -> dict | None:
+    async def _effort_shadow(self, o: Order) -> None:
+        """Jev's pick of how hard the planner should think about a new order, logged next to how the order goes
+        (shadow mode: the planner keeps its own effort until the picks are shown to help; bench/effort_shadow.py)."""
+        if not self.jev:
+            return
+        try:
+            pick, conf = await decide.effort(self.jev, o.text)
+            self.log({"kind": "effort_shadow", "order": o.id, "pick": pick, "conf": round(conf, 3),
+                      "used": (self.thinker.effort if self.thinker else None) or "high"})
+        except Exception as e:  # noqa: BLE001
+            self.log({"kind": "error", "where": "effort_shadow", "error": repr(e)[:200]})
+
+    async def _ask_plan(self, o: Order, text: str, timeout: float = 600, effort: str | None = None) -> dict | None:
         if not self.thinker:
             return None
         if self.thinker.stats.usage_limited and not await self._wait_out_limit(o):
@@ -1393,7 +1406,9 @@ class Actor(FastPaths):
         fut = asyncio.get_running_loop().create_future()
         self._plan_waiters[o.id] = fut
         o.status = "thinking"
-        self.thinker.ask(Request("order" if o.plans == 0 else "report", text, o.id))
+        self.thinker.ask(Request("order" if o.plans == 0 else "report", text, o.id, effort=effort))
+        if o.plans == 0:
+            self._tasks.append(asyncio.create_task(self._effort_shadow(o)))
         if o.plans == 0 and self.prefetch:
             self._prefetching = asyncio.create_task(self._prefetch(o))
         t0 = time.time()
@@ -1491,6 +1506,7 @@ class Actor(FastPaths):
             self.log({"kind": "error", "where": "materials", "error": repr(e)})
         # up to 4 plans that get nowhere; a plan that got several steps done before failing (a big order built in
         # parts) doesn't use one up, within 10 plans in all
+        first_text = text
         wasted, total, ok_before = 0, 0, self.metrics["steps_ok"]
         free = False  # the last ask went unanswered for want of capacity: asking again doesn't use a plan up
         while wasted < 4 and total < 10:
@@ -1508,7 +1524,17 @@ class Actor(FastPaths):
             if o.next_plan:
                 plan, o.next_plan = o.next_plan, None
             else:
-                plan = await self._ask_plan(o, text)
+                effort = None
+                if o.plans >= 1 and self.thinker and (self.thinker.effort or "high") != "max":
+                    # a plan that didn't get there: the next one is thought through harder. The session restarts at
+                    # the new effort, so the first time it gets the order as it was first given too.
+                    effort = "max"
+                    if not o.escalated:
+                        o.escalated = True
+                        self.log({"kind": "effort_up", "order": o.id, "effort": effort, "plans": o.plans})
+                        text += ("\n\nYour session restarted with more thinking effort, so here is the order as it "
+                                 "was first given:\n" + first_text)
+                plan = await self._ask_plan(o, text, effort=effort)
             o.plans += 1
             parts_expect: list = []
             part_failed = False

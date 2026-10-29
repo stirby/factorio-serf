@@ -1591,6 +1591,7 @@ def test_limited_order_waits():
 
     a = Actor.__new__(Actor)
     a.thinker, a.prefetch, a._plan_waiters, a._told_limit = T(), False, {}, False
+    a._tasks, a.jev = [], None
     said, logged = [], []
 
     async def say(text):
@@ -1737,6 +1738,42 @@ def test_recovery_rules():
            rec("no path to 5,5"), rec("blocked by character@3,4", tries=3)]
     check("recovery rules: retry, retry, skip, skip, get items, replan, replan, replan after 3 tries",
           got == ["retry", "retry", "skip", "skip", "get_items", "replan", "replan", "replan"], got)
+
+
+def test_thinker_effort_switch():
+    """A planner request asking for another effort starts a fresh session at it (effort is set when a session
+    starts); the next request without one goes back to the planner's own."""
+    import asyncio
+    import tempfile
+    from types import SimpleNamespace
+    from jev.thinker import Request, Thinker
+
+    async def on_plan(plan, req):
+        pass
+
+    async def run():
+        th = Thinker("serf", {}, on_plan, Path(tempfile.mkdtemp()))
+        th._options = SimpleNamespace(effort=None)
+        restarts = []
+
+        async def restart():
+            restarts.append(th._options.effort)
+
+        async def turn(prompt, req):
+            pass
+        th._restart, th._turn = restart, turn
+        task = asyncio.create_task(th._loop())
+        for r in (Request("order", "a", 1), Request("report", "b", 1, effort="max"), Request("report", "c", 1,
+                                                                                            effort="max"),
+                  Request("order", "d", 2)):
+            th.ask(r)  # one at a time, as the actor asks: each after the last turn ended
+            for _ in range(10):
+                await asyncio.sleep(0.002)
+        task.cancel()
+        return restarts
+    got = asyncio.run(run())
+    check("thinker effort: max for the replans (one restart), back to its own for the next order", got == ["max", None],
+          got)
 
 
 if __name__ == "__main__":

@@ -240,6 +240,7 @@ class Request:
     text: str
     order_id: int | None = None
     t: float = field(default_factory=time.time)
+    effort: str | None = None  # thinking effort for this turn (None: the thinker's own); a change restarts the session
 
 
 class Thinker:
@@ -251,6 +252,7 @@ class Thinker:
         self.lint_fn = lint_fn
         self.lint_rounds = 0
         self.workdir, self.model, self.effort = workdir, model, effort
+        self._cur_effort = effort  # the running session's
         self.log_fn = log_fn or (lambda rec: None)
         self.queue: asyncio.Queue[Request] = asyncio.Queue()
         self.stats = ThinkStats()
@@ -409,6 +411,14 @@ class Thinker:
                 self.queue.put_nowait(x)
             self.current = req
             self.busy = True
+            want = req.effort or self.effort
+            if want != self._cur_effort and getattr(self, "_options", None) is not None:
+                # effort is set when a session starts: a turn that wants another starts a fresh one
+                self._options.effort = want
+                self._cur_effort = want
+                await self._restart()
+                self.log_fn({"t": time.time(), "kind": "thinker_effort", "effort": want or "default",
+                             "order": req.order_id})
             prompt = req.text + "".join(f"\n\nAlso: {x.text}" for x in extra)
             try:
                 await self._turn(prompt, req)
