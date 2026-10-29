@@ -2236,6 +2236,33 @@ c.teleport(game.forces.player.get_spawn_position(game.surfaces.nauvis), 'nauvis'
 return true""")
 
 
+async def chk_drill_ore(L: Live, state: dict):
+    """Drill ghosts only where there's ore to mine, as a player's (live test 25 Oct: drills went down off the calcite
+    patch): a ghosts step over an ore strip and past its end lays the drills on the ore, leaves the one beyond out,
+    says so and still succeeds."""
+    g = L.g
+    x0, y0 = await L.site(16, 8)
+    await L.ev(f"""local s = game.surfaces.nauvis
+for x = {x0}, {x0} + 6 do for y = {y0}, {y0} + 4 do
+  s.create_entity {{ name = 'iron-ore', position = {{ x + 0.5, y + 0.5 }}, amount = 500 }}
+end end
+local c = storage.agents['serf'].char
+c.teleport({{ {x0} + 8, {y0} + 7 }})
+c.get_main_inventory().insert {{ name = 'electric-mining-drill', count = 5 }}
+return true""")
+    radius = await L.ev("return util.drill_radius(prototypes.entity['electric-mining-drill'])")
+    ents = [{"name": "electric-mining-drill", "x": x0 + 1.5 + 3 * k, "y": y0 + 1.5, "direction": "south"} for k in range(3)]
+    ents.append({"name": "electric-mining-drill", "x": x0 + 13.5, "y": y0 + 1.5, "direction": "south"})
+    r = await Runner(g).run({"do": "ghosts", "entities": ents})
+    area = f"{{{{{x0 - 1},{y0 - 1}}},{{{x0 + 17},{y0 + 6}}}}}"
+    built = await L.ev(f"return game.surfaces.nauvis.count_entities_filtered{{name='electric-mining-drill', area={area}}}")
+    ghosts = await L.ev(f"return game.surfaces.nauvis.count_entities_filtered{{type='entity-ghost', area={area}}}")
+    check("drill ore: the mining radius reads 2.49 for an electric drill", abs(float(radius or 0) - 2.49) < 0.02, radius)
+    check("drill ore: three drills on the ore, none past it, and the step says it left one out",
+          r.get("ok") and built == 3 and ghosts == 0 and "left out" in str(r.get("msg")),
+          (r.get("ok"), str(r.get("msg"))[:300], built, ghosts))
+
+
 async def chk_capture(L: Live, state: dict):
     """A player's order as a test case: a /server-save of the world right then (moved out of the server's saves
     folder) and case.json; the order's end adds a run."""
@@ -2266,7 +2293,7 @@ async def chk_capture(L: Live, state: dict):
 
 
 CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "detour": chk_route_detour, "routepocket": chk_route_pocket, "fetchfar": chk_fetch_far, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "clearworking": chk_clear_working, "pipegap": chk_pipe_gap, "auditlacks": chk_audit_lacks, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe, "supply": chk_supply, "supplyfar": chk_supply_far, "supplysilo": chk_supply_silo, "supplylines": chk_supply_lines, "supplylds": chk_supply_lds, "supplywalled": chk_supply_walled, "leavejoin": chk_leave_join, "capture": chk_capture, "hop": chk_hop, "learn": chk_learn, "storagefilter": chk_storage_filter, "board": chk_board, "tags": chk_tags, "sweep": chk_sweep, "request": chk_request, "requestwalk": chk_request_walk, "fetchplanet": chk_fetch_planet, "wood": chk_wood, "escapemach": chk_escape_machines}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "detour": chk_route_detour, "routepocket": chk_route_pocket, "fetchfar": chk_fetch_far, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "clearworking": chk_clear_working, "pipegap": chk_pipe_gap, "auditlacks": chk_audit_lacks, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe, "supply": chk_supply, "supplyfar": chk_supply_far, "supplysilo": chk_supply_silo, "supplylines": chk_supply_lines, "supplylds": chk_supply_lds, "supplywalled": chk_supply_walled, "leavejoin": chk_leave_join, "capture": chk_capture, "hop": chk_hop, "learn": chk_learn, "storagefilter": chk_storage_filter, "board": chk_board, "tags": chk_tags, "sweep": chk_sweep, "request": chk_request, "requestwalk": chk_request_walk, "fetchplanet": chk_fetch_planet, "wood": chk_wood, "escapemach": chk_escape_machines, "drillore": chk_drill_ore}
 
 
 async def main() -> int:

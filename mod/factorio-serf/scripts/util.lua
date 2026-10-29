@@ -127,6 +127,29 @@ function util.mined_for(item)
   return names
 end
 
+-- How far a mining drill reaches from its centre (2.0 has it per quality; older names as a fallback).
+function util.drill_radius(proto)
+  local ok, r = pcall(function() return proto.get_mining_drill_radius() end)
+  if ok and r then return r end
+  ok, r = pcall(function() return proto.mining_drill_radius end)
+  if ok and r then return r end
+  local b = proto.collision_box
+  return math.max(b.right_bottom.x - b.left_top.x, b.right_bottom.y - b.left_top.y) / 2
+end
+
+-- Whether a mining drill at p would have something it can mine in its area. A player can't place one where it
+-- wouldn't (live test, 25 Oct: the serf's ghosts put drills off the calcite patch). True for anything else.
+function util.drill_has_ore(surface, proto, p)
+  if not proto or proto.type ~= "mining-drill" then return true end
+  local r = util.drill_radius(proto)
+  local cats = proto.resource_categories or {}
+  for _, res in pairs(surface.find_entities_filtered { area = { { p.x - r, p.y - r }, { p.x + r, p.y + r } },
+    type = "resource" }) do
+    if cats[res.prototype.resource_category] then return true end
+  end
+  return false
+end
+
 -- "powered", "low power NN%", "no power: ..." for anything that runs on electricity; nil otherwise.
 function util.power(e)
   if not util.needs_power(e) then return nil end

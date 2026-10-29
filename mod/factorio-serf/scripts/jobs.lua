@@ -2283,6 +2283,9 @@ local function ghost_conflict(c, ename, p, dir)
       return "blocked by " .. o.name .. "@" .. o.position.x .. "," .. o.position.y
     end
   end
+  if not util.drill_has_ore(c.surface, proto, p) then
+    return "nothing it can mine under it (a drill goes only where its mining area holds ore)"
+  end
 end
 
 -- Why a ghost couldn't go at p: "same" when an identical entity (or ghost) already stands there (nothing to do),
@@ -2338,6 +2341,18 @@ H.blueprint = {
       ghosts = stack.build_blueprint { surface = c.surface, force = c.force, position = pos,
         direction = util.parse_dir(args.direction), build_mode = defines.build_mode.forced, raise_built = true }
       inv.destroy()
+      -- forced mode lays drills anywhere: keep only those with something to mine, as a player's would be
+      local kept, off = {}, 0
+      for _, g in ipairs(ghosts) do
+        if g.valid and g.name == "entity-ghost" and not util.drill_has_ore(c.surface, g.ghost_prototype, g.position) then
+          off = off + 1
+          g.destroy()
+        elseif g.valid then
+          kept[#kept + 1] = g
+        end
+      end
+      ghosts = kept
+      if off > 0 then why[#why + 1] = { name = "mining drills", why = off .. " left out: nothing to mine under them" } end
     elseif args.entities then
       local failed = 0
       local ug_type = pair_undergrounds(args.entities)

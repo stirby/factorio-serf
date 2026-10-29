@@ -82,6 +82,14 @@ def ghost_result(b: dict, s: dict) -> dict:
     bad = s.get("_unplaced") or []
     if not bad or not b.get("ok"):
         return b
+    # drills with nothing to mine under them are left out, as a player's would be: noted, not a failure
+    off = [e for e in bad if "nothing it can mine" in str(e.get("_why"))]
+    bad = [e for e in bad if e not in off]
+    if off:
+        b = {**b, "msg": f"{b.get('msg') or ''} ({len(off)} drill(s) left out, nothing to mine under them: "
+                         + ", ".join(f"{e['x']:g},{e['y']:g}" for e in off[:4]) + ")"}
+    if not bad:
+        return b
     where = "; ".join(f"{e['name']} at {e['x']},{e['y']} ({e['_why']})" for e in bad[:4])
     more = f" and {len(bad) - 4} more" if len(bad) > 4 else ""
     return {"ok": False, "msg": f"{b.get('msg') or ''}. But {len(bad)} part(s) of the layout couldn't be placed: "
