@@ -2,9 +2,11 @@
 
 A Factorio 2.0 character, the serf, that plays next to you and takes orders from chat. It plays by the same rules as
 a human player: it walks, reaches, carries and crafts like one. It splits the work:
-- **Jev** (TypeSafe's decision model) makes the quick judgment calls.
-- **Opus** plans asynchronously, and can run a whole goal as a project.
-- **Code** does everything exact in between.
+- **Opus** reads every chat line (one quick, low-effort call with the situation: what it's doing, its queue, what
+  just failed), plans the jobs asynchronously, and can run a whole goal as a project.
+- **Jev** (TypeSafe's decision model) reads orders for the fast paths below and picks which fault a player means. It
+  also guesses how hard each order is; that guess is only logged for now (`bench/effort_shadow.py`).
+- **Code** does everything exact in between, including what to do when a step fails.
 
 On 22 October 2026 it launched a rocket from a fresh map after about 19 hours of play, with an Opus player giving
 the orders; another serf launched from a midgame base running "beat the game" as its own project.
@@ -43,9 +45,11 @@ Talk to it with `@serf`, for example:
 - `@serf set up an iron mine on the patch at [gps=..] and belt the ore to [gps=..]`
 - `@serf two more just like it at [gps=..] and [gps=..]`
 
-None of these need Opus: Jev reads the order and code does it. Anything Jev isn't sure of goes to Opus, which also
-looks over what the actor built by itself when it has nothing else to do.
-Add `--no-think` to run with Jev and code only (also what happens when Opus hits a usage limit).
+None of these need the planner: Jev reads the order and code does it. Anything Jev isn't sure of goes to the planner,
+which also looks over what the actor built by itself when it has nothing else to do. A plan that doesn't get there
+sends the next one at max thinking effort.
+Add `--no-think` to run with Jev and code only (also what happens when Opus hits a usage limit): chat then follows
+plain rules (a line with `@serf` is an order, "stop" stops).
 
 The Jev key is read from `~/dev/jev.env`. Opus runs through the local Claude Code login (the Agent SDK).
 

@@ -6,8 +6,9 @@ One character in Factorio, three parts.
 |---|---|---|
 | Hands | the mod (forked from factorio-serf at `serf-v1-final`) | Legal player actions: walking, reach, real inventory, crafting, routing belts and poles (`connect`), ghosts, `fetch`. New in this fork: `scan` (an area in ~90 ms, exact footprints, neutral obstacles); `grab` (items off belts); `query` (read-only lookups allowed over UDP); fetching ingredients from storage before crafting; explicit wiring along a pole line. |
 | Code | `world`, `steps`, `lint`, `router`, `rowgen`, `blueprints` | Everything exact. **World model:** belt lines and why they end, which inserter feeds what, why a machine is stopped, and faults with candidate fixes. **Steps:** fetch everything a plan needs in one trip; fall back to belts, crafting, then mining; keep a power step trying until nothing is unpowered; place pole lines in legs; build ghosts until none are left. **Plan checker:** simulates the plan before any of it is built. **Router:** many belts that never mix. **`row`:** machines along a belt. **Blocks:** game-tested designs. |
-| Actor | Jev (`decide.py`, `actor.py`) | The judgment calls. Each is a narrow typed question over a small state that code prepares. |
-| Thinker | Opus (`thinker.py`) | Never in the action loop. It is woken for orders the actor can't do alone and for plans that failed or missed. It reads the area through tools and submits one plan. |
+| Actor | Jev (`decide.py`, `actor.py`) | Reads orders for the fast paths and picks faults. Each is a narrow typed question over a small state that code prepares. |
+| Chat | Opus (`chat_reader.py`) | Every chat line: one low-effort call with the situation (running job and step, queue, what ended and why, the conversation) that says whether it's for the serf, what to do with it, and the reply. |
+| Thinker | Opus (`thinker.py`) | Never in the action loop. It is woken for orders the actor can't do alone and for plans that failed or missed. It reads the area through tools and submits one plan. A plan that missed sends the next one at max effort. |
 
 ## The layer between them: the plan
 
@@ -22,25 +23,23 @@ The step operations are:
 Division of labour:
 - Opus decides *what* and *where*.
 - Code decides *how*, and checks the plan before it runs: problems go back to Opus in the same turn.
-- Jev decides *what now* when something goes wrong.
+- Code rules decide *what now* when a step fails (retry, get the items, skip, replan), from facts read off the message.
 
-`expect` checks are run by code: working, has_item, powered, belt_carries, built. A build plan without a `built` check gets one automatically. When a plan has no checks, Jev judges the goal against the area, at most three times.
+`expect` checks are run by code: working, has_item, powered, belt_carries, built. A build plan without a `built` check gets one automatically. A plan with no checks at all is done once its steps ran.
 
 ## Jev's decisions
 
 | Decision | State it sees | Notes |
 |---|---|---|
-| chat | message, speaker, what I'm doing, my last line | three questions in one call: for me? / kind / playbook |
-| question type | the question | status, where and inventory are answered by code |
 | fault | the player's words + faults code found, grouped by kind | picks a group; code fixes every member |
 | scope | the order | one spot or many sites (wide-area fix) |
-| recovery | step, error, tries, **facts code read off the error** | retry / get items / skip / replan |
-| changes_plan | current job + new message | stops a running plan for a correction |
-| not_done | finished job + new message | only real "not done" reopens an order |
-| goal_met | goal + area summary (relative words) | only for plans without code checks |
-| kit | the order | what to fetch while Opus plans |
-| watch | area summary + the planner's conditions | while idle, over areas it built |
 | quick build | the order, the products the nearby belts can make, what those belts carry | product, count, onto a belt?, chain?, sent elsewhere? |
+| effort | the order | low / medium / high / max: logged next to the outcome only (shadow mode) |
+
+Retired after the live logs of 21-25 Oct showed they didn't pay: chat triage and its follow-ups (question type, same
+job, changes plan, not done) went to Opus; recovery picked replan 25 times in 26 (now code rules); "goal met?" said
+no all 15 times; none of 20 kit guesses saved a trip; the idle watch question was asked 5,926 times without an
+alert.
 
 What we learned about encoding, both from the lab and from TypeSafe's notes on Jev 1.13's rough edges:
 - Jev never compares numbers; code turns them into words.
