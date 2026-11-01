@@ -26,9 +26,13 @@ for name, r in pairs(prototypes.recipe) do
     for _, i in pairs(r.ingredients) do ing[#ing + 1] = { type = i.type, name = i.name, amount = i.amount } end
     for _, p in pairs(r.products) do
       local amt = p.amount or ((p.amount_min or 0) + (p.amount_max or 0)) / 2
-      prod[#prod + 1] = { type = p.type, name = p.name, amount = amt * (p.probability or 1) }
+      prod[#prod + 1] = { type = p.type, name = p.name, amount = amt * (p.probability or p.independent_probability or 1) }
     end
-    out.recipes[name] = { category = r.category, energy = r.energy, ingredients = ing, products = prod }
+    -- 2.1 gives a recipe a list of categories; 'category' is the hand/assembler one when it has one (as the mod's)
+    local cat = r.categories[1]
+    for _, c in ipairs({ 'crafting-with-fluid', 'advanced-crafting', 'crafting' }) do if r.has_category(c) then cat = c end end
+    out.recipes[name] = { category = cat, categories = r.categories, energy = r.energy, ingredients = ing,
+      products = prod }
   end
 end
 for name, e in pairs(prototypes.entity) do

@@ -355,7 +355,7 @@ H.craft = {
     local craftable = c.get_craftable_count(recipe)
     if craftable == 0 then
       return fail("cannot craft " .. first.name .. ": missing ingredients",
-        { missing = missing_for(a, recipe, runs), category = recipe.category })
+        { missing = missing_for(a, recipe, runs), category = util.recipe_category(recipe) })
     end
     local n = math.min(runs, craftable)
     local short = ""
@@ -366,7 +366,7 @@ H.craft = {
     end
     local started = c.begin_crafting { count = n, recipe = recipe, silent = true }
     if started == 0 then
-      return fail("cannot hand-craft " .. recipe.name .. " (category " .. recipe.category .. ")")
+      return fail("cannot hand-craft " .. recipe.name .. " (category " .. util.recipe_category(recipe) .. ")")
     end
     job.item, job.want = first.name, c.get_item_count(first.name) + started * per
     job.made, job.short = started * per, short
@@ -440,7 +440,7 @@ local function auto_ug_type(surface, name, pos, dir)
       name = name, limit = 1 }[1]
     if u then
       local paired = false
-      pcall(function() paired = u.neighbours ~= nil end)
+      pcall(function() paired = u.underground_belt_neighbour ~= nil end)
       if u.direction == dir and u.belt_to_ground_type == "input" and not paired then return "output" end
       return "input"
     end
@@ -618,7 +618,7 @@ H.place = {
       if proto.fluidbox_prototypes and #proto.fluidbox_prototypes > 0 then
         for _, n in pairs(surface.find_entities_filtered { area = { { job.pos.x - 1.4, job.pos.y - 1.4 },
           { job.pos.x + 1.4, job.pos.y + 1.4 } }, force = c.force }) do
-          local okF, fb = pcall(function() return n.fluidbox end)
+          local okF, fb = pcall(function() return util.fluidbox(n) end)
           if okF and fb then
             for i = 1, #fb do
               local fl = fb[i]
@@ -720,7 +720,7 @@ H.place = {
         msg = msg .. " on " .. #ores .. " tiles of " .. name .. " (" .. total .. " ore)"
       end
     elseif created.type == "underground-belt" then
-      local n = created.neighbours
+      local n = created.underground_belt_neighbour
       msg = msg .. " (" .. created.belt_to_ground_type .. (n and (", paired with " .. xystr(n.position)) or ", not paired yet") .. ")"
     elseif created.type == "inserter" then
       data.from, data.to = util.xy(created.pickup_position), util.xy(created.drop_position)
@@ -1600,7 +1600,7 @@ local function fluid_port(surface, p, fluid, want_out, force)
     if not bd or d < bd then best, bd = e, d end
   end
   if not best then return nil, "no machine with fluid connections near " .. xystr(p) end
-  local fb = best.fluidbox
+  local fb = util.fluidbox(best)
   local cands, seen = {}, {}
   for i = 1, #fb do
     local okP, pr = pcall(fb.get_prototype, i)
@@ -1635,13 +1635,13 @@ local function fluid_port(surface, p, fluid, want_out, force)
   for _, cd in ipairs(cands) do
     local t = { x = math.floor(cd.pos.x) + 0.5, y = math.floor(cd.pos.y) + 0.5 }
     local pipe = surface.find_entities_filtered { position = t, radius = 0.4, type = { "pipe", "pipe-to-ground" }, limit = 1 }[1]
-    local held = pipe and pipe.fluidbox[1] and pipe.fluidbox[1].name
+    local held = pipe and util.fluidbox(pipe)[1] and util.fluidbox(pipe)[1].name
     if pipe and (not held or held == fluid) then return t, best, true end
     -- say what's in the way, so the plan can pick it up or route round it (q6 guessed at a stone wall that wasn't there)
     for _, o in pairs(surface.find_entities_filtered { position = t, radius = 0.4, limit = 2,
         type = { "resource", "character", "corpse", "item-entity" }, invert = true }) do
       local f = ""
-      local okF, fb = pcall(function() return o.fluidbox end)
+      local okF, fb = pcall(function() return util.fluidbox(o) end)
       if okF and fb and #fb >= 1 and fb[1] then f = " holding " .. fb[1].name end
       there[#there + 1] = o.name .. " at " .. xystr(o.position) .. f
     end
@@ -1661,7 +1661,7 @@ end
 local function fluid_near(surface, p)
   local function names(pos, r)
     for _, n in pairs(surface.find_entities_filtered { position = pos, radius = r, limit = 6 }) do
-      local okF, fb = pcall(function() return n.fluidbox end)
+      local okF, fb = pcall(function() return util.fluidbox(n) end)
       -- only single-box things (pipes, tanks, pumps): a refinery or chemical plant holds several fluids, and which
       -- one the line is for has to be named (from_fluid / to_fluid)
       if okF and fb and #fb == 1 then
@@ -1738,7 +1738,7 @@ H.connect = {
     local function ignore_ends(pt, set)
       if not line_fluid then return end
       for _, m in pairs(c.surface.find_entities_filtered { position = pt, radius = 3, type = PORT_TYPES, force = c.force }) do
-        local okF, fb = pcall(function() return m.fluidbox end)
+        local okF, fb = pcall(function() return util.fluidbox(m) end)
         if okF and fb and m.unit_number then
           for i = 1, #fb do
             local okL, lk = pcall(fb.get_locked_fluid, i)
@@ -1792,7 +1792,7 @@ H.connect = {
           -- water port, as its lessons say, and the empty port pipe walled that tile off: "end tile is blocked")
           for _, n in pairs(c.surface.find_entities_filtered { position = pt, radius = 1.1, force = c.force,
               type = { "pipe", "pipe-to-ground", "storage-tank", "pump", "infinity-pipe" } }) do
-            local fb = n.fluidbox
+            local fb = util.fluidbox(n)
             local held = fb[1] and fb[1].name
             local on_end = util.dist(n.position, pt) < 0.6
             local beside = math.abs(n.position.x - pt.x) + math.abs(n.position.y - pt.y) < 1.2

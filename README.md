@@ -1,6 +1,6 @@
 # factorio-serf
 
-A Factorio 2.0 character, the serf, that plays next to you and takes orders from chat. It plays by the same rules as
+A Factorio 2.1 character, the serf, that plays next to you and takes orders from chat. It plays by the same rules as
 a human player: it walks, reaches, carries and crafts like one. It splits the work:
 - **Opus** reads every chat line (one quick, low-effort call with the situation: what it's doing, its queue, what
   just failed), plans the jobs asynchronously, and can run a whole goal as a project.
@@ -14,7 +14,7 @@ the orders; another serf launched from a midgame base running "beat the game" as
 This is version 2. The first serf (Claude agents acting step by step) is on the `serf-v1` branch and tag
 `serf-v1-final`.
 
-**Needs:** Factorio 2.0.77 with Space Age, a TypeSafe API key for Jev (in `TYPESAFE_API_KEY` or `~/dev/jev.env`),
+**Needs:** Factorio 2.1.24 with Space Age (the last 2.0 version of the mod is 0.3.6, commit 43c75d6), a TypeSafe API key for Jev (in `TYPESAFE_API_KEY` or `~/dev/jev.env`),
 and Claude through the Claude Agent SDK (a Claude subscription logged in to Claude Code). MIT licensed.
 
 See [docs/DESIGN.md](docs/DESIGN.md) for how the parts fit together.

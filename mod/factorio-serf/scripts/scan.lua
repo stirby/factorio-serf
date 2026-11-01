@@ -28,7 +28,7 @@ end
 -- joined to it carry, how many boxes it's joined to and where its pipe should be. Answers "why is it starved of
 -- water": nothing there, the wrong fluid in those pipes (inlets swapped), or empty pipes.
 local function fluid_inputs(e)
-  local okF, fb = pcall(function() return e.fluidbox end)
+  local okF, fb = pcall(function() return util.fluidbox(e) end)
   if not okF or not fb or #fb == 0 then return nil end
   local out = {}
   for i = 1, #fb do
@@ -52,7 +52,7 @@ local function fluid_inputs(e)
           r.at = util.xy(pc[1].target_position)
           -- what the pipe at the inlet holds (a filtered inlet doesn't share a network with the wrong fluid)
           for _, n in pairs(e.surface.find_entities_filtered { position = pc[1].target_position, limit = 3 }) do
-            local okN, nb = pcall(function() return n.fluidbox end)
+            local okN, nb = pcall(function() return util.fluidbox(n) end)
             if okN and nb then
               for k = 1, #nb do if nb[k] then r.next = nb[k].name break end end
               r.next_kind = n.type
@@ -72,7 +72,7 @@ end
 -- refinery stops when any one of heavy oil, light oil or petroleum backs up (the yellow-science stage started
 -- with both refineries deadlocked, and tries spent hours on it); this says which one.
 local function fluid_outputs(e)
-  local okF, fb = pcall(function() return e.fluidbox end)
+  local okF, fb = pcall(function() return util.fluidbox(e) end)
   if not okF or not fb or #fb == 0 then return nil end
   local out = {}
   for i = 1, #fb do
@@ -137,7 +137,7 @@ local function entry(e)
   elseif t == "lab" then
     d.inp = contents(e.get_inventory(defines.inventory.lab_input))
   elseif t == "boiler" then
-    pcall(function() d.fluid = e.fluidbox[1] and e.fluidbox[1].amount and math.floor(e.fluidbox[1].amount) or 0 end)
+    pcall(function() d.fluid = util.fluidbox(e)[1] and util.fluidbox(e)[1].amount and math.floor(util.fluidbox(e)[1].amount) or 0 end)
   end
   if e.burner then
     local fuel = e.get_fuel_inventory()
@@ -165,7 +165,7 @@ local function entry(e)
     end
     if t == "underground-belt" then
       d.ug = e.belt_to_ground_type
-      local okP, pair = pcall(function() return e.neighbours end)
+      local okP, pair = pcall(function() return e.underground_belt_neighbour end)
       if okP and pair and pair.valid then d.pair = pair.unit_number end
     end
   end
@@ -197,7 +197,7 @@ local function entry(e)
   end
   if t == "pipe" or t == "pipe-to-ground" or t == "offshore-pump" or t == "storage-tank" or t == "pump" then
     pcall(function()
-      local fb = e.fluidbox[1]
+      local fb = util.fluidbox(e)[1]
       if fb then d.fl = { fb.name, math.floor(fb.amount) } end
     end)
   end
@@ -235,7 +235,7 @@ local function grid(pole)
         pcall(function()
           if g.type == "electric-energy-interface" then live = (g.power_production or 0) > 0
           elseif g.type == "solar-panel" then live = true
-          elseif g.type == "generator" then local fb = g.fluidbox[1] live = fb ~= nil and fb.amount > 0
+          elseif g.type == "generator" then local fb = util.fluidbox(g)[1] live = fb ~= nil and fb.amount > 0
           elseif g.type == "burner-generator" then live = g.burner ~= nil and g.burner.currently_burning ~= nil
           end
         end)

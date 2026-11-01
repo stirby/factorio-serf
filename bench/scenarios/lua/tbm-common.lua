@@ -72,7 +72,7 @@ local function reaches(p)
       if o then return o end
       for _, nb in pairs(e.belt_neighbours.outputs or {}) do q[#q + 1] = nb end
       if e.type == "underground-belt" and e.belt_to_ground_type == "input" then
-        local u = e.neighbours
+        local u = e.underground_belt_neighbour
         if u and u.valid then q[#q + 1] = u end
       end
     end

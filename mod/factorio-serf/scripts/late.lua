@@ -88,7 +88,7 @@ function late.diagnose(req)
   for _, e in ipairs(machines) do
     local ore, r = makes(e)
     if e.type == "offshore-pump" then
-      local ok, fb = pcall(function() return e.fluidbox.get_filter(1) end)
+      local ok, fb = pcall(function() return util.fluidbox(e).get_filter(1) end)
       if (ok and fb and fb.name or "water") == item then producers[#producers + 1] = e end
     elseif e.type == "boiler" then
       if item == "steam" then producers[#producers + 1] = e elseif item == "water" then consumers[#consumers + 1] = e end
@@ -464,7 +464,7 @@ local function recipe_for(item)
   if not found then
     local bestn
     for _, r in pairs(game.forces.player.recipes) do
-      if r.enabled and not r.hidden and r.category ~= "recycling" and not r.name:find("barrel") then
+      if r.enabled and not r.hidden and not r.has_category("recycling") and not r.name:find("barrel") then
         for _, pr in pairs(r.products) do
           if pr.name == item and (not bestn or #r.ingredients < bestn) then found, bestn = r, #r.ingredients end
         end
@@ -503,7 +503,7 @@ function late.calc(req)
   local steps = {}
   for _, item in ipairs(order) do
     local r = recipe_for(item)
-    local m = machine_for(r.category, req)
+    local m = machine_for(util.recipe_category(r), req)
     local n = totals[item] * r.energy / (60 * out_amount(r, item) * speed_of(m))
     local ins = {}
     for _, ing in pairs(r.ingredients) do

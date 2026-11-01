@@ -536,7 +536,7 @@ API.query = function(req)
         local ing = {}
         for _, i in pairs(r.ingredients) do ing[i.name] = i.amount end
         local first = r.products[1]
-        unlocks[eff.recipe] = { ingredients = ing, category = r.category, time = r.energy,
+        unlocks[eff.recipe] = { ingredients = ing, category = util.recipe_category(r), time = r.energy,
           makes = first and (first.amount or first.amount_min) or 1 }
       end
     end
@@ -636,7 +636,7 @@ API.inspect = function(req)
         end
         d.lanes = lanes
       end
-      local fb = e.fluidbox
+      local fb = util.fluidbox(e)
       if fb and #fb > 0 then
         local fl = {}
         for i = 1, #fb do
@@ -806,12 +806,12 @@ API.audit = function(req)
   -- free ground between (p7: a 650-tile crude line stopped one tile short of the base leg; dry for over an hour)
   out.pipe_gaps = {}
   local function dead_end(e)
-    local okC, cs = pcall(e.fluidbox.get_connections, 1)
+    local okC, cs = pcall(util.fluidbox(e).get_connections, 1)
     return okC and cs and #cs == 1, okC and cs and cs[1] and cs[1].owner
   end
   for _, e in pairs(s.find_entities_filtered { force = f, name = 'pipe' }) do
     if #out.pipe_gaps >= 10 then break end
-    local fl = e.fluidbox[1]
+    local fl = util.fluidbox(e)[1]
     local is_end, nb = dead_end(e)
     if fl and fl.amount > 1 and is_end and nb then
       local vx, vy = e.position.x - nb.position.x, e.position.y - nb.position.y
@@ -821,7 +821,7 @@ API.audit = function(req)
           local q = { x = e.position.x + ax * k, y = e.position.y + ay * k }
           local o = s.find_entities_filtered { position = q, radius = 0.3, force = f, type = { 'pipe', 'pipe-to-ground' }, limit = 1 }[1]
           if o then
-            local ofl = o.fluidbox[1]
+            local ofl = util.fluidbox(o)[1]
             local free = true
             for j2 = 1, k - 1 do
               local g = { x = e.position.x + ax * j2, y = e.position.y + ay * j2 }

@@ -2,6 +2,7 @@
 __pycache__/
 *.pyc
 server/factorio
+server/factorio-*/
 server/instances/
 bench/runs/
 *.env

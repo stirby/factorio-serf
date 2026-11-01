@@ -42,7 +42,8 @@ GAME_PORT_BASE, RCON_PORT_BASE = 34200, 27100
 # headless server crashes ("Trying to add invalid input action to the closure") when a Lua UDP packet arrives.
 UDP_PORT_BASE = 27300
 BENCH_SETTINGS = ROOT / "server/bench-mod-settings.dat"
-REQUIRED_MODS = ["base", "space-age", "quality", "elevated-rails", "factorio-serf"]
+# 2.1 split the recycler out of Space Age into its own built-in mod
+REQUIRED_MODS = ["base", "space-age", "quality", "elevated-rails", "recycler", "factorio-serf"]
 INGAME = "changing state from(CreatingGame) to(InGame)"
 
 

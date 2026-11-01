@@ -30,6 +30,20 @@ from jev.steps import Runner  # noqa: E402
 
 FAILS: list[str] = []
 
+# Factorio 2.1 dropped LuaFluidBox. Fixture snippets that read fluids start with this stand-in for the old shape
+# (the mod has the same, util.fluidbox).
+FB = """local function fbox(e)
+  local n = e.fluids_count
+  return setmetatable({
+    get_locked_fluid = function(i) local f = e.get_fluid_filter(i) return f and f.name end,
+    get_pipe_connections = function(i) return e.get_fluid_box_pipe_connections(i) end,
+  }, {
+    __len = function() return n end,
+    __index = function(_, i) if type(i) == 'number' and i >= 1 and i <= n then return e.get_fluid(i) end end,
+    __newindex = function(_, i, v) e.set_fluid(i, v) end,
+  })
+end"""
+
 
 def check(name, cond, info=""):
     print(("ok   " if cond else "FAIL ") + name + (f"  ({info})" if info and not cond else ""), flush=True)
@@ -390,7 +404,7 @@ async def chk_mine_contents(L: Live, state: dict):
 local s, f, c = game.surfaces.nauvis, game.forces.player, storage.agents['serf'].char
 local fu = s.create_entity {{ name = 'stone-furnace', position = {{ {x0} + 1, {y0} + 1 }}, force = f }}
 fu.insert {{ name = 'coal', count = 40 }}
-fu.get_inventory(defines.inventory.furnace_source).insert {{ name = 'iron-ore', count = 40 }}
+fu.get_inventory(defines.inventory.crafter_input).insert {{ name = 'iron-ore', count = 40 }}
 c.teleport({{ {x0} + 3.5, {y0} + 1.5 }})
 local inv = c.get_main_inventory()
 inv.clear()
@@ -661,18 +675,20 @@ return {{ a = a.unit_number, b = b.unit_number }}""")
     r = await Runner(g)._do_connect({"item": "pipe", "from": [x0 + 2.5, y0 + 5.5], "to": [x0 + 16.5, y0 + 5.5],
                                      "from_fluid": "sulfuric-acid", "to_fluid": "sulfuric-acid"})
     await L.ev(f"""
+{FB}
 local a = game.surfaces.nauvis.find_entity('chemical-plant', {{ {x0} + 2.5, {y0} + 5.5 }})
-local fb = a.fluidbox
+local fb = fbox(a)
 for i = 1, #fb do if fb.get_locked_fluid(i) == 'sulfuric-acid' then fb[i] = {{ name = 'sulfuric-acid', amount = 100 }} end end
 return true""")
     await asyncio.sleep(4)
     joined = await L.ev(f"""
+{FB}
 local s = game.surfaces.nauvis
 local b = s.find_entity('chemical-plant', {{ {x0} + 16.5, {y0} + 5.5 }})
 local got = 0
-for i = 1, #b.fluidbox do local fl = b.fluidbox[i] if fl and fl.name == 'sulfuric-acid' then got = got + fl.amount end end
+for i = 1, #fbox(b) do local fl = fbox(b)[i] if fl and fl.name == 'sulfuric-acid' then got = got + fl.amount end end
 local w = s.find_entity('pipe', {{ {x0} + 9.5, {y0} + 5.5 }})
-local wf = w and w.fluidbox[1]
+local wf = w and fbox(w)[1]
 return {{ acid_at_b = got, water_pipe = wf and wf.name or 'empty' }}""")
     joined = joined if isinstance(joined, dict) else {}
     joined["same"] = (joined.get("acid_at_b") or 0) > 0
@@ -692,8 +708,9 @@ storage.agents['serf'].char.teleport({{ {x1} + 6.5, {y1} + 5.5 }})
 return true""")
     r3 = await Runner(g)._do_connect({"item": "pipe", "from": [x1 + 1.5, y1 + 2.5], "to": [x1 + 12.5, y1 + 2.5]})
     mixed = await L.ev(f"""
+{FB}
 local o = game.surfaces.nauvis.find_entity('pipe', {{ {x1} + 6.5, {y1} + 2.5 }})
-local fl = o and o.fluidbox[1]
+local fl = o and fbox(o)[1]
 return fl and fl.name or 'empty'""")
     check("fluid ports: a plain pipe line takes its fluid from its start and goes round another fluid",
           r3.get("ok") and mixed == "crude-oil", (r3.get("msg"), mixed))
@@ -708,6 +725,7 @@ async def chk_fluid_ports2(L: Live, state: dict):
     g = L.g
     x0, y0 = await L.site(24, 14)
     ports = await L.ev(f"""
+{FB}
 local s, f = game.surfaces.nauvis, game.forces.player
 for _, r in ipairs {{ 'battery', 'sulfuric-acid', 'sulfur' }} do f.recipes[r].enabled = true end
 local a = s.create_entity {{ name = 'chemical-plant', position = {{ {x0} + 2.5, {y0} + 3.5 }}, force = f,
@@ -720,7 +738,7 @@ d.set_recipe('sulfur')
 local w = s.create_entity {{ name = 'pipe', position = {{ {x0} + 1.5, {y0} + 10.5 }}, force = f }}
 w.insert_fluid {{ name = 'water', amount = 50 }}
 -- pipes already on both of the acid plant's acid ports
-local fb, out = a.fluidbox, {{}}
+local fb, out = fbox(a), {{}}
 for i = 1, #fb do
   if fb.get_locked_fluid(i) == 'sulfuric-acid' then
     for _, pc in pairs(fb.get_pipe_connections(i)) do
@@ -742,9 +760,10 @@ return out""")
     r2 = await Runner(g)._do_connect({"item": "pipe", "from": [x0 + 1.5, y0 + 10.5], "to": [x0 + 14.5, y0 + 10.5]})
     await asyncio.sleep(3)
     got = await L.ev(f"""
+{FB}
 local d = game.surfaces.nauvis.find_entity('chemical-plant', {{ {x0} + 14.5, {y0} + 10.5 }})
 local out = {{}}
-for i = 1, #d.fluidbox do local fl = d.fluidbox[i] out[#out + 1] = (d.fluidbox.get_locked_fluid(i) or '?') .. '=' .. (fl and fl.name or 'empty') end
+for i = 1, #fbox(d) do local fl = fbox(d)[i] out[#out + 1] = (fbox(d).get_locked_fluid(i) or '?') .. '=' .. (fl and fl.name or 'empty') end
 return table.concat(out, ' ')""")
     check("fluid ports: a plain water line to the middle of a sulfur plant lands on its water inlet",
           r2.get("ok") and "water=water" in str(got) and "petroleum-gas=water" not in str(got), (r2.get("msg"), got))
@@ -760,10 +779,11 @@ return true""")
     r3 = await Runner(g)._do_connect({"item": "pipe", "from": [x1 + 1.5, y1 + 3.5], "to": [x1 + 12.5, y1 + 3.5]})
     await asyncio.sleep(2)
     dry = await L.ev(f"""
+{FB}
 local n = 0
 for dy = 2, 4 do
   local e = game.surfaces.nauvis.find_entity('pipe', {{ {x1} + 6.5, {y1} + dy + 0.5 }})
-  if e and e.fluidbox[1] then n = n + 1 end
+  if e and fbox(e)[1] then n = n + 1 end
 end
 return n""")
     check("fluid ports: a water line goes round an empty pipe of another line instead of joining it",
@@ -798,7 +818,7 @@ local s, f = game.surfaces.nauvis, game.forces.player
 for i = 0, 1 do
   local fu = s.create_entity {{ name = 'stone-furnace', position = {{ {x0} + 1 + 3 * i, {y0} + 1 }}, force = f }}
   fu.insert {{ name = 'coal', count = 50 }}
-  fu.get_inventory(defines.inventory.furnace_source).insert {{ name = 'iron-ore', count = 50 }}
+  fu.get_inventory(defines.inventory.crafter_input).insert {{ name = 'iron-ore', count = 50 }}
 end
 return true""")
 
@@ -938,7 +958,7 @@ return true""")
         await asyncio.sleep(0.3)
     got = await L.ev(f"""local n = 0
 for _, a in pairs(game.surfaces.nauvis.find_entities_filtered {{ area = {{ {{ {x0}, {y0} }}, {{ {x0} + 18, {y0} + 8 }} }}, name = 'assembling-machine-1' }}) do
-  if a.products_finished > 0 or a.get_inventory(defines.inventory.assembling_machine_input).get_item_count('iron-plate') > 0 then n = n + 1 end
+  if a.products_finished > 0 or a.get_inventory(defines.inventory.crafter_input).get_item_count('iron-plate') > 0 then n = n + 1 end
 end
 return n""")
     check("row: every machine in the row gets plates (3 of 3)", got == 3, got)
@@ -969,11 +989,12 @@ async def chk_fluid_port_taken(L: Live, state: dict):
     for case in ("ptg", "inserter"):
         x0, y0 = await L.site(16, 12)
         pet = await L.ev(f"""
+{FB}
 local s, f = game.surfaces.nauvis, game.forces.player
 f.recipes['sulfur'].enabled = true
 local d = s.create_entity {{ name = 'chemical-plant', position = {{ {x0} + 8.5, {y0} + 5.5 }}, force = f }}
 d.set_recipe('sulfur')
-local fb, port = d.fluidbox, nil
+local fb, port = fbox(d), nil
 for i = 1, #fb do
   if fb.get_locked_fluid(i) == 'petroleum-gas' then port = fb.get_pipe_connections(i)[1].target_position end
 end
@@ -1042,9 +1063,11 @@ return true""")
     b = await runner.run({"do": "block", "name": "plastic-sulfur-basic", "x": x0, "y": y0})
     r = await runner._do_connect({"item": "pipe", "from": [x0 + 8.5, y0 + 22.5], "to": [x0 + 8.5, y0 + 14.5]})
     await asyncio.sleep(6)
-    crude = await L.ev(f"""local n = 0
+    crude = await L.ev(f"""
+{FB}
+local n = 0
 for _, e in pairs(game.surfaces.nauvis.find_entities_filtered {{ area = {{ {{ {x0}, {y0} }}, {{ {x0} + 15, {y0} + 15 }} }}, name = 'oil-refinery' }}) do
-  for i = 1, #e.fluidbox do local fl = e.fluidbox[i] if fl and fl.name == 'crude-oil' then n = n + 1 end end
+  for i = 1, #fbox(e) do local fl = fbox(e)[i] if fl and fl.name == 'crude-oil' then n = n + 1 end end
 end
 return n""")
     check("pipes: a crude line joins a new block's empty input pipe (b6: 'end tile is blocked')",
@@ -1056,9 +1079,11 @@ w.set_infinity_pipe_filter {{ name = 'water', percentage = 1, mode = 'at-least' 
 return true""")
     r2 = await runner._do_connect({"item": "pipe", "from": [x0 + 17.5, y0 + 11.5], "to": [x0 + 15.5, y0 + 4.5]})
     await asyncio.sleep(5)
-    water = await L.ev(f"""local n = 0
+    water = await L.ev(f"""
+{FB}
+local n = 0
 for _, e in pairs(game.surfaces.nauvis.find_entities_filtered {{ area = {{ {{ {x0}, {y0} }}, {{ {x0} + 15, {y0} + 15 }} }}, name = 'chemical-plant' }}) do
-  for i = 1, #e.fluidbox do local fl = e.fluidbox[i] if fl and fl.name == 'water' then n = n + 1 end end
+  for i = 1, #fbox(e) do local fl = fbox(e)[i] if fl and fl.name == 'water' then n = n + 1 end end
 end
 return n""")
     check("pipes: a water line ending one tile outside the block's water port joins it (b7: 'end tile is blocked')",

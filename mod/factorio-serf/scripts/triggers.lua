@@ -2,10 +2,17 @@
 -- don't show up in production stats or advance trigger techs. Record them the way a player's would be.
 local triggers = {}
 
-local function trigger_item(trig)
+-- The names a trigger counts. Since 2.1 a mine-entity trigger lists several entities (`entities`).
+local function trigger_names(trig)
+  if trig.entities then return trig.entities end
   local it = trig.item or trig.entity
-  if type(it) == "table" then return it.name end
-  return it
+  if type(it) == "table" then it = it.name end
+  return { it }
+end
+
+local function counts(trig, name)
+  for _, n in pairs(trigger_names(trig)) do if n == name then return true end end
+  return false
 end
 
 local function prereqs_done(tech)
@@ -27,7 +34,7 @@ function triggers.note(force, surface, kind, name, count)
   for _, tech in pairs(force.technologies) do
     if not tech.researched and tech.enabled then
       local trig = tech.prototype.research_trigger
-      if trig and trig.type == kind and trigger_item(trig) == name and prereqs_done(tech)
+      if trig and trig.type == kind and counts(trig, name) and prereqs_done(tech)
           and storage.trigger_counts[key] >= (trig.count or 1) then
         tech.researched = true
       end
@@ -41,9 +48,9 @@ function triggers.recheck(force)
     if not tech.researched and tech.enabled then
       local trig = tech.prototype.research_trigger
       if trig and prereqs_done(tech) then
-        local key = trig.type .. ":" .. tostring(trigger_item(trig))
-        if (storage.trigger_counts or {})[key] and storage.trigger_counts[key] >= (trig.count or 1) then
-          tech.researched = true
+        for _, name in pairs(trigger_names(trig)) do
+          local n = (storage.trigger_counts or {})[trig.type .. ":" .. tostring(name)]
+          if n and n >= (trig.count or 1) then tech.researched = true break end
         end
       end
     end

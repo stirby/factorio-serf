@@ -30,10 +30,7 @@
 "assembling-machine-1": {
 "categories": [
 "crafting",
-"basic-crafting",
 "advanced-crafting",
-"electronics",
-"pressing",
 "parameters"
 ],
 "speed": 0.5,
@@ -41,19 +38,9 @@
 },
 "assembling-machine-2": {
 "categories": [
-"basic-crafting",
 "crafting",
 "advanced-crafting",
 "crafting-with-fluid",
-"electronics",
-"electronics-with-fluid",
-"pressing",
-"metallurgy-or-assembling",
-"organic-or-hand-crafting",
-"organic-or-assembling",
-"electronics-or-assembling",
-"cryogenics-or-assembling",
-"crafting-with-fluid-or-metallurgy",
 "parameters"
 ],
 "speed": 0.75,
@@ -61,19 +48,9 @@
 },
 "assembling-machine-3": {
 "categories": [
-"basic-crafting",
 "crafting",
 "advanced-crafting",
 "crafting-with-fluid",
-"electronics",
-"electronics-with-fluid",
-"pressing",
-"metallurgy-or-assembling",
-"organic-or-hand-crafting",
-"organic-or-assembling",
-"electronics-or-assembling",
-"cryogenics-or-assembling",
-"crafting-with-fluid-or-metallurgy",
 "parameters"
 ],
 "speed": 1.25,
@@ -82,9 +59,6 @@
 "biochamber": {
 "categories": [
 "organic",
-"organic-or-hand-crafting",
-"organic-or-assembling",
-"organic-or-chemistry",
 "parameters"
 ],
 "speed": 2,
@@ -109,8 +83,6 @@
 "chemical-plant": {
 "categories": [
 "chemistry",
-"chemistry-or-cryogenics",
-"organic-or-chemistry",
 "parameters"
 ],
 "speed": 1,
@@ -127,8 +99,6 @@
 "cryogenic-plant": {
 "categories": [
 "cryogenics",
-"chemistry-or-cryogenics",
-"cryogenics-or-assembling",
 "parameters"
 ],
 "speed": 2,
@@ -144,9 +114,6 @@
 "electromagnetic-plant": {
 "categories": [
 "electromagnetics",
-"electronics",
-"electronics-with-fluid",
-"electronics-or-assembling",
 "parameters"
 ],
 "speed": 2,
@@ -155,9 +122,6 @@
 "foundry": {
 "categories": [
 "metallurgy",
-"pressing",
-"crafting-with-fluid-or-metallurgy",
-"metallurgy-or-assembling",
 "parameters"
 ],
 "speed": 4,
@@ -173,8 +137,7 @@
 },
 "recycler": {
 "categories": [
-"recycling",
-"recycling-or-hand-crafting"
+"recycling"
 ],
 "speed": 0.5,
 "type": "furnace"
@@ -204,7 +167,11 @@
 },
 "recipes": {
 "accumulator": {
-"category": "electronics",
+"categories": [
+"crafting",
+"electromagnetics"
+],
+"category": "crafting",
 "energy": 10,
 "ingredients": [
 {
@@ -227,8 +194,12 @@
 ]
 },
 "acid-neutralisation": {
-"category": "chemistry-or-cryogenics",
-"energy": 5,
+"categories": [
+"chemistry",
+"cryogenics"
+],
+"category": "chemistry",
+"energy": 0.5,
 "ingredients": [
 {
 "amount": 1,
@@ -236,20 +207,23 @@
 "type": "item"
 },
 {
-"amount": 1000,
+"amount": 100,
 "name": "sulfuric-acid",
 "type": "fluid"
 }
 ],
 "products": [
 {
-"amount": 10000,
+"amount": 1000,
 "name": "steam",
 "type": "fluid"
 }
 ]
 },
 "active-provider-chest": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -278,6 +252,9 @@
 ]
 },
 "advanced-carbonic-asteroid-crushing": {
+"categories": [
+"crushing"
+],
 "category": "crushing",
 "energy": 5,
 "ingredients": [
@@ -299,14 +276,18 @@
 "type": "item"
 },
 {
-"amount": 0.05,
+"amount": 0.1,
 "name": "carbonic-asteroid-chunk",
 "type": "item"
 }
 ]
 },
 "advanced-circuit": {
-"category": "electronics",
+"categories": [
+"crafting",
+"electromagnetics"
+],
+"category": "crafting",
 "energy": 6,
 "ingredients": [
 {
@@ -334,6 +315,9 @@
 ]
 },
 "advanced-metallic-asteroid-crushing": {
+"categories": [
+"crushing"
+],
 "category": "crushing",
 "energy": 5,
 "ingredients": [
@@ -355,13 +339,16 @@
 "type": "item"
 },
 {
-"amount": 0.05,
+"amount": 0.1,
 "name": "metallic-asteroid-chunk",
 "type": "item"
 }
 ]
 },
 "advanced-oil-processing": {
+"categories": [
+"oil-processing"
+],
 "category": "oil-processing",
 "energy": 5,
 "ingredients": [
@@ -395,6 +382,9 @@
 ]
 },
 "advanced-oxide-asteroid-crushing": {
+"categories": [
+"crushing"
+],
 "category": "crushing",
 "energy": 5,
 "ingredients": [
@@ -416,13 +406,16 @@
 "type": "item"
 },
 {
-"amount": 0.05,
+"amount": 0.1,
 "name": "oxide-asteroid-chunk",
 "type": "item"
 }
 ]
 },
 "advanced-thruster-fuel": {
+"categories": [
+"chemistry"
+],
 "category": "chemistry",
 "energy": 10,
 "ingredients": [
@@ -451,6 +444,9 @@
 ]
 },
 "advanced-thruster-oxidizer": {
+"categories": [
+"chemistry"
+],
 "category": "chemistry",
 "energy": 10,
 "ingredients": [
@@ -479,6 +475,9 @@
 ]
 },
 "agricultural-science-pack": {
+"categories": [
+"organic"
+],
 "category": "organic",
 "energy": 4,
 "ingredients": [
@@ -502,6 +501,9 @@
 ]
 },
 "agricultural-tower": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 10,
 "ingredients": [
@@ -535,7 +537,11 @@
 ]
 },
 "ammonia-rocket-fuel": {
-"category": "chemistry-or-cryogenics",
+"categories": [
+"chemistry",
+"cryogenics"
+],
+"category": "chemistry",
 "energy": 10,
 "ingredients": [
 {
@@ -563,7 +569,11 @@
 ]
 },
 "ammoniacal-solution-separation": {
-"category": "chemistry-or-cryogenics",
+"categories": [
+"chemistry",
+"cryogenics"
+],
+"category": "chemistry",
 "energy": 1,
 "ingredients": [
 {
@@ -586,6 +596,9 @@
 ]
 },
 "arithmetic-combinator": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -609,6 +622,9 @@
 ]
 },
 "artificial-jellynut-soil": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 2,
 "ingredients": [
@@ -637,6 +653,9 @@
 ]
 },
 "artificial-yumako-soil": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 2,
 "ingredients": [
@@ -665,6 +684,9 @@
 ]
 },
 "artillery-shell": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 15,
 "ingredients": [
@@ -698,6 +720,9 @@
 ]
 },
 "artillery-turret": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 40,
 "ingredients": [
@@ -731,6 +756,9 @@
 ]
 },
 "artillery-wagon": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 4,
 "ingredients": [
@@ -769,6 +797,9 @@
 ]
 },
 "assembling-machine-1": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -797,6 +828,9 @@
 ]
 },
 "assembling-machine-2": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -830,6 +864,9 @@
 ]
 },
 "assembling-machine-3": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -853,6 +890,9 @@
 ]
 },
 "asteroid-collector": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 10,
 "ingredients": [
@@ -881,6 +921,9 @@
 ]
 },
 "atomic-bomb": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 50,
 "ingredients": [
@@ -909,6 +952,9 @@
 ]
 },
 "automation-science-pack": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 5,
 "ingredients": [
@@ -932,6 +978,9 @@
 ]
 },
 "barrel": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 1,
 "ingredients": [
@@ -950,6 +999,9 @@
 ]
 },
 "basic-oil-processing": {
+"categories": [
+"oil-processing"
+],
 "category": "oil-processing",
 "energy": 5,
 "ingredients": [
@@ -968,7 +1020,11 @@
 ]
 },
 "battery": {
-"category": "chemistry-or-cryogenics",
+"categories": [
+"chemistry",
+"cryogenics"
+],
+"category": "chemistry",
 "energy": 4,
 "ingredients": [
 {
@@ -996,6 +1052,9 @@
 ]
 },
 "battery-equipment": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 10,
 "ingredients": [
@@ -1019,6 +1078,9 @@
 ]
 },
 "battery-mk2-equipment": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 10,
 "ingredients": [
@@ -1047,6 +1109,9 @@
 ]
 },
 "battery-mk3-equipment": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 10,
 "ingredients": [
@@ -1070,7 +1135,11 @@
 ]
 },
 "beacon": {
-"category": "electronics",
+"categories": [
+"crafting",
+"electromagnetics"
+],
+"category": "crafting",
 "energy": 15,
 "ingredients": [
 {
@@ -1103,6 +1172,9 @@
 ]
 },
 "belt-immunity-equipment": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 10,
 "ingredients": [
@@ -1126,7 +1198,11 @@
 ]
 },
 "big-electric-pole": {
-"category": "electronics",
+"categories": [
+"crafting",
+"electromagnetics"
+],
+"category": "crafting",
 "energy": 0.5,
 "ingredients": [
 {
@@ -1154,6 +1230,9 @@
 ]
 },
 "big-mining-drill": {
+"categories": [
+"metallurgy"
+],
 "category": "metallurgy",
 "energy": 30,
 "ingredients": [
@@ -1192,7 +1271,11 @@
 ]
 },
 "biochamber": {
-"category": "organic-or-assembling",
+"categories": [
+"organic",
+"crafting"
+],
+"category": "crafting",
 "energy": 20,
 "ingredients": [
 {
@@ -1230,6 +1313,9 @@
 ]
 },
 "bioflux": {
+"categories": [
+"organic"
+],
 "category": "organic",
 "energy": 6,
 "ingredients": [
@@ -1253,6 +1339,9 @@
 ]
 },
 "biolab": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 10,
 "ingredients": [
@@ -1291,6 +1380,9 @@
 ]
 },
 "biolubricant": {
+"categories": [
+"organic"
+],
 "category": "organic",
 "energy": 3,
 "ingredients": [
@@ -1309,6 +1401,9 @@
 ]
 },
 "bioplastic": {
+"categories": [
+"organic"
+],
 "category": "organic",
 "energy": 2,
 "ingredients": [
@@ -1332,6 +1427,9 @@
 ]
 },
 "biosulfur": {
+"categories": [
+"organic"
+],
 "category": "organic",
 "energy": 2,
 "ingredients": [
@@ -1355,6 +1453,9 @@
 ]
 },
 "biter-egg": {
+"categories": [
+"captive-spawner-process"
+],
 "category": "captive-spawner-process",
 "energy": 10,
 "ingredients": {},
@@ -1367,6 +1468,9 @@
 ]
 },
 "boiler": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -1390,6 +1494,9 @@
 ]
 },
 "buffer-chest": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -1418,6 +1525,9 @@
 ]
 },
 "bulk-inserter": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -1451,6 +1561,9 @@
 ]
 },
 "burner-inserter": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -1474,6 +1587,9 @@
 ]
 },
 "burner-mining-drill": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 2,
 "ingredients": [
@@ -1502,6 +1618,9 @@
 ]
 },
 "burnt-spoilage": {
+"categories": [
+"organic"
+],
 "category": "organic",
 "energy": 12,
 "ingredients": [
@@ -1520,6 +1639,9 @@
 ]
 },
 "cannon-shell": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 8,
 "ingredients": [
@@ -1548,6 +1670,9 @@
 ]
 },
 "captive-biter-spawner": {
+"categories": [
+"cryogenics"
+],
 "category": "cryogenics",
 "energy": 10,
 "ingredients": [
@@ -1581,6 +1706,9 @@
 ]
 },
 "capture-robot-rocket": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 10,
 "ingredients": [
@@ -1614,6 +1742,9 @@
 ]
 },
 "car": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 2,
 "ingredients": [
@@ -1642,7 +1773,11 @@
 ]
 },
 "carbon": {
-"category": "chemistry-or-cryogenics",
+"categories": [
+"chemistry",
+"cryogenics"
+],
+"category": "chemistry",
 "energy": 1,
 "ingredients": [
 {
@@ -1665,6 +1800,9 @@
 ]
 },
 "carbon-fiber": {
+"categories": [
+"organic"
+],
 "category": "organic",
 "energy": 5,
 "ingredients": [
@@ -1688,6 +1826,9 @@
 ]
 },
 "carbonic-asteroid-crushing": {
+"categories": [
+"crushing"
+],
 "category": "crushing",
 "energy": 2,
 "ingredients": [
@@ -1704,13 +1845,16 @@
 "type": "item"
 },
 {
-"amount": 0.2,
+"amount": 0.3,
 "name": "carbonic-asteroid-chunk",
 "type": "item"
 }
 ]
 },
 "carbonic-asteroid-reprocessing": {
+"categories": [
+"crushing"
+],
 "category": "crushing",
 "energy": 2,
 "ingredients": [
@@ -1722,23 +1866,26 @@
 ],
 "products": [
 {
-"amount": 0.4,
+"amount": 1,
 "name": "carbonic-asteroid-chunk",
 "type": "item"
 },
 {
-"amount": 0.2,
+"amount": 1,
 "name": "metallic-asteroid-chunk",
 "type": "item"
 },
 {
-"amount": 0.2,
+"amount": 1,
 "name": "oxide-asteroid-chunk",
 "type": "item"
 }
 ]
 },
 "cargo-bay": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 10,
 "ingredients": [
@@ -1767,6 +1914,9 @@
 ]
 },
 "cargo-landing-pad": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 30,
 "ingredients": [
@@ -1795,6 +1945,9 @@
 ]
 },
 "cargo-wagon": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 1,
 "ingredients": [
@@ -1823,6 +1976,9 @@
 ]
 },
 "casting-copper": {
+"categories": [
+"metallurgy"
+],
 "category": "metallurgy",
 "energy": 3.2,
 "ingredients": [
@@ -1841,6 +1997,9 @@
 ]
 },
 "casting-copper-cable": {
+"categories": [
+"metallurgy"
+],
 "category": "metallurgy",
 "energy": 1,
 "ingredients": [
@@ -1859,6 +2018,9 @@
 ]
 },
 "casting-iron": {
+"categories": [
+"metallurgy"
+],
 "category": "metallurgy",
 "energy": 3.2,
 "ingredients": [
@@ -1877,6 +2039,9 @@
 ]
 },
 "casting-iron-gear-wheel": {
+"categories": [
+"metallurgy"
+],
 "category": "metallurgy",
 "energy": 1,
 "ingredients": [
@@ -1895,6 +2060,9 @@
 ]
 },
 "casting-iron-stick": {
+"categories": [
+"metallurgy"
+],
 "category": "metallurgy",
 "energy": 1,
 "ingredients": [
@@ -1913,6 +2081,9 @@
 ]
 },
 "casting-low-density-structure": {
+"categories": [
+"metallurgy"
+],
 "category": "metallurgy",
 "energy": 15,
 "ingredients": [
@@ -1941,6 +2112,9 @@
 ]
 },
 "casting-pipe": {
+"categories": [
+"metallurgy"
+],
 "category": "metallurgy",
 "energy": 1,
 "ingredients": [
@@ -1959,6 +2133,9 @@
 ]
 },
 "casting-pipe-to-ground": {
+"categories": [
+"metallurgy"
+],
 "category": "metallurgy",
 "energy": 1,
 "ingredients": [
@@ -1982,6 +2159,9 @@
 ]
 },
 "casting-steel": {
+"categories": [
+"metallurgy"
+],
 "category": "metallurgy",
 "energy": 3.2,
 "ingredients": [
@@ -2000,6 +2180,9 @@
 ]
 },
 "centrifuge": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 4,
 "ingredients": [
@@ -2033,6 +2216,9 @@
 ]
 },
 "chemical-plant": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 5,
 "ingredients": [
@@ -2066,6 +2252,9 @@
 ]
 },
 "chemical-science-pack": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 24,
 "ingredients": [
@@ -2094,6 +2283,9 @@
 ]
 },
 "cliff-explosives": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 8,
 "ingredients": [
@@ -2127,6 +2319,9 @@
 ]
 },
 "cluster-grenade": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 8,
 "ingredients": [
@@ -2155,6 +2350,9 @@
 ]
 },
 "coal-liquefaction": {
+"categories": [
+"oil-processing"
+],
 "category": "oil-processing",
 "energy": 5,
 "ingredients": [
@@ -2193,6 +2391,9 @@
 ]
 },
 "coal-synthesis": {
+"categories": [
+"chemistry"
+],
 "category": "chemistry",
 "energy": 2,
 "ingredients": [
@@ -2221,6 +2422,9 @@
 ]
 },
 "combat-shotgun": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 10,
 "ingredients": [
@@ -2254,6 +2458,9 @@
 ]
 },
 "concrete": {
+"categories": [
+"crafting-with-fluid"
+],
 "category": "crafting-with-fluid",
 "energy": 10,
 "ingredients": [
@@ -2282,6 +2489,9 @@
 ]
 },
 "concrete-from-molten-iron": {
+"categories": [
+"metallurgy"
+],
 "category": "metallurgy",
 "energy": 10,
 "ingredients": [
@@ -2310,6 +2520,9 @@
 ]
 },
 "constant-combinator": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -2333,6 +2546,9 @@
 ]
 },
 "construction-robot": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -2356,7 +2572,11 @@
 ]
 },
 "copper-bacteria": {
-"category": "organic-or-hand-crafting",
+"categories": [
+"organic",
+"crafting"
+],
+"category": "crafting",
 "energy": 1,
 "ingredients": [
 {
@@ -2379,6 +2599,9 @@
 ]
 },
 "copper-bacteria-cultivation": {
+"categories": [
+"organic"
+],
 "category": "organic",
 "energy": 4,
 "ingredients": [
@@ -2402,7 +2625,11 @@
 ]
 },
 "copper-cable": {
-"category": "electronics",
+"categories": [
+"crafting",
+"electromagnetics"
+],
+"category": "crafting",
 "energy": 0.5,
 "ingredients": [
 {
@@ -2419,7 +2646,36 @@
 }
 ]
 },
+"copper-ore-melting": {
+"categories": [
+"metallurgy"
+],
+"category": "metallurgy",
+"energy": 32,
+"ingredients": [
+{
+"amount": 50,
+"name": "copper-ore",
+"type": "item"
+},
+{
+"amount": 1,
+"name": "calcite",
+"type": "item"
+}
+],
+"products": [
+{
+"amount": 500,
+"name": "molten-copper",
+"type": "fluid"
+}
+]
+},
 "copper-plate": {
+"categories": [
+"smelting"
+],
 "category": "smelting",
 "energy": 3.2,
 "ingredients": [
@@ -2438,6 +2694,9 @@
 ]
 },
 "crude-oil-barrel": {
+"categories": [
+"crafting-with-fluid"
+],
 "category": "crafting-with-fluid",
 "energy": 0.2,
 "ingredients": [
@@ -2461,6 +2720,9 @@
 ]
 },
 "crusher": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 10,
 "ingredients": [
@@ -2489,7 +2751,11 @@
 ]
 },
 "cryogenic-plant": {
-"category": "cryogenics-or-assembling",
+"categories": [
+"cryogenics",
+"advanced-crafting"
+],
+"category": "advanced-crafting",
 "energy": 10,
 "ingredients": [
 {
@@ -2522,6 +2788,9 @@
 ]
 },
 "cryogenic-science-pack": {
+"categories": [
+"cryogenics"
+],
 "category": "cryogenics",
 "energy": 20,
 "ingredients": [
@@ -2555,6 +2824,9 @@
 ]
 },
 "decider-combinator": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -2578,6 +2850,9 @@
 ]
 },
 "defender-capsule": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 8,
 "ingredients": [
@@ -2606,6 +2881,9 @@
 ]
 },
 "destroyer-capsule": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 15,
 "ingredients": [
@@ -2634,7 +2912,11 @@
 ]
 },
 "discharge-defense-equipment": {
-"category": "electronics",
+"categories": [
+"crafting",
+"electromagnetics"
+],
+"category": "crafting",
 "energy": 10,
 "ingredients": [
 {
@@ -2662,6 +2944,9 @@
 ]
 },
 "display-panel": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -2685,6 +2970,9 @@
 ]
 },
 "distractor-capsule": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 15,
 "ingredients": [
@@ -2708,7 +2996,11 @@
 ]
 },
 "efficiency-module": {
-"category": "electronics",
+"categories": [
+"crafting",
+"electromagnetics"
+],
+"category": "crafting",
 "energy": 15,
 "ingredients": [
 {
@@ -2731,7 +3023,11 @@
 ]
 },
 "efficiency-module-2": {
-"category": "electronics",
+"categories": [
+"crafting",
+"electromagnetics"
+],
+"category": "crafting",
 "energy": 30,
 "ingredients": [
 {
@@ -2759,7 +3055,11 @@
 ]
 },
 "efficiency-module-3": {
-"category": "electronics",
+"categories": [
+"crafting",
+"electromagnetics"
+],
+"category": "crafting",
 "energy": 60,
 "ingredients": [
 {
@@ -2792,6 +3092,9 @@
 ]
 },
 "electric-engine-unit": {
+"categories": [
+"crafting-with-fluid"
+],
 "category": "crafting-with-fluid",
 "energy": 10,
 "ingredients": [
@@ -2820,6 +3123,9 @@
 ]
 },
 "electric-furnace": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 5,
 "ingredients": [
@@ -2848,6 +3154,9 @@
 ]
 },
 "electric-mining-drill": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 2,
 "ingredients": [
@@ -2876,6 +3185,9 @@
 ]
 },
 "electrolyte": {
+"categories": [
+"electromagnetics"
+],
 "category": "electromagnetics",
 "energy": 5,
 "ingredients": [
@@ -2904,7 +3216,11 @@
 ]
 },
 "electromagnetic-plant": {
-"category": "electronics-or-assembling",
+"categories": [
+"electromagnetics",
+"advanced-crafting"
+],
+"category": "advanced-crafting",
 "energy": 10,
 "ingredients": [
 {
@@ -2937,6 +3253,9 @@
 ]
 },
 "electromagnetic-science-pack": {
+"categories": [
+"electromagnetics"
+],
 "category": "electromagnetics",
 "energy": 10,
 "ingredients": [
@@ -2970,7 +3289,11 @@
 ]
 },
 "electronic-circuit": {
-"category": "electronics",
+"categories": [
+"crafting",
+"electromagnetics"
+],
+"category": "crafting",
 "energy": 0.5,
 "ingredients": [
 {
@@ -2993,6 +3316,9 @@
 ]
 },
 "empty-crude-oil-barrel": {
+"categories": [
+"crafting-with-fluid"
+],
 "category": "crafting-with-fluid",
 "energy": 0.2,
 "ingredients": [
@@ -3016,6 +3342,9 @@
 ]
 },
 "empty-fluoroketone-cold-barrel": {
+"categories": [
+"crafting-with-fluid"
+],
 "category": "crafting-with-fluid",
 "energy": 0.2,
 "ingredients": [
@@ -3039,6 +3368,9 @@
 ]
 },
 "empty-fluoroketone-hot-barrel": {
+"categories": [
+"crafting-with-fluid"
+],
 "category": "crafting-with-fluid",
 "energy": 0.2,
 "ingredients": [
@@ -3062,6 +3394,9 @@
 ]
 },
 "empty-heavy-oil-barrel": {
+"categories": [
+"crafting-with-fluid"
+],
 "category": "crafting-with-fluid",
 "energy": 0.2,
 "ingredients": [
@@ -3085,6 +3420,9 @@
 ]
 },
 "empty-light-oil-barrel": {
+"categories": [
+"crafting-with-fluid"
+],
 "category": "crafting-with-fluid",
 "energy": 0.2,
 "ingredients": [
@@ -3108,6 +3446,9 @@
 ]
 },
 "empty-lubricant-barrel": {
+"categories": [
+"crafting-with-fluid"
+],
 "category": "crafting-with-fluid",
 "energy": 0.2,
 "ingredients": [
@@ -3131,6 +3472,9 @@
 ]
 },
 "empty-petroleum-gas-barrel": {
+"categories": [
+"crafting-with-fluid"
+],
 "category": "crafting-with-fluid",
 "energy": 0.2,
 "ingredients": [
@@ -3154,6 +3498,9 @@
 ]
 },
 "empty-sulfuric-acid-barrel": {
+"categories": [
+"crafting-with-fluid"
+],
 "category": "crafting-with-fluid",
 "energy": 0.2,
 "ingredients": [
@@ -3177,6 +3524,9 @@
 ]
 },
 "empty-water-barrel": {
+"categories": [
+"crafting-with-fluid"
+],
 "category": "crafting-with-fluid",
 "energy": 0.2,
 "ingredients": [
@@ -3200,6 +3550,9 @@
 ]
 },
 "energy-shield-equipment": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 10,
 "ingredients": [
@@ -3223,6 +3576,9 @@
 ]
 },
 "energy-shield-mk2-equipment": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 10,
 "ingredients": [
@@ -3251,6 +3607,9 @@
 ]
 },
 "engine-unit": {
+"categories": [
+"advanced-crafting"
+],
 "category": "advanced-crafting",
 "energy": 10,
 "ingredients": [
@@ -3279,6 +3638,9 @@
 ]
 },
 "exoskeleton-equipment": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 10,
 "ingredients": [
@@ -3307,6 +3669,9 @@
 ]
 },
 "explosive-cannon-shell": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 8,
 "ingredients": [
@@ -3335,6 +3700,9 @@
 ]
 },
 "explosive-rocket": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 8,
 "ingredients": [
@@ -3358,6 +3726,9 @@
 ]
 },
 "explosive-uranium-cannon-shell": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 12,
 "ingredients": [
@@ -3381,7 +3752,11 @@
 ]
 },
 "explosives": {
-"category": "chemistry-or-cryogenics",
+"categories": [
+"chemistry",
+"cryogenics"
+],
+"category": "chemistry",
 "energy": 4,
 "ingredients": [
 {
@@ -3409,7 +3784,11 @@
 ]
 },
 "express-splitter": {
-"category": "crafting-with-fluid-or-metallurgy",
+"categories": [
+"crafting-with-fluid",
+"metallurgy"
+],
+"category": "crafting-with-fluid",
 "energy": 2,
 "ingredients": [
 {
@@ -3442,7 +3821,11 @@
 ]
 },
 "express-transport-belt": {
-"category": "crafting-with-fluid-or-metallurgy",
+"categories": [
+"crafting-with-fluid",
+"metallurgy"
+],
+"category": "crafting-with-fluid",
 "energy": 0.5,
 "ingredients": [
 {
@@ -3470,7 +3853,11 @@
 ]
 },
 "express-underground-belt": {
-"category": "crafting-with-fluid-or-metallurgy",
+"categories": [
+"crafting-with-fluid",
+"metallurgy"
+],
+"category": "crafting-with-fluid",
 "energy": 2,
 "ingredients": [
 {
@@ -3498,6 +3885,9 @@
 ]
 },
 "fast-inserter": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -3526,7 +3916,11 @@
 ]
 },
 "fast-splitter": {
-"category": "pressing",
+"categories": [
+"crafting",
+"metallurgy"
+],
+"category": "crafting",
 "energy": 2,
 "ingredients": [
 {
@@ -3554,7 +3948,11 @@
 ]
 },
 "fast-transport-belt": {
-"category": "pressing",
+"categories": [
+"crafting",
+"metallurgy"
+],
+"category": "crafting",
 "energy": 0.5,
 "ingredients": [
 {
@@ -3577,7 +3975,11 @@
 ]
 },
 "fast-underground-belt": {
-"category": "pressing",
+"categories": [
+"crafting",
+"metallurgy"
+],
+"category": "crafting",
 "energy": 2,
 "ingredients": [
 {
@@ -3600,6 +4002,9 @@
 ]
 },
 "firearm-magazine": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 1,
 "ingredients": [
@@ -3618,7 +4023,11 @@
 ]
 },
 "fish-breeding": {
-"category": "organic-or-chemistry",
+"categories": [
+"organic",
+"chemistry"
+],
+"category": "organic",
 "energy": 6,
 "ingredients": [
 {
@@ -3646,6 +4055,9 @@
 ]
 },
 "fission-reactor-equipment": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 10,
 "ingredients": [
@@ -3674,6 +4086,9 @@
 ]
 },
 "flamethrower": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 10,
 "ingredients": [
@@ -3697,6 +4112,9 @@
 ]
 },
 "flamethrower-ammo": {
+"categories": [
+"chemistry"
+],
 "category": "chemistry",
 "energy": 6,
 "ingredients": [
@@ -3720,6 +4138,9 @@
 ]
 },
 "flamethrower-turret": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 20,
 "ingredients": [
@@ -3753,6 +4174,9 @@
 ]
 },
 "fluid-wagon": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 1.5,
 "ingredients": [
@@ -3786,6 +4210,9 @@
 ]
 },
 "fluoroketone": {
+"categories": [
+"cryogenics"
+],
 "category": "cryogenics",
 "energy": 10,
 "ingredients": [
@@ -3819,6 +4246,9 @@
 ]
 },
 "fluoroketone-cold-barrel": {
+"categories": [
+"crafting-with-fluid"
+],
 "category": "crafting-with-fluid",
 "energy": 0.2,
 "ingredients": [
@@ -3842,6 +4272,9 @@
 ]
 },
 "fluoroketone-cooling": {
+"categories": [
+"cryogenics"
+],
 "category": "cryogenics",
 "energy": 5,
 "ingredients": [
@@ -3860,6 +4293,9 @@
 ]
 },
 "fluoroketone-hot-barrel": {
+"categories": [
+"crafting-with-fluid"
+],
 "category": "crafting-with-fluid",
 "energy": 0.2,
 "ingredients": [
@@ -3883,6 +4319,9 @@
 ]
 },
 "flying-robot-frame": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 20,
 "ingredients": [
@@ -3916,6 +4355,9 @@
 ]
 },
 "foundation": {
+"categories": [
+"crafting-with-fluid"
+],
 "category": "crafting-with-fluid",
 "energy": 30,
 "ingredients": [
@@ -3954,7 +4396,11 @@
 ]
 },
 "foundry": {
-"category": "metallurgy-or-assembling",
+"categories": [
+"metallurgy",
+"crafting-with-fluid"
+],
+"category": "crafting-with-fluid",
 "energy": 10,
 "ingredients": [
 {
@@ -3992,6 +4438,9 @@
 ]
 },
 "fusion-generator": {
+"categories": [
+"cryogenics"
+],
 "category": "cryogenics",
 "energy": 30,
 "ingredients": [
@@ -4020,6 +4469,9 @@
 ]
 },
 "fusion-power-cell": {
+"categories": [
+"cryogenics"
+],
 "category": "cryogenics",
 "energy": 10,
 "ingredients": [
@@ -4048,6 +4500,9 @@
 ]
 },
 "fusion-reactor": {
+"categories": [
+"cryogenics"
+],
 "category": "cryogenics",
 "energy": 60,
 "ingredients": [
@@ -4076,6 +4531,9 @@
 ]
 },
 "fusion-reactor-equipment": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 30,
 "ingredients": [
@@ -4119,6 +4577,9 @@
 ]
 },
 "gate": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -4147,6 +4608,9 @@
 ]
 },
 "grenade": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 8,
 "ingredients": [
@@ -4170,6 +4634,9 @@
 ]
 },
 "gun-turret": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 8,
 "ingredients": [
@@ -4198,6 +4665,9 @@
 ]
 },
 "hazard-concrete": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.25,
 "ingredients": [
@@ -4216,6 +4686,9 @@
 ]
 },
 "heat-exchanger": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 3,
 "ingredients": [
@@ -4244,6 +4717,9 @@
 ]
 },
 "heat-pipe": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 1,
 "ingredients": [
@@ -4267,6 +4743,9 @@
 ]
 },
 "heating-tower": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 10,
 "ingredients": [
@@ -4295,6 +4774,9 @@
 ]
 },
 "heavy-armor": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 8,
 "ingredients": [
@@ -4318,6 +4800,9 @@
 ]
 },
 "heavy-oil-barrel": {
+"categories": [
+"crafting-with-fluid"
+],
 "category": "crafting-with-fluid",
 "energy": 0.2,
 "ingredients": [
@@ -4341,7 +4826,11 @@
 ]
 },
 "heavy-oil-cracking": {
-"category": "organic-or-chemistry",
+"categories": [
+"chemistry",
+"organic"
+],
+"category": "chemistry",
 "energy": 2,
 "ingredients": [
 {
@@ -4364,7 +4853,11 @@
 ]
 },
 "holmium-plate": {
-"category": "crafting-with-fluid-or-metallurgy",
+"categories": [
+"crafting-with-fluid",
+"metallurgy"
+],
+"category": "crafting-with-fluid",
 "energy": 1,
 "ingredients": [
 {
@@ -4382,6 +4875,9 @@
 ]
 },
 "holmium-solution": {
+"categories": [
+"chemistry"
+],
 "category": "chemistry",
 "energy": 10,
 "ingredients": [
@@ -4410,6 +4906,9 @@
 ]
 },
 "ice-melting": {
+"categories": [
+"chemistry"
+],
 "category": "chemistry",
 "energy": 1,
 "ingredients": [
@@ -4428,6 +4927,9 @@
 ]
 },
 "ice-platform": {
+"categories": [
+"crafting-with-fluid"
+],
 "category": "crafting-with-fluid",
 "energy": 30,
 "ingredients": [
@@ -4451,6 +4953,9 @@
 ]
 },
 "inserter": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -4479,7 +4984,11 @@
 ]
 },
 "iron-bacteria": {
-"category": "organic-or-hand-crafting",
+"categories": [
+"organic",
+"crafting"
+],
+"category": "crafting",
 "energy": 1,
 "ingredients": [
 {
@@ -4502,6 +5011,9 @@
 ]
 },
 "iron-bacteria-cultivation": {
+"categories": [
+"organic"
+],
 "category": "organic",
 "energy": 4,
 "ingredients": [
@@ -4525,6 +5037,9 @@
 ]
 },
 "iron-chest": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -4543,6 +5058,9 @@
 ]
 },
 "iron-gear-wheel": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -4560,7 +5078,36 @@
 }
 ]
 },
+"iron-ore-melting": {
+"categories": [
+"metallurgy"
+],
+"category": "metallurgy",
+"energy": 32,
+"ingredients": [
+{
+"amount": 50,
+"name": "iron-ore",
+"type": "item"
+},
+{
+"amount": 1,
+"name": "calcite",
+"type": "item"
+}
+],
+"products": [
+{
+"amount": 500,
+"name": "molten-iron",
+"type": "fluid"
+}
+]
+},
 "iron-plate": {
+"categories": [
+"smelting"
+],
 "category": "smelting",
 "energy": 3.2,
 "ingredients": [
@@ -4579,6 +5126,9 @@
 ]
 },
 "iron-stick": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -4597,7 +5147,11 @@
 ]
 },
 "jellynut-processing": {
-"category": "organic-or-hand-crafting",
+"categories": [
+"organic",
+"crafting"
+],
+"category": "crafting",
 "energy": 1,
 "ingredients": [
 {
@@ -4620,6 +5174,9 @@
 ]
 },
 "kovarex-enrichment-process": {
+"categories": [
+"centrifuging"
+],
 "category": "centrifuging",
 "energy": 60,
 "ingredients": [
@@ -4648,6 +5205,9 @@
 ]
 },
 "lab": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 2,
 "ingredients": [
@@ -4676,6 +5236,9 @@
 ]
 },
 "land-mine": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 5,
 "ingredients": [
@@ -4699,6 +5262,9 @@
 ]
 },
 "landfill": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -4716,7 +5282,46 @@
 }
 ]
 },
+"landing-pad-unloading-bay": {
+"categories": [
+"crafting"
+],
+"category": "crafting",
+"energy": 10,
+"ingredients": [
+{
+"amount": 8,
+"name": "processing-unit",
+"type": "item"
+},
+{
+"amount": 15,
+"name": "electric-engine-unit",
+"type": "item"
+},
+{
+"amount": 4,
+"name": "steel-chest",
+"type": "item"
+},
+{
+"amount": 1,
+"name": "cargo-bay",
+"type": "item"
+}
+],
+"products": [
+{
+"amount": 1,
+"name": "landing-pad-unloading-bay",
+"type": "item"
+}
+]
+},
 "laser-turret": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 20,
 "ingredients": [
@@ -4745,6 +5350,9 @@
 ]
 },
 "light-armor": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 3,
 "ingredients": [
@@ -4763,6 +5371,9 @@
 ]
 },
 "light-oil-barrel": {
+"categories": [
+"crafting-with-fluid"
+],
 "category": "crafting-with-fluid",
 "energy": 0.2,
 "ingredients": [
@@ -4786,7 +5397,11 @@
 ]
 },
 "light-oil-cracking": {
-"category": "organic-or-chemistry",
+"categories": [
+"chemistry",
+"organic"
+],
+"category": "chemistry",
 "energy": 2,
 "ingredients": [
 {
@@ -4809,6 +5424,9 @@
 ]
 },
 "lightning-collector": {
+"categories": [
+"electromagnetics"
+],
 "category": "electromagnetics",
 "energy": 5,
 "ingredients": [
@@ -4842,7 +5460,11 @@
 ]
 },
 "lightning-rod": {
-"category": "electronics",
+"categories": [
+"electromagnetics",
+"crafting"
+],
+"category": "crafting",
 "energy": 5,
 "ingredients": [
 {
@@ -4870,7 +5492,11 @@
 ]
 },
 "lithium": {
-"category": "chemistry-or-cryogenics",
+"categories": [
+"chemistry",
+"cryogenics"
+],
+"category": "chemistry",
 "energy": 20,
 "ingredients": [
 {
@@ -4898,6 +5524,9 @@
 ]
 },
 "lithium-plate": {
+"categories": [
+"smelting"
+],
 "category": "smelting",
 "energy": 6.4,
 "ingredients": [
@@ -4916,6 +5545,9 @@
 ]
 },
 "locomotive": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 4,
 "ingredients": [
@@ -4944,6 +5576,9 @@
 ]
 },
 "logistic-robot": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -4967,6 +5602,9 @@
 ]
 },
 "logistic-science-pack": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 6,
 "ingredients": [
@@ -4990,6 +5628,9 @@
 ]
 },
 "long-handed-inserter": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -5018,6 +5659,9 @@
 ]
 },
 "low-density-structure": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 15,
 "ingredients": [
@@ -5046,6 +5690,9 @@
 ]
 },
 "lubricant": {
+"categories": [
+"chemistry"
+],
 "category": "chemistry",
 "energy": 1,
 "ingredients": [
@@ -5064,6 +5711,9 @@
 ]
 },
 "lubricant-barrel": {
+"categories": [
+"crafting-with-fluid"
+],
 "category": "crafting-with-fluid",
 "energy": 0.2,
 "ingredients": [
@@ -5087,6 +5737,9 @@
 ]
 },
 "mech-armor": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 60,
 "ingredients": [
@@ -5125,7 +5778,11 @@
 ]
 },
 "medium-electric-pole": {
-"category": "electronics",
+"categories": [
+"crafting",
+"electromagnetics"
+],
+"category": "crafting",
 "energy": 0.5,
 "ingredients": [
 {
@@ -5153,6 +5810,9 @@
 ]
 },
 "metallic-asteroid-crushing": {
+"categories": [
+"crushing"
+],
 "category": "crushing",
 "energy": 2,
 "ingredients": [
@@ -5169,13 +5829,16 @@
 "type": "item"
 },
 {
-"amount": 0.2,
+"amount": 0.3,
 "name": "metallic-asteroid-chunk",
 "type": "item"
 }
 ]
 },
 "metallic-asteroid-reprocessing": {
+"categories": [
+"crushing"
+],
 "category": "crushing",
 "energy": 2,
 "ingredients": [
@@ -5187,23 +5850,26 @@
 ],
 "products": [
 {
-"amount": 0.4,
+"amount": 1,
 "name": "metallic-asteroid-chunk",
 "type": "item"
 },
 {
-"amount": 0.2,
+"amount": 1,
 "name": "carbonic-asteroid-chunk",
 "type": "item"
 },
 {
-"amount": 0.2,
+"amount": 1,
 "name": "oxide-asteroid-chunk",
 "type": "item"
 }
 ]
 },
 "metallurgic-science-pack": {
+"categories": [
+"metallurgy"
+],
 "category": "metallurgy",
 "energy": 10,
 "ingredients": [
@@ -5232,6 +5898,9 @@
 ]
 },
 "military-science-pack": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 10,
 "ingredients": [
@@ -5260,6 +5929,9 @@
 ]
 },
 "modular-armor": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 15,
 "ingredients": [
@@ -5282,30 +5954,10 @@
 }
 ]
 },
-"molten-copper": {
-"category": "metallurgy",
-"energy": 32,
-"ingredients": [
-{
-"amount": 50,
-"name": "copper-ore",
-"type": "item"
-},
-{
-"amount": 1,
-"name": "calcite",
-"type": "item"
-}
-],
-"products": [
-{
-"amount": 500,
-"name": "molten-copper",
-"type": "fluid"
-}
-]
-},
 "molten-copper-from-lava": {
+"categories": [
+"metallurgy"
+],
 "category": "metallurgy",
 "energy": 16,
 "ingredients": [
@@ -5333,30 +5985,10 @@
 }
 ]
 },
-"molten-iron": {
-"category": "metallurgy",
-"energy": 32,
-"ingredients": [
-{
-"amount": 50,
-"name": "iron-ore",
-"type": "item"
-},
-{
-"amount": 1,
-"name": "calcite",
-"type": "item"
-}
-],
-"products": [
-{
-"amount": 500,
-"name": "molten-iron",
-"type": "fluid"
-}
-]
-},
 "molten-iron-from-lava": {
+"categories": [
+"metallurgy"
+],
 "category": "metallurgy",
 "energy": 16,
 "ingredients": [
@@ -5385,6 +6017,9 @@
 ]
 },
 "night-vision-equipment": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 10,
 "ingredients": [
@@ -5408,6 +6043,9 @@
 ]
 },
 "nuclear-fuel": {
+"categories": [
+"centrifuging"
+],
 "category": "centrifuging",
 "energy": 90,
 "ingredients": [
@@ -5431,6 +6069,9 @@
 ]
 },
 "nuclear-fuel-reprocessing": {
+"categories": [
+"centrifuging"
+],
 "category": "centrifuging",
 "energy": 60,
 "ingredients": [
@@ -5449,6 +6090,9 @@
 ]
 },
 "nuclear-reactor": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 8,
 "ingredients": [
@@ -5482,6 +6126,9 @@
 ]
 },
 "nutrients-from-bioflux": {
+"categories": [
+"organic"
+],
 "category": "organic",
 "energy": 2,
 "ingredients": [
@@ -5500,7 +6147,11 @@
 ]
 },
 "nutrients-from-biter-egg": {
-"category": "organic-or-assembling",
+"categories": [
+"organic",
+"crafting"
+],
+"category": "crafting",
 "energy": 2,
 "ingredients": [
 {
@@ -5518,7 +6169,11 @@
 ]
 },
 "nutrients-from-fish": {
-"category": "organic-or-assembling",
+"categories": [
+"organic",
+"crafting"
+],
+"category": "crafting",
 "energy": 2,
 "ingredients": [
 {
@@ -5536,7 +6191,11 @@
 ]
 },
 "nutrients-from-spoilage": {
-"category": "organic-or-assembling",
+"categories": [
+"organic",
+"crafting"
+],
+"category": "crafting",
 "energy": 2,
 "ingredients": [
 {
@@ -5554,6 +6213,9 @@
 ]
 },
 "nutrients-from-yumako-mash": {
+"categories": [
+"organic"
+],
 "category": "organic",
 "energy": 4,
 "ingredients": [
@@ -5572,6 +6234,9 @@
 ]
 },
 "offshore-pump": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -5595,6 +6260,9 @@
 ]
 },
 "oil-refinery": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 8,
 "ingredients": [
@@ -5633,6 +6301,9 @@
 ]
 },
 "overgrowth-jellynut-soil": {
+"categories": [
+"crafting-with-fluid"
+],
 "category": "crafting-with-fluid",
 "energy": 10,
 "ingredients": [
@@ -5671,6 +6342,9 @@
 ]
 },
 "overgrowth-yumako-soil": {
+"categories": [
+"crafting-with-fluid"
+],
 "category": "crafting-with-fluid",
 "energy": 10,
 "ingredients": [
@@ -5709,6 +6383,9 @@
 ]
 },
 "oxide-asteroid-crushing": {
+"categories": [
+"crushing"
+],
 "category": "crushing",
 "energy": 2,
 "ingredients": [
@@ -5725,13 +6402,16 @@
 "type": "item"
 },
 {
-"amount": 0.2,
+"amount": 0.3,
 "name": "oxide-asteroid-chunk",
 "type": "item"
 }
 ]
 },
 "oxide-asteroid-reprocessing": {
+"categories": [
+"crushing"
+],
 "category": "crushing",
 "energy": 1,
 "ingredients": [
@@ -5743,83 +6423,116 @@
 ],
 "products": [
 {
-"amount": 0.4,
+"amount": 1,
 "name": "oxide-asteroid-chunk",
 "type": "item"
 },
 {
-"amount": 0.2,
+"amount": 1,
 "name": "metallic-asteroid-chunk",
 "type": "item"
 },
 {
-"amount": 0.2,
+"amount": 1,
 "name": "carbonic-asteroid-chunk",
 "type": "item"
 }
 ]
 },
 "parameter-0": {
+"categories": [
+"parameters"
+],
 "category": "parameters",
 "energy": 0.5,
 "ingredients": {},
 "products": {}
 },
 "parameter-1": {
+"categories": [
+"parameters"
+],
 "category": "parameters",
 "energy": 0.5,
 "ingredients": {},
 "products": {}
 },
 "parameter-2": {
+"categories": [
+"parameters"
+],
 "category": "parameters",
 "energy": 0.5,
 "ingredients": {},
 "products": {}
 },
 "parameter-3": {
+"categories": [
+"parameters"
+],
 "category": "parameters",
 "energy": 0.5,
 "ingredients": {},
 "products": {}
 },
 "parameter-4": {
+"categories": [
+"parameters"
+],
 "category": "parameters",
 "energy": 0.5,
 "ingredients": {},
 "products": {}
 },
 "parameter-5": {
+"categories": [
+"parameters"
+],
 "category": "parameters",
 "energy": 0.5,
 "ingredients": {},
 "products": {}
 },
 "parameter-6": {
+"categories": [
+"parameters"
+],
 "category": "parameters",
 "energy": 0.5,
 "ingredients": {},
 "products": {}
 },
 "parameter-7": {
+"categories": [
+"parameters"
+],
 "category": "parameters",
 "energy": 0.5,
 "ingredients": {},
 "products": {}
 },
 "parameter-8": {
+"categories": [
+"parameters"
+],
 "category": "parameters",
 "energy": 0.5,
 "ingredients": {},
 "products": {}
 },
 "parameter-9": {
+"categories": [
+"parameters"
+],
 "category": "parameters",
 "energy": 0.5,
 "ingredients": {},
 "products": {}
 },
 "passive-provider-chest": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -5848,6 +6561,9 @@
 ]
 },
 "pentapod-egg": {
+"categories": [
+"organic"
+],
 "category": "organic",
 "energy": 15,
 "ingredients": [
@@ -5876,6 +6592,9 @@
 ]
 },
 "personal-laser-defense-equipment": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 10,
 "ingredients": [
@@ -5904,6 +6623,9 @@
 ]
 },
 "personal-roboport-equipment": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 10,
 "ingredients": [
@@ -5937,6 +6659,9 @@
 ]
 },
 "personal-roboport-mk2-equipment": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 20,
 "ingredients": [
@@ -5965,6 +6690,9 @@
 ]
 },
 "petroleum-gas-barrel": {
+"categories": [
+"crafting-with-fluid"
+],
 "category": "crafting-with-fluid",
 "energy": 0.2,
 "ingredients": [
@@ -5988,6 +6716,9 @@
 ]
 },
 "piercing-rounds-magazine": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 6,
 "ingredients": [
@@ -6016,16 +6747,19 @@
 ]
 },
 "piercing-shotgun-shell": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 8,
 "ingredients": [
 {
-"amount": 5,
+"amount": 2,
 "name": "copper-plate",
 "type": "item"
 },
 {
-"amount": 2,
+"amount": 1,
 "name": "steel-plate",
 "type": "item"
 },
@@ -6037,13 +6771,16 @@
 ],
 "products": [
 {
-"amount": 1,
+"amount": 2,
 "name": "piercing-shotgun-shell",
 "type": "item"
 }
 ]
 },
 "pipe": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -6062,6 +6799,9 @@
 ]
 },
 "pipe-to-ground": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -6085,7 +6825,11 @@
 ]
 },
 "plastic-bar": {
-"category": "chemistry-or-cryogenics",
+"categories": [
+"chemistry",
+"cryogenics"
+],
+"category": "chemistry",
 "energy": 1,
 "ingredients": [
 {
@@ -6108,6 +6852,9 @@
 ]
 },
 "poison-capsule": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 8,
 "ingredients": [
@@ -6136,6 +6883,9 @@
 ]
 },
 "power-armor": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 20,
 "ingredients": [
@@ -6164,6 +6914,9 @@
 ]
 },
 "power-armor-mk2": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 25,
 "ingredients": [
@@ -6202,6 +6955,9 @@
 ]
 },
 "power-switch": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 2,
 "ingredients": [
@@ -6230,7 +6986,11 @@
 ]
 },
 "processing-unit": {
-"category": "electronics-with-fluid",
+"categories": [
+"crafting-with-fluid",
+"electromagnetics"
+],
+"category": "crafting-with-fluid",
 "energy": 10,
 "ingredients": [
 {
@@ -6258,6 +7018,9 @@
 ]
 },
 "production-science-pack": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 21,
 "ingredients": [
@@ -6286,7 +7049,11 @@
 ]
 },
 "productivity-module": {
-"category": "electronics",
+"categories": [
+"crafting",
+"electromagnetics"
+],
+"category": "crafting",
 "energy": 15,
 "ingredients": [
 {
@@ -6309,7 +7076,11 @@
 ]
 },
 "productivity-module-2": {
-"category": "electronics",
+"categories": [
+"crafting",
+"electromagnetics"
+],
+"category": "crafting",
 "energy": 30,
 "ingredients": [
 {
@@ -6337,7 +7108,11 @@
 ]
 },
 "productivity-module-3": {
-"category": "electronics",
+"categories": [
+"crafting",
+"electromagnetics"
+],
+"category": "crafting",
 "energy": 60,
 "ingredients": [
 {
@@ -6370,6 +7145,9 @@
 ]
 },
 "programmable-speaker": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 2,
 "ingredients": [
@@ -6403,6 +7181,9 @@
 ]
 },
 "promethium-science-pack": {
+"categories": [
+"cryogenics"
+],
 "category": "cryogenics",
 "energy": 5,
 "ingredients": [
@@ -6431,6 +7212,9 @@
 ]
 },
 "pump": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 2,
 "ingredients": [
@@ -6459,6 +7243,9 @@
 ]
 },
 "pumpjack": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 5,
 "ingredients": [
@@ -6492,7 +7279,11 @@
 ]
 },
 "quality-module": {
-"category": "electronics",
+"categories": [
+"crafting",
+"electromagnetics"
+],
+"category": "crafting",
 "energy": 15,
 "ingredients": [
 {
@@ -6515,7 +7306,11 @@
 ]
 },
 "quality-module-2": {
-"category": "electronics",
+"categories": [
+"crafting",
+"electromagnetics"
+],
+"category": "crafting",
 "energy": 30,
 "ingredients": [
 {
@@ -6543,7 +7338,11 @@
 ]
 },
 "quality-module-3": {
-"category": "electronics",
+"categories": [
+"crafting",
+"electromagnetics"
+],
+"category": "crafting",
 "energy": 60,
 "ingredients": [
 {
@@ -6576,6 +7375,9 @@
 ]
 },
 "quantum-processor": {
+"categories": [
+"electromagnetics"
+],
 "category": "electromagnetics",
 "energy": 30,
 "ingredients": [
@@ -6624,6 +7426,9 @@
 ]
 },
 "radar": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -6652,6 +7457,9 @@
 ]
 },
 "rail": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -6680,6 +7488,9 @@
 ]
 },
 "rail-chain-signal": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -6703,6 +7514,9 @@
 ]
 },
 "rail-ramp": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -6731,6 +7545,9 @@
 ]
 },
 "rail-signal": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -6754,6 +7571,9 @@
 ]
 },
 "rail-support": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -6777,6 +7597,9 @@
 ]
 },
 "railgun": {
+"categories": [
+"cryogenics"
+],
 "category": "cryogenics",
 "energy": 10,
 "ingredients": [
@@ -6810,6 +7633,9 @@
 ]
 },
 "railgun-ammo": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 25,
 "ingredients": [
@@ -6838,6 +7664,9 @@
 ]
 },
 "railgun-turret": {
+"categories": [
+"cryogenics"
+],
 "category": "cryogenics",
 "energy": 10,
 "ingredients": [
@@ -6876,6 +7705,9 @@
 ]
 },
 "recycler": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 3,
 "ingredients": [
@@ -6909,6 +7741,9 @@
 ]
 },
 "refined-concrete": {
+"categories": [
+"crafting-with-fluid"
+],
 "category": "crafting-with-fluid",
 "energy": 15,
 "ingredients": [
@@ -6942,6 +7777,9 @@
 ]
 },
 "refined-hazard-concrete": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.25,
 "ingredients": [
@@ -6960,6 +7798,9 @@
 ]
 },
 "repair-pack": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -6983,6 +7824,9 @@
 ]
 },
 "requester-chest": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -7011,6 +7855,9 @@
 ]
 },
 "roboport": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 5,
 "ingredients": [
@@ -7039,6 +7886,9 @@
 ]
 },
 "rocket": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 4,
 "ingredients": [
@@ -7062,7 +7912,11 @@
 ]
 },
 "rocket-fuel": {
-"category": "organic-or-assembling",
+"categories": [
+"crafting-with-fluid",
+"organic"
+],
+"category": "crafting-with-fluid",
 "energy": 15,
 "ingredients": [
 {
@@ -7085,6 +7939,9 @@
 ]
 },
 "rocket-fuel-from-jelly": {
+"categories": [
+"organic"
+],
 "category": "organic",
 "energy": 10,
 "ingredients": [
@@ -7113,6 +7970,9 @@
 ]
 },
 "rocket-launcher": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 10,
 "ingredients": [
@@ -7141,6 +8001,9 @@
 ]
 },
 "rocket-part": {
+"categories": [
+"rocket-building"
+],
 "category": "rocket-building",
 "energy": 3,
 "ingredients": [
@@ -7169,6 +8032,9 @@
 ]
 },
 "rocket-silo": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 30,
 "ingredients": [
@@ -7207,6 +8073,9 @@
 ]
 },
 "rocket-turret": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 10,
 "ingredients": [
@@ -7245,7 +8114,11 @@
 ]
 },
 "scrap-recycling": {
-"category": "recycling-or-hand-crafting",
+"categories": [
+"recycling",
+"hand-crafting"
+],
+"category": "recycling",
 "energy": 0.2,
 "ingredients": [
 {
@@ -7256,68 +8129,71 @@
 ],
 "products": [
 {
-"amount": 0.2,
+"amount": 1,
 "name": "iron-gear-wheel",
 "type": "item"
 },
 {
-"amount": 0.07,
+"amount": 1,
 "name": "solid-fuel",
 "type": "item"
 },
 {
-"amount": 0.06,
+"amount": 1,
 "name": "concrete",
 "type": "item"
 },
 {
-"amount": 0.05,
+"amount": 1,
 "name": "ice",
 "type": "item"
 },
 {
-"amount": 0.04,
+"amount": 1,
 "name": "steel-plate",
 "type": "item"
 },
 {
-"amount": 0.04,
+"amount": 1,
 "name": "battery",
 "type": "item"
 },
 {
-"amount": 0.04,
+"amount": 1,
 "name": "stone",
 "type": "item"
 },
 {
-"amount": 0.03,
+"amount": 1,
 "name": "advanced-circuit",
 "type": "item"
 },
 {
-"amount": 0.03,
+"amount": 1,
 "name": "copper-cable",
 "type": "item"
 },
 {
-"amount": 0.02,
+"amount": 1,
 "name": "processing-unit",
 "type": "item"
 },
 {
-"amount": 0.01,
+"amount": 1,
 "name": "low-density-structure",
 "type": "item"
 },
 {
-"amount": 0.01,
+"amount": 1,
 "name": "holmium-ore",
 "type": "item"
 }
 ]
 },
 "selector-combinator": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -7341,6 +8217,9 @@
 ]
 },
 "shotgun": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 10,
 "ingredients": [
@@ -7374,6 +8253,9 @@
 ]
 },
 "shotgun-shell": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 3,
 "ingredients": [
@@ -7397,6 +8279,9 @@
 ]
 },
 "simple-coal-liquefaction": {
+"categories": [
+"oil-processing"
+],
 "category": "oil-processing",
 "energy": 5,
 "ingredients": [
@@ -7425,6 +8310,9 @@
 ]
 },
 "slowdown-capsule": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 8,
 "ingredients": [
@@ -7453,7 +8341,11 @@
 ]
 },
 "small-electric-pole": {
-"category": "electronics",
+"categories": [
+"crafting",
+"electromagnetics"
+],
+"category": "crafting",
 "energy": 0.5,
 "ingredients": [
 {
@@ -7476,6 +8368,9 @@
 ]
 },
 "small-lamp": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -7504,7 +8399,11 @@
 ]
 },
 "solar-panel": {
-"category": "electronics",
+"categories": [
+"crafting",
+"electromagnetics"
+],
+"category": "crafting",
 "energy": 10,
 "ingredients": [
 {
@@ -7532,6 +8431,9 @@
 ]
 },
 "solar-panel-equipment": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 10,
 "ingredients": [
@@ -7560,7 +8462,11 @@
 ]
 },
 "solid-fuel-from-ammonia": {
-"category": "chemistry-or-cryogenics",
+"categories": [
+"chemistry",
+"cryogenics"
+],
+"category": "chemistry",
 "energy": 0.5,
 "ingredients": [
 {
@@ -7583,6 +8489,9 @@
 ]
 },
 "solid-fuel-from-heavy-oil": {
+"categories": [
+"chemistry"
+],
 "category": "chemistry",
 "energy": 1,
 "ingredients": [
@@ -7601,6 +8510,9 @@
 ]
 },
 "solid-fuel-from-light-oil": {
+"categories": [
+"chemistry"
+],
 "category": "chemistry",
 "energy": 1,
 "ingredients": [
@@ -7619,6 +8531,9 @@
 ]
 },
 "solid-fuel-from-petroleum-gas": {
+"categories": [
+"chemistry"
+],
 "category": "chemistry",
 "energy": 1,
 "ingredients": [
@@ -7637,6 +8552,9 @@
 ]
 },
 "space-platform-foundation": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 10,
 "ingredients": [
@@ -7660,6 +8578,9 @@
 ]
 },
 "space-platform-starter-pack": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 60,
 "ingredients": [
@@ -7688,6 +8609,9 @@
 ]
 },
 "space-science-pack": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 15,
 "ingredients": [
@@ -7716,7 +8640,11 @@
 ]
 },
 "speed-module": {
-"category": "electronics",
+"categories": [
+"crafting",
+"electromagnetics"
+],
+"category": "crafting",
 "energy": 15,
 "ingredients": [
 {
@@ -7739,7 +8667,11 @@
 ]
 },
 "speed-module-2": {
-"category": "electronics",
+"categories": [
+"crafting",
+"electromagnetics"
+],
+"category": "crafting",
 "energy": 30,
 "ingredients": [
 {
@@ -7767,7 +8699,11 @@
 ]
 },
 "speed-module-3": {
-"category": "electronics",
+"categories": [
+"crafting",
+"electromagnetics"
+],
+"category": "crafting",
 "energy": 60,
 "ingredients": [
 {
@@ -7800,6 +8736,9 @@
 ]
 },
 "spidertron": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 10,
 "ingredients": [
@@ -7838,7 +8777,11 @@
 ]
 },
 "splitter": {
-"category": "pressing",
+"categories": [
+"crafting",
+"metallurgy"
+],
+"category": "crafting",
 "energy": 1,
 "ingredients": [
 {
@@ -7866,6 +8809,9 @@
 ]
 },
 "stack-inserter": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -7899,7 +8845,11 @@
 ]
 },
 "steam-condensation": {
-"category": "chemistry-or-cryogenics",
+"categories": [
+"chemistry",
+"cryogenics"
+],
+"category": "chemistry",
 "energy": 1,
 "ingredients": [
 {
@@ -7917,6 +8867,9 @@
 ]
 },
 "steam-engine": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -7945,6 +8898,9 @@
 ]
 },
 "steam-turbine": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 3,
 "ingredients": [
@@ -7973,6 +8929,9 @@
 ]
 },
 "steel-chest": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -7991,6 +8950,9 @@
 ]
 },
 "steel-furnace": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 3,
 "ingredients": [
@@ -8014,6 +8976,9 @@
 ]
 },
 "steel-plate": {
+"categories": [
+"smelting"
+],
 "category": "smelting",
 "energy": 16,
 "ingredients": [
@@ -8032,6 +8997,9 @@
 ]
 },
 "stone-brick": {
+"categories": [
+"smelting"
+],
 "category": "smelting",
 "energy": 3.2,
 "ingredients": [
@@ -8050,6 +9018,9 @@
 ]
 },
 "stone-furnace": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -8068,6 +9039,9 @@
 ]
 },
 "stone-wall": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -8086,6 +9060,9 @@
 ]
 },
 "storage-chest": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -8114,6 +9091,9 @@
 ]
 },
 "storage-tank": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 3,
 "ingredients": [
@@ -8137,6 +9117,9 @@
 ]
 },
 "submachine-gun": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 10,
 "ingredients": [
@@ -8165,7 +9148,11 @@
 ]
 },
 "substation": {
-"category": "electronics",
+"categories": [
+"crafting",
+"electromagnetics"
+],
+"category": "crafting",
 "energy": 0.5,
 "ingredients": [
 {
@@ -8193,7 +9180,11 @@
 ]
 },
 "sulfur": {
-"category": "chemistry-or-cryogenics",
+"categories": [
+"chemistry",
+"cryogenics"
+],
+"category": "chemistry",
 "energy": 1,
 "ingredients": [
 {
@@ -8216,7 +9207,11 @@
 ]
 },
 "sulfuric-acid": {
-"category": "chemistry-or-cryogenics",
+"categories": [
+"chemistry",
+"cryogenics"
+],
+"category": "chemistry",
 "energy": 1,
 "ingredients": [
 {
@@ -8244,6 +9239,9 @@
 ]
 },
 "sulfuric-acid-barrel": {
+"categories": [
+"crafting-with-fluid"
+],
 "category": "crafting-with-fluid",
 "energy": 0.2,
 "ingredients": [
@@ -8267,6 +9265,9 @@
 ]
 },
 "supercapacitor": {
+"categories": [
+"electromagnetics"
+],
 "category": "electromagnetics",
 "energy": 10,
 "ingredients": [
@@ -8305,6 +9306,9 @@
 ]
 },
 "superconductor": {
+"categories": [
+"electromagnetics"
+],
 "category": "electromagnetics",
 "energy": 5,
 "ingredients": [
@@ -8338,6 +9342,9 @@
 ]
 },
 "tank": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 5,
 "ingredients": [
@@ -8371,6 +9378,9 @@
 ]
 },
 "tesla-ammo": {
+"categories": [
+"electromagnetics"
+],
 "category": "electromagnetics",
 "energy": 30,
 "ingredients": [
@@ -8399,6 +9409,9 @@
 ]
 },
 "tesla-turret": {
+"categories": [
+"electromagnetics"
+],
 "category": "electromagnetics",
 "energy": 30,
 "ingredients": [
@@ -8437,6 +9450,9 @@
 ]
 },
 "teslagun": {
+"categories": [
+"electromagnetics"
+],
 "category": "electromagnetics",
 "energy": 30,
 "ingredients": [
@@ -8470,6 +9486,9 @@
 ]
 },
 "thruster": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 10,
 "ingredients": [
@@ -8498,6 +9517,9 @@
 ]
 },
 "thruster-fuel": {
+"categories": [
+"chemistry"
+],
 "category": "chemistry",
 "energy": 2,
 "ingredients": [
@@ -8521,6 +9543,9 @@
 ]
 },
 "thruster-oxidizer": {
+"categories": [
+"chemistry"
+],
 "category": "chemistry",
 "energy": 2,
 "ingredients": [
@@ -8544,6 +9569,9 @@
 ]
 },
 "toolbelt-equipment": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 10,
 "ingredients": [
@@ -8567,6 +9595,9 @@
 ]
 },
 "train-stop": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -8600,7 +9631,11 @@
 ]
 },
 "transport-belt": {
-"category": "pressing",
+"categories": [
+"crafting",
+"metallurgy"
+],
+"category": "crafting",
 "energy": 0.5,
 "ingredients": [
 {
@@ -8622,7 +9657,32 @@
 }
 ]
 },
+"tree-seed": {
+"categories": [
+"organic",
+"crafting"
+],
+"category": "crafting",
+"energy": 2,
+"ingredients": [
+{
+"amount": 2,
+"name": "wood",
+"type": "item"
+}
+],
+"products": [
+{
+"amount": 1,
+"name": "tree-seed",
+"type": "item"
+}
+]
+},
 "tungsten-carbide": {
+"categories": [
+"crafting-with-fluid"
+],
 "category": "crafting-with-fluid",
 "energy": 1,
 "ingredients": [
@@ -8651,6 +9711,9 @@
 ]
 },
 "tungsten-plate": {
+"categories": [
+"metallurgy"
+],
 "category": "metallurgy",
 "energy": 10,
 "ingredients": [
@@ -8674,6 +9737,9 @@
 ]
 },
 "turbo-splitter": {
+"categories": [
+"metallurgy"
+],
 "category": "metallurgy",
 "energy": 2,
 "ingredients": [
@@ -8707,6 +9773,9 @@
 ]
 },
 "turbo-transport-belt": {
+"categories": [
+"metallurgy"
+],
 "category": "metallurgy",
 "energy": 0.5,
 "ingredients": [
@@ -8735,6 +9804,9 @@
 ]
 },
 "turbo-underground-belt": {
+"categories": [
+"metallurgy"
+],
 "category": "metallurgy",
 "energy": 2,
 "ingredients": [
@@ -8763,7 +9835,11 @@
 ]
 },
 "underground-belt": {
-"category": "pressing",
+"categories": [
+"crafting",
+"metallurgy"
+],
+"category": "crafting",
 "energy": 1,
 "ingredients": [
 {
@@ -8786,6 +9862,9 @@
 ]
 },
 "uranium-cannon-shell": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 12,
 "ingredients": [
@@ -8809,6 +9888,9 @@
 ]
 },
 "uranium-fuel-cell": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 10,
 "ingredients": [
@@ -8837,6 +9919,9 @@
 ]
 },
 "uranium-processing": {
+"categories": [
+"centrifuging"
+],
 "category": "centrifuging",
 "energy": 12,
 "ingredients": [
@@ -8848,18 +9933,21 @@
 ],
 "products": [
 {
-"amount": 0.007000000000000001,
+"amount": 1,
 "name": "uranium-235",
 "type": "item"
 },
 {
-"amount": 0.993,
+"amount": 1,
 "name": "uranium-238",
 "type": "item"
 }
 ]
 },
 "uranium-rounds-magazine": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 10,
 "ingredients": [
@@ -8883,6 +9971,9 @@
 ]
 },
 "utility-science-pack": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 21,
 "ingredients": [
@@ -8911,6 +10002,9 @@
 ]
 },
 "water-barrel": {
+"categories": [
+"crafting-with-fluid"
+],
 "category": "crafting-with-fluid",
 "energy": 0.2,
 "ingredients": [
@@ -8933,25 +10027,10 @@
 }
 ]
 },
-"wood-processing": {
-"category": "organic-or-assembling",
-"energy": 2,
-"ingredients": [
-{
-"amount": 2,
-"name": "wood",
-"type": "item"
-}
-],
-"products": [
-{
-"amount": 1,
-"name": "tree-seed",
-"type": "item"
-}
-]
-},
 "wooden-chest": {
+"categories": [
+"crafting"
+],
 "category": "crafting",
 "energy": 0.5,
 "ingredients": [
@@ -8970,7 +10049,11 @@
 ]
 },
 "yumako-processing": {
-"category": "organic-or-hand-crafting",
+"categories": [
+"organic",
+"crafting"
+],
+"category": "crafting",
 "energy": 1,
 "ingredients": [
 {
@@ -9043,5 +10126,5 @@
 "mining_time": 2
 }
 },
-"version": "2.0.77"
+"version": "2.1.24"
 }

@@ -13,7 +13,7 @@ from .rowgen import DIRS
 from .typesafe import Jev, choice, noul
 from .world import Line, World
 
-ASSEMBLER_CATS = {"crafting", "basic-crafting", "advanced-crafting", "electronics", "pressing"}
+ASSEMBLER_CATS = {"crafting", "advanced-crafting", "electronics", "pressing"}
 SMELT = {"iron-ore": "iron-plate", "copper-ore": "copper-plate", "stone": "stone-brick", "iron-plate": "steel-plate"}
 FUELS = ("coal", "wood", "solid-fuel")
 GAP = {"assembling-machine-1": 6, "stone-furnace": 5}  # where a second input belt has to run (machine size + 3)

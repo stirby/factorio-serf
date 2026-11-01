@@ -62,7 +62,7 @@ local function past(s, p, ax, ay, reach, f)
   local o = things_at(s, x, y)
   if o then
     local d = { n = o.name, p = util.xy(o.position) }
-    if o.fluidbox and #o.fluidbox > 0 then d.fluid = box_fluid(o.fluidbox, 1) end
+    if util.fluidbox(o) and #util.fluidbox(o) > 0 then d.fluid = box_fluid(util.fluidbox(o), 1) end
     if o.type == 'tree' or o.type == 'simple-entity' or o.type == 'cliff' then d.blocks = true end
     return { next_to = d }
   end
@@ -71,7 +71,7 @@ local function past(s, p, ax, ay, reach, f)
     local g = s.find_entities_filtered { position = q, radius = 0.3, force = f, type = { 'pipe', 'pipe-to-ground', 'storage-tank', 'pump' }, limit = 1 }[1]
     if g then
       local d = { n = g.name, p = util.xy(g.position), gap = k - 1 }
-      d.fluid = box_fluid(g.fluidbox, 1)
+      d.fluid = box_fluid(util.fluidbox(g), 1)
       if g.type == 'pipe-to-ground' then d.dir = util.DIR_NAMES[g.direction] end
       return { further = d }
     end
@@ -93,7 +93,7 @@ local function walk(start, si, max)
     local cur = queue[head]
     head = head + 1
     local e, i = cur.e, cur.i
-    local fb = e.fluidbox
+    local fb = util.fluidbox(e)
     local pass = PASS[e.type]
     if pass then
       units[e.unit_number] = true
@@ -105,7 +105,7 @@ local function walk(start, si, max)
       net.amount = net.amount + amt
       -- the piece's own volume: get_capacity gives the whole segment's (74,900 for a 499-pipe line), and summing
       -- that made every long line read "0% full" (b15: four plans spent mending a water line that was full)
-      local okV, vol = pcall(function() return fb.get_prototype(i).volume end)
+      local okV, vol = pcall(function() return fb.get_prototype(i).get_volume(e.quality) end)
       if not (okV and vol) then
         local okC, c = pcall(fb.get_capacity, i)
         vol = okC and c or 0
@@ -124,10 +124,9 @@ local function walk(start, si, max)
     local okP, conns = pcall(fb.get_pipe_connections, i)
     local linked, open = {}, {}
     for _, c in pairs(okP and conns or {}) do
-      local t = c.target
-      if t and t.owner and t.owner.valid then
+      local o = c.target -- 2.1: the connected entity itself (2.0 gave its fluidbox, with .owner)
+      if o and o.valid then
         linked[#linked + 1] = c
-        local o = t.owner
         local ti = c.target_fluidbox_index or 1
         local k = key(o, ti)
         if not seen[k] then
@@ -139,12 +138,12 @@ local function walk(start, si, max)
             net.ends_total = net.ends_total + 1
             if #raw < 400 then raw[#raw + 1] = { e = o, en = { kind = 'ghost', ghost = o.ghost_name, ax = 0, ay = 0 } } end
           else
-            local kind = box_kind(o.fluidbox, ti)
+            local kind = box_kind(util.fluidbox(o), ti)
             local lk = (kind == 'output' and 'sources') or (kind == 'input' and 'users') or 'through'
             local list = net[lk]
             if #list < 12 then list[#list + 1] = member(o) end
             net[lk .. '_n'] = (net[lk .. '_n'] or 0) + 1
-            local fl = box_fluid(o.fluidbox, ti)
+            local fl = box_fluid(util.fluidbox(o), ti)
             if kind == 'input' and fl then net.wanted = net.wanted or fl end
             if kind == 'output' and fl then net.made = net.made or fl end
           end
@@ -196,7 +195,7 @@ local function walk(start, si, max)
             radius = 0.3, force = f, type = 'pipe-to-ground', limit = 1 }[1]
           if g then
             d.further = { n = g.name, p = util.xy(g.position), gap = k - 1, dir = util.DIR_NAMES[g.direction],
-              fluid = box_fluid(g.fluidbox, 1) }
+              fluid = box_fluid(util.fluidbox(g), 1) }
             break
           end
         end
@@ -225,10 +224,10 @@ local function entity_at(s, p)
   local e = s.find_entities_filtered { position = p, radius = 0.3, type = { 'pipe', 'pipe-to-ground', 'storage-tank', 'pump' }, limit = 1 }[1]
   if e then return e end
   for _, o in pairs(s.find_entities_filtered { area = { { p.x - 0.4, p.y - 0.4 }, { p.x + 0.4, p.y + 0.4 } } }) do
-    if o.fluidbox and #o.fluidbox > 0 then return o end
+    if util.fluidbox(o) and #util.fluidbox(o) > 0 then return o end
   end
   for _, o in pairs(s.find_entities_filtered { position = p, radius = 1.5 }) do
-    if o.fluidbox and #o.fluidbox > 0 then return o end
+    if util.fluidbox(o) and #util.fluidbox(o) > 0 then return o end
   end
 end
 
@@ -239,7 +238,7 @@ function fluids.trace(req)
   if not (p and p.x and p.y) then error("pipes needs x,y", 0) end
   local e = entity_at(s, p)
   if not e then error("nothing that holds fluid at " .. p.x .. "," .. p.y, 0) end
-  local fb = e.fluidbox
+  local fb = util.fluidbox(e)
   local out = { at = member(e), lines = {} }
   local done = {}
   for i = 1, #fb do
@@ -267,8 +266,8 @@ function fluids.breaks(s, f, limit)
   for _, e in pairs(s.find_entities_filtered { force = f, type = { 'assembling-machine', 'furnace', 'boiler',
     'generator', 'mining-drill', 'offshore-pump', 'fusion-reactor', 'reactor' } }) do
     local st = status_of(e)
-    if st and (STARVED[st] or (FULL[st] and e.type ~= 'assembling-machine' and e.type ~= 'furnace')) and e.fluidbox
-        and #e.fluidbox > 0 then
+    if st and (STARVED[st] or (FULL[st] and e.type ~= 'assembling-machine' and e.type ~= 'furnace')) and util.fluidbox(e)
+        and #util.fluidbox(e) > 0 then
       cands[#cands + 1] = { e = e, st = st }
     end
   end
@@ -276,7 +275,7 @@ function fluids.breaks(s, f, limit)
   table.sort(cands, function(a, b) return (STARVED[a.st] and 0 or 1) < (STARVED[b.st] and 0 or 1) end)
   for _, c in ipairs(cands) do
     if #out >= limit then break end
-    local e, fb = c.e, c.e.fluidbox
+    local e, fb = c.e, util.fluidbox(c.e)
     for i = 1, #fb do
       local kind = box_kind(fb, i)
       local fl, amt = box_fluid(fb, i)
@@ -303,7 +302,7 @@ end
 function fluids.long_segments(s, f, limit)
   local segs = {}
   for _, e in pairs(s.find_entities_filtered { force = f, type = { 'pipe', 'pipe-to-ground' } }) do
-    local okG, sid = pcall(e.fluidbox.get_fluid_segment_id, 1)
+    local okG, sid = pcall(util.fluidbox(e).get_fluid_segment_id, 1)
     if okG and sid then
       local x, y = e.position.x, e.position.y
       local sb = segs[sid]
@@ -314,7 +313,7 @@ function fluids.long_segments(s, f, limit)
       sb.x0, sb.y0, sb.x1, sb.y1 = math.min(sb.x0, x), math.min(sb.y0, y), math.max(sb.x1, x), math.max(sb.y1, y)
       sb.n = sb.n + 1
       if not sb.fluid then
-        local fl = e.fluidbox[1]
+        local fl = util.fluidbox(e)[1]
         if fl then sb.fluid = fl.name end
       end
     end

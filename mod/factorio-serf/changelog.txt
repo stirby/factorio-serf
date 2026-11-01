@@ -1,4 +1,10 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.4.0
+Date: 2026-11-01
+  Changes:
+    - Made for Factorio 2.1. It no longer loads in 2.0 (0.3.6 is the last 2.0 version).
+    - Reads fluids, underground belt pairs, recipe categories and mining triggers the 2.1 way.
+---------------------------------------------------------------------------------------------------
 Version: 0.3.6
 Date: 2026-10-29
   Changes:

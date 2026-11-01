@@ -28,12 +28,12 @@ grid(X + 6, Y + 1, 3000000)
 put('medium-electric-pole', X + 4.5, Y + 3.5)
 -- where the recipe's crude goes in and its petroleum comes out
 local cin, pout
-for i = 1, #b.ref.fluidbox do
-  local okP, kind = pcall(function() return b.ref.fluidbox.get_prototype(i).production_type end)
+for i = 1, b.ref.fluids_count do
+  local okP, kind = pcall(function() return b.ref.get_fluid_box_prototype(i).production_type end)
   if not okP then kind = nil end
-  local okF, fil = pcall(b.ref.fluidbox.get_filter, i)
+  local okF, fil = pcall(b.ref.get_fluid_filter, i)
   if not okF then fil = nil end
-  for _, c in pairs(b.ref.fluidbox.get_pipe_connections(i)) do
+  for _, c in pairs(b.ref.get_fluid_box_pipe_connections(i)) do
     if kind == 'input' and fil and fil.name == 'crude-oil' then cin = c.target_position end
     if kind == 'output' and fil and fil.name == 'petroleum-gas' then pout = c.target_position end
   end
@@ -95,12 +95,12 @@ b.ref.set_recipe('basic-oil-processing')
 grid(X - 2, Y + 5, 3000000)
 put('medium-electric-pole', X + 0.5, Y + 4.5)
 local cin, pout
-for i = 1, #b.ref.fluidbox do
-  local okP, kind = pcall(function() return b.ref.fluidbox.get_prototype(i).production_type end)
+for i = 1, b.ref.fluids_count do
+  local okP, kind = pcall(function() return b.ref.get_fluid_box_prototype(i).production_type end)
   if not okP then kind = nil end
-  local okF, fil = pcall(b.ref.fluidbox.get_filter, i)
+  local okF, fil = pcall(b.ref.get_fluid_filter, i)
   if not okF then fil = nil end
-  for _, c in pairs(b.ref.fluidbox.get_pipe_connections(i)) do
+  for _, c in pairs(b.ref.get_fluid_box_pipe_connections(i)) do
     if kind == 'input' and fil and fil.name == 'crude-oil' then cin = c.target_position end
     if kind == 'output' and fil and fil.name == 'petroleum-gas' then pout = c.target_position end
   end

@@ -186,7 +186,7 @@ function util.trigger_text(t)
   local trig = t.prototype.research_trigger
   if not trig then return nil end
   local what = trig.item and (type(trig.item) == "table" and trig.item.name or trig.item)
-      or trig.entity or trig.tile or ""
+      or trig.entity or (trig.entities and trig.entities[1]) or trig.tile or ""
   what = type(what) == "table" and (what.name or "?") or tostring(what)
   local n = trig.count and trig.count > 1 and (" x" .. trig.count) or ""
   local how = ""
@@ -198,6 +198,42 @@ function util.trigger_text(t)
   elseif trig.type == "build-entity" then how = " (place one)"
   elseif trig.type == "craft-fluid" then how = " (produce it in a refinery/chemical plant)" end
   return trig.type .. " " .. what .. n .. how
+end
+
+-- Factorio 2.1 removed LuaFluidBox: fluids are read through the entity. This gives back the old shape (#fb, fb[i],
+-- fb.get_filter(i), ...) on top of the new calls, so the fluid code reads as it did on 2.0.
+function util.fluidbox(e)
+  local okN, n = pcall(function() return e.fluids_count end)
+  if not okN then n = 0 end
+  local fb = {
+    get_prototype = function(i) return e.get_fluid_box_prototype(i) end,
+    get_filter = function(i) return e.get_fluid_filter(i) end,
+    -- 2.0's locked fluid (the one a recipe fixed on the box) is the box's filter in 2.1
+    get_locked_fluid = function(i) local f = e.get_fluid_filter(i) return f and f.name end,
+    get_capacity = function(i) return e.get_fluid_capacity(i) end,
+    get_pipe_connections = function(i) return e.get_fluid_box_pipe_connections(i) end,
+    get_connections = function(i)
+      local out = {}
+      for _, r in pairs(e.get_fluid_box_neighbours(i) or {}) do out[#out + 1] = { owner = r.entity, index = r.index } end
+      return out
+    end,
+    get_fluid_segment_id = function(i) if e.has_fluid_segment(i) then return e.get_fluid_segment_id(i) end end,
+    get_fluid_segment_contents = function(i)
+      local f = e.has_fluid_segment(i) and e.get_fluid_segment_fluid(i)
+      return f and { [f.name] = f.amount } or {}
+    end,
+  }
+  return setmetatable(fb, {
+    __len = function() return n end,
+    __index = function(_, i) if type(i) == "number" and i >= 1 and i <= n then return e.get_fluid(i) end end,
+  })
+end
+
+-- 2.1 gives a recipe a list of categories. The app wants one: the hand/assembler one when there is one.
+local MAIN_CATS = { "crafting", "advanced-crafting", "crafting-with-fluid" }
+function util.recipe_category(r)
+  for _, c in ipairs(MAIN_CATS) do if r.has_category(c) then return c end end
+  return r.categories[1] or "crafting"
 end
 
 return util

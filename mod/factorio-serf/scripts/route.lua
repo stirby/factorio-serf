@@ -1,4 +1,6 @@
 -- A* tile router for belts, pipes and pole lines. Returns tile centers from start to goal (inclusive).
+local util = require("scripts.util")
+
 local route = {}
 
 local function key(x, y) return x * 65536 + y end
@@ -91,14 +93,14 @@ function route.find(surface, from, to, opts)
         for _, n in pairs(surface.find_entities_filtered { position = { nx + 0.5, ny + 0.5 }, limit = 3 }) do
           local joined = false
           if opts.join_segments and next(opts.join_segments) then
-            local okF0, fb0 = pcall(function() return n.fluidbox end)
+            local okF0, fb0 = pcall(function() return util.fluidbox(n) end)
             if okF0 and fb0 and #fb0 >= 1 then
               local okS, seg = pcall(fb0.get_fluid_segment_id, 1)
               joined = okS and seg and opts.join_segments[seg] or false
             end
           end
           if not joined and not (opts.fluid_ignore and n.unit_number and opts.fluid_ignore[n.unit_number]) then
-            local okF, fb = pcall(function() return n.fluidbox end)
+            local okF, fb = pcall(function() return util.fluidbox(n) end)
             if okF and fb and #fb > 0 then
               local mine = false
               for i = 1, #fb do

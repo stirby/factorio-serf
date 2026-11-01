@@ -439,7 +439,7 @@ function observe.recipes(a, args)
         local ing = {}
         for _, i in pairs(r.ingredients) do ing[i.name] = i.amount end
         local first = r.products[1]
-        out[name] = { ingredients = ing, category = r.category, time = r.energy,
+        out[name] = { ingredients = ing, category = util.recipe_category(r), time = r.energy,
           makes = first and (first.amount or first.amount_min) or 1 }
       else
         out[#out + 1] = name
@@ -630,7 +630,7 @@ end
 -- The next belt along the flow (or against it when up), and whether it was reached by an underground hop.
 local function step(e, up)
   if e.type == "underground-belt" and e.belt_to_ground_type == (up and "output" or "input") then
-    local pair = e.neighbours
+    local pair = e.underground_belt_neighbour
     return pair and { pair } or {}, true
   end
   if e.type == "linked-belt" and e.linked_belt_type == (up and "output" or "input") then
