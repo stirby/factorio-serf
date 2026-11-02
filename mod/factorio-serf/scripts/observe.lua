@@ -68,8 +68,28 @@ function observe.self(a)
     for _, e in pairs(c.grid and c.grid.equipment or {}) do eq[e.name] = (eq[e.name] or 0) + 1 end
     armor = { name = slot[1].name, equipment = eq }
   end
+  -- what it has asked the robots for (30 Oct: "are you requesting pumpjacks?" was answered "no" while it was)
+  local requests
+  pcall(function()
+    local pt = c.get_requester_point()
+    if not pt then return end
+    for i = 1, pt.sections_count do
+      local sec = pt.get_section(i)
+      if sec.active ~= false then
+        for _, f in pairs(sec.filters or {}) do
+          local v = f.value
+          local name = type(v) == "table" and v.name or v
+          if name and (f.min or 0) > 0 then
+            requests = requests or {}
+            requests[name] = (requests[name] or 0) + f.min
+          end
+        end
+      end
+    end
+  end)
   return {
     armor = armor,
+    requests = requests,
     name = a.name,
     surface = c.surface.name,
     planets = agents.planets(),

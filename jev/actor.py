@@ -733,6 +733,8 @@ class Actor(FastPaths):
             sit["where"] = (f"on {me.get('surface') or 'nauvis'} at [gps={me['position'][0]:.0f},"
                             f"{me['position'][1]:.0f}]")
             sit["carrying"] = items_words(me.get("inventory"), 10)
+            if me.get("requests"):  # its own logistic requests (mod 0.4.1)
+                sit["requesting_from_robots"] = items_words(me["requests"], 10)
         except Exception:  # noqa: BLE001
             pass
         return sit

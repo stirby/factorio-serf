@@ -1,4 +1,15 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.4.1
+Date: 2026-11-02
+  Bugfixes:
+    - A serf mines a tree or rock it can reach from where it stands instead of walking up to it first (it failed every rock with "no path" when shut in).
+    - A serf carried back and forth on a belt notices it's stuck and steps off the belt (it could stay wedged for minutes).
+    - Extending a belt line from the tile just past its end no longer fails with "Entity is not underground-belt".
+    - A pipe line that starts on a pipe already there reports success instead of failing on that first tile.
+    - Fetching says when chests have the item but can't be reached, instead of saying storage ran out.
+  Changes:
+    - The serf's self report includes its own logistic requests.
+---------------------------------------------------------------------------------------------------
 Version: 0.4.0
 Date: 2026-11-01
   Changes:

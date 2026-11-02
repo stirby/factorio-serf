@@ -9,6 +9,30 @@ local PATH_BOXES = { { { -0.35, -0.35 }, { 0.35, 0.35 } }, { { -0.2, -0.2 }, { 0
 local WAYPOINT_EPS = 0.45
 local STUCK_TICKS = 45
 local MAX_REPATHS = 4
+local BELTS = { "transport-belt", "underground-belt", "splitter", "loader", "loader-1x1", "linked-belt", "lane-splitter" }
+
+-- The nearest tile centre within 3 tiles that has no belt and room for the character, or nil.
+local function off_belt(surface, pos)
+  local cx, cy = math.floor(pos.x), math.floor(pos.y)
+  for r = 1, 3 do
+    local best, bd
+    for dx = -r, r do
+      for dy = -r, r do
+        if math.max(math.abs(dx), math.abs(dy)) == r then
+          local t = { x = cx + dx + 0.5, y = cy + dy + 0.5 }
+          if surface.count_entities_filtered { position = t, radius = 0.45, type = BELTS, limit = 1 } == 0 then
+            local spot = surface.find_non_colliding_position("character", t, 0.4, 0.1)
+            if spot and util.dist(spot, t) < 0.3 then
+              local d = util.dist(spot, pos)
+              if not bd or d < bd then best, bd = spot, d end
+            end
+          end
+        end
+      end
+    end
+    if best then return best end
+  end
+end
 local PATH_TIMEOUT = 60 * 20
 
 function movement.stop(char)
@@ -161,10 +185,13 @@ function movement.tick(char, m)
 
   char.walking_state = { walking = true, direction = util.walk_dir(wp.x - pos.x, wp.y - pos.y) }
 
-  -- Stuck detection: replan from here if we haven't moved.
-  m.stuck_ref = m.stuck_ref or { x = pos.x, y = pos.y, tick = game.tick }
-  if util.dist(pos, m.stuck_ref) > 0.3 then
-    m.stuck_ref = { x = pos.x, y = pos.y, tick = game.tick }
+  -- Stuck detection: replan from here if it hasn't got any further along the path. Progress, not movement: a belt
+  -- that carries the character back and forth kept it "moving" (30 Oct, wedged in the mall for 1.5 h, ended only by
+  -- the app's 300-420 s timeouts).
+  local progress = m.idx * 10000 - dw
+  m.stuck_ref = m.stuck_ref or { best = progress, tick = game.tick }
+  if progress > m.stuck_ref.best + 0.3 then
+    m.stuck_ref = { best = progress, tick = game.tick }
   elseif game.tick - m.stuck_ref.tick > STUCK_TICKS then
     m.repaths = (m.repaths or 0) + 1
     if m.repaths > MAX_REPATHS then
@@ -191,7 +218,11 @@ function movement.tick(char, m)
         end
       end
       if not cut then
-        local spot = char.surface.find_non_colliding_position("character", pos, 1.2, 0.1)
+        -- on a belt, step off it (belts don't collide with characters, so the nearest free spot was where it stood
+        -- and the wiggle never left the belt); else wiggle to the nearest clear spot, at most a tile
+        local on_belt = char.surface.count_entities_filtered { position = pos, radius = 0.4, type = BELTS, limit = 1 } > 0
+        local spot = on_belt and off_belt(char.surface, pos)
+          or char.surface.find_non_colliding_position("character", pos, 1.2, 0.1)
         if spot and util.dist(spot, pos) > 0.05 then char.teleport(spot) end
       end
     end

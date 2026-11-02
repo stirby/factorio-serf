@@ -243,7 +243,10 @@ H.mine = {
     -- Ore, trees and rocks need mining range; buildings can be picked up from full reach.
     local close = job.resource or e.type == "tree" or e.type == "simple-entity"
     local reach = close and c.resource_reach_distance or c.reach_distance
-    local near = approach(a, job, e.position, reach - 0.5)
+    -- A tree or rock the game lets it mine from here needs no walk: can_reach_entity counts the rock's size (a big
+    -- rock can be mined from 3.1 tiles, a huge one from 4), and 30 Oct's boxed-in serf failed every rock it could
+    -- have mined with "no path", walking to 2.2 tiles of the centre first.
+    local near = (close and not job.resource and c.can_reach_entity(e)) or approach(a, job, e.position, reach - 0.5)
     if near == nil then return nil end
     if type(near) == "table" then return near end
 
@@ -1326,6 +1329,9 @@ local function supply_tick(a, job)
           if near == nil then return nil end
           if type(near) == "table" then
             st.j = st.j + 1 -- unreachable: try the next one
+            st.unreachable = st.unreachable or {}
+            st.unreachable[name] = st.unreachable[name] or { n = 0, at = e.position }
+            st.unreachable[name].n = st.unreachable[name].n + 1
           else
             local machine = e.type == "furnace" or e.type == "assembling-machine"
             local inv = machine and e.get_output_inventory() or e.get_inventory(defines.inventory.chest)
@@ -1368,6 +1374,12 @@ local function supply_tick(a, job)
               and c.begin_crafting { count = runs, recipe = recipe, silent = true } == runs) then
           local found = #st.srcs == 0 and ("no chest or machine output within " .. SUPPLY_FAR .. " tiles has any")
             or ("storage within " .. SUPPLY_FAR .. " tiles ran out")
+          -- chests that have it but couldn't be walked to aren't "ran out" (30 Oct, boxed in: every fetch said storage
+          -- had run out while it held 5,150 steel plate, and the planner planned around a shortage)
+          local un = st.unreachable and st.unreachable[name]
+          if un and un.n > 0 then
+            found = un.n .. " chest(s) have it (nearest at " .. xystr(un.at) .. ") but none could be reached: no path"
+          end
           -- what it was for, when it's an ingredient of what the job asked for ("needs 461 iron-ore" hid "pipe")
           local chain, x = {}, st.for_ and st.for_[name]
           while x and #chain < 4 do
@@ -1871,7 +1883,7 @@ H.connect = {
           end
         elseif s and s.type ~= "transport-belt" then
           local v = DIR_VEC[s.direction]
-          if v and (s.type == "splitter" or s.belt_to_ground_type == "output") then
+          if v and (s.type == "splitter" or (s.type == "underground-belt" and s.belt_to_ground_type == "output")) then
             from = { x = from.x + v[1], y = from.y + v[2] }
             fk = route.key(math.floor(from.x), math.floor(from.y))
             ropts.start_dir = { v[1], v[2] }
@@ -1881,7 +1893,10 @@ H.connect = {
           for _, v in pairs(DIR_VEC) do
             local n = belt_at(c.surface, { x = tile(from).x - v[1], y = tile(from).y - v[2] })
             local nv = n and DIR_VEC[n.direction]
-            if n and nv and nv[1] == v[1] and nv[2] == v[2] and (n.type == "splitter" or n.belt_to_ground_type == "output") then
+            -- (a plain belt there has no belt_to_ground_type: reading it raised "Entity is not underground-belt",
+            -- 30 Oct, on the most natural way to extend a line: from the tile just past its end)
+            if n and nv and nv[1] == v[1] and nv[2] == v[2] and (n.type == "splitter" or n.type == "transport-belt"
+                or (n.type == "underground-belt" and n.belt_to_ground_type == "output")) then
               ropts.start_dir = { v[1], v[2] }
               break
             end
@@ -2017,6 +2032,12 @@ H.connect = {
         return ok("placed all " .. job.placed .. " " .. job.item .. (job.under or "") .. " (" .. job.span[3]
           .. " tiles) " .. span .. ends_note(a, job) .. supply_note(job), data)
       end
+      if #job.failed == 1 and job.start_kept then
+        -- the line starts on a pipe that was already there: the rest is laid and carries on from it (30 Oct: "placed
+        -- 118 of 119 ...; failed: ... blocked by pipe" at the start, twice, while the water flowed; each cost a replan)
+        return ok("placed " .. job.placed .. " " .. job.item .. " " .. span .. "; the start already had a pipe, kept"
+          .. ends_note(a, job) .. supply_note(job), data)
+      end
       return fail("placed " .. job.placed .. " of " .. #job.places .. " " .. job.item .. " " .. span .. "; failed: "
         .. table.concat(job.failed, "; ", 1, math.min(#job.failed, 3)), data)
     end
@@ -2031,6 +2052,9 @@ H.connect = {
       local r = H.place.start(a, sub)
       if r then
         if r.ok then job.placed = job.placed + 1 else job.failed[#job.failed + 1] = r.msg end
+        if not r.ok and job.i == 1 and job.item == "pipe" and tostring(r.msg):find("blocked by pipe") then
+          job.start_kept = true
+        end
         job.sub, job.i = nil, job.i + 1
       end
       return nil
@@ -2038,6 +2062,9 @@ H.connect = {
     local r = H.place.tick(a, sub)
     if r then
       if r.ok then job.placed = job.placed + 1 else job.failed[#job.failed + 1] = r.msg end
+      if not r.ok and job.i == 1 and job.item == "pipe" and tostring(r.msg):find("blocked by pipe") then
+        job.start_kept = true
+      end
       job.sub, job.i = nil, job.i + 1
     end
     return nil
