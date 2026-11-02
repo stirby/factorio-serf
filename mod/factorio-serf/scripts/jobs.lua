@@ -1374,17 +1374,21 @@ local function supply_tick(a, job)
               and c.begin_crafting { count = runs, recipe = recipe, silent = true } == runs) then
           local found = #st.srcs == 0 and ("no chest or machine output within " .. SUPPLY_FAR .. " tiles has any")
             or ("storage within " .. SUPPLY_FAR .. " tiles ran out")
-          -- chests that have it but couldn't be walked to aren't "ran out" (30 Oct, boxed in: every fetch said storage
-          -- had run out while it held 5,150 steel plate, and the planner planned around a shortage)
-          local un = st.unreachable and st.unreachable[name]
-          if un and un.n > 0 then
-            found = un.n .. " chest(s) have it (nearest at " .. xystr(un.at) .. ") but none could be reached: no path"
-          end
           -- what it was for, when it's an ingredient of what the job asked for ("needs 461 iron-ore" hid "pipe")
           local chain, x = {}, st.for_ and st.for_[name]
           while x and #chain < 4 do
             chain[#chain + 1] = x
             x = st.for_[x]
+          end
+          -- chests that have it, or what it was for, but couldn't be walked to aren't "ran out" (30 Oct, boxed in:
+          -- every fetch said storage had run out while it held 5,150 steel plate; the planner planned a shortage)
+          for _, it in ipairs { name, table.unpack(chain) } do
+            local un = st.unreachable and st.unreachable[it]
+            if un and un.n > 0 then
+              found = found .. "; " .. un.n .. " chest(s) with " .. it .. " (nearest at " .. xystr(un.at)
+                .. ") couldn't be reached: no path"
+              break
+            end
           end
           local why = #chain > 0 and (" (to craft " .. table.concat(chain, ", then ") .. ")") or ""
           return fail("needs " .. n .. " " .. name .. why .. " but you have " .. have .. "; " .. found

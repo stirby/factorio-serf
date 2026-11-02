@@ -270,6 +270,43 @@ return n"""
           res.get("ok") and abs(x - (cx + 40)) < 4 and left < rocks, (res.get("msg"), (round(x, 1), round(y, 1)), left))
 
 
+async def chk_mod041(L: Live, state: dict):
+    """Mod 0.4.1 fixes from the 30 Oct live session: a belt line extended from the tile just past its end; a pipe line
+    that starts on a pipe already there; fetch from a chest walled off from the serf; its own requests in self."""
+    g = L.g
+    x, y = await L.site(30, 26)
+    await L.ev(f"""local s, f = game.surfaces.nauvis, game.forces.player
+for i = 0, 4 do s.create_entity {{ name = 'transport-belt', position = {{ {x} + 0.5 + i, {y} + 1.5 }}, direction = defines.direction.east, force = f }} end
+for i = 0, 2 do s.create_entity {{ name = 'pipe', position = {{ {x} + 0.5 + i, {y} + 8.5 }}, force = f }} end
+local c = s.create_entity {{ name = 'iron-chest', position = {{ {x} + 26.5, {y} + 22.5 }}, force = f }}
+c.insert {{ name = 'iron-gear-wheel', count = 50 }}
+local ch = storage.agents['serf'].char
+ch.teleport {{ {x} + 3, {y} + 4 }}
+ch.insert {{ name = 'transport-belt', count = 50 }} ch.insert {{ name = 'pipe', count = 50 }}
+ch.get_main_inventory().remove {{ name = 'iron-gear-wheel', count = 10000 }}
+return true""")
+    r = await Runner(g).run({"do": "connect", "item": "transport-belt", "from": [x + 5.5, y + 1.5], "to": [x + 14.5, y + 1.5]})
+    check("0.4.1 connect: a belt line extended from the tile just past its end", r.get("ok"), r.get("msg"))
+    r = await Runner(g).run({"do": "connect", "item": "pipe", "from": [x + 2.5, y + 8.5], "to": [x + 16.5, y + 8.5]})
+    check("0.4.1 connect: a pipe line that starts on a pipe already there is ok", r.get("ok"), r.get("msg"))
+    # boxed in 20 tiles from the chest (the 30 Oct case: shut in, every fetch said storage had run out)
+    await L.ev(f"""local s, f = game.surfaces.nauvis, game.forces.player
+local cx, cy = {x} + 3.5, {y} + 20.5
+storage.agents['serf'].char.teleport {{ cx, cy }}
+for i = -2, 2 do for j = -2, 2 do if math.abs(i) == 2 or math.abs(j) == 2 then
+  s.create_entity {{ name = 'stone-wall', position = {{ cx + i, cy + j }}, force = f }} end end end
+return true""")
+    r = await g.run({"op": "fetch", "item": "iron-gear-wheel", "count": 20}, timeout=120)
+    check("0.4.1 fetch: a chest it can't reach is named as unreachable, not 'ran out'",
+          not r.get("ok") and "couldn't be reached" in str(r.get("msg")), r.get("msg"))
+    await L.ev("for _, t in pairs { 'logistic-robotics' } do game.forces.player.technologies[t].researched = true end "
+               "return true")
+    cr = await g.run({"op": "configure", "self": True, "requests": {"iron-plate": 30}}, timeout=30)
+    me = await g.me()
+    check("0.4.1 self: its own logistic requests are reported", (me.get("requests") or {}).get("iron-plate") == 30,
+          (cr.get("msg"), me.get("requests")))
+
+
 async def chk_launch(L: Live, state: dict):
     g = L.g
     x0, y0 = await L.site(13, 9)
@@ -2348,7 +2385,7 @@ async def chk_capture(L: Live, state: dict):
           run.get("status") == "done" and run.get("minutes") == 2.1 and run.get("notes") == FakeOrder.notes, run)
 
 
-CHECKS = {"escaperock": chk_escape_rocks, "progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
+CHECKS = {"mod041": chk_mod041, "escaperock": chk_escape_rocks, "progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
           "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "detour": chk_route_detour, "routepocket": chk_route_pocket, "fetchfar": chk_fetch_far, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "clearworking": chk_clear_working, "pipegap": chk_pipe_gap, "auditlacks": chk_audit_lacks, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe, "supply": chk_supply, "supplyfar": chk_supply_far, "supplysilo": chk_supply_silo, "supplylines": chk_supply_lines, "supplylds": chk_supply_lds, "supplywalled": chk_supply_walled, "leavejoin": chk_leave_join, "capture": chk_capture, "hop": chk_hop, "learn": chk_learn, "storagefilter": chk_storage_filter, "board": chk_board, "tags": chk_tags, "sweep": chk_sweep, "request": chk_request, "requestwalk": chk_request_walk, "fetchplanet": chk_fetch_planet, "wood": chk_wood, "escapemach": chk_escape_machines, "drillore": chk_drill_ore}
 
 

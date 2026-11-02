@@ -326,7 +326,7 @@ class Runner:
                 return await self._act(action, timeout, retry=False)
         msg = str(r.get("msg") or "")
         # no path, or stuck (rocks: the pathfinder sees a way through a ring of them that the character can't walk)
-        if (msg.startswith("no path to") or msg.startswith("stuck at") or "none could be reached: no path" in msg) \
+        if (msg.startswith("no path to") or msg.startswith("stuck at") or "couldn't be reached: no path" in msg) \
                 and not self._escaping:
             self.no_path_streak += 1
             # Check at the first no-path (then at most every 3 min), not the third in a row: on 30 Oct one craft in
