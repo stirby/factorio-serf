@@ -228,6 +228,26 @@ class Actor(FastPaths):
         except Exception as e:  # noqa: BLE001
             self.log({"kind": "error", "where": "tell", "error": repr(e)[:200]})
 
+    async def _todo_add(self, speaker: str, msg: str, d: ChatDecision) -> None:
+        """"@serf put the oil outpost on the todo list": a task in Todo List, for the serf if the line says so (it then
+        becomes its order through the bridge). The user, 25 Oct: "I would want the serf to be able to make todo list
+        entries even if you ask it in the chat"."""
+        text = re.sub(r"@\S+\s*", "", msg).strip()
+        title = d.todo_title or short_text(text, 60)
+        who = self.name if d.todo_assign == "me" else (speaker if d.todo_assign == "speaker" else None)
+        try:
+            if who == self.name:
+                await self.g.call("todo", fn="add_assignee", args=[self.name], timeout=15)
+            await self.g.call("todo", fn="add_task", args=[{"title": title, "task": text, "assignee": who,
+                                                            "created_by": speaker}], timeout=15)
+        except Exception as e:  # noqa: BLE001  (no Todo-List, or one without the interface)
+            self.log({"kind": "error", "where": "todo add", "error": repr(e)[:200]})
+            await self.tell(speaker, f"[{self.name}] couldn't put it on the todo list: this game's Todo List has no "
+                                     "way for the serf to add tasks yet")
+            return
+        self.log({"kind": "todo_add", "speaker": speaker, "title": title, "assignee": who})
+        await self.say(d.reply or (f"on the todo list: {title}" + (" (mine)" if who == self.name else "")))
+
     async def _wiki(self, speaker: str, msg: str) -> None:
         """A general game question: looked up (this game's recipes, the Factorio wiki) and answered to the asker only."""
         from .wiki import answer
@@ -614,6 +634,8 @@ class Actor(FastPaths):
             await self.say(d.reply)
         elif act == "wiki":
             await self._wiki(speaker, msg)
+        elif act == "todo":
+            await self._todo_add(speaker, msg, d)
         elif act in ("answer", "ask_planner") and self.thinker:
             if d.reply:
                 await self.say(d.reply)

@@ -86,6 +86,22 @@ async def with_todo(k: int, zip_path: Path) -> None:
         open_ = [x for x in await tasks(g) if x.get("id") == tid]
         check("bridge: a done order ticks its task off", done and done[0].get("done") is True and not open_,
               (done, open_))
+        # a chat line asking for a task ("@serf put the oil outpost on the todo list, it's yours")
+        from jev.chat_reader import ChatDecision
+        said = []
+
+        async def say(text):
+            said.append(text)
+        a.say = say
+        await a._todo_add("otterplex", "@serf put the oil outpost on the todo list, it's yours",
+                          ChatDecision(True, "todo", todo_title="Oil outpost", todo_assign="me"))
+        await a._todo_add("otterplex", "@serf remind me to fix the trains", ChatDecision(True, "todo",
+                                                                                     todo_assign="speaker"))
+        new = {x.get("title"): x for x in await tasks(g)}
+        check("todo from chat: a task for the serf and one for the player who asked, with their titles",
+              (new.get("Oil outpost") or {}).get("assignee") == "serf"
+              and any(t.get("assignee") == "otterplex" and "fix the trains" in str(t.get("title")) for t in new.values())
+              and said and said[0].startswith("on the todo list: Oil outpost"), (list(new), said))
     finally:
         if g:
             await g.stop()

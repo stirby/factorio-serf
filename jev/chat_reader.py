@@ -21,7 +21,7 @@ log = logging.getLogger("jev.chat_reader")
 
 MODEL = "claude-opus-5-5"
 ACTIONS = ("new_job", "add_to_queued", "change_running", "note_running", "reopen", "stop", "answer", "ask_planner",
-           "wiki", "none")
+           "wiki", "todo", "none")
 PLAYBOOKS = ("fix", "deliver", "plan")
 
 SYSTEM = """You read the chat of a Factorio 2.1 (Space Age) multiplayer game for {name}, an AI character that plays \
@@ -51,6 +51,9 @@ step (done, run, todo): what it builds, fetches or requests from the logistic ne
 those questions from it, never from the order's words alone.
   ask_planner: a question that needs a look at the base or the map first (where something is, how much is made, \
 what's missing, what it would take): the planner looks and answers.
+  todo: asks to put something on the shared Todo List ("add X to the todo list", "put that on the list", "remind us \
+to ..."). It is added as a task; set todo_title, and todo_assign: "me" when {name} should do it, "speaker" when it's \
+for the one asking, else "". reply: a few words, or empty.
   wiki: a general Factorio question, not about this base or what {name} is doing: how to make an item, what a \
 building, tech, planet or mechanic is or does, ratios. It is looked up and answered to that player privately; reply \
 empty.
@@ -75,9 +78,11 @@ SCHEMA = {
         "playbook": {"type": "string", "enum": list(PLAYBOOKS)},
         "multi": {"type": "boolean"},
         "reply": {"type": "string"},
+        "todo_title": {"type": "string"},
+        "todo_assign": {"type": "string", "enum": ["", "me", "speaker"]},
         "why": {"type": "string"},
     },
-    "required": ["for_me", "action", "order", "playbook", "multi", "reply", "why"],
+    "required": ["for_me", "action", "order", "playbook", "multi", "reply", "todo_title", "todo_assign", "why"],
     "additionalProperties": False,
 }
 
@@ -96,6 +101,8 @@ class ChatDecision:
     reply: str = ""
     why: str = ""
     reader: str = "opus"  # "opus", or "rules" when Opus couldn't be asked
+    todo_title: str = ""  # a "todo" line's task title
+    todo_assign: str = ""  # "me" (the serf), "speaker", or "" (nobody)
 
     @classmethod
     def parse(cls, d: dict) -> "ChatDecision":
@@ -110,8 +117,11 @@ class ChatDecision:
         except (TypeError, ValueError):
             order = None
         pb = str(d.get("playbook") or "plan")
+        assign = str(d.get("todo_assign") or "")
         return cls(bool(d.get("for_me")), action, order, pb if pb in PLAYBOOKS else "plan", bool(d.get("multi")),
-                   str(d.get("reply") or "").strip()[:300], str(d.get("why") or "")[:200])
+                   str(d.get("reply") or "").strip()[:300], str(d.get("why") or "")[:200],
+                   todo_title=str(d.get("todo_title") or "").strip()[:120],
+                   todo_assign=assign if assign in ("me", "speaker") else "")
 
 
 class ChatReader:
