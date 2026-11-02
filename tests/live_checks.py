@@ -2053,7 +2053,9 @@ async def chk_storage_filter(L: Live, state: dict):
 local a = s.create_entity {{ name = 'storage-chest', position = {{ {x + 1.5}, {y + 1.5} }}, force = 'player' }}
 a.storage_filter = 'iron-plate'
 s.create_entity {{ name = 'storage-chest', position = {{ {x + 3.5}, {y + 1.5} }}, force = 'player' }}
-storage.agents['serf'].char.insert {{ name = 'iron-ore', count = 20 }}
+local c = storage.agents['serf'].char
+c.teleport {{ {x + 2.5}, {y + 3.5} }}  -- next to them: an earlier check (fetchfar) leaves it 600 tiles off
+c.insert {{ name = 'iron-ore', count = 20 }}
 return true""")
     r1 = await g.run({"op": "insert", "x": x + 1.5, "y": y + 1.5, "item": "iron-ore", "count": 10})
     r2 = await g.run({"op": "insert", "x": x + 3.5, "y": y + 1.5, "item": "iron-ore", "count": 10})
