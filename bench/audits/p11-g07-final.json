@@ -1,0 +1,49 @@
+{
+ "save": "/home/stephen/dev/factorio-jev/bench/campaigns/p11/saves/p11-g07-final.zip",
+ "game_minutes": 5.0,
+ "spm_sustained": 0.0,
+ "research_was_idle": true,
+ "research_queued": [],
+ "science_used_per_min": {},
+ "science_made_per_min": {},
+ "spm": 0.0,
+ "machines": 108,
+ "working_share": 0.0,
+ "starved_share": 0.278,
+ "blocked_share": 0.648,
+ "unpowered_or_unfuelled_share": 0.0,
+ "status": {
+  "item_ingredient_shortage": 12,
+  "no_ingredients": 12,
+  "full_output": 44,
+  "waiting_for_space_in_destination": 26,
+  "no_minable_resources": 6,
+  "no_research_in_progress": 8
+ },
+ "belt_tiles_per_machine": 20.65,
+ "pipe_tiles_per_machine": 0.08,
+ "chests": 0,
+ "chests_fed_by_hand": 0,
+ "chests_mixed": 0,
+ "mixed_belt_tiles": 0,
+ "footprint_tiles_per_machine": 341.1,
+ "bbox": [
+  -165.5,
+  -47.5,
+  99.5,
+  91.5
+ ],
+ "counts": {
+  "assembling-machine": 36,
+  "furnace": 32,
+  "mining-drill": 32,
+  "lab": 8,
+  "transport-belt": 2061,
+  "underground-belt": 155,
+  "splitter": 14,
+  "pipe": 7,
+  "pipe-to-ground": 2,
+  "inserter": 171,
+  "container": 0
+ }
+}

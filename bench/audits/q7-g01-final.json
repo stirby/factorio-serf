@@ -1,0 +1,63 @@
+{
+ "save": "bench/campaigns/q7/saves/q7-g01-final.zip",
+ "game_minutes": 5.0,
+ "spm_sustained": 28.4,
+ "research_was_idle": true,
+ "research_queued": [
+  "military-2",
+  "physical-projectile-damage-2",
+  "automated-rail-transportation",
+  "weapon-shooting-speed-2",
+  "fluid-wagon"
+ ],
+ "science_used_per_min": {
+  "automation-science-pack": 17.8,
+  "logistic-science-pack": 16.6
+ },
+ "science_made_per_min": {
+  "automation-science-pack": 15.0,
+  "logistic-science-pack": 13.4
+ },
+ "spm": 34.4,
+ "machines": 135,
+ "working_share": 0.43,
+ "starved_share": 0.148,
+ "blocked_share": 0.304,
+ "unpowered_or_unfuelled_share": 0.119,
+ "status": {
+  "working": 58,
+  "no_fuel": 16,
+  "no_minable_resources": 5,
+  "waiting_for_space_in_destination": 15,
+  "full_output": 26,
+  "item_ingredient_shortage": 12,
+  "no_ingredients": 2,
+  "missing_science_packs": 1
+ },
+ "belt_tiles_per_machine": 9.79,
+ "pipe_tiles_per_machine": 1.03,
+ "chests": 15,
+ "chests_fed_by_hand": 2,
+ "chests_mixed": 0,
+ "mixed_belt_tiles": 0,
+ "footprint_tiles_per_machine": 138.0,
+ "bbox": [
+  -118.5,
+  -81.5,
+  35.5,
+  39.5
+ ],
+ "counts": {
+  "assembling-machine": 33,
+  "furnace": 51,
+  "mining-drill": 41,
+  "lab": 10,
+  "transport-belt": 1272,
+  "underground-belt": 46,
+  "splitter": 4,
+  "pipe": 139,
+  "pipe-to-ground": 0,
+  "inserter": 202,
+  "container": 15
+ }
+}

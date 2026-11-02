@@ -1,0 +1,53 @@
+{
+ "save": "/home/stephen/dev/factorio-jev/bench/campaigns/q7/saves/q7-g07-tpause1316.zip",
+ "game_minutes": 5.0,
+ "spm_sustained": 0.0,
+ "research_was_idle": true,
+ "research_queued": [
+  "advanced-oil-processing"
+ ],
+ "science_used_per_min": {},
+ "science_made_per_min": {},
+ "spm": 0.0,
+ "machines": 206,
+ "working_share": 0.097,
+ "starved_share": 0.447,
+ "blocked_share": 0.33,
+ "unpowered_or_unfuelled_share": 0.126,
+ "status": {
+  "no_fuel": 26,
+  "no_minable_resources": 10,
+  "working": 20,
+  "waiting_for_space_in_destination": 27,
+  "full_output": 41,
+  "item_ingredient_shortage": 41,
+  "no_ingredients": 31,
+  "missing_science_packs": 10
+ },
+ "belt_tiles_per_machine": 18.16,
+ "pipe_tiles_per_machine": 20.38,
+ "chests": 20,
+ "chests_fed_by_hand": 3,
+ "chests_mixed": 0,
+ "mixed_belt_tiles": 0,
+ "footprint_tiles_per_machine": 827.8,
+ "bbox": [
+  -118.5,
+  -123.5,
+  465.5,
+  168.5
+ ],
+ "counts": {
+  "assembling-machine": 71,
+  "furnace": 74,
+  "mining-drill": 51,
+  "lab": 10,
+  "transport-belt": 3611,
+  "underground-belt": 123,
+  "splitter": 7,
+  "pipe": 3872,
+  "pipe-to-ground": 327,
+  "inserter": 326,
+  "container": 20
+ }
+}

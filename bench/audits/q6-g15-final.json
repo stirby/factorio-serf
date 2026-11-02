@@ -1,0 +1,52 @@
+{
+ "save": "/home/stephen/dev/factorio-jev/bench/campaigns/q6/saves/q6-g15-final.zip",
+ "game_minutes": 5.0,
+ "spm_sustained": 0.0,
+ "research_was_idle": false,
+ "research_queued": [],
+ "science_used_per_min": {},
+ "science_made_per_min": {},
+ "spm": 0.0,
+ "machines": 512,
+ "working_share": 0.062,
+ "starved_share": 0.48,
+ "blocked_share": 0.455,
+ "unpowered_or_unfuelled_share": 0.002,
+ "status": {
+  "no_ingredients": 89,
+  "item_ingredient_shortage": 83,
+  "working": 32,
+  "full_output": 165,
+  "no_minable_resources": 52,
+  "waiting_for_space_in_destination": 68,
+  "fluid_ingredient_shortage": 10,
+  "no_fuel": 1,
+  "missing_science_packs": 12
+ },
+ "belt_tiles_per_machine": 25.18,
+ "pipe_tiles_per_machine": 6.85,
+ "chests": 58,
+ "chests_fed_by_hand": 4,
+ "chests_mixed": 8,
+ "mixed_belt_tiles": 2,
+ "footprint_tiles_per_machine": 331.5,
+ "bbox": [
+  -396.5,
+  -260.5,
+  58.5,
+  112.5
+ ],
+ "counts": {
+  "assembling-machine": 195,
+  "furnace": 173,
+  "mining-drill": 132,
+  "lab": 12,
+  "transport-belt": 12091,
+  "underground-belt": 746,
+  "splitter": 57,
+  "pipe": 3277,
+  "pipe-to-ground": 228,
+  "inserter": 886,
+  "container": 58
+ }
+}

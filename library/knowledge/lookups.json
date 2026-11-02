@@ -1,0 +1,59 @@
+{
+ "Carbon": {
+  "count": 1,
+  "last": "2026-10-30",
+  "queries": [
+   "Carbon"
+  ]
+ },
+ "Fluid system": {
+  "count": 4,
+  "last": "2026-10-30",
+  "queries": [
+   "Fluid system"
+  ]
+ },
+ "Pipe to ground": {
+  "count": 1,
+  "last": "2026-10-30",
+  "queries": [
+   "Pipe to ground"
+  ]
+ },
+ "Plastic bar": {
+  "count": 1,
+  "last": "2026-11-01",
+  "queries": [
+   "how do I make plastic bars and what machine do I need?"
+  ]
+ },
+ "Pumpjack": {
+  "count": 1,
+  "last": "2026-10-30",
+  "queries": [
+   "Pumpjack"
+  ]
+ },
+ "Transport belts/Physics": {
+  "count": 1,
+  "last": "2026-10-30",
+  "queries": [
+   "Transport belts/Physics"
+  ]
+ },
+ "Underground belt": {
+  "count": 1,
+  "last": "2026-10-30",
+  "queries": [
+   "Underground belt"
+  ]
+ },
+ "Vulcanus": {
+  "count": 2,
+  "last": "2026-10-30",
+  "queries": [
+   "Vulcanus chimney",
+   "Vulcanus"
+  ]
+ }
+}

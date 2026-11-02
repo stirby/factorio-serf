@@ -6,5 +6,14 @@
   ],
   "result": "One order, ~38 min: 14 drills, 12 steel furnaces (ore+coal shared belt), plates belted ~80 tiles to base end with buffer chests.",
   "t": 1792728386.7252593
+ },
+ "red-and-green-science-off-bus": {
+  "when": "A main bus with iron and copper plate lanes plus spare lanes exists, and you need red+green science automated with the packs put onto spare bus lanes.",
+  "orders": [
+   "Tap the iron and copper lanes of the bus at a free row and build red science for 45/min east of the bus in free ground at [gps], gears made there from bus iron, packs onto a spare bus lane at a free row south of the build. Power from the nearby pole grid.",
+   "Tap the iron and copper lanes of the bus at a free row and build green science (logistic-science-pack) for 45/min east of the bus in the free area around [gps]: about 8 assembling-machine-2 on the packs, plus assemblers making the gears, copper cable, electronic circuits, inserters and transport belts, all from the bus iron and copper. Put the green packs onto another spare bus lane at a free row south of the build. Power from the nearby grid. Everything belt-fed, don't disturb the red science."
+  ],
+  "result": "2 orders, ~25 min: red 63/min and green 52/min running unattended, packs on bus lanes 2 and 3. Uses ~440 iron and ~150 copper per minute.",
+  "t": 1792754719.2818277
  }
 }

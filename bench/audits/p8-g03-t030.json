@@ -1,0 +1,63 @@
+{
+ "save": "/home/stephen/dev/factorio-jev/bench/campaigns/p8/saves/p8-g03-t030.zip",
+ "game_minutes": 5.0,
+ "spm_sustained": 38.4,
+ "research_was_idle": true,
+ "research_queued": [
+  "military-science-pack",
+  "landfill",
+  "railway",
+  "toolbelt",
+  "automobilism"
+ ],
+ "science_used_per_min": {
+  "automation-science-pack": 29.6,
+  "logistic-science-pack": 29.6
+ },
+ "science_made_per_min": {
+  "automation-science-pack": 19.6,
+  "logistic-science-pack": 18.8
+ },
+ "spm": 59.2,
+ "machines": 168,
+ "working_share": 0.333,
+ "starved_share": 0.351,
+ "blocked_share": 0.28,
+ "unpowered_or_unfuelled_share": 0.036,
+ "status": {
+  "waiting_for_space_in_destination": 24,
+  "no_minable_resources": 12,
+  "working": 56,
+  "full_output": 23,
+  "no_fuel": 6,
+  "no_ingredients": 18,
+  "missing_science_packs": 1,
+  "item_ingredient_shortage": 28
+ },
+ "belt_tiles_per_machine": 13.0,
+ "pipe_tiles_per_machine": 0.02,
+ "chests": 22,
+ "chests_fed_by_hand": 1,
+ "chests_mixed": 0,
+ "mixed_belt_tiles": 0,
+ "footprint_tiles_per_machine": 121.0,
+ "bbox": [
+  -37.5,
+  -106.5,
+  89.5,
+  53.5
+ ],
+ "counts": {
+  "assembling-machine": 47,
+  "furnace": 56,
+  "mining-drill": 52,
+  "lab": 13,
+  "transport-belt": 2014,
+  "underground-belt": 148,
+  "splitter": 22,
+  "pipe": 3,
+  "pipe-to-ground": 0,
+  "inserter": 226,
+  "container": 22
+ }
+}

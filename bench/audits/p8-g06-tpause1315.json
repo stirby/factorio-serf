@@ -1,0 +1,59 @@
+{
+ "save": "/home/stephen/dev/factorio-jev/bench/campaigns/p8/saves/p8-g06-tpause1315.zip",
+ "game_minutes": 5.0,
+ "spm_sustained": 25.8,
+ "research_was_idle": false,
+ "research_queued": [],
+ "science_used_per_min": {
+  "automation-science-pack": 10.2,
+  "logistic-science-pack": 9.8,
+  "chemical-science-pack": 10.2
+ },
+ "science_made_per_min": {
+  "automation-science-pack": 8.6,
+  "logistic-science-pack": 7.0,
+  "chemical-science-pack": 15.6
+ },
+ "spm": 30.2,
+ "machines": 271,
+ "working_share": 0.221,
+ "starved_share": 0.218,
+ "blocked_share": 0.506,
+ "unpowered_or_unfuelled_share": 0.0,
+ "status": {
+  "working": 60,
+  "waiting_for_space_in_destination": 47,
+  "no_ingredients": 11,
+  "full_output": 90,
+  "no_minable_resources": 19,
+  "no_research_in_progress": 13,
+  "item_ingredient_shortage": 29,
+  "no_recipe": 2
+ },
+ "belt_tiles_per_machine": 17.01,
+ "pipe_tiles_per_machine": 2.59,
+ "chests": 24,
+ "chests_fed_by_hand": 1,
+ "chests_mixed": 1,
+ "mixed_belt_tiles": 0,
+ "footprint_tiles_per_machine": 320.3,
+ "bbox": [
+  -205.5,
+  -224.5,
+  104.5,
+  55.5
+ ],
+ "counts": {
+  "assembling-machine": 82,
+  "furnace": 93,
+  "mining-drill": 83,
+  "lab": 13,
+  "transport-belt": 4202,
+  "underground-belt": 372,
+  "splitter": 37,
+  "pipe": 679,
+  "pipe-to-ground": 24,
+  "inserter": 402,
+  "container": 24
+ }
+}

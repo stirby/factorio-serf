@@ -1,0 +1,67 @@
+{
+ "save": "/home/stephen/dev/factorio-jev/bench/campaigns/p9/saves/p9-g08-final.zip",
+ "game_minutes": 5.0,
+ "spm_sustained": 51.8,
+ "research_was_idle": true,
+ "research_queued": [
+  "laser",
+  "uranium-mining",
+  "worker-robots-speed-2",
+  "braking-force-2",
+  "power-armor",
+  "effect-transmission"
+ ],
+ "science_used_per_min": {
+  "automation-science-pack": 38.0,
+  "logistic-science-pack": 38.6,
+  "chemical-science-pack": 37.0
+ },
+ "science_made_per_min": {
+  "automation-science-pack": 20.6,
+  "logistic-science-pack": 19.6,
+  "chemical-science-pack": 11.6
+ },
+ "spm": 113.6,
+ "machines": 400,
+ "working_share": 0.12,
+ "starved_share": 0.217,
+ "blocked_share": 0.562,
+ "unpowered_or_unfuelled_share": 0.1,
+ "status": {
+  "waiting_for_space_in_destination": 73,
+  "full_output": 152,
+  "no_minable_resources": 27,
+  "working": 48,
+  "no_ingredients": 21,
+  "fluid_ingredient_shortage": 2,
+  "item_ingredient_shortage": 37,
+  "no_fuel": 24,
+  "no_power": 16
+ },
+ "belt_tiles_per_machine": 17.89,
+ "pipe_tiles_per_machine": 2.81,
+ "chests": 32,
+ "chests_fed_by_hand": 2,
+ "chests_mixed": 2,
+ "mixed_belt_tiles": 2,
+ "footprint_tiles_per_machine": 682.2,
+ "bbox": [
+  -102.5,
+  -171.5,
+  386.5,
+  386.5
+ ],
+ "counts": {
+  "assembling-machine": 108,
+  "furnace": 160,
+  "mining-drill": 120,
+  "lab": 12,
+  "transport-belt": 6600,
+  "underground-belt": 517,
+  "splitter": 38,
+  "pipe": 1054,
+  "pipe-to-ground": 68,
+  "inserter": 633,
+  "container": 32
+ }
+}

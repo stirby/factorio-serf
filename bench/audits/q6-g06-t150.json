@@ -1,0 +1,62 @@
+{
+ "save": "/home/stephen/dev/factorio-jev/bench/campaigns/q6/saves/q6-g06-t150.zip",
+ "game_minutes": 5.0,
+ "spm_sustained": 24.2,
+ "research_was_idle": false,
+ "research_queued": [],
+ "science_used_per_min": {
+  "automation-science-pack": 17.4,
+  "logistic-science-pack": 17.2,
+  "chemical-science-pack": 7.4,
+  "production-science-pack": 2.4
+ },
+ "science_made_per_min": {
+  "automation-science-pack": 7.6,
+  "logistic-science-pack": 6.8,
+  "chemical-science-pack": 11.2,
+  "production-science-pack": 3.6
+ },
+ "spm": 44.4,
+ "machines": 332,
+ "working_share": 0.392,
+ "starved_share": 0.241,
+ "blocked_share": 0.334,
+ "unpowered_or_unfuelled_share": 0.033,
+ "status": {
+  "no_minable_resources": 19,
+  "working": 130,
+  "waiting_for_space_in_destination": 32,
+  "fluid_ingredient_shortage": 1,
+  "full_output": 79,
+  "item_ingredient_shortage": 41,
+  "no_ingredients": 18,
+  "no_fuel": 11,
+  "missing_science_packs": 1
+ },
+ "belt_tiles_per_machine": 17.36,
+ "pipe_tiles_per_machine": 6.89,
+ "chests": 36,
+ "chests_fed_by_hand": 5,
+ "chests_mixed": 0,
+ "mixed_belt_tiles": 2,
+ "footprint_tiles_per_machine": 199.2,
+ "bbox": [
+  -212.5,
+  -131.5,
+  58.5,
+  112.5
+ ],
+ "counts": {
+  "assembling-machine": 129,
+  "furnace": 103,
+  "mining-drill": 88,
+  "lab": 12,
+  "transport-belt": 5362,
+  "underground-belt": 373,
+  "splitter": 29,
+  "pipe": 2135,
+  "pipe-to-ground": 151,
+  "inserter": 566,
+  "container": 36
+ }
+}

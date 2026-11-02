@@ -1,0 +1,60 @@
+{
+ "save": "/home/stephen/dev/factorio-jev/bench/campaigns/q10/saves/q10-g02-t090.zip",
+ "game_minutes": 5.0,
+ "spm_sustained": 11.2,
+ "research_was_idle": true,
+ "research_queued": [
+  "repair-pack",
+  "heavy-armor",
+  "fast-inserter",
+  "physical-projectile-damage-1",
+  "weapon-shooting-speed-1",
+  "automation-2"
+ ],
+ "science_used_per_min": {
+  "automation-science-pack": 17.6
+ },
+ "science_made_per_min": {
+  "automation-science-pack": 11.2
+ },
+ "spm": 17.6,
+ "machines": 69,
+ "working_share": 0.29,
+ "starved_share": 0.174,
+ "blocked_share": 0.536,
+ "unpowered_or_unfuelled_share": 0.0,
+ "status": {
+  "full_output": 19,
+  "item_ingredient_shortage": 7,
+  "working": 20,
+  "waiting_for_space_in_destination": 18,
+  "no_minable_resources": 2,
+  "no_ingredients": 3
+ },
+ "belt_tiles_per_machine": 13.42,
+ "pipe_tiles_per_machine": 0.04,
+ "chests": 1,
+ "chests_fed_by_hand": 0,
+ "chests_mixed": 0,
+ "mixed_belt_tiles": 0,
+ "footprint_tiles_per_machine": 277.7,
+ "bbox": [
+  -58.5,
+  -83.5,
+  84.5,
+  50.5
+ ],
+ "counts": {
+  "assembling-machine": 18,
+  "furnace": 21,
+  "mining-drill": 24,
+  "lab": 6,
+  "transport-belt": 901,
+  "underground-belt": 24,
+  "splitter": 1,
+  "pipe": 3,
+  "pipe-to-ground": 0,
+  "inserter": 90,
+  "container": 1
+ }
+}

@@ -1,0 +1,60 @@
+{
+ "save": "bench/campaigns/q6/saves/q6-g04-t030.zip",
+ "game_minutes": 5.0,
+ "spm_sustained": 46.4,
+ "research_was_idle": false,
+ "research_queued": [],
+ "science_used_per_min": {
+  "automation-science-pack": 17.6,
+  "logistic-science-pack": 18.2,
+  "chemical-science-pack": 18.0
+ },
+ "science_made_per_min": {
+  "automation-science-pack": 29.4,
+  "logistic-science-pack": 12.0,
+  "chemical-science-pack": 16.8
+ },
+ "spm": 53.8,
+ "machines": 231,
+ "working_share": 0.468,
+ "starved_share": 0.29,
+ "blocked_share": 0.173,
+ "unpowered_or_unfuelled_share": 0.069,
+ "status": {
+  "waiting_for_space_in_destination": 9,
+  "working": 108,
+  "fluid_ingredient_shortage": 1,
+  "full_output": 31,
+  "item_ingredient_shortage": 32,
+  "no_minable_resources": 11,
+  "no_ingredients": 16,
+  "no_fuel": 16,
+  "missing_science_packs": 7
+ },
+ "belt_tiles_per_machine": 16.44,
+ "pipe_tiles_per_machine": 9.2,
+ "chests": 28,
+ "chests_fed_by_hand": 3,
+ "chests_mixed": 0,
+ "mixed_belt_tiles": 2,
+ "footprint_tiles_per_machine": 187.4,
+ "bbox": [
+  -130.5,
+  -128.5,
+  58.5,
+  100.5
+ ],
+ "counts": {
+  "assembling-machine": 89,
+  "furnace": 77,
+  "mining-drill": 53,
+  "lab": 12,
+  "transport-belt": 3590,
+  "underground-belt": 189,
+  "splitter": 19,
+  "pipe": 1971,
+  "pipe-to-ground": 155,
+  "inserter": 395,
+  "container": 28
+ }
+}
