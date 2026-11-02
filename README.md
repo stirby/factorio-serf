@@ -57,8 +57,13 @@ doesn't get there sends the next one at max thinking effort. Add `--no-think` to
 what happens when Opus hits a usage limit): chat then follows plain rules (a line with `@serf` is an order, "stop"
 stops).
 
-It also answers game questions, told only to you, from this game's own recipes and the Factorio wiki:
-`@serf how do I make plastic?`, `@serf what's on vulcanus?`. Ctrl+Shift+J shows what it's doing and what's queued.
+It also answers game questions from this game's own recipes and the Factorio wiki: `@serf how do I make plastic?`,
+`@serf what's on vulcanus?`. With mod 0.4.1 the answer opens in a window you can scroll and copy from (older mods: a
+few chat lines only you see). Ctrl+Shift+J shows what it's doing and what's queued.
+
+With a Todo List that has the serf's interface (the Todo-List mod plus the patch in `bench/live_mods/`, not yet in the
+released mod), tasks assigned to the serf become its orders, and `@serf put the oil outpost on the todo list` adds one
+(for the serf, for you, or for nobody, as you say).
 
 **Your serf, your settings** (you pay for it, so you choose; nothing else changes):
 
