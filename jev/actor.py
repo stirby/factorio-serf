@@ -1607,6 +1607,8 @@ class Actor(FastPaths):
             parts.append(self._ping_words())
         if self._taught_words():
             parts.append(self._taught_words())
+        if self.runner.boxed_in:  # it can't walk: every walk in a plan fails until it's out (30 Oct: 2 h, 7 plans)
+            parts.append(f"Before anything else: {self.runner.boxed_in}.")
         if o.project:
             parts.append(f"This order comes from your own project (goal: {o.project.goal[:200]}). Nobody will answer "
                          "questions about it: decide yourself. Don't start another project for it.")

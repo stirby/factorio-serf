@@ -239,6 +239,37 @@ return n"""
     check("escape: the pipe is put back", pipe == 1, pipe)
 
 
+async def chk_escape_rocks(L: Live, state: dict):
+    """Shut in by rocks (30 Oct on Vulcanus: two hours, and the escape only knew the serf's own buildings): at the
+    first no-path the runner mines a rock beside it and walks out; the rock stays gone."""
+    g = L.g
+    x0, y0 = await L.site(11, 11)
+    cx, cy = x0 + 5.5, y0 + 5.5
+    await L.ev(f"local c = storage.agents['serf'].char c.teleport({{{cx}, {cy}}}) return true")
+    code = f"""
+local s = game.surfaces.nauvis
+local n = 0
+for i = -3, 3 do for j = -3, 3 do
+  if math.abs(i) == 3 or math.abs(j) == 3 then
+    if s.create_entity {{ name = 'huge-rock', position = {{ {cx} + i, {cy} + j }} }} then n = n + 1 end
+  end
+end end
+return n"""
+    rocks = await L.ev(code)
+    pre = await g.run({"op": "move", "x": cx + 40, "y": cy, "radius": 2}, timeout=60)
+    runner = Runner(g, lambda rec: None)
+    runner._probe_t = 0.0
+    res = await runner._act({"op": "move", "x": cx + 40, "y": cy, "radius": 2}, timeout=60)
+    left = await L.ev(f"return game.surfaces.nauvis.count_entities_filtered{{type='simple-entity', area={{{{{cx - 4},"
+                      f"{cy - 4}}},{{{cx + 4},{cy + 4}}}}}}}")
+    x, y = await L.pos()
+    check("escape rocks: a ring of rocks shuts it in (a plain move fails: no path or stuck)",
+          rocks >= 10 and not pre.get("ok") and ("no path" in str(pre.get("msg")) or "stuck" in str(pre.get("msg"))),
+          (rocks, pre.get("msg")))
+    check("escape rocks: at the first failed move it mines a rock beside it and arrives",
+          res.get("ok") and abs(x - (cx + 40)) < 4 and left < rocks, (res.get("msg"), (round(x, 1), round(y, 1)), left))
+
+
 async def chk_launch(L: Live, state: dict):
     g = L.g
     x0, y0 = await L.site(13, 9)
@@ -2317,7 +2348,7 @@ async def chk_capture(L: Live, state: dict):
           run.get("status") == "done" and run.get("minutes") == 2.1 and run.get("notes") == FakeOrder.notes, run)
 
 
-CHECKS = {"progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
+CHECKS = {"escaperock": chk_escape_rocks, "progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
           "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "detour": chk_route_detour, "routepocket": chk_route_pocket, "fetchfar": chk_fetch_far, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "clearworking": chk_clear_working, "pipegap": chk_pipe_gap, "auditlacks": chk_audit_lacks, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe, "supply": chk_supply, "supplyfar": chk_supply_far, "supplysilo": chk_supply_silo, "supplylines": chk_supply_lines, "supplylds": chk_supply_lds, "supplywalled": chk_supply_walled, "leavejoin": chk_leave_join, "capture": chk_capture, "hop": chk_hop, "learn": chk_learn, "storagefilter": chk_storage_filter, "board": chk_board, "tags": chk_tags, "sweep": chk_sweep, "request": chk_request, "requestwalk": chk_request_walk, "fetchplanet": chk_fetch_planet, "wood": chk_wood, "escapemach": chk_escape_machines, "drillore": chk_drill_ore}
 
 

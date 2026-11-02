@@ -244,6 +244,7 @@ class Runner:
         self.recipes: dict = {}
         self.fuel_ahead = 0  # fuel the running plan's remaining refuel steps will use (set by the actor)
         self.no_path_streak = 0  # actions in a row that found no path: the character may have walled itself in
+        self._probe_t = 0.0  # when it last checked whether it can walk at all
         self.abort = None  # set while an order runs: true once that order is cancelled, so its remaining actions stop
         self._escaping = False
         self.routed: list[dict] = []  # what each route step laid: {"ends": endpoint tiles, "tiles": belt tiles}
@@ -322,9 +323,14 @@ class Runner:
                 self._tidying = False
             if t and t.get("ok"):
                 return await self._act(action, timeout, retry=False)
-        if str(r.get("msg") or "").startswith("no path to") and not self._escaping:
+        msg = str(r.get("msg") or "")
+        # no path, or stuck (rocks: the pathfinder sees a way through a ring of them that the character can't walk)
+        if (msg.startswith("no path to") or msg.startswith("stuck at")) and not self._escaping:
             self.no_path_streak += 1
-            if self.no_path_streak >= 3:
+            # Check at the first no-path (then at most every 3 min), not the third in a row: on 30 Oct one craft in
+            # between reset the count, and the check came 90 min and 3 max-effort plans late.
+            if self.no_path_streak >= 3 or time.time() - self._probe_t > 180:
+                self._probe_t = time.time()
                 self.no_path_streak = 0
                 self.boxed_in = ""
                 if await self.escape():
@@ -425,7 +431,10 @@ class Runner:
                                    "slots free", "at": used}
 
     ESCAPE_THROUGH = ("transport-belt", "underground-belt", "splitter", "pipe", "pipe-to-ground", "electric-pole",
-                      "inserter", "container", "wall", "furnace", "mining-drill")
+                      "inserter", "container", "wall", "furnace", "mining-drill", "simple-entity", "tree")
+    # rocks and trees are mined for good, not put back (30 Oct: shut in by volcanic rocks for two hours, and the
+    # escape only knew the serf's own buildings)
+    NATURE = ("simple-entity", "tree")
     # furnaces and drills go last (a burner loses its fuel to the pocket; it's given back after). The live test on
     # Vulcanus (25 Oct) boxed itself in among its own electric drills and stayed stuck: neither was on the list.
     LIFT_LAST = ("furnace", "mining-drill")
@@ -446,11 +455,19 @@ class Runner:
             sc = await self.g.scan(center=(x, y), radius=5)
 
             def beside(e):  # touching the character: big machines' centres sit farther off (an electric drill: 1.5+)
-                lim = 3.4 if e.get("t") in self.LIFT_LAST else 2.6
+                lim = 3.4 if e.get("t") in self.LIFT_LAST + self.NATURE else 2.6
                 return abs(e["x"] - x) <= lim and abs(e["y"] - y) <= lim
             near = [e for e in (sc.get("ents") or []) if not e.get("ghost") and e.get("t") in self.ESCAPE_THROUGH
                     and beside(e)]
-            near.sort(key=lambda e: (e.get("t") in self.LIFT_LAST, (e["x"] - x) ** 2 + (e["y"] - y) ** 2))
+            try:  # the scan only counts trees and rocks; the clutter query says where they are
+                cl = (await self.g.call("query", what="clutter", x=x, y=y, radius=4)).get("clutter") or []
+                near += [e for e in ({"n": c[0], "t": "tree" if "tree" in c[0] else "simple-entity", "x": c[1],
+                                      "y": c[2]} for c in cl if isinstance(c, list) and len(c) == 3) if beside(e)]
+            except Exception as ex:  # noqa: BLE001
+                self.log_fn({"t": time.time(), "kind": "error", "where": "escape clutter", "error": repr(ex)})
+            # rocks and trees first (nothing of anyone's), then belts, pipes and the like, furnaces and drills last
+            near.sort(key=lambda e: (e.get("t") not in self.NATURE, e.get("t") in self.LIFT_LAST,
+                                     (e["x"] - x) ** 2 + (e["y"] - y) ** 2))
             for e in near[:5]:
                 took = await self.g.run({"op": "mine", "x": e["x"], "y": e["y"], "name": e["n"]}, timeout=30)
                 if not took.get("ok"):
@@ -459,6 +476,12 @@ class Runner:
                 n = max(abs(vx), abs(vy), 0.5)
                 out = await self.g.run({"op": "move", "x": x + vx / n * 8, "y": y + vy / n * 8, "radius": 3},
                                        timeout=60)
+                if e.get("t") in self.NATURE:
+                    self.log_fn({"t": time.time(), "kind": "escape", "trapped": True, "through": e["n"],
+                                 "at": [e["x"], e["y"]], "out": out.get("ok"), "mined": True})
+                    if out.get("ok"):
+                        return True
+                    continue
                 back = {"op": "place", "name": e["n"], "x": e["x"], "y": e["y"]}
                 if e.get("d"):
                     back["direction"] = e["d"]
