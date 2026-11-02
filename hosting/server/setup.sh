@@ -42,7 +42,7 @@ mkdir -p "$F"/{saves,mods,config,backups,flags}
 install -d -o "$ME" -g "$ME" "/home/$ME/incoming"
 
 echo "== factorio $VERSION"
-have=$("$F"/bin/x64/factorio --version 2>/dev/null | sed -n 's/^Version: \([0-9.]*\).*/\1/p' || true)
+have=$("$F"/bin/x64/factorio --version 2>/dev/null | head -1 | sed -n 's/^Version: \([0-9.]*\).*/\1/p' || true)
 if [ "$have" != "$VERSION" ]; then
   if systemctl is-active --quiet factorio; then
     echo "the server is running $have; stop it first (sudo factorio-ctl stop), then run this again" >&2; exit 1
