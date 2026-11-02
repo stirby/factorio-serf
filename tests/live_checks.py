@@ -2170,12 +2170,14 @@ return true""")
     nets = n.get("networks") or []
     near = (n.get("at") or {}).get("nearest_logistic") or {}
     n2 = await g.call("network", agent=g.name, x=near.get("x", 0), y=near.get("y", 0)) if near else {}
-    counts = nets[0].get("item_counts", {}) if nets else {}
+    # this check's network, not the first one listed (after the request check that one is first, with 30 gears)
+    net = next((x for x in nets if x.get("id") == near.get("network")), {})
+    counts = net.get("item_counts", {})
     check("network: a spot 82 tiles off isn't covered; the nearest covered spot it names is covered; item counts",
           n.get("at", {}).get("logistic") is False and 0 < near.get("d", 0) <= 82
           and n2.get("at", {}).get("logistic") == near.get("network") and counts.get("iron-gear-wheel", 0) >= 50
-          and counts.get("processing-unit") == 0 and nets[0].get("logistic_area") and nets[0].get("construction_area"),
-          (n.get("at"), n2.get("at"), nets[:1]))
+          and counts.get("processing-unit") == 0 and net.get("logistic_area") and net.get("construction_area"),
+          (n.get("at"), n2.get("at"), net))
     t0 = time.time()
     r = await Runner(g).run({"do": "request", "items": {"iron-gear-wheel": 20, "processing-unit": 5}, "wait": 300})
     took = time.time() - t0
@@ -2184,6 +2186,50 @@ return true""")
     check("request: walks into coverage, gets the 20 gears, says the network has no processing units, and doesn't "
           "wait out the 300 s", inv.get("iron-gear-wheel", 0) >= 20 and "walked" in msg and "no processing-unit" in msg
           and took < 150, (msg, inv.get("iron-gear-wheel"), round(took)))
+
+
+async def chk_stock_bots(L: Live, state: dict):
+    """A build's items come by robot when the serf stands in a network that holds them (live tests: "request your
+    stuff for building via logstics network", "WAY TO BIAS to crafting stuff by hand"); its requests are cleared
+    after. Not in coverage and more than 40 tiles from it: robots aren't asked."""
+    g = L.g
+    x, y = await L.site(16, 90)
+    await L.ev(f"""local s, f = game.surfaces.nauvis, game.forces.player
+for _, t in pairs {{ 'logistic-robotics', 'logistic-system' }} do if f.technologies[t] then f.technologies[t].researched = true end end
+local e = s.create_entity {{ name = 'electric-energy-interface', position = {{ {x + 1}, {y + 1} }}, force = f }}
+e.power_production = 1e8 e.electric_buffer_size = 1e9
+s.create_entity {{ name = 'medium-electric-pole', position = {{ {x + 3.5}, {y + 1.5} }}, force = f }}
+local rp = s.create_entity {{ name = 'roboport', position = {{ {x + 6}, {y + 3} }}, force = f }}
+rp.insert {{ name = 'logistic-robot', count = 10 }}
+rp.energy = 1e8
+local st = s.create_entity {{ name = 'storage-chest', position = {{ {x + 9.5}, {y + 6.5} }}, force = f }}
+st.insert {{ name = 'iron-gear-wheel', count = 60 }}
+st.insert {{ name = 'pipe', count = 30 }}
+local c = storage.agents['serf'].char
+c.teleport {{ {x + 6}, {y + 12} }}
+for _, n in pairs {{ 'iron-gear-wheel', 'pipe' }} do c.get_main_inventory().remove {{ name = n, count = 10000 }} end
+return true""")
+    recs: list[dict] = []
+    run = Runner(g, log_fn=recs.append)
+    fails = await run.stock({"iron-gear-wheel": 30, "pipe": 10})
+    inv = (await g.me()).get("inventory") or {}
+    bots = [r for r in recs if r.get("kind") == "robots_bring"]
+    left = await L.ev("""local pt = storage.agents['serf'].char.get_requester_point()
+local n = 0 for i = 1, pt.sections_count do n = n + pt.get_section(i).filters_count end return n""")
+    check("stock in coverage: robots bring the gears and pipes (no walk, no crafting), requests cleared after",
+          not fails and inv.get("iron-gear-wheel", 0) >= 30 and inv.get("pipe", 0) >= 10 and bots
+          and bots[0].get("ok") and left == 0, (fails, bots, inv.get("iron-gear-wheel"), inv.get("pipe"), left))
+    await L.ev(f"""local c = storage.agents['serf'].char
+c.teleport {{ {x + 6}, {y + 85} }}
+for _, n in pairs {{ 'iron-gear-wheel', 'pipe' }} do c.get_main_inventory().remove {{ name = n, count = 10000 }} end
+return true""")
+    recs.clear()
+    px, py = await L.pos()
+    d = ((await g.call("network", agent=g.name, x=px, y=py)).get("at") or {}).get("nearest_logistic", {}).get("d", 1e9)
+    r = await run.robots_bring({"iron-gear-wheel": 5})
+    if d > Runner.ROBOT_WALK:  # another check's roboports can be nearer in a full run
+        check("robots aren't asked from more than 40 tiles outside coverage (stock walks to chests instead)",
+              r is None and not recs, (d, r, recs))
 
 
 async def chk_fetch_planet(L: Live, state: dict):
@@ -2386,7 +2432,7 @@ async def chk_capture(L: Live, state: dict):
 
 
 CHECKS = {"mod041": chk_mod041, "escaperock": chk_escape_rocks, "progress": chk_progress, "ghosts": chk_ghost_dedup, "boilers": chk_boilers, "queue": chk_queue,
-          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "detour": chk_route_detour, "routepocket": chk_route_pocket, "fetchfar": chk_fetch_far, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "clearworking": chk_clear_working, "pipegap": chk_pipe_gap, "auditlacks": chk_audit_lacks, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe, "supply": chk_supply, "supplyfar": chk_supply_far, "supplysilo": chk_supply_silo, "supplylines": chk_supply_lines, "supplylds": chk_supply_lds, "supplywalled": chk_supply_walled, "leavejoin": chk_leave_join, "capture": chk_capture, "hop": chk_hop, "learn": chk_learn, "storagefilter": chk_storage_filter, "board": chk_board, "tags": chk_tags, "sweep": chk_sweep, "request": chk_request, "requestwalk": chk_request_walk, "fetchplanet": chk_fetch_planet, "wood": chk_wood, "escapemach": chk_escape_machines, "drillore": chk_drill_ore}
+          "abort": chk_abort, "escape": chk_escape, "launch": chk_launch, "pocket": chk_full_pocket, "orphan": chk_orphan, "stall": chk_craft_stall, "positional": chk_positional, "contents": chk_mine_contents, "routewhy": chk_route_why, "detour": chk_route_detour, "routepocket": chk_route_pocket, "fetchfar": chk_fetch_far, "ugpair": chk_ug_pair, "fluidmix": chk_fluid_mix, "treeclear": chk_tree_clear, "waitresearch": chk_wait_research, "fluidports": chk_fluid_ports, "fluidports2": chk_fluid_ports2, "longcraft": chk_long_craft, "rate": chk_rate, "chunks": chk_chunks, "bus": chk_bus, "rowext": chk_row_extend, "busadopt": chk_bus_adopt, "porttaken": chk_fluid_port_taken, "beltend": chk_belt_end, "blockpipe": chk_block_pipe, "clearguard": chk_clear_guard, "clearworking": chk_clear_working, "pipegap": chk_pipe_gap, "auditlacks": chk_audit_lacks, "endref": chk_end_ref, "splitstart": chk_split_start, "powerbig": chk_power_big, "oreleft": chk_ore_left, "busfeed": chk_bus_feed, "tapopp": chk_tap_opposite, "pipes": chk_fluid_trace, "longpipe": chk_long_pipe, "supply": chk_supply, "supplyfar": chk_supply_far, "supplysilo": chk_supply_silo, "supplylines": chk_supply_lines, "supplylds": chk_supply_lds, "supplywalled": chk_supply_walled, "leavejoin": chk_leave_join, "capture": chk_capture, "hop": chk_hop, "learn": chk_learn, "storagefilter": chk_storage_filter, "board": chk_board, "tags": chk_tags, "sweep": chk_sweep, "request": chk_request, "requestwalk": chk_request_walk, "stockbots": chk_stock_bots, "fetchplanet": chk_fetch_planet, "wood": chk_wood, "escapemach": chk_escape_machines, "drillore": chk_drill_ore}
 
 
 async def main() -> int:

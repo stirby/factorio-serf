@@ -383,13 +383,17 @@ class Runner:
             return {"ok": False, "msg": f"{free} free slots and nothing to drop"}
         me = await self.g.me()
         x, y = me["position"]
-        # chests nearby with room first (a full pocket can't even craft a new chest); then new chests beside it
+        # chests nearby with room first (a full pocket can't even craft a new chest); then new chests beside it.
+        # Storage chests before plain ones: robots take from those (30 Oct: a hop left 2,801 items in iron chests,
+        # and the robot requests after it couldn't use them). A storage chest set to another item refuses the insert.
         sc = await self.g.scan(center=(x, y), radius=32)
-        targets = sorted(([e["x"], e["y"]] for e in (sc.get("ents") or []) if e.get("t") == "container"
-                          and not e.get("ghost") and (e.get("free") or 0) >= 4),
-                         key=lambda q: (q[0] - x) ** 2 + (q[1] - y) ** 2)[:6]
+        targets = [[e["x"], e["y"]] for e in sorted(
+            (e for e in (sc.get("ents") or []) if not e.get("ghost") and (e.get("free") or 0) >= 4
+             and (e.get("t") == "container" or e.get("n") == "storage-chest")),  # not a provider: a line's output
+            key=lambda e: (e.get("t") == "container", (e["x"] - x) ** 2 + (e["y"] - y) ** 2))[:6]]
         made, moved, used = 0, {}, []
-        carried = next((c for c in ("steel-chest", "iron-chest", "wooden-chest") if inv.get(c)), None)
+        carried = next((c for c in ("storage-chest", "steel-chest", "iron-chest", "wooden-chest") if inv.get(c)),
+                       None)
         # crafting a chest needs a slot for it; with none, only chests in the pocket or already built will do
         can_make = free >= 1 or carried is not None
         for item, n in dump:
@@ -546,6 +550,14 @@ class Runner:
         if not short:
             self.log_fn({"t": t0, "kind": "stock", "need": need, "fails": known_short, "secs": 0})
             return known_short
+        # robots first where the base has them, then chests, then hand-crafting
+        if await self.robots_bring(short):
+            inv = await self.refresh_inventory()
+            short = {i: n for i, n in short.items() if inv.get(i, 0) < n}
+            if not short:
+                self.log_fn({"t": t0, "kind": "stock", "need": need, "fails": known_short,
+                             "secs": round(time.time() - t0, 1)})
+                return known_short
         acts = [{"op": "fetch", "item": i, "count": n} for i, n in short.items()]
         try:
             ids = await self.g.act(acts)
@@ -559,6 +571,10 @@ class Runner:
                 await self.g.cancel(f"stocking {i} took too long", job=jid)
             if not r.get("ok"):
                 fails[i] = r.get("msg")
+        if fails:  # chests it couldn't walk to (boxed in, across water) or too far: robots fly
+            if await self.robots_bring({i: short[i] for i in fails}, walk=150):
+                inv = await self.refresh_inventory()
+                fails = {i: m for i, m in fails.items() if inv.get(i, 0) < short[i]}
         for i in list(fails) if fallback else []:  # storage couldn't: try belts and crafting from belt items
             r = await self.ensure(i, short[i])
             if r.get("ok"):
@@ -1292,6 +1308,45 @@ class Runner:
         except Exception:  # noqa: BLE001
             return None
         return r if isinstance(r, dict) and "at" in r else None
+
+    ROBOT_WALK = 40  # tiles it walks into roboport coverage to have a build's items brought, before walking to chests
+
+    async def robots_bring(self, need: dict, walk: float = ROBOT_WALK) -> dict | None:
+        """Have logistic robots bring what's short of `need` ({item: total}) when the character is in, or within
+        `walk` tiles of, the logistic area of a network that has logistic robots and holds the items: what a player
+        past the early game does before walking to chests or hand-crafting. Live tests: "request your stuff for
+        building via logstics network", "WAY TO BIAS to crafting stuff by hand when it's available in chests or in
+        the logistics network". Returns the request step's result, or None when robots weren't asked."""
+        if time.time() - getattr(self, "_no_robots_t", 0.0) < 600:
+            return None
+        inv = await self.refresh_inventory()
+        want = {i: int(n) - inv.get(i, 0) for i, n in need.items() if inv.get(i, 0) < int(n)}
+        if not want:
+            return None
+        net = await self._network_here(list(want))
+        if not net:
+            return None
+        at = net.get("at") or {}
+        nid = at.get("logistic")
+        if not nid:
+            near = at.get("nearest_logistic") or {}
+            if not near or near.get("d", 1e9) > walk:
+                return None
+            nid = near.get("network")
+        n = next((x for x in net.get("networks") or [] if x.get("id") == nid), None)
+        if not n or not n.get("logistic_robots"):
+            return None
+        held = n.get("item_counts") or {}
+        asked = {i: min(c, held.get(i, 0)) for i, c in want.items() if held.get(i, 0) > 0}
+        if not asked:
+            return None
+        t0 = time.time()
+        r = await self._do_request({"items": asked, "wait": 90})
+        if "can't make logistic requests" in str(r.get("msg")):
+            self._no_robots_t = time.time()  # not researched yet: don't ask the network every stock pass
+        self.log_fn({"t": t0, "kind": "robots_bring", "asked": asked, "ok": r.get("ok"), "msg": r.get("msg"),
+                     "secs": round(time.time() - t0, 1)})
+        return r
 
     async def _do_request(self, s):
         """Have logistic robots bring items to the character (its own requests): it walks into a roboport's logistic
