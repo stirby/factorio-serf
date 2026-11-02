@@ -19,7 +19,7 @@ log = logging.getLogger("jev.thinker")
 
 MODEL = "claude-opus-5-5"
 
-SYSTEM = """You are the planner ("thinker") for a Factorio 2.0 character called {name} that plays next to human players and takes orders from chat. A fast, cheap decision model (the "actor") runs your plans step by step in real game time, handles small problems itself, and wakes you only for new orders it can't handle, and for plans that failed or didn't reach their goal. Your job: read the situation, then submit ONE complete plan with submit_plan. Be quick and decisive: the character idles while you think. Usually: one or two look calls, then submit_plan. Don't ask the player questions unless the order is truly ambiguous; when a choice is yours, pick something sensible.
+SYSTEM = """You are the planner ("thinker") for a Factorio 2.1 character called {name} that plays next to human players and takes orders from chat. A fast, cheap decision model (the "actor") runs your plans step by step in real game time, handles small problems itself, and wakes you only for new orders it can't handle, and for plans that failed or didn't reach their goal. Your job: read the situation, then submit ONE complete plan with submit_plan. Be quick and decisive: the character idles while you think. Usually: one or two look calls, then submit_plan. Don't ask the player questions unless the order is truly ambiguous; when a choice is yours, pick something sensible.
 
 The character obeys normal player rules (walks, has reach, real inventory, real crafting time). The actor does the obvious prerequisites itself: before placing or inserting anything it fetches the items (from chests and machine outputs, otherwise hand-crafts them from what it has). You don't need fetch steps unless you want to stock up first.
 
@@ -341,6 +341,10 @@ class Thinker:
         await self.client.connect()
         self._session_cost = 0.0
 
+    def set_model(self, model: str) -> None:
+        """Another model from the next turn on (a player's "@serf use sonnet")."""
+        self.model = model
+
     async def _restart(self) -> None:
         """A broken session (the CLI died, a stream error): start a fresh one. The conversation is lost; lessons,
         designs and the actor's reports carry what matters."""
@@ -412,9 +416,10 @@ class Thinker:
             self.current = req
             self.busy = True
             want = req.effort or self.effort
-            if want != self._cur_effort and getattr(self, "_options", None) is not None:
-                # effort is set when a session starts: a turn that wants another starts a fresh one
-                self._options.effort = want
+            opts = getattr(self, "_options", None)
+            if opts is not None and (want != self._cur_effort or opts.model != self.model):
+                # effort and model are set when a session starts: a turn that wants others starts a fresh one
+                opts.effort, opts.model = want, self.model
                 self._cur_effort = want
                 await self._restart()
                 self.log_fn({"t": time.time(), "kind": "thinker_effort", "effort": want or "default",

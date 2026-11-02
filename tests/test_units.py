@@ -1753,7 +1753,7 @@ def test_thinker_effort_switch():
 
     async def run():
         th = Thinker("serf", {}, on_plan, Path(tempfile.mkdtemp()))
-        th._options = SimpleNamespace(effort=None)
+        th._options = SimpleNamespace(effort=None, model=th.model)
         restarts = []
 
         async def restart():
@@ -1774,6 +1774,121 @@ def test_thinker_effort_switch():
     got = asyncio.run(run())
     check("thinker effort: max for the replans (one restart), back to its own for the next order", got == ["max", None],
           got)
+
+
+def test_serf_names():
+    from jev.game import serf_name
+    got = [serf_name(None, "kyle", set()), serf_name(None, "kyle", {"serf"}),
+           serf_name(None, "kyle", {"serf", "kyle-serf"}), serf_name("bob", "kyle", {"serf"}),
+           serf_name(None, "Mr. K!", {"serf"})]
+    check("serf names: serf, then <player>-serf, then -serf2; a name the player typed; odd characters dropped",
+          got == ["serf", "kyle-serf", "kyle-serf2", "bob", "MrK-serf"], got)
+
+
+class _FakeThinker:
+    def __init__(self):
+        self.effort, self.model = None, "claude-opus-5-5"
+
+    def set_model(self, m):
+        self.model = m
+
+
+def _fake_actor(owner="otterplex", name="otterplex-serf", share=False):
+    import asyncio  # noqa: F401
+    from types import SimpleNamespace
+    from jev.actor import Actor
+
+    class Fake:
+        _settings_command = Actor._settings_command
+        settings_words = Actor.settings_words
+        set_model = Actor.set_model
+        _on_chat = Actor._on_chat
+        _heard = Actor._heard
+
+        def __init__(self):
+            self.g = SimpleNamespace(you=owner, away=False)
+            self.name, self.share, self._told_not_mine, self.heard = name, share, set(), []
+            self.thinker, self.chat_reader = _FakeThinker(), None
+            self.jev = SimpleNamespace(model="claude-sonnet-5-5")
+            self.said, self.told, self.read, self.flags = [], [], [], []
+            self.metrics, self.project = {"chat_lines": 0}, None
+
+        async def say(self, t):
+            self.said.append(t)
+
+        async def tell(self, who, t):
+            self.told.append((who, t))
+
+        async def _flag(self, who, note):
+            self.flags.append((who, note))
+
+        async def _read_chat(self, speaker, msg, explicit, assigned=False):
+            self.read.append((speaker, msg, explicit))
+            raise StopAsyncIteration  # the test only needs to know the line got this far
+    return Fake()
+
+
+def _chat(a, speaker, msg):
+    import asyncio
+    try:
+        asyncio.run(a._on_chat({"player": speaker, "message": msg}))
+    except StopAsyncIteration:
+        pass
+
+
+def test_settings_commands():
+    a = _fake_actor()
+    for line in ("@serf set effort high", "@serf use sonnet", "@serf set quick haiku", "@serf settings"):
+        _chat(a, "otterplex", line)
+    check("settings: effort, model and quick model change at once, with no model call",
+          (a.thinker.effort, a.thinker.model, a.jev.model, a.read) ==
+          ("high", "claude-sonnet-5-5", "claude-haiku-5-5", []), (a.thinker.effort, a.thinker.model, a.jev.model, a.read))
+    check("settings: each change is confirmed and 'settings' says what to type",
+          len(a.said) == 4 and "@serf set effort" in a.said[-1], a.said)
+    b = _fake_actor()
+    _chat(b, "otterplex", "@serf use sonnet to build the smelters next to the copper patch")
+    check("settings: a long order that mentions a model is an order", b.read and b.thinker.model == "claude-opus-5-5",
+          (b.read, b.thinker.model))
+
+
+def test_owner_filter():
+    a = _fake_actor()
+    _chat(a, "kyle", "@serf build me a red science line")      # Kyle's own @serf: not this one
+    _chat(a, "kyle", "anyone got iron?")                          # chatter
+    _chat(a, "kyle", "@otterplex-serf bring me 50 gears")        # names this serf
+    _chat(a, "kyle", "@otterplex-serf and 20 pipes")             # told once only
+    _chat(a, "kyle", "! the belts look wrong here")              # Kyle's flag: the server's collector takes it
+    check("owner filter: other players' lines never reach the model", a.read == [], a.read)
+    check("owner filter: naming someone else's serf gets one private note", len(a.told) == 1
+          and a.told[0][0] == "kyle" and "otterplex" in a.told[0][1], a.told)
+    check("owner filter: another player's ! isn't this app's", a.flags == [], a.flags)
+    check("owner filter: their lines stay as context", len(a.heard) == 4, len(a.heard))
+    _chat(a, "otterplex", "@serf make gears off this belt")
+    _chat(a, "otterplex", "! that went wrong")
+    check("owner filter: the owner's @serf is this serf, explicitly", a.read == [
+        ("otterplex", "@serf make gears off this belt", True)] and a.flags == [("otterplex", "that went wrong")],
+        (a.read, a.flags))
+    s = _fake_actor(share=True)
+    _chat(s, "kyle", "@otterplex-serf bring me 50 gears")
+    _chat(s, "kyle", "@serf build me a red science line")
+    check("owner filter: --share takes lines that name it from anyone, still not another's @serf",
+          [r[1] for r in s.read] == ["@otterplex-serf bring me 50 gears"], s.read)
+    r = _fake_actor(owner=None, name="serf")
+    _chat(r, "kyle", "@serf hi")
+    check("owner filter: a server's serf app (no owner) hears everyone", len(r.read) == 1, r.read)
+
+
+def test_wiki_helpers():
+    from jev.wiki import lines, recipe_facts
+    names = [f["recipe"] for f in recipe_facts("how do I make plastic bars?")]
+    gears = [f["recipe"] for f in recipe_facts("what do iron gear wheels need")]
+    check("wiki: the recipes a question names (plurals too)", "plastic-bar" in names and gears[:1] == ["iron-gear-wheel"],
+          (names, gears))
+    pb = recipe_facts("plastic bar")[0]
+    check("wiki: with the machines that make it", "chemical-plant" in pb["made_in"], pb)
+    out = lines("- first point\n" + "word " * 120 + "\nthird\nfourth\nfifth")
+    check("wiki: at most 4 chat lines, each short, bullets dropped", len(out) == 4 and out[0] == "first point"
+          and all(len(x) <= 250 for x in out), out)
 
 
 if __name__ == "__main__":

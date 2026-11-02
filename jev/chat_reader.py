@@ -21,17 +21,17 @@ log = logging.getLogger("jev.chat_reader")
 
 MODEL = "claude-opus-5-5"
 ACTIONS = ("new_job", "add_to_queued", "change_running", "note_running", "reopen", "stop", "answer", "ask_planner",
-           "none")
+           "wiki", "none")
 PLAYBOOKS = ("fix", "deliver", "plan")
 
-SYSTEM = """You read the chat of a Factorio 2.0 (Space Age) multiplayer game for {name}, an AI character that plays \
+SYSTEM = """You read the chat of a Factorio 2.1 (Space Age) multiplayer game for {name}, an AI character that plays \
 alongside the players as their teammate and takes jobs from them. For each chat line you get the line and the \
 situation as JSON, and you decide what {name} does with it. A planner (the same model, with tools to look at the map) \
 works out and runs the jobs; you route the line and give the quick reply.
 
 Fields of your answer:
-- for_me: true when the line is meant for {name}: it names {name}, says @all or everyone, answers something {name} \
-just said, or (with only one player online) asks for work or talks to whoever is listening. False when it's for \
+- for_me: true when the line is meant for {name}: it names {name} (names_me: also "@serf" from its owner, since each \
+player calls their own serf @serf), says @all or everyone, answers something {name} just said, or (with only one player online) asks for work or talks to whoever is listening. False when it's for \
 another player.
 - action, one of:
   new_job: asks for new work in the game (build, fix, bring items, follow, research, go somewhere, clear something). \
@@ -49,6 +49,9 @@ stop). Set order.
 where it is, what it carries, how it's doing): the answer goes in reply.
   ask_planner: a question that needs a look at the base or the map first (where something is, how much is made, \
 what's missing, what it would take): the planner looks and answers.
+  wiki: a general Factorio question, not about this base or what {name} is doing: how to make an item, what a \
+building, tech, planet or mechanic is or does, ratios. It is looked up and answered to that player privately; reply \
+empty.
   none: nothing to do (not for {name}, or nothing to answer).
 - order: the order id for add_to_queued, change_running, note_running and reopen; otherwise null.
 - playbook (new_job only): fix = existing machines or belts stopped, starving, unpowered, out of fuel or broken and \

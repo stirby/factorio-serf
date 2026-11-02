@@ -119,6 +119,15 @@ def fixed_words(fixed: list[str]) -> str:
     return "; ".join(v[0] + (f" (and {len(v) - 1} more like it)" if len(v) > 1 else "") for v in out.values())
 
 
+# short names players use: --model / "@serf use sonnet" (jev/cli.py takes the same)
+MODELS = {"opus": "claude-opus-5-5", "sonnet": "claude-sonnet-5-5", "haiku": "claude-haiku-5-5",
+          "fable": "claude-fable-5-1"}
+
+
+def short_model(model: str) -> str:
+    return next((k for k, v in MODELS.items() if v == model), model)
+
+
 class Actor(FastPaths):
     def __init__(self, game: Game, jev: QuickReader, workdir: Path, name: str = "serf", think: bool = True,
                  thinker_effort: str | None = None):
@@ -152,6 +161,10 @@ class Actor(FastPaths):
         # Opus reads each chat line (what it's for, what to do, the reply); without Opus, plain rules
         self.chat_reader = ChatReader(name) if think else None
         self.heard: list[tuple[float, str, str]] = []  # the chat so far (time, who, line), its own lines too
+        # A player's own app (g.you set) takes orders from that player only, unless shared: in multiplayer each player
+        # brings their own serf on their own Claude login, and every app hears every line.
+        self.share = False
+        self._told_not_mine: set[str] = set()
         self.last_said_t = 0.0
         self.metrics = {"orders": 0, "fast_path": 0, "plans": 0, "steps_ok": 0, "steps_failed": 0,
                         "recoveries": {}, "verified": 0, "unverified": 0, "chat_lines": 0}
@@ -181,6 +194,68 @@ class Actor(FastPaths):
         self.workdir.mkdir(parents=True, exist_ok=True)
         with open(self.log_path, "a") as f:
             f.write(json.dumps(rec, default=str) + "\n")
+
+    async def tell(self, player: str, text: str) -> None:
+        """A line only `player` sees (the mod's tell op)."""
+        self.log({"kind": "tell", "to": player, "text": text})
+        try:
+            await self.g.call("tell", player=player, text=text)
+        except Exception as e:  # noqa: BLE001
+            self.log({"kind": "error", "where": "tell", "error": repr(e)[:200]})
+
+    async def _wiki(self, speaker: str, msg: str) -> None:
+        """A general game question: looked up (this game's recipes, the Factorio wiki) and answered to the asker only."""
+        from .wiki import answer
+        try:
+            out = await answer(re.sub(r"@\S+", "", msg).strip(), self.jev.model)
+        except Exception as e:  # noqa: BLE001
+            self.log({"kind": "error", "where": "wiki", "error": repr(e)[:200]})
+            out = ["couldn't look that up just now"]
+        self.log({"kind": "wiki", "speaker": speaker, "q": msg, "a": out})
+        for line in out:
+            await self.tell(speaker, f"[{self.name}] {line}")
+
+    def set_model(self, model: str) -> None:
+        """The planner's and the chat reader's model (each player picks: they pay for it)."""
+        if self.thinker:
+            self.thinker.set_model(model)
+        if self.chat_reader:
+            self.chat_reader.model = model
+            self.chat_reader.lines = self.chat_reader.FRESH_EVERY  # a fresh session on the next line
+
+    def settings_words(self) -> str:
+        if not self.thinker:
+            return f"no planner; quick reads {short_model(self.jev.model)}"
+        return (f"planning with {short_model(self.thinker.model)} at {self.thinker.effort or 'default'} effort, quick "
+                f"reads with {short_model(self.jev.model)}")
+
+    async def _settings_command(self, msg: str) -> bool:
+        """The owner's "@serf set effort high" / "@serf use sonnet" / "@serf settings": changed at once, no model
+        call. False when the line is something else."""
+        text = re.sub(r"@\S+", "", msg).strip().lower()
+        if len(text) > 40:
+            return False
+        m = re.fullmatch(r"(?:set\s+)?(?:thinking\s+)?effort\s+(?:to\s+)?(low|medium|high|max)\W*", text)
+        if m and self.thinker:
+            self.thinker.effort = m.group(1)
+            await self.say(f"ok: {self.settings_words()}")
+            return True
+        m = re.fullmatch(r"(?:use|switch to|set\s+model(?:\s+to)?)\s+(opus|sonnet|haiku|fable)\W*", text)
+        if m:
+            self.set_model(MODELS[m.group(1)])
+            await self.say(f"ok: {self.settings_words()}")
+            return True
+        m = re.fullmatch(r"(?:use|set\s+quick(?:\s+model)?(?:\s+to)?)\s+(opus|sonnet|haiku|fable)\s+for\s+quick(?:\s+reads)?\W*|"
+                         r"set\s+quick\s+(?:model\s+)?(?:to\s+)?(opus|sonnet|haiku|fable)\W*", text)
+        if m:
+            self.jev.model = MODELS[m.group(1) or m.group(2)]
+            await self.say(f"ok: {self.settings_words()}")
+            return True
+        if re.fullmatch(r"(?:show\s+)?settings\W*", text):
+            await self.say(f"{self.settings_words()}. Change: @serf set effort low|medium|high|max, @serf use "
+                           "opus|sonnet|haiku")
+            return True
+        return False
 
     async def say(self, text: str) -> None:
         self.last_said, self.last_said_t = text, time.time()
@@ -411,8 +486,25 @@ class Actor(FastPaths):
         speaker, msg = str(c.get("player") or "?"), str(c.get("message") or "")
         if speaker == self.name or not msg.strip():
             return
+        owner = getattr(self.g, "you", None)  # (stand-ins for the game in tests have none)
+        mine = not owner or speaker == owner
         if msg.lstrip().startswith("!"):
-            await self._flag(speaker, msg.lstrip()[1:].strip())
+            if mine:  # (another player's "!" is theirs and the server's to save)
+                await self._flag(speaker, msg.lstrip()[1:].strip())
+            return
+        named = f"@{self.name}".lower() in msg.lower() or bool(re.match(rf"^\W*{re.escape(self.name)}\b", msg, re.I))
+        if not mine:
+            # Someone else's line: context only, never a model call (each app would pay for every line in the game).
+            self._heard(speaker, msg)
+            if named and not self.share:
+                if speaker not in self._told_not_mine:
+                    self._told_not_mine.add(speaker)
+                    await self.tell(speaker, f"[{self.name}] I'm {owner}'s serf and take orders from {owner}. Bring "
+                                    "your own: github.com/stirby/factorio-serf")
+                return
+            if not (self.share and (named or "@all" in msg.lower())):
+                return
+        if mine and owner and (named or re.search(r"@serf\b", msg, re.I)) and await self._settings_command(msg):
             return
         if self.g.away:
             if f"@{self.name}".lower() in msg.lower() and not getattr(self, "_told_away", False):
@@ -425,8 +517,7 @@ class Actor(FastPaths):
         self.metrics["chat_lines"] += 1
         if self.project and self.project.active:
             self.project.hear(speaker, msg)
-        explicit = f"@{self.name}".lower() in msg.lower() or "@all" in msg.lower() \
-            or bool(re.match(rf"^\W*{re.escape(self.name)}\b", msg, re.I))  # "serf how are you doing"
+        explicit = named or "@all" in msg.lower() or bool(owner and mine and re.search(r"@serf\b", msg, re.I))
         if re.fullmatch(rf"\W*@?{re.escape(self.name)}\W*", msg, re.I):
             # just its name (live test: "@serf" and "serf" got no answer at all)
             self._heard(speaker, msg)
@@ -495,6 +586,8 @@ class Actor(FastPaths):
                 await self.say(d.reply or "ok, stopped")
         elif act == "answer" and d.reply:
             await self.say(d.reply)
+        elif act == "wiki":
+            await self._wiki(speaker, msg)
         elif act in ("answer", "ask_planner") and self.thinker:
             if d.reply:
                 await self.say(d.reply)
@@ -723,10 +816,7 @@ class Actor(FastPaths):
                 where = await self.on_flag(speaker, note, ctx)
             except Exception as e:  # noqa: BLE001
                 self.log({"kind": "error", "where": "on_flag", "error": repr(e)})
-        try:
-            await self.g.call("tell", player=speaker, text="flag saved" + (f" ({where})" if where else ""))
-        except Exception:  # noqa: BLE001
-            pass
+        await self.tell(speaker, "flag saved" + (f" ({where})" if where else " in your serf's log"))
 
     @staticmethod
     def _planet_words(me: dict) -> str:

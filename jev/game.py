@@ -21,6 +21,17 @@ SURFACE_OPS = {"query", "audit", "alerts", "vitals", "ghosts", "blockers", "diag
 GPS = re.compile(r"\[gps=\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*\]")  # [gps=x,y]: no planet named
 
 
+def serf_name(asked: str | None, player: str, taken: set[str]) -> str:
+    """The name for a new serf: what the player asked for, else "serf", else "<player>-serf" (then -2, -3...)."""
+    if asked:
+        return asked
+    base = re.sub(r"[^\w-]", "", player) or "player"
+    for n in ["serf", f"{base}-serf"] + [f"{base}-serf{i}" for i in range(2, 50)]:
+        if n not in taken:
+            return n
+    return f"{base}-serf{int(time.time()) % 10000}"
+
+
 class Game:
     def __init__(self, crew: Crew, name: str = "serf", poll_secs: float = 0.25, idle_when_empty: bool = False):
         self.crew, self.name, self.poll_secs = crew, name, poll_secs
@@ -38,6 +49,10 @@ class Game:
         self.last_poll = 0.0
         self.away = False  # a player sent the character away (/serf leave); /serf join brings it back
         self.surface: str | None = None  # the character's planet, from its last self report or hop
+        # a player's own app (UDP): that player's name and this app's client id ("p<index>"), from the first poll;
+        # None over RCON, where the app may serve anyone
+        self.you: str | None = None
+        self.client: str | None = None
 
     @classmethod
     async def connect(cls, host: str, port: int, password: str, name: str = "serf") -> "Game":
@@ -57,16 +72,39 @@ class Game:
         """Spawn (or take over) the character. Over RCON pass client="rcon" (the default); over UDP the mod sets
         the client and owner from the packet, so pass nothing."""
         if spawn:
-            args = {"client": "rcon", **spawn_args} if not hasattr(self.crew, "port") else dict(spawn_args)
-            d = await self.call("spawn", name=self.name, **args)
-            self.away = bool(isinstance(d, dict) and d.get("away"))
-            if not self.away:
-                try:
-                    await self.me()  # its planet, for the surface ops
-                except Exception:  # noqa: BLE001
-                    pass
-        await self.call("poll")  # start the feed now: no stale chat
+            await self.spawn(**spawn_args)
+        d = await self.call("poll")  # start the feed now: no stale chat
+        if isinstance(d, dict):
+            self.you, self.client = d.get("you"), d.get("client")
         self._task = asyncio.create_task(self._poll_loop())
+
+    async def spawn(self, **spawn_args) -> None:
+        args = {"client": "rcon", **spawn_args} if not hasattr(self.crew, "port") else dict(spawn_args)
+        d = await self.call("spawn", name=self.name, **args)
+        self.away = bool(isinstance(d, dict) and d.get("away"))
+        if not self.away:
+            try:
+                await self.me()  # its planet, for the surface ops
+            except Exception:  # noqa: BLE001
+                pass
+
+    async def pick_serf(self, wanted: str | None) -> dict | None:
+        """A player's own app: the serf to run. Theirs if they already have one in this world (taken over at once,
+        the return is None); else it waits for the player's /serf add and returns that event. The name is the one they
+        typed, else `wanted`, else "serf" while it's free, else "<player>-serf" (in multiplayer each player brings
+        their own, and the mod refuses a name another player's serf has)."""
+        agents = (await self.call("list")).get("agents") or []
+        mine = [a for a in agents if a.get("client") == self.client]
+        if wanted and any(a["name"] == wanted for a in mine) or (not wanted and mine):
+            self.name = wanted or mine[0]["name"]
+            return None
+        while True:
+            ev = await self.events.get()
+            if ev.get("type") != "add":
+                continue
+            taken = {a["name"] for a in (await self.call("list")).get("agents") or [] if a.get("client") != self.client}
+            self.name = serf_name(ev.get("name") or wanted, self.you or ev.get("player") or "", taken)
+            return ev
 
     async def stop(self) -> None:
         if self._task:

@@ -23,9 +23,9 @@ import sys
 import time
 from pathlib import Path
 
-from .actor import Actor
+from .actor import MODELS, Actor
 from .game import Game
-from .rcon import Crew, Rcon
+from .rcon import Crew, GameError, Rcon
 from .quick_reader import reader
 
 
@@ -35,29 +35,38 @@ async def play(a) -> None:
         pw = Path(a.password_file).read_text().strip() if a.password_file else a.password
         r = Rcon(host, int(port), pw)
         await r.connect()
-        g = Game(Crew(r), a.name, idle_when_empty=True)
+        g = Game(Crew(r), a.name or "serf", idle_when_empty=True)
         spawn = {"client": "rcon"}
     else:
         from .udp import UdpCrew
         u = UdpCrew(a.udp)
         await u.connect()
-        g = Game(u, a.name)
+        g = Game(u, a.name or "serf")
         spawn = {}
     state = Path.home() / ".local" / "state" / "jev" / time.strftime("%Y%m%d-%H%M%S")
     state.mkdir(parents=True, exist_ok=True)
     jev = reader(log_path=state / "quick.jsonl")
-    await g.start(**spawn)
+    if a.quick_model:
+        jev.model = MODELS.get(a.quick_model, a.quick_model)
+    if a.rcon:
+        await g.start(**spawn)
+    else:
+        await g.start(spawn=False)
+        await own_serf(g, a.name)
     if g.away:
         # sent away in an earlier session: it stays away until a player calls it back
-        print(f"{a.name} is away (a player sent it off); waiting for /serf join", flush=True)
+        print(f"{g.name} is away (a player sent it off); waiting for /serf join", flush=True)
         while True:
             ev = await g.events.get()
-            if ev.get("agent") == a.name and ev.get("type") == "joined":
+            if ev.get("agent") == g.name and ev.get("type") == "joined":
                 g.away = False
                 break
-    actor = Actor(g, jev, state, a.name, think=not a.no_think, thinker_effort=a.effort)
+    actor = Actor(g, jev, state, g.name, think=not a.no_think, thinker_effort=a.effort)
+    actor.share = a.share
+    if a.model:
+        actor.set_model(MODELS.get(a.model, a.model))
     if a.rcon and a.password_file:  # a server's serf: its open orders survive a restart of this app
-        actor.orders_path = Path(a.password_file).resolve().parent / f"{a.name}-orders.json"
+        actor.orders_path = Path(a.password_file).resolve().parent / f"{g.name}-orders.json"
     if a.capture:
         if not a.rcon:
             raise SystemExit("--capture needs --rcon (the save is the server's /server-save)")
@@ -68,11 +77,13 @@ async def play(a) -> None:
         actor.on_new_order, actor.on_order_end, actor.on_flag = cap.order, cap.end, cap.flag
         print(f"capturing players' orders as test cases in {a.capture} (world {world})", flush=True)
     await actor.start()
-    await g.say(f"{a.name} here (Jev acting, {'Opus planning' if not a.no_think else 'no planner'}). "
-                f"Talk to me with @{a.name}; /serf leave sends me away, /serf join brings me back.")
+    who = f"{g.you}'s serf" if g.you else "a serf"
+    talk = f"{g.you}: talk to me with @serf" if g.you else f"talk to me with @{g.name}"
+    await g.say(f"{g.name} here, {who} ({actor.settings_words()}). {talk}; /serf leave sends me away, /serf join "
+                f"brings me back. A line starting with ! is a note for the developers.")
     if a.note:  # live testing: what changed since the last restart
         await g.say(f"[update] {a.note}")
-    print(f"{a.name} is in the game. Logs: {state}. Ctrl-C to stop.", flush=True)
+    print(f"{g.name} is in the game. Logs: {state}. Ctrl-C to stop.", flush=True)
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -87,6 +98,28 @@ async def play(a) -> None:
         print(f"thinker: {actor.thinker.stats}", flush=True)
 
 
+async def own_serf(g: Game, wanted: str | None) -> None:
+    """A player's own app: take over their serf in this world, or wait for /serf add and bring one in there."""
+    print(f"connected to {g.you or 'your game'}'s Factorio. In the game, type /serf add to bring in your serf.",
+          flush=True)
+    while True:
+        ev = await g.pick_serf(wanted)
+        try:
+            if ev is None:
+                await g.spawn()
+            else:
+                await g.spawn(position=ev.get("position"), surface=ev.get("surface"))
+            break
+        except GameError as e:  # a name another player's serf has, or the server's limit
+            wanted = None
+            try:
+                await g.call("tell", player=g.you, text=f"[serf] Couldn't bring in {g.name}: {e}")
+            except Exception:  # noqa: BLE001
+                pass
+    while not g.chat.empty():  # what was said before it arrived isn't for it
+        g.chat.get_nowait()
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -95,14 +128,20 @@ def main() -> None:
     pl.add_argument("--rcon", help="host:port")
     pl.add_argument("--password-file")
     pl.add_argument("--password")
-    pl.add_argument("--name", default="serf")
+    pl.add_argument("--name", help="the serf's name (default: what /serf add names, else serf, else <you>-serf)")
+    pl.add_argument("--model", help="the planner's and chat reader's model: opus (default), sonnet, haiku, fable or a "
+                    "full model id; '@serf use sonnet' in chat changes it")
+    pl.add_argument("--quick-model", help="the model for quick questions (default sonnet)")
+    pl.add_argument("--share", action="store_true", help="take orders from any player who names this serf (default: "
+                    "only from you; each player brings their own)")
     pl.add_argument("--capture", metavar="DIR", help="save each player's order with a save of the world as a test case "
                     "(jev/capture.py); RCON only")
     pl.add_argument("--server-saves", metavar="DIR", help="where the server writes /server-save (default: the "
                     "password file's folder + /saves, as for scripts/instance.py servers)")
     pl.add_argument("--note", help="said in game after the greeting (live testing: what changed since the restart)")
     pl.add_argument("--no-think", action="store_true")
-    pl.add_argument("--effort")
+    pl.add_argument("--effort", help="how hard the planner thinks: low, medium, high or max; '@serf set effort high' "
+                    "in chat changes it")
     a = p.parse_args()
     logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(name)s %(levelname)s %(message)s")
     asyncio.run(play(a))
