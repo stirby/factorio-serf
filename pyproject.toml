@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "factorio-serf"
+version = "0.4.0"
+description = "The serf: an AI teammate for Factorio 2.1 that plays next to you and takes orders from chat"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+dependencies = ["claude-agent-sdk>=0.2.170"]
+
+[project.urls]
+Homepage = "https://github.com/stirby/factorio-serf"
+
+[project.scripts]
+serf = "jev.cli:serf"
+
+[tool.setuptools.packages.find]
+include = ["jev", "jev.*"]
+
+[tool.setuptools.package-data]
+jev = ["data/*.json", "blueprints/*.json"]

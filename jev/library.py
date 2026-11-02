@@ -1,6 +1,6 @@
 """The agent layer: what the thinker writes for its future self. Lessons are short general rules saved after an
 order that needed more than one plan; they go into the thinker's prompt in later games. The library lives in
-JEV_LIBRARY (default <repo>/library); the overnight loop points every run of a night at one library so it grows."""
+JEV_LIBRARY (default <repo>/library, or the player's own for an installed app: lib_dir); the overnight loop points every run of a night at one library so it grows."""
 from __future__ import annotations
 
 import json
@@ -13,7 +13,13 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def lib_dir() -> Path:
-    return Path(os.environ.get("JEV_LIBRARY") or ROOT / "library")
+    """JEV_LIBRARY, else the repo's library/ when running from a checkout, else the player's own (an installed app:
+    ~/.local/share/factorio-serf/library, empty until their serf saves something)."""
+    if os.environ.get("JEV_LIBRARY"):
+        return Path(os.environ["JEV_LIBRARY"])
+    if (ROOT / "library").is_dir():
+        return ROOT / "library"
+    return Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share") / "factorio-serf" / "library"
 
 
 def lessons(limit: int = 40) -> list[str]:

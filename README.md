@@ -22,9 +22,19 @@ See [docs/DESIGN.md](docs/DESIGN.md) for how the parts fit together.
 
 ## Play
 
-1. Start Factorio with `--enable-lua-udp 27200`.
-2. Load a game with this repo's `mod/factorio-serf` installed. Link this copy into your Factorio mods folder.
-3. Run:
+Every player who wants a serf does this on their own computer:
+1. Install [Claude Code](https://claude.com/claude-code) and log in with your own Claude account.
+2. Install the app (Python 3.10 or newer and [pipx](https://pipx.pypa.io)):
+   `pipx install git+https://github.com/stirby/factorio-serf`
+3. In Factorio, install the **Serf** mod from the mod portal (Mods, then Install). In Steam, set Factorio's launch
+   options to `--enable-lua-udp 27200`.
+4. Start Factorio and load or join a game with Serf on. Run `serf`, then type `/serf add` in the game chat.
+
+The app talks only to your own game, on your own Claude login, and drives only the serfs you added: in multiplayer
+each player brings their own. The server needs the mod and nothing else.
+
+From a checkout of this repo (for working on it): link `mod/factorio-serf` into your Factorio mods folder, start
+Factorio with `--enable-lua-udp 27200`, then run:
 
 ```
 .venv/bin/python -m jev.cli play --udp 27200            # single player, or a client in multiplayer

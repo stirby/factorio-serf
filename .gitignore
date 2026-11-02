@@ -9,3 +9,6 @@ bench/runs/
 bench/campaigns/
 media/
 bench/live_cases/
+build/
+dist/
+*.egg-info/

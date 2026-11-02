@@ -1,14 +1,17 @@
-"""Play: put the Jev+Opus character into a running game and let it take orders from chat.
+"""Play: put the serf into a running game and let it take orders from chat.
+
+    serf                                     # installed with pip or pipx: the same as play --udp 27200
 
     # single player (or a multiplayer client): start Factorio with --enable-lua-udp 27200, load a game
     .venv/bin/python -m jev.cli play --udp 27200
     # a server you run: RCON
     .venv/bin/python -m jev.cli play --rcon 127.0.0.1:27015 --password-file server/rcon-password
-Options: --name serf, --no-think (Jev + code only, no Opus), --effort for the thinker, --capture DIR (players'
+Options: --name serf, --no-think (Sonnet + code only, no Opus), --effort for the thinker, --capture DIR (players'
 orders become test cases, and a "!" line in chat saves a flag for the developer: jev/capture.py), --note TEXT (said
 after the greeting: what changed since the last restart).
-Logs go to ~/.local/state/jev/<time>/ (actor.jsonl, jev.jsonl). The library (lessons, designs) is JEV_LIBRARY or
-<repo>/library. Ctrl-C stops it; the character stays in the game.
+Logs go to ~/.local/state/jev/<time>/ (actor.jsonl, quick.jsonl). The library (lessons, designs) is JEV_LIBRARY,
+<repo>/library, or ~/.local/share/factorio-serf/library for an installed app. Ctrl-C stops it; the character
+stays in the game.
 """
 from __future__ import annotations
 
@@ -16,6 +19,7 @@ import argparse
 import asyncio
 import logging
 import signal
+import sys
 import time
 from pathlib import Path
 
@@ -102,6 +106,14 @@ def main() -> None:
     a = p.parse_args()
     logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(name)s %(levelname)s %(message)s")
     asyncio.run(play(a))
+
+
+def serf() -> None:
+    """The `serf` command of an installed app: `serf` alone plays over UDP 27200; `serf --name bob` and the like take
+    play's options."""
+    if len(sys.argv) < 2 or sys.argv[1].startswith("-"):
+        sys.argv.insert(1, "play")
+    main()
 
 
 if __name__ == "__main__":
