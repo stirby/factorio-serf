@@ -57,6 +57,11 @@ doesn't get there sends the next one at max thinking effort. Add `--no-think` to
 what happens when Opus hits a usage limit): chat then follows plain rules (a line with `@serf` is an order, "stop"
 stops).
 
+It gets materials the way a player in a bot base does. When it stands in (or within 40 tiles of) a logistic
+network that has robots and holds the items, robots bring them. Otherwise it walks to chests, and it hand-crafts only
+what isn't stored on its planet. Robots are tried again when chests can't be walked to. Personal logistics need
+logistic robotics researched.
+
 It also answers game questions from this game's own recipes and the Factorio wiki: `@serf how do I make plastic?`,
 `@serf what's on vulcanus?`. With mod 0.4.1 the answer opens in a window you can scroll and copy from (older mods: a
 few chat lines only you see). Ctrl+Shift+J shows what it's doing and what's queued.
