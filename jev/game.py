@@ -88,7 +88,7 @@ class Game:
             except Exception:  # noqa: BLE001
                 pass
 
-    async def pick_serf(self, wanted: str | None) -> dict | None:
+    async def pick_serf(self, wanted: str | None, on_wait=None) -> dict | None:
         """A player's own app: the serf to run. Theirs if they already have one in this world (taken over at once,
         the return is None); else it waits for the player's /serf add and returns that event. The name is the one they
         typed, else `wanted`, else "serf" while it's free, else "<player>-serf" (in multiplayer each player brings
@@ -98,6 +98,8 @@ class Game:
         if wanted and any(a["name"] == wanted for a in mine) or (not wanted and mine):
             self.name = wanted or mine[0]["name"]
             return None
+        if on_wait:
+            on_wait()
         while True:
             ev = await self.events.get()
             if ev.get("type") != "add":

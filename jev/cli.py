@@ -100,10 +100,11 @@ async def play(a) -> None:
 
 async def own_serf(g: Game, wanted: str | None) -> None:
     """A player's own app: take over their serf in this world, or wait for /serf add and bring one in there."""
-    print(f"connected to {g.you or 'your game'}'s Factorio. In the game, type /serf add to bring in your serf.",
-          flush=True)
+    def waiting():
+        print(f"connected to {g.you or 'your game'}'s Factorio. In the game, type /serf add to bring in your serf.",
+              flush=True)
     while True:
-        ev = await g.pick_serf(wanted)
+        ev = await g.pick_serf(wanted, waiting)
         try:
             if ev is None:
                 await g.spawn()
