@@ -15,7 +15,7 @@ end
 -- stand-in GUI elements -------------------------------------------------------------------------------------------
 local TYPES = { frame = true, flow = true, label = true, button = true, ["sprite-button"] = true, line = true,
   ["scroll-pane"] = true, progressbar = true, ["empty-widget"] = true, textfield = true, table = true,
-  checkbox = true, ["drop-down"] = true }
+  checkbox = true, ["drop-down"] = true, ["text-box"] = true }
 local STYLE_ONLY = {  -- style property -> element types that have it (Factorio errors on the others)
   horizontal_spacing = { flow = true, table = true }, vertical_spacing = { flow = true, table = true },
   single_line = { label = true },
@@ -37,6 +37,7 @@ local function new_element(spec, parent, root)
     error("progressbar value out of range: " .. spec.value, 3)
   end
   local e = { type = spec.type, name = spec.name, caption = spec.caption, value = spec.value, tooltip = spec.tooltip,
+    text = spec.text,
     valid = true, children = {}, parent = parent, root = root, _named = {} }
   e.style = new_style(spec.type)
   return setmetatable(e, Element)
@@ -203,6 +204,23 @@ run("panel: thinking keeps its seconds at the right edge, apart from the moving 
     assert(right and tostring(right.caption):find(math.floor(t / 60) .. "s", 1, true), "no seconds at the right: "
       .. tostring(right and right.caption))
   end
+end)
+
+run("note: a wiki answer opens in a window with a close button, and a new one replaces it", function()
+  panel.show_note(player, "plastic bars", "1 coal + 20 petroleum gas -> 2 plastic, in a chemical plant")
+  panel.show_note(player, "red science", "1 copper plate + 1 gear, 5 s")
+  local f = player.gui.screen.factorio_serf_note
+  assert(f, "no note window")
+  local box, close
+  local function walk(e) for _, c in ipairs(e.children) do
+    if c.type == "text-box" then box = c end
+    if c.name == "factorio_serf_note_close" then close = c end
+    walk(c) end end
+  walk(f)
+  assert(box and box.text:find("copper plate") and box.read_only, "the text box doesn't hold the latest note")
+  assert(close, "no close button")
+  panel.on_click({ element = close, player_index = player.index })
+  assert(not player.gui.screen.factorio_serf_note, "close didn't close it")
 end)
 
 print(FAILS == 0 and "\nALL OK" or ("\n" .. FAILS .. " FAILED"))

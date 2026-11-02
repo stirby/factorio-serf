@@ -8,6 +8,7 @@ local link = require("scripts.link")
 local panel = {}
 local NAME = "factorio_serf_panel"
 local TASKS = "factorio_serf_tasks"
+local NOTE = "factorio_serf_note"
 
 local C = {
   thinking = { 0.55, 0.75, 1 }, doing = { 0.5, 0.95, 0.5 }, warn = { 1, 0.65, 0.2 }, bad = { 1, 0.35, 0.3 },
@@ -320,6 +321,28 @@ function panel.on_click(e)
   if not (el and el.valid) then return end
   local p = game.get_player(e.player_index)
   if el.name == TASKS .. "_close" or el.name == TASKS .. "_open" then panel.toggle_tasks(p) end
+  if el.name == NOTE .. "_close" and p.gui.screen[NOTE] then p.gui.screen[NOTE].destroy() end
+end
+
+-- A window with something the serf looked up for this player (its in-game wiki): a title and text they can scroll,
+-- select and copy (a read-only text box). A new note replaces the last one. The user, 30 Oct: a wiki that answers
+-- in a window, not in the chat.
+function panel.show_note(p, title, text)
+  if p.gui.screen[NOTE] then p.gui.screen[NOTE].destroy() end
+  local f = p.gui.screen.add { type = "frame", name = NOTE, direction = "vertical" }
+  local bar = f.add { type = "flow", direction = "horizontal" }
+  local t = bar.add { type = "label", caption = "[font=default-bold]" .. title .. "[/font]" }
+  t.drag_target = f
+  local pad = bar.add { type = "label", caption = "" }
+  pad.style.horizontally_stretchable = true
+  pad.drag_target = f
+  bar.add { type = "button", name = NOTE .. "_close", caption = "Close" }
+  local box = f.add { type = "text-box", text = text }
+  box.read_only = true
+  box.word_wrap = true
+  box.style.width = 480
+  box.style.height = 320
+  f.auto_center = true
 end
 
 function panel.toggle(player)

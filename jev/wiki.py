@@ -18,6 +18,8 @@ teammate who knows the game well: no markdown, no headings, no bullet lists. Num
 times, machine counts). The recipe data you get is this game's own (version 2.1): trust it over the wiki text where \
 they differ. If neither covers the question, answer from what you know and say you're not sure."""
 LINES, LINE_CHARS = 4, 240
+LONG = """The answer goes in a window the player can scroll: up to 12 short paragraphs or lines of plain text, still \
+no markdown. Cover what they'd need next (where it's made, what feeds it, ratios), not just the one fact."""
 
 
 def _words(text: str) -> set[str]:
@@ -41,9 +43,11 @@ def recipe_facts(question: str, limit: int = 4) -> list[dict]:
     return out
 
 
-async def _ask(prompt: str, model: str) -> str:
+async def _ask(prompt: str, model: str, long: bool = False) -> str:
     from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, TextBlock, query
-    opts = ClaudeAgentOptions(system_prompt=SYSTEM, tools=[], allowed_tools=[], setting_sources=[], model=model,
+    system = (SYSTEM.replace("in at most 4 short lines of plain text", "in plain text") + "\n\n" + LONG) if long \
+        else SYSTEM
+    opts = ClaudeAgentOptions(system_prompt=system, tools=[], allowed_tools=[], setting_sources=[], model=model,
                               max_turns=1)
     text = ""
     async for m in query(prompt=prompt, options=opts):
@@ -68,7 +72,7 @@ def lines(text: str) -> list[str]:
     return out[:LINES]
 
 
-async def answer(question: str, model: str, timeout: float = 60) -> list[str]:
+async def answer(question: str, model: str, timeout: float = 60, long: bool = False) -> list[str]:
     facts = recipe_facts(question)
     try:
         wiki = await asyncio.wait_for(asyncio.to_thread(knowledge.lookup, question), 20)
@@ -77,4 +81,7 @@ async def answer(question: str, model: str, timeout: float = 60) -> list[str]:
         wiki = ""
     prompt = f"Question: {question}\n\nRecipe data (Factorio 2.1): {facts or 'none matched'}\n\n" \
              f"Wiki (2.0 era, may be out of date):\n{(wiki or 'nothing found')[:3500]}"
-    return lines(await asyncio.wait_for(_ask(prompt, model), timeout))
+    text = await asyncio.wait_for(_ask(prompt, model, long), timeout)
+    if long:  # for the window: paragraphs as written, markdown marks dropped
+        return [re.sub(r"^[-*#>\s]+", "", x).strip() for x in text.splitlines() if x.strip()][:24]
+    return lines(text)

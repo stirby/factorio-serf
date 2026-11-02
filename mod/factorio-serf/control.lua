@@ -149,6 +149,14 @@ API.tell = function(req, ctx)
   return {}
 end
 
+-- A window for one player with something the serf looked up (title, text). Over UDP: only the app's own player.
+API.note = function(req, ctx)
+  local p = ctx.udp and game.get_player(ctx.player_index) or util.find_player(tostring(req.player or ""))
+  if not p then error("no player " .. tostring(req.player), 0) end
+  panel.show_note(p, tostring(req.title or "serf"):sub(1, 80), tostring(req.text or ""):sub(1, 6000))
+  return {}
+end
+
 API.spawn = function(req)
   local a = agents.spawn(req)
   if a.away then return { agent = a.name, away = true } end

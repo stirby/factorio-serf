@@ -220,8 +220,17 @@ class Actor(FastPaths):
             await self.say(f"on it: {what}" if what else "on it")
         o.acked = "now"
 
+    async def reply_to(self, player: str, text: str) -> None:
+        """Privately when the game lets it (a player's own app reaches only its own player; a server's app anyone),
+        else in chat to them."""
+        owner = getattr(self.g, "you", None)
+        if owner is None or player == owner:
+            await self.tell(player, text)
+        else:
+            await self.say(f"@{player} {text}")
+
     async def tell(self, player: str, text: str) -> None:
-        """A line only `player` sees (the mod's tell op)."""
+        """A line only `player` sees (the mod's tell op; over UDP only the app's own player)."""
         self.log({"kind": "tell", "to": player, "text": text})
         try:
             await self.g.call("tell", player=player, text=text)
@@ -242,8 +251,8 @@ class Actor(FastPaths):
                                                             "created_by": speaker}], timeout=15)
         except Exception as e:  # noqa: BLE001  (no Todo-List, or one without the interface)
             self.log({"kind": "error", "where": "todo add", "error": repr(e)[:200]})
-            await self.tell(speaker, f"[{self.name}] couldn't put it on the todo list: this game's Todo List has no "
-                                     "way for the serf to add tasks yet")
+            await self.reply_to(speaker, "couldn't put it on the todo list: this game's Todo List has no way for the "
+                                         "serf to add tasks yet")
             return
         self.log({"kind": "todo_add", "speaker": speaker, "title": title, "assignee": who})
         await self.say(d.reply or (f"on the todo list: {title}" + (" (mine)" if who == self.name else "")))
@@ -251,14 +260,25 @@ class Actor(FastPaths):
     async def _wiki(self, speaker: str, msg: str) -> None:
         """A general game question: looked up (this game's recipes, the Factorio wiki) and answered to the asker only."""
         from .wiki import answer
+        q = re.sub(r"@\S+", "", msg).strip()
+        owner = getattr(self.g, "you", None)
+        # a window for the player's own question (mod 0.4.1: a longer answer they can scroll and copy); chat lines
+        # for anyone else (a player's own app can't open a window for another player) or an older mod
+        window = (owner is None or speaker == owner) and getattr(self, "mod_version", (0,)) >= (0, 4, 1)
         try:
-            out = await answer(re.sub(r"@\S+", "", msg).strip(), self.jev.model)
+            out = await answer(q, self.jev.model, long=window)
         except Exception as e:  # noqa: BLE001
             self.log({"kind": "error", "where": "wiki", "error": repr(e)[:200]})
-            out = ["couldn't look that up just now"]
-        self.log({"kind": "wiki", "speaker": speaker, "q": msg, "a": out})
-        for line in out:
-            await self.tell(speaker, f"[{self.name}] {line}")
+            out, window = ["couldn't look that up just now"], False
+        self.log({"kind": "wiki", "speaker": speaker, "q": msg, "a": out, "window": window})
+        if window:
+            try:
+                await self.g.call("note", player=speaker, title=f"{self.name}: {short_text(q, 50)}", text="\n\n".join(out))
+                return
+            except Exception as e:  # noqa: BLE001
+                self.log({"kind": "error", "where": "wiki note", "error": repr(e)[:200]})
+        for line in out[:4]:
+            await self.reply_to(speaker, line)
 
     def set_model(self, model: str) -> None:
         """The planner's and the chat reader's model (each player picks: they pay for it)."""
@@ -367,7 +387,8 @@ class Actor(FastPaths):
         self.items = (await self.g.call("query", what="items")).get("items") or []
         try:  # steps the game's serf mod can't do yet (the app goes live before the mod: live testing)
             ver = str((await self.g.call("ping")).get("version") or "0")
-            if tuple(int(x) for x in ver.split(".")[:3]) < (0, 3, 4):
+            self.mod_version = tuple(int(x) for x in ver.split(".")[:3])
+            if self.mod_version < (0, 3, 4):
                 self.mod_limits = (f"This game runs serf mod {ver}: the sweep step and the map_tags tool don't work "
                                    "in it yet (mine rocks by hand; ask players what places are for).")
         except Exception:  # noqa: BLE001
@@ -544,8 +565,9 @@ class Actor(FastPaths):
             if named and not self.share:
                 if speaker not in self._told_not_mine:
                     self._told_not_mine.add(speaker)
-                    await self.tell(speaker, f"[{self.name}] I'm {owner}'s serf and take orders from {owner}. Bring "
-                                    "your own: github.com/stirby/factorio-serf")
+                    # in chat: a player's own app can only reach its own player privately
+                    await self.say(f"@{speaker} I'm {owner}'s serf, so I take orders from {owner}. Bring your own: "
+                                   "github.com/stirby/factorio-serf")
                 return
             if not (self.share and (named or "@all" in msg.lower())):
                 return

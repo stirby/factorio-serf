@@ -3,7 +3,7 @@
 the same guard and client rules as over UDP):
 - an app with no serf in the world waits for /serf add, and takes a free name: "serf" belongs to another app here,
   so it's "<player>-serf", next to the player;
-- another player's lines never reach it (no model call), and naming it gets them one private note;
+- another player's lines never reach it (no model call), and naming it gets them one note in chat;
 - the owner's "@serf settings" is answered by code;
 - a restarted app takes its serf over without /serf add.
 
@@ -92,9 +92,9 @@ async def main(k: int) -> int:
     await asyncio.sleep(4)
     chats = [r for r in logged(d, "chat")]
     check("another player's lines never reach the reader", not any(r.get("speaker") == "kyle" for r in chats), chats)
-    tells = logged(d, "tell")
-    check("naming someone else's serf gets one private note", len(tells) == 1 and tells[0]["to"] == "kyle", tells)
     says = [r["text"] for r in logged(d, "say")]
+    check("naming someone else's serf gets one note, in chat to them", sum(s.startswith("@kyle ") for s in says) == 1,
+          says)
     check("the owner's @serf settings is answered by code", any("effort" in s for s in says), says)
     await act.stop()
     await g.stop()

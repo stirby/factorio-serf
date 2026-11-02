@@ -1860,8 +1860,8 @@ def test_owner_filter():
     _chat(a, "kyle", "@otterplex-serf and 20 pipes")             # told once only
     _chat(a, "kyle", "! the belts look wrong here")              # Kyle's flag: the server's collector takes it
     check("owner filter: other players' lines never reach the model", a.read == [], a.read)
-    check("owner filter: naming someone else's serf gets one private note", len(a.told) == 1
-          and a.told[0][0] == "kyle" and "otterplex" in a.told[0][1], a.told)
+    check("owner filter: naming someone else's serf gets one note, in chat to them (an app can't reach them privately)",
+          a.told == [] and len(a.said) == 1 and a.said[0].startswith("@kyle ") and "otterplex" in a.said[0], a.said)
     check("owner filter: another player's ! isn't this app's", a.flags == [], a.flags)
     check("owner filter: their lines stay as context", len(a.heard) == 4, len(a.heard))
     _chat(a, "otterplex", "@serf make gears off this belt")
