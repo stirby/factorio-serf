@@ -1592,6 +1592,7 @@ def test_limited_order_waits():
     a = Actor.__new__(Actor)
     a.thinker, a.prefetch, a._plan_waiters, a._told_limit = T(), False, {}, False
     a._tasks, a.jev = [], None
+    a.name = "serf"
     said, logged = [], []
 
     async def say(text):
@@ -1923,6 +1924,78 @@ def test_others_words():
     w = asyncio.run(Actor._others_words(a))
     check("others: other live serfs, whose, where and what they're doing; not itself", "kyle-serf (kyle's)" in w
           and "build assembling-machine-2" in w and "2 queued" in w and "otterplex-serf" not in w and "old" not in w, w)
+
+
+def test_recovery_no_blind_retries():
+    import asyncio
+    from jev.actor import Actor
+    a = Actor.__new__(Actor)
+
+    def pick(msg, tries=1, secs=5.0, last=""):
+        return asyncio.run(a._recovery("g", {"do": "connect"}, msg, tries, {}, secs, last))[0]
+    got = [pick("timed out after 20 s"), pick("timed out after 420 s", secs=420),
+           pick("stuck at -130,-96.7", secs=30, last="stuck at -130,-96.7"), pick("stuck at 5,5", tries=2),
+           pick("blocked by character@1,2")]
+    check("recovery: a short timeout is retried once; a long one, a repeat stuck spot or a second try replans",
+          got == ["retry", "replan", "replan", "replan", "retry"], got)
+
+
+def test_thinker_drop():
+    import asyncio
+    import tempfile
+    from jev.thinker import Request, Thinker
+
+    async def run():
+        async def on_plan(plan, req):
+            pass
+        th = Thinker("serf", {}, on_plan, Path(tempfile.mkdtemp()))
+        interrupted = []
+
+        class C:
+            async def interrupt(self):
+                interrupted.append(True)
+        th.client, th.busy, th.current = C(), True, Request("report", "x", 6)
+        for r in (Request("report", "a", 6), Request("order", "b", 7), Request("report", "c", 6)):
+            th.queue.put_nowait(r)
+        th.drop(6)
+        await asyncio.sleep(0)
+        left = [r.order_id for r in list(th.queue._queue)]
+        return left, interrupted
+    left, interrupted = asyncio.run(run())
+    check("thinker drop: the order's queued asks go, others stay, its running turn is interrupted",
+          left == [7] and interrupted == [True], (left, interrupted))
+
+
+def test_question_keeps_effort():
+    import asyncio
+    import tempfile
+    from types import SimpleNamespace
+    from jev.thinker import Request, Thinker
+
+    async def run():
+        async def on_plan(plan, req):
+            pass
+        th = Thinker("serf", {}, on_plan, Path(tempfile.mkdtemp()))
+        th._options = SimpleNamespace(effort=None, model=th.model)
+        restarts = []
+
+        async def restart():
+            restarts.append(th._options.effort)
+
+        async def turn(prompt, req):
+            pass
+        th._restart, th._turn = restart, turn
+        task = asyncio.create_task(th._loop())
+        for r in (Request("report", "a", 1, effort="max"), Request("question", "q", None),
+                  Request("lesson", "l", None), Request("order", "d", 2)):
+            th.ask(r)
+            for _ in range(10):
+                await asyncio.sleep(0.002)
+        task.cancel()
+        return restarts
+    got = asyncio.run(run())
+    check("thinker effort: a question and a lesson keep the running session (no restart); the next order goes back",
+          got == ["max", None], got)
 
 
 if __name__ == "__main__":

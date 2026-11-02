@@ -46,7 +46,9 @@ answering what {name} asked. Set order to the running job's id.
 stop). Set order.
   stop: stop, cancel, drop it, stop following. Everything running and queued stops.
   answer: a question or small talk you can answer from the situation (what it's doing, its queue, why a job failed, \
-where it is, what it carries, how it's doing): the answer goes in reply.
+where it is, what it carries, how it's doing): the answer goes in reply. running.plan has the plan it is on, step by \
+step (done, run, todo): what it builds, fetches or requests from the logistic network comes from there, so answer \
+those questions from it, never from the order's words alone.
   ask_planner: a question that needs a look at the base or the map first (where something is, how much is made, \
 what's missing, what it would take): the planner looks and answers.
   wiki: a general Factorio question, not about this base or what {name} is doing: how to make an item, what a \

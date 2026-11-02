@@ -74,6 +74,8 @@ class Order:
     notes: list[str] = field(default_factory=list)
     plans: int = 0
     escalated: bool = False  # its replans are thought through at max effort
+    misses: int = 0  # plans that ran to the end but whose checks failed (step failures don't count)
+    plan_errors: int = 0  # planner turns for it that ended in an error with no plan
     history: list[str] = field(default_factory=list)
     speaker_at: tuple | None = None
     interrupt: str | None = None  # a player correction that should stop the running plan
@@ -123,6 +125,9 @@ def fixed_words(fixed: list[str]) -> str:
 # short names players use: --model / "@serf use sonnet" (jev/cli.py takes the same)
 MODELS = {"opus": "claude-opus-5-5", "sonnet": "claude-sonnet-5-5", "haiku": "claude-haiku-5-5",
           "fable": "claude-fable-5-1"}
+
+
+STILL_AT = (120, 600)  # seconds into planning a player's order when it says it's still on it
 
 
 def short_text(text: str, n: int = 60) -> str:
@@ -584,6 +589,7 @@ class Actor(FastPaths):
             target.notes.append(f"{speaker}: {msg}")
             target.status = "new"
             target.reopened += 1
+            target.misses, target.escalated = 0, False  # a fresh go, at the session's own effort
             self.log({"kind": "reopen", "order": target.id})
             if d.reply:
                 await self.say(d.reply)
@@ -613,7 +619,7 @@ class Actor(FastPaths):
                 await self.say(d.reply)
             # (no order id: its words-only answer once closed the order being worked on)
             self.thinker.ask(Request("question", f"{speaker} asked in chat: \"{msg}\"\n{await self._where_words()}"
-                                     f"{self._orders_words()}\n"
+                                     f"{self._orders_words()}{self._plan_words()}\n"
                                      "Answer briefly with the say tool (look first only if you need to; check facts "
                                      "like research and what's built before saying what's missing). Don't submit a "
                                      "plan unless they asked for work.", None))
@@ -682,6 +688,11 @@ class Actor(FastPaths):
                 i = next((k for k, st in enumerate(v["states"]) if st in ("run", "fail")), None)
                 if i is not None:
                     r["step"] = f"{i + 1} of {len(v['steps'])}: {v['steps'][i][:100]}"
+                # the whole plan: "are you requesting pumpjacks?" was answered "no" from the order's words while the
+                # plan's first step requested 27 (30 Oct)
+                r["plan"] = {"goal": str(v.get("goal") or "")[:200],
+                             "steps": [f"{k + 1}. [{st}] {t[:90]}" for k, (t, st) in
+                                       enumerate(zip(v["steps"], v["states"]))][:20]}
             if cur.notes:
                 r["notes"] = cur.notes[-3:]
             if getattr(cur, "asked", None):
@@ -784,6 +795,9 @@ class Actor(FastPaths):
         if o.status in ("done", "failed", "cancelled"):
             o.status = "new"
             o.reopened += 1
+            # the spot it asked for: a fresh go, not a "failed" replan at max (30 Oct: the player's first order got
+            # its first real plan 19.5 min after the ping)
+            o.misses, o.escalated = 0, False
             self.log({"kind": "reopen", "order": o.id})
             self.wake.set()
         elif o.status == "thinking" and self.thinker:
@@ -851,6 +865,16 @@ class Actor(FastPaths):
             out += (f" A hop step takes you to the spawn of {', '.join(others)} (empty-handed: it stores what you "
                     "carry in chests first).")
         return out
+
+    def _plan_words(self) -> str:
+        """The plan it's running, step by step, for a question about what it's doing (30 Oct: "No, not pumpjacks"
+        while its plan was requesting 27)."""
+        v = getattr(self, "view", None)
+        cur = self.current if self.current and self.current.status in ("working", "thinking") else None
+        if not (v and cur and v.get("order") == cur.id and v.get("steps")):
+            return ""
+        steps = "; ".join(f"{k + 1}. [{st}] {t[:80]}" for k, (t, st) in enumerate(zip(v["steps"], v["states"])))
+        return f"\nThe plan you're running for #{cur.id} ({v.get('goal') or ''}): {steps[:1500]}"
 
     async def _others_words(self) -> str:
         """Other players' serfs in this world: where each is and what it's doing, so a plan stays out of their way
@@ -1454,6 +1478,14 @@ class Actor(FastPaths):
             self.log({"kind": "plan_queued", "order": oid, "parts_waiting": len(self.current.queued_plans)})
         elif (oid is not None and not plan.get("no_plan") and plan.get("steps") and
               (done := next((x for x in self.orders if x.id == oid and x.status in ("done", "failed")), None))):
+            if done.status == "failed":
+                # a plan that came after the order gave up: ask, don't start it unasked (30 Oct: two such late plans
+                # became orders nobody had asked for, and one pushed a project's order out)
+                done.next_plan = plan
+                self.log({"kind": "late_plan", "order": oid})
+                await self.say(f"found a way to do #{oid} {brief(done.text, 50)} after all: say \"try #{oid} again\" "
+                               "and I'll do it")
+                return
             # the planner's review of something the actor did by itself found a problem: a follow-up order
             # titled as its own work (live test: "(the planner's follow-up to order 3)" read as a second agent)
             fo = Order(self.next_id, f"fixing up #{oid} ({short_text(done.text, 40)}): {plan.get('goal') or ''}"[:300],
@@ -1534,20 +1566,29 @@ class Actor(FastPaths):
             self._prefetching = asyncio.create_task(self._prefetch(o))
         t0 = time.time()
         plan = None
-        told = False
+        told = 0
+        # a player's own order hears how it's going (a project's or the planner's own orders don't: 30 Oct, 7 of 7
+        # "still working out the layout" lines were for orders the player never gave)
+        mine = o.speaker not in (self.name, "planner", "project") and o.project is None
         while True:
             try:
-                plan = await asyncio.wait_for(asyncio.shield(fut), 45 if not told else 30)
+                plan = await asyncio.wait_for(asyncio.shield(fut), 10)
                 break
             except asyncio.TimeoutError:
-                if not told and o.plans == 0:
-                    told = True
-                    await self.say("still working out the layout, one moment")
+                waited = time.time() - t0
+                if mine and told < len(STILL_AT) and waited >= STILL_AT[told]:
+                    told += 1
+                    await self.say(f"still planning #{o.id} {brief(o.text, 50)} ({waited / 60:.0f} min so far)"
+                                   + ("; say stop to drop it" if told > 1 else ""))
                 # keep waiting while the thinker is still on this order (puzzles take long), up to 20 minutes
                 still = self.thinker.busy and self.thinker.current and self.thinker.current.order_id == o.id
                 queued = any(r.order_id == o.id for r in list(self.thinker.queue._queue))
-                if time.time() - t0 > (1200 if (still or queued) else timeout) or o.status == "cancelled":
+                if waited > (1200 if (still or queued) else timeout) or o.status == "cancelled":
                     self._plan_waiters.pop(o.id, None)
+                    self.thinker.drop(o.id)  # don't let it run on for an order nobody waits for
+                    if o.status != "cancelled":
+                        o.history.append(f"the planner took over {waited / 60:.0f} min without a plan, so it was "
+                                         "stopped")
                     break
         if o.status == "thinking":
             o.status = "working"
@@ -1643,13 +1684,17 @@ class Actor(FastPaths):
             free = False
             if o.status == "cancelled":
                 return False
+            asked_at = time.time()
             if o.next_plan:
                 plan, o.next_plan = o.next_plan, None
             else:
                 effort = None
-                if o.plans >= 1 and self.thinker and (self.thinker.effort or "high") != "max":
-                    # a plan that didn't get there: the next one is thought through harder. The session restarts at
-                    # the new effort, so the first time it gets the order as it was first given too.
+                if o.misses >= 2 and self.thinker and (self.thinker.effort or "high") != "max":
+                    # Two plans ran and still missed: the next one is thought through harder. Not after a step that
+                    # failed (no path, stuck, short of items: a corrected step fixes those), nor after a first miss:
+                    # every replan at max cost the 30 Oct session 215 of its 313 order-minutes (median 9 min each,
+                    # 25 Oct's at the session's own effort: 15 s). The session restarts at the new effort, so it gets
+                    # the order as it was first given too.
                     effort = "max"
                     if not o.escalated:
                         o.escalated = True
@@ -1718,13 +1763,16 @@ class Actor(FastPaths):
                     await self.say(plan.get("done_text") or "done")
                     return True
                 o.history.append(vreport)
+                o.misses += 1
                 text = (f"Your plan for order {o.id} (\"{o.text}\") didn't get there.\n{vreport}\n"
                         "Submit a corrected plan (only the steps still needed).")
                 continue
             self.metrics["plans"] += 1
             if not plan:
+                if o.status == "cancelled":  # whoever cancelled it says so ("sorry, I'm stuck" was said for these too)
+                    return False
                 if not (self.thinker and self.thinker.stats.usage_limited):
-                    await self.say("sorry, I'm stuck on this one (no plan)")
+                    break  # said below: which order, and why
                 return False
             if plan.get("no_plan") and plan.get("limited"):
                 # out of capacity, not an answer (p11's order closed "done" on "You've hit your session limit"): ask
@@ -1736,9 +1784,21 @@ class Actor(FastPaths):
                 plan, free = None, True
                 continue
             if plan.get("no_plan") and plan.get("error"):
-                await self.say("my planner hit an error; trying again")
+                o.plan_errors += 1
+                why = "ran out of planning steps" if "max_turns" in str(plan["error"]) else "my planner hit an error"
+                if o.plan_errors >= 2:
+                    o.history.append(f"no plan: {why} twice")
+                    break
+                await self.say(f"couldn't work out #{o.id} {brief(o.text, 50)} yet ({why}); trying a simpler way")
+                text = (f"Your last turn for order {o.id} (\"{o.text}\") ended without a plan ({plan['error']}). Look "
+                        "at no more than you need (a few tool calls), then submit the simplest plan that does it.")
                 plan = None
                 continue
+            if plan.get("no_plan") and not (plan.get("text") or "").strip() and not o.asked \
+                    and self.last_said_t < asked_at:  # (an answer through the say tool counts)
+                # no plan and not a word: nothing was answered (an empty no-plan once closed a build order "done")
+                o.history.append("the planner ended its turn without a plan or an answer")
+                break
             if plan.get("no_plan"):
                 # answered in words only (e.g. a question) -- nothing to run
                 return True
@@ -1766,6 +1826,7 @@ class Actor(FastPaths):
                     await self.say(plan.get("done_text") or "done")
                     return True
                 self.metrics["unverified"] += 1
+                o.misses += 1
                 report = vreport
             o.history.append(report)
             text = (f"Your plan for order {o.id} (\"{o.text}\") didn't get there.\n{report}\n"
@@ -1896,14 +1957,16 @@ class Actor(FastPaths):
                 return False, (f"The player changed the job while it was running ({len(done)} steps done): "
                                f"\"{note}\". Steps done so far:\n" + "\n".join(done[-15:]))
             await self._keep_lights_on(o)
-            tries = 0
+            tries, last_fail = 0, ""
             # fuel the rest of the plan's refuel steps will hand out, so one coal run covers them all
             self.runner.fuel_ahead = sum(int(x.get("count", 20)) for x in steps[i:] if x.get("do") == "refuel")
             while True:
                 tries += 1
                 await self.g.status(text=f"{describe(st)[:80]}")
                 self._step_state(o, i, "run")
+                t_step = time.time()
                 r = await self.runner.run(st)
+                secs = time.time() - t_step
                 self.log({"kind": "step", "order": o.id, "i": i, "step": st, "ok": r.get("ok"), "msg": r.get("msg")})
                 self._step_state(o, i, "ok" if r.get("ok") else "fail")
                 if r.get("ok"):
@@ -1924,7 +1987,8 @@ class Actor(FastPaths):
                 missing = r.get("missing") or parse_missing(msg)
                 if r.get("unobtainable"):
                     missing = {}
-                choice_, conf = await self._recovery(goal, st, msg, tries, missing)
+                choice_, conf = await self._recovery(goal, st, msg, tries, missing, secs, last_fail)
+                last_fail = msg
                 self.metrics["recoveries"][choice_] = self.metrics["recoveries"].get(choice_, 0) + 1
                 self.log({"kind": "recovery", "order": o.id, "i": i, "choice": choice_, "conf": round(conf, 3),
                           "msg": msg})
@@ -1957,7 +2021,8 @@ class Actor(FastPaths):
                            f"\"{note}\". Steps done:\n" + "\n".join(done[-15:]))
         return True, "all steps ran:\n" + "\n".join(done[-20:])
 
-    async def _recovery(self, goal: str, st: dict, msg: str, tries: int, missing: dict) -> tuple[str, float]:
+    async def _recovery(self, goal: str, st: dict, msg: str, tries: int, missing: dict, secs: float = 0.0,
+                        last_fail: str = "") -> tuple[str, float]:
         """What to do after a failed step, by code rules on the facts read off the message. (Jev used to choose: it
         picked replan 25 times in 26 in live play, the code default, so the rules do it now.)"""
         if tries >= 3:
@@ -1965,8 +2030,17 @@ class Actor(FastPaths):
         f = decide.failure_facts(msg)
         if f["already_done"] or f["thing_to_remove_is_gone"]:
             return "skip", 1.0
-        if f["blocked_only_by_the_character"] or f["timed_out"]:
+        if f["blocked_only_by_the_character"]:
             return "retry", 1.0
+        if f["timed_out"]:
+            # A short hiccup is worth one more go. A step that ran over a minute, or got stuck where the last try did,
+            # needs a different step: on 30 Oct 15 unchanged retries failed again (32 min), one 420 s connect three
+            # times in a row.
+            stuck_at = re.search(r"stuck at (-?[\d.]+),\s*(-?[\d.]+)", msg)
+            same_spot = bool(stuck_at and stuck_at.group(0) in last_fail)
+            if secs < 60 and not same_spot and tries < 2:
+                return "retry", 1.0
+            return "replan", 1.0
         if missing and not f["item_exists_nowhere"]:
             return "get_items", 1.0
         return "replan", 1.0

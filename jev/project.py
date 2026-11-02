@@ -325,13 +325,21 @@ class Project:
         o.project = self
         self.orders.append(o)
         self._log({"kind": "order", "order": o.id, "text": text, "playbook": o.playbook})
-        while o.status in ("new", "working", "thinking") and time.time() - ts < ORDER_LIMIT and self.active:
+        started = None  # the limit counts from when the order starts, not its time in the queue (30 Oct: an order
+        # cancelled after 13.7 min of its own, 31 of them spent behind another)
+        while o.status in ("new", "working", "thinking") and self.active:
+            if started is None and o.status != "new":
+                started = time.time()
+            if started is not None and time.time() - started >= ORDER_LIMIT:
+                break
             await self._sleep(5)
         if o.status in ("new", "working", "thinking"):
             o.status = "cancelled"
             await a.g.cancel("project moved on")
-            outcome = (f"not finished after {(time.time() - ts) / 60:.0f} min (stopped)" if self.active
+            outcome = (f"not finished after {(time.time() - (started or ts)) / 60:.0f} min (stopped)" if self.active
                        else "stopped by a player")
+            if a.thinker:
+                a.thinker.drop(o.id)
         else:
             outcome = o.status
             if getattr(o, "asked", None):

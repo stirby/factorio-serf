@@ -236,7 +236,7 @@ def limit_lifts(text: str, now: float | None = None) -> float:
 
 @dataclass
 class Request:
-    kind: str  # "order" | "report" | "question"
+    kind: str  # "order" | "report" | "question" | "lesson" | "review"
     text: str
     order_id: int | None = None
     t: float = field(default_factory=time.time)
@@ -341,6 +341,20 @@ class Thinker:
         await self.client.connect()
         self._session_cost = 0.0
 
+    def drop(self, order_id: int) -> None:
+        """Stop working on an order: its queued requests go, and a turn running for it is interrupted (30 Oct: a
+        cancelled order's max-effort turn ran on for 19 min while the next order waited for the planner)."""
+        kept = []
+        while not self.queue.empty():
+            r = self.queue.get_nowait()
+            if r.order_id != order_id:
+                kept.append(r)
+        for r in kept:
+            self.queue.put_nowait(r)
+        if self.current and self.current.order_id == order_id and self.busy and getattr(self, "client", None):
+            self.log_fn({"t": time.time(), "kind": "thinker_drop", "order": order_id})
+            asyncio.ensure_future(self.client.interrupt())
+
     def set_model(self, model: str) -> None:
         """Another model from the next turn on (a player's "@serf use sonnet")."""
         self.model = model
@@ -415,7 +429,9 @@ class Thinker:
                 self.queue.put_nowait(x)
             self.current = req
             self.busy = True
-            want = req.effort or self.effort
+            # a question or a lesson keeps the running session's effort: switching back and forth restarted the
+            # session 24 times on 30 Oct, and each restart lost what the planner had read
+            want = req.effort or (self._cur_effort if req.kind in ("question", "lesson") else self.effort)
             opts = getattr(self, "_options", None)
             if opts is not None and (want != self._cur_effort or opts.model != self.model):
                 # effort and model are set when a session starts: a turn that wants others starts a fresh one
@@ -460,6 +476,7 @@ class Thinker:
         self.lint_rounds = 0
         interrupted = False
         limited = False
+        error = None
         self.log_fn({"t": t0, "kind": "thinker_prompt", "req": req.kind, "order": req.order_id, "text": prompt})
         await self.client.query(prompt)
         texts = []
@@ -487,6 +504,8 @@ class Thinker:
                 self.stats.turns += 1
                 secs = time.time() - t0
                 self.stats.secs += secs
+                if msg.is_error:
+                    error = msg.subtype
                 u = msg.usage or {}
                 self.log_fn({"t": time.time(), "kind": "thinker_turn", "req": req.kind, "order": req.order_id,
                              "secs": round(secs, 1), "cost": round(cost, 4), "plan": self._plan_submitted,
@@ -500,5 +519,8 @@ class Thinker:
             await self._restart()
         if not self._plan_submitted:
             # a turn without a plan (e.g. it only answered a question): tell the actor so it doesn't wait forever
+            # A turn that ended in an error (out of turns: 30 Oct's acid tap ran 68 tool calls, then error_max_turns
+            # with no text) says so: the actor took it for an answer and closed the player's order "done".
             await self.on_plan({"goal": None, "steps": [], "no_plan": True, "text": "\n".join(texts)[-500:],
-                                **({"limited": True} if limited else {})}, req)
+                                **({"limited": True} if limited else {}),
+                                **({"error": error} if error and not limited else {})}, req)
