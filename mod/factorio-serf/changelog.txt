@@ -1,6 +1,8 @@
 ---------------------------------------------------------------------------------------------------
 Version: 0.4.1
 Date: 2026-11-02
+  Features:
+    - A window for longer answers from the serf (the in-game wiki), with a Close button.
   Bugfixes:
     - A serf mines a tree or rock it can reach from where it stands instead of walking up to it first (it failed every rock with "no path" when shut in).
     - A serf carried back and forth on a belt notices it's stuck and steps off the belt (it could stay wedged for minutes).
