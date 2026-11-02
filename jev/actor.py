@@ -1027,6 +1027,8 @@ class Actor(FastPaths):
             # orders it closed came straight back as "still broken"; 1 of 23 that went point fix -> planner did)
             r = await (self._fix_wide(o) if wide >= 0.6 and not detailed else self._fix(o))
             if r is True:
+                if o.speaker == self.name and o.text.startswith("(noticed) "):
+                    await self.say(f"noticed and fixed: {o.text[len('(noticed) '):][:160]}")
                 return True
             if o.speaker == self.name and isinstance(r, str) and r.startswith("I already did"):
                 # a watch found it and it's fixed; what's left there it can't fix alone (p11: every refuelled burner
@@ -1214,7 +1216,7 @@ class Actor(FastPaths):
                         o = Order(self.next_id, f"(noticed) {found}", self.name, "fix", [wt["at"]])
                         self.next_id += 1
                         self.orders.append(o)
-                        await self.say(f"noticed: {found}. fixing it")
+                        # said once it's fixed, not now (30 Oct: "noticed: ... fixing it", then the fix path dropped it)
                         self.wake.set()
                         break
             except Exception as e:  # noqa: BLE001
@@ -1607,6 +1609,11 @@ class Actor(FastPaths):
             parts.append(self._ping_words())
         if self._taught_words():
             parts.append(self._taught_words())
+        for st in self.runner.stashes:  # what a hop left behind, and where
+            what = ", ".join(f"{n} {i}" for i, n in list(st["items"].items())[:8])
+            parts.append(f"You left {st['total']} items ({what}) in chests on {st['surface']} at "
+                         + " ".join(f"[gps={c[0]:g},{c[1]:g}]" for c in st["at"]) + " when you hopped; they're "
+                         "there, not in your pocket (robots don't take from plain chests).")
         if self.runner.boxed_in:  # it can't walk: every walk in a plan fails until it's out (30 Oct: 2 h, 7 plans)
             parts.append(f"Before anything else: {self.runner.boxed_in}.")
         if o.project:

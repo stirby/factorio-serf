@@ -245,6 +245,7 @@ class Runner:
         self.fuel_ahead = 0  # fuel the running plan's remaining refuel steps will use (set by the actor)
         self.no_path_streak = 0  # actions in a row that found no path: the character may have walled itself in
         self._probe_t = 0.0  # when it last checked whether it can walk at all
+        self.stashes: list[dict] = []  # where a hop left its things: {surface, at: [[x, y]...], items, total, t}
         self.abort = None  # set while an order runs: true once that order is cancelled, so its remaining actions stop
         self._escaping = False
         self.routed: list[dict] = []  # what each route step laid: {"ends": endpoint tiles, "tiles": belt tiles}
@@ -1267,6 +1268,13 @@ class Runner:
         self.inventory = {}
         if at:  # where its things are (live test: 1,810 items went into a chest and nobody was told where)
             src = me.get("surface") or "nauvis"
+            # and remembered for later plans (30 Oct: "take back the items you stashed" got "already have my gear
+            # back"; 2,801 items sat in plain chests that robots don't take from)
+            carried = {k: n for k, n in (me.get("inventory") or {}).items() if n > 0}
+            self.stashes.append({"surface": src, "at": [list(c) for c in at[:6]], "t": time.time(),
+                                 "items": dict(sorted(carried.items(), key=lambda kv: -kv[1])[:12]),
+                                 "total": sum(carried.values())})
+            self.stashes = self.stashes[-6:]
             await self.g.say("left my things in " + ("a chest" if len(at) == 1 else f"{len(at)} chests") + " on "
                              + src + ": " + " ".join(f"[gps={c[0]:g},{c[1]:g},{src}]" for c in at[:4]))
         pos = r.get("position") or (0, 0)

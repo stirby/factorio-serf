@@ -1998,6 +1998,16 @@ def test_question_keeps_effort():
           got == ["max", None], got)
 
 
+def test_quickbelt_shape():
+    from jev.fastpaths import BELT_SHAPE
+    skip = ["one belt, tungsten-plate on one lane, processing-unit on the other", "belt it along y -108",
+            "split the ore between both smelter rows", "use red belt for it"]
+    keep = ["belt the coal from [gps=1,2] to the boiler at [gps=40,2]", "get that coal over to the boiler from the belt"]
+    check("quick belt: lanes, splits, routes and belt tiers go to the planner; a plain A-to-B belt stays quick",
+          all(BELT_SHAPE.search(t) for t in skip) and not any(BELT_SHAPE.search(t) for t in keep),
+          [t for t in skip if not BELT_SHAPE.search(t)] + [t for t in keep if BELT_SHAPE.search(t)])
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):

@@ -29,6 +29,11 @@ ONTO_EXISTING = re.compile(r"\b(extend\w*|the same (?:belt|row|line)|existing|bu
 MACHINE_NAMES = re.compile(r"\b(assembling-machine-[123]|stone-furnace|steel-furnace|electric-furnace|chemical-plant)\b")
 
 
+# an order for more than one plain belt from A to B: the planner's, not the quick belt path's
+BELT_SHAPE = re.compile(r"\blanes?\b|\bsplit|\bsplitters?\b|\balong\b|\bvia\b|\broute\b|\bthrough\b|\bexpress\b|"
+                        r"\bred belt|\bblue belt|\bfast belt|\bturbo\b|\bboth\b", re.I)
+
+
 class FastPaths:
     """Mixed into Actor: uses its world(), runner, jev, thinker, say(), log() and the plan runner/checker."""
 
@@ -431,6 +436,13 @@ class FastPaths:
             named = [x for x in quickbuild.products_named(o.text, self.items or []) if x not in infra]
             if named and ep["item"] not in named:
                 self.log({"kind": "quickbelt_skip", "order": o.id, "why": f"belt carries {ep['item']}, order names {named}"})
+                return None
+            # more than one belt from A to B: two things to carry, lanes, a split, a route or waypoints (30 Oct: "one
+            # belt, tungsten-plate on one lane, processing-unit on the other, along y -108" got a yellow belt of
+            # tungsten only, straight through the mall, and 16 min of retries)
+            many = len(set(named)) > 1 or len(o.points) > 2 or BELT_SHAPE.search(o.text)
+            if many:
+                self.log({"kind": "quickbelt_skip", "order": o.id, "why": "more than a plain A-to-B belt"})
                 return None
         except Exception as e:  # noqa: BLE001
             self.log({"kind": "error", "where": "quickbelt", "error": repr(e)})
