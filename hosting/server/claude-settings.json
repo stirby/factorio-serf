@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(factorio-ctl status:*)",
+      "Bash(factorio-ctl log:*)",
+      "Bash(factorio-ctl say:*)",
+      "Bash(factorio-ctl save:*)",
+      "Bash(factorio-rcon /players:*)",
+      "Bash(factorio-rcon /version:*)",
+      "Bash(factorio-rcon /time:*)",
+      "Bash(factorio-rcon /admins:*)",
+      "Bash(journalctl -u factorio:*)",
+      "Bash(systemctl status factorio:*)",
+      "Bash(ls:*)",
+      "Bash(df -h:*)",
+      "Bash(free -h:*)",
+      "Bash(sudo ufw status:*)"
+    ]
+  }
+}

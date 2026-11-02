@@ -1,0 +1,23 @@
+[Unit]
+Description=Factorio server (shared world)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=factorio
+Group=factorio
+UMask=0002
+WorkingDirectory=/opt/factorio
+# Loads the newest save in /opt/factorio/saves. RCON is on 127.0.0.1 only (never open it to the internet).
+ExecStart=/bin/sh -c 'exec /opt/factorio/bin/x64/factorio --start-server-load-latest \
+  --server-settings /opt/factorio/config/server-settings.json \
+  --server-adminlist /opt/factorio/config/server-adminlist.json \
+  --rcon-bind 127.0.0.1:27015 --rcon-password "$$(cat /opt/factorio/config/rcon-password)"'
+# On SIGINT the server saves the world, then quits (tested on 2.1.24). Give a big world time to save.
+KillSignal=SIGINT
+TimeoutStopSec=180
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,17 @@
+[Unit]
+Description=Players' "!" notes on the shared world, saved for the serf's developers
+After=factorio.service
+
+[Service]
+User=factorio
+Group=factorio
+# reads the game's chat from its log
+SupplementaryGroups=systemd-journal
+UMask=0002
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/local/bin/serf-flags
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

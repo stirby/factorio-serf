@@ -14,9 +14,9 @@ the orders; another serf launched from a midgame base running "beat the game" as
 This is version 2. The first serf (Claude agents acting step by step) is on the `serf-v1` branch and tag
 `serf-v1-final`.
 
-**Needs:** Factorio 2.1.24 with Space Age (the last 2.0 version of the mod is 0.3.6, commit 43c75d6) and a Claude subscription
-logged in to Claude Code on the same computer. Every player who wants a serf runs the app with their own login.
-Nothing else: no API keys. MIT licensed.
+**Needs:** Factorio 2.1.24 with Space Age (the last 2.0 version of the mod is 0.3.6, commit 43c75d6) and a Claude
+subscription logged in to Claude Code on the same computer. Every player who wants a serf runs the app with their own
+login. Nothing else: no API keys. MIT licensed.
 
 See [docs/DESIGN.md](docs/DESIGN.md) for how the parts fit together.
 
@@ -52,14 +52,40 @@ Talk to it with `@serf`, for example:
 - `@serf two more just like it at [gps=..] and [gps=..]`
 
 None of these need the planner: Sonnet reads the order (a few seconds) and code does it. Anything it isn't sure of
-goes to the planner,
-which also looks over what the actor built by itself when it has nothing else to do. A plan that doesn't get there
-sends the next one at max thinking effort.
-Add `--no-think` to run with Sonnet and code only (also what happens when Opus hits a usage limit): chat then follows
-plain rules (a line with `@serf` is an order, "stop" stops).
+goes to the planner, which also looks over what the actor built by itself when it has nothing else to do. A plan that
+doesn't get there sends the next one at max thinking effort. Add `--no-think` to run with Sonnet and code only (also
+what happens when Opus hits a usage limit): chat then follows plain rules (a line with `@serf` is an order, "stop"
+stops).
+
+It also answers game questions, told only to you, from this game's own recipes and the Factorio wiki:
+`@serf how do I make plastic?`, `@serf what's on vulcanus?`. Ctrl+Shift+J shows what it's doing and what's queued.
+
+**Your serf, your settings** (you pay for it, so you choose; nothing else changes):
+
+| | at start | in chat |
+|---|---|---|
+| the planner's and chat reader's model (opus by default) | `serf --model sonnet` | `@serf use sonnet` |
+| how hard the planner thinks | `serf --effort high` | `@serf set effort low`/`medium`/`high`/`max` |
+| the quick reads' model (sonnet by default) | `serf --quick-model haiku` | `@serf set quick haiku` |
+| show them | | `@serf settings` |
+
+**Feedback:** start a chat line with `!` (`! it took my belts apart`) when something goes wrong. On a server with the
+`serf-flags` service (see `hosting/`), that saves the world right then with your note and what every serf was doing,
+for whoever works on the serf; your own app also notes it in your serf's log (`~/.local/state/jev/<time>/`).
 
 Opus and Sonnet run through the local Claude Code login (the Agent SDK). Jev, TypeSafe's model, did Sonnet's part
 until 2026-11-01; `lab/` holds the question tests from then.
+
+### Playing on a server with friends
+
+Every player who wants a serf brings their own: they install the app as above and run `serf` on their own computer,
+with their own Claude login. In the game, `/serf add` brings yours in next to you (named `serf`, or `<you>-serf` if
+someone else's already is). Your serf takes orders only from you, and to you it's always `@serf`. Others can see it
+work but can't spend your Claude usage (`serf --share` lets anyone who names it give it orders). The mod keeps serfs
+from taking over each other, and the server can cap how many each player has (mod setting).
+
+To host a world: [hosting/](hosting/README.md) (setup, tools, backups, the `!` collector, notes for a Claude Code
+session that runs the server).
 
 ### Projects
 

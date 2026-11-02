@@ -1,0 +1,63 @@
+#!/usr/bin/env python3
+"""Send one command to the local Factorio server over RCON and print its reply.
+
+    factorio-rcon /players online
+    factorio-rcon /server-save
+    factorio-rcon hello everyone        (plain text shows up in chat)
+
+The password is read from /opt/factorio/config/rcon-password (you need to be in the factorio group, or use sudo).
+RCON listens on 127.0.0.1 only; it is never opened to the internet.
+"""
+import socket
+import struct
+import sys
+
+HOST, PORT = "127.0.0.1", 27015
+PASSWORD_FILE = "/opt/factorio/config/rcon-password"
+AUTH, EXEC = 3, 2
+
+
+def packet(rid: int, kind: int, body: str) -> bytes:
+    b = body.encode() + b"\0\0"
+    return struct.pack("<iii", len(b) + 8, rid, kind) + b
+
+
+def read_exact(s: socket.socket, n: int) -> bytes:
+    out = b""
+    while len(out) < n:
+        chunk = s.recv(n - len(out))
+        if not chunk:
+            raise ConnectionError("the server closed the connection")
+        out += chunk
+    return out
+
+
+def read_packet(s: socket.socket) -> tuple[int, int, str]:
+    size, rid, kind = struct.unpack("<iii", read_exact(s, 12))
+    return rid, kind, read_exact(s, size - 8)[:-2].decode("utf-8", "replace")
+
+
+def main() -> None:
+    if len(sys.argv) < 2:
+        sys.exit(__doc__)
+    try:
+        password = open(PASSWORD_FILE).read().strip()
+    except PermissionError:
+        sys.exit(f"can't read {PASSWORD_FILE}: join the factorio group (then log in again) or use sudo")
+    try:
+        s = socket.create_connection((HOST, PORT), timeout=30)
+    except OSError as e:
+        sys.exit(f"can't reach RCON on {HOST}:{PORT} ({e}); is the server up? try: factorio-ctl status")
+    with s:
+        s.sendall(packet(1, AUTH, password))
+        rid, kind, _ = read_packet(s)
+        if kind == 0:  # some servers send an empty reply before the auth result
+            rid, kind, _ = read_packet(s)
+        if rid == -1:
+            sys.exit("RCON refused the password")
+        s.sendall(packet(2, EXEC, " ".join(sys.argv[1:])))
+        print(read_packet(s)[2])
+
+
+if __name__ == "__main__":
+    main()

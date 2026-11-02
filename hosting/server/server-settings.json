@@ -1,0 +1,42 @@
+{
+  "name": "otterplex's world",
+  "description": "Shared Space Age world",
+  "tags": ["space-age"],
+  "max_players": 8,
+
+  "_comment_visibility": "Not in the public list and not on LAN: join with Connect to address <server-ip>",
+  "visibility": { "public": false, "lan": false },
+
+  "username": "",
+  "password": "",
+  "token": "",
+
+  "_comment_game_password": "setup.sh fills this in (GAME_PASSWORD=... or a random one) and prints it",
+  "game_password": "SET-BY-SETUP",
+
+  "require_user_verification": true,
+  "max_upload_in_kilobytes_per_second": 0,
+  "max_upload_slots": 5,
+  "minimum_latency_in_ticks": 0,
+  "max_heartbeats_per_second": 60,
+  "ignore_player_limit_for_returning_players": true,
+  "allow_commands": "admins-only",
+
+  "autosave_interval": 10,
+  "autosave_slots": 10,
+  "afk_autokick_interval": 0,
+
+  "_comment_auto_pause": "Stops the world when nobody is on, so nothing (biters included) happens overnight",
+  "auto_pause": true,
+  "auto_pause_when_players_connect": false,
+  "only_admins_can_pause_the_game": true,
+  "autosave_only_on_server": true,
+
+  "_comment_non_blocking_saving": "Left off: the game calls it highly experimental, at the risk of losing saves",
+  "non_blocking_saving": false,
+
+  "minimum_segment_size": 25,
+  "minimum_segment_size_peer_count": 20,
+  "maximum_segment_size": 100,
+  "maximum_segment_size_peer_count": 10
+}

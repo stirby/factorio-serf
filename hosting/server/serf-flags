@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+"""Players' "!" lines on the shared world, kept for whoever works on the serf. A player types "! the serf picked up
+my belts" in chat; this saves the world right then, with the line, who said it, who was online and what every serf
+was doing, into /opt/factorio/flags/<time>-<player>/ (flag.json + world.zip), and thanks them in chat.
+
+It reads chat from the game's log (journalctl), not by polling the game: an auto-paused server runs a tick for every
+command it gets, so polling would keep an empty world moving. The game is only asked anything (/crew list,
+/server-save) when someone flags. Runs as the serf-flags service.
+"""
+from __future__ import annotations
+
+import json
+import re
+import shutil
+import subprocess
+import time
+from pathlib import Path
+
+F = Path("/opt/factorio")
+OUT = F / "flags"
+WORLD = F / "saves" / "world.zip"
+CHAT = re.compile(r"\[CHAT\] (?P<player>[^:<>\[\]]+): *!+ *(?P<note>.*)$")
+
+
+def rcon(cmd: str) -> str:
+    return subprocess.run(["factorio-rcon", cmd], capture_output=True, text=True, timeout=30).stdout.strip()
+
+
+def fresh_save(timeout: float = 120) -> Path | None:
+    """Ask for a save and wait until world.zip is rewritten and settled."""
+    before = WORLD.stat().st_mtime if WORLD.exists() else 0
+    rcon("/server-save")
+    end = time.time() + timeout
+    while time.time() < end:
+        time.sleep(2)
+        if WORLD.exists() and WORLD.stat().st_mtime > before:
+            size = WORLD.stat().st_size
+            time.sleep(2)
+            if WORLD.stat().st_size == size:
+                return WORLD
+    return None
+
+
+def flag(player: str, note: str) -> None:
+    OUT.mkdir(exist_ok=True)
+    n = sum(1 for d in OUT.iterdir() if d.is_dir()) + 1
+    d = OUT / f"{time.strftime('%Y%m%d-%H%M%S')}-{re.sub(r'[^A-Za-z0-9_-]', '', player) or 'player'}"
+    d.mkdir()
+    info: dict = {"n": n, "time": time.strftime("%Y-%m-%d %H:%M:%S %Z"), "player": player, "note": note}
+    try:
+        info["serfs"] = json.loads(rcon('/crew {"op":"list"}')).get("data", {}).get("agents")
+    except (ValueError, subprocess.SubprocessError) as e:
+        info["serfs_error"] = repr(e)
+    info["online"] = rcon("/players online")
+    w = fresh_save()
+    if w:
+        shutil.copy2(w, d / "world.zip")
+    else:
+        info["save_error"] = "the save didn't finish in 2 minutes"
+    (d / "flag.json").write_text(json.dumps(info, indent=1) + "\n")
+    rcon(f"[flag] thanks {player}: saved as #{n} for the serf's developers")
+    print(f"flag #{n} from {player}: {note!r} -> {d}", flush=True)
+
+
+def main() -> None:
+    log = subprocess.Popen(["journalctl", "-u", "factorio", "-f", "-n", "0", "-o", "cat"], stdout=subprocess.PIPE,
+                           text=True)
+    assert log.stdout
+    for line in log.stdout:
+        m = CHAT.search(line)
+        if m and m["player"].strip() not in ("<server>", "server"):
+            try:
+                flag(m["player"].strip(), m["note"].strip())
+            except Exception as e:  # noqa: BLE001  (one bad flag mustn't stop the next)
+                print(f"flag from {m['player']!r} failed: {e!r}", flush=True)
+
+
+if __name__ == "__main__":
+    main()

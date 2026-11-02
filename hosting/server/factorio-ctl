@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+# The one tool for the shared Factorio server. Changes need sudo; status/log/say/save work as any factorio-group user.
+set -euo pipefail
+
+F=/opt/factorio
+UNIT=factorio
+STAMP=$(date +%Y%m%d-%H%M%S)
+
+usage() {
+  cat <<EOF
+factorio-ctl status                   up or down, version, who's online, newest save
+factorio-ctl log [N]                  last N lines of the server log (default 50)
+factorio-ctl say TEXT                 a chat line to the players
+factorio-ctl save                     save now and wait until it's written
+factorio-ctl start | stop | restart   stop saves the world first (the server saves on SIGINT)
+factorio-ctl backup                   copy the newest save into $F/backups/ (cron does this every 6 hours)
+factorio-ctl install-save FILE        make FILE the world (the old saves move to $F/backups/)
+factorio-ctl install-mods DIR         use DIR's mods (the old mods move to $F/backups/)
+EOF
+}
+
+need_root() { [ "$(id -u)" = 0 ] || { echo "this one needs sudo: sudo factorio-ctl $*" >&2; exit 1; }; }
+running() { systemctl is-active --quiet "$UNIT"; }
+online() { factorio-rcon /players online 2>/dev/null | sed -n 's/^Online players (\([0-9]*\)).*/\1/p'; }
+newest_save() { ls -t "$F"/saves/*.zip 2>/dev/null | head -1 || true; }
+
+# Wait for the world to load (or fail) after a start.
+wait_up() {
+  local since=$1
+  for _ in $(seq 1 120); do
+    if journalctl -u "$UNIT" --since "$since" --no-pager -q | grep "to(InGame)" >/dev/null; then
+      echo "up: players can join on port 34197"; return 0
+    fi
+    if ! running; then
+      echo "the server stopped while starting; the end of its log:" >&2
+      journalctl -u "$UNIT" --since "$since" --no-pager -q | tail -25 >&2; return 1
+    fi
+    sleep 1
+  done
+  echo "still loading after 2 minutes; check: factorio-ctl log" >&2; return 1
+}
+
+refuse_if_online() {
+  local n; n=$(online || true)
+  if [ -n "$n" ] && [ "$n" != 0 ] && [ "${FORCE:-}" != 1 ]; then
+    echo "$n player(s) online: this would kick them. Ask them first, then run it with FORCE=1" >&2; exit 1
+  fi
+}
+
+do_start() {
+  local since; since=$(date '+%Y-%m-%d %H:%M:%S')
+  [ -n "$(newest_save)" ] || { echo "no save in $F/saves: install one first (factorio-ctl install-save FILE)" >&2; exit 1; }
+  systemctl start "$UNIT"; wait_up "$since"
+}
+
+do_stop() { if running; then systemctl stop "$UNIT"; echo "stopped (world saved)"; fi; }
+
+do_backup() {
+  local s; s=$(newest_save)
+  [ -n "$s" ] || { echo "no save to back up"; return 0; }
+  mkdir -p "$F/backups"
+  cp -p "$s" "$F/backups/world-$STAMP.zip"
+  chown factorio:factorio "$F/backups/world-$STAMP.zip"
+  # keep 60 days of the 6-hourly copies (about 240 files, ~5 GB at 20 MB each)
+  find "$F/backups" -maxdepth 1 -name 'world-*.zip' -mtime +60 -delete
+  echo "backed up $(basename "$s") -> backups/world-$STAMP.zip"
+}
+
+cmd=${1:-}; shift || true
+case "$cmd" in
+  status)
+    if running; then
+      echo "server: up ($("$F"/bin/x64/factorio --version | head -1))"
+      factorio-rcon /players online || true
+    else
+      echo "server: down"
+    fi
+    s=$(newest_save); echo "newest save: ${s:-none}${s:+ ($(date -r "$s" '+%Y-%m-%d %H:%M'))}"
+    echo "backups: $(ls "$F"/backups/world-*.zip 2>/dev/null | wc -l) files, $(du -sh "$F/backups" 2>/dev/null | cut -f1)"
+    ;;
+  log) journalctl -u "$UNIT" -n "${1:-50}" --no-pager ;;
+  say) [ $# -gt 0 ] || { usage; exit 1; }; factorio-rcon "$*" >/dev/null; echo "said it" ;;
+  save)
+    running || { echo "server is down: nothing to save"; exit 1; }
+    since=$(date '+%Y-%m-%d %H:%M:%S'); factorio-rcon /server-save >/dev/null
+    for _ in $(seq 1 120); do
+      journalctl -u "$UNIT" --since "$since" --no-pager -q | grep "Saving finished" >/dev/null && { echo "saved"; exit 0; }
+      sleep 1
+    done
+    echo "the save didn't finish within 2 minutes; check: factorio-ctl log" >&2; exit 1 ;;
+  start) need_root start; running && { echo "already up"; exit 0; }; do_start ;;
+  stop) need_root stop; refuse_if_online; do_stop ;;
+  restart) need_root restart; refuse_if_online; do_stop; do_start ;;
+  backup) need_root backup; do_backup ;;
+  install-save)
+    need_root install-save; file=${1:?usage: factorio-ctl install-save FILE}
+    [ -f "$file" ] || { echo "no such file: $file" >&2; exit 1; }
+    unzip -tq "$file" >/dev/null || { echo "$file isn't a good zip; not installing it" >&2; exit 1; }
+    if [ ! -f "$F/mods/mod-list.json" ] && [ "${FORCE:-}" != 1 ]; then
+      # loaded without its mods, the world drops everything they added, and the next stop saves it that way
+      echo "no mods installed yet: install them first (factorio-ctl install-mods DIR), or FORCE=1 for a vanilla world" >&2
+      exit 1
+    fi
+    refuse_if_online; do_stop
+    if [ -n "$(ls "$F"/saves/ 2>/dev/null)" ]; then
+      mkdir -p "$F/backups/saves-$STAMP"; mv "$F"/saves/* "$F/backups/saves-$STAMP/"
+      echo "old saves kept in backups/saves-$STAMP/"
+    fi
+    install -o factorio -g factorio -m 664 "$file" "$F/saves/world.zip"
+    do_start ;;
+  install-mods)
+    need_root install-mods; dir=${1:?usage: factorio-ctl install-mods DIR}
+    [ -f "$dir/mod-list.json" ] || { echo "$dir has no mod-list.json (send it with push-mods.py)" >&2; exit 1; }
+    refuse_if_online; do_stop
+    mkdir -p "$F/backups/mods-$STAMP"; mv "$F"/mods/* "$F/backups/mods-$STAMP/" 2>/dev/null || true
+    echo "old mods kept in backups/mods-$STAMP/"
+    install -o factorio -g factorio -m 664 "$dir"/* "$F/mods/"
+    if [ -z "$(newest_save)" ]; then echo "mods in. Next: sudo factorio-ctl install-save FILE"; exit 0; fi
+    do_start ;;
+  ""|-h|--help|help) usage ;;
+  *) usage; exit 1 ;;
+esac
