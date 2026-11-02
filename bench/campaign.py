@@ -27,7 +27,7 @@ from instance import INSTALL, Instance  # noqa: E402
 
 from jev import progress  # noqa: E402
 from jev.game import Game, GameError  # noqa: E402
-from jev.typesafe import reader  # noqa: E402
+from jev.quick_reader import reader  # noqa: E402
 
 GOAL = ("launch a rocket from Nauvis. On the way: automate red, green, blue, purple and yellow science, research "
         "the rocket silo, build it and feed it.")
@@ -430,7 +430,6 @@ def main() -> None:
     p.add_argument("--gen-hours", type=float, default=3.0)
     p.add_argument("--gens", type=int, default=8)
     p.add_argument("--instance", type=int, default=75)
-    p.add_argument("--reader", choices=["jev", "sonnet", "hybrid"], default="hybrid")
     p.add_argument("--effort", default=None, help="the serf's planner effort")
     p.add_argument("--strategist-effort", default=None)
     p.add_argument("--mode", choices=["strategist", "project"], default="strategist",
@@ -443,7 +442,6 @@ def main() -> None:
     p.add_argument("--style", choices=["player", "classic"], default="player",
                    help="how the project manager builds: player (rates first, base plan, no hand-feeding) or classic")
     a = p.parse_args()
-    os.environ["JEV_READER"] = a.reader
     asyncio.run(Campaign(a).run(a.gens, a.gen_hours))
 
 

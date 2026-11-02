@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from jev import decide  # noqa: E402
-from jev.typesafe import reader  # noqa: E402
+from jev.quick_reader import reader  # noqa: E402
 
 QUESTIONS = [("what are you working on?", "status"), ("where are u", "where"), ("how's it going with the gears?", "status"),
              ("what have you got on you", "carrying"), ("are you done yet", "status"), ("do you have any belts?", "carrying"),

@@ -30,7 +30,7 @@ from .lint import lint, plan_points
 from .steps import Runner, describe, parse_missing, plan_needs, resolve_refs, step_end
 from .chat_reader import ChatDecision, ChatReader, ChatReaderError
 from .thinker import Request, Thinker
-from .typesafe import Jev
+from .quick_reader import QuickReader
 from .world import CHESTS, World, fmt_xy, items_words
 
 log = logging.getLogger("jev.actor")
@@ -120,7 +120,7 @@ def fixed_words(fixed: list[str]) -> str:
 
 
 class Actor(FastPaths):
-    def __init__(self, game: Game, jev: Jev, workdir: Path, name: str = "serf", think: bool = True,
+    def __init__(self, game: Game, jev: QuickReader, workdir: Path, name: str = "serf", think: bool = True,
                  thinker_effort: str | None = None):
         self.g, self.jev, self.name = game, jev, name
         self.workdir = workdir
@@ -1386,18 +1386,6 @@ class Actor(FastPaths):
         self._told_limit = False
         return o.status != "cancelled"
 
-    async def _effort_shadow(self, o: Order) -> None:
-        """Jev's pick of how hard the planner should think about a new order, logged next to how the order goes
-        (shadow mode: the planner keeps its own effort until the picks are shown to help; bench/effort_shadow.py)."""
-        if not self.jev:
-            return
-        try:
-            pick, conf = await decide.effort(self.jev, o.text)
-            self.log({"kind": "effort_shadow", "order": o.id, "pick": pick, "conf": round(conf, 3),
-                      "used": (self.thinker.effort if self.thinker else None) or "high"})
-        except Exception as e:  # noqa: BLE001
-            self.log({"kind": "error", "where": "effort_shadow", "error": repr(e)[:200]})
-
     async def _ask_plan(self, o: Order, text: str, timeout: float = 600, effort: str | None = None) -> dict | None:
         if not self.thinker:
             return None
@@ -1407,8 +1395,6 @@ class Actor(FastPaths):
         self._plan_waiters[o.id] = fut
         o.status = "thinking"
         self.thinker.ask(Request("order" if o.plans == 0 else "report", text, o.id, effort=effort))
-        if o.plans == 0:
-            self._tasks.append(asyncio.create_task(self._effort_shadow(o)))
         if o.plans == 0 and self.prefetch:
             self._prefetching = asyncio.create_task(self._prefetch(o))
         t0 = time.time()

@@ -4,8 +4,8 @@ A Factorio 2.1 character, the serf, that plays next to you and takes orders from
 a human player: it walks, reaches, carries and crafts like one. It splits the work:
 - **Opus** reads every chat line (one quick, low-effort call with the situation: what it's doing, its queue, what
   just failed), plans the jobs asynchronously, and can run a whole goal as a project.
-- **Jev** (TypeSafe's decision model) reads orders for the fast paths below and picks which fault a player means. It
-  also guesses how hard each order is; that guess is only logged for now (`bench/effort_shadow.py`).
+- **Sonnet** answers the small questions code asks: is this order one of the fast paths below, and with what (which
+  product, ore, tier, tech), and which fault a player means (`jev/quick_reader.py`).
 - **Code** does everything exact in between, including what to do when a step fails.
 
 On 22 October 2026 it launched a rocket from a fresh map after about 19 hours of play, with an Opus player giving
@@ -14,8 +14,9 @@ the orders; another serf launched from a midgame base running "beat the game" as
 This is version 2. The first serf (Claude agents acting step by step) is on the `serf-v1` branch and tag
 `serf-v1-final`.
 
-**Needs:** Factorio 2.1.24 with Space Age (the last 2.0 version of the mod is 0.3.6, commit 43c75d6), a TypeSafe API key for Jev (in `TYPESAFE_API_KEY` or `~/dev/jev.env`),
-and Claude through the Claude Agent SDK (a Claude subscription logged in to Claude Code). MIT licensed.
+**Needs:** Factorio 2.1.24 with Space Age (the last 2.0 version of the mod is 0.3.6, commit 43c75d6) and a Claude subscription
+logged in to Claude Code on the same computer. Every player who wants a serf runs the app with their own login.
+Nothing else: no API keys. MIT licensed.
 
 See [docs/DESIGN.md](docs/DESIGN.md) for how the parts fit together.
 
@@ -28,12 +29,7 @@ See [docs/DESIGN.md](docs/DESIGN.md) for how the parts fit together.
 ```
 .venv/bin/python -m jev.cli play --udp 27200            # single player, or a client in multiplayer
 .venv/bin/python -m jev.cli play --rcon 127.0.0.1:27015 --password-file <file>   # a server you run
-.venv/bin/python -m jev.cli play --udp 27200 --reader sonnet   # Claude Sonnet reads orders instead of Jev
 ```
-
-`--reader sonnet` puts Claude Sonnet in Jev's place: the same questions, through the Claude Agent SDK on the
-subscription. It takes about 6 s and $0.01 a decision, against Jev's 0.2 s and $0.00004. The bench takes the same flag,
-and `lab/eval_hard.py` compares the two readers on held-out player messages.
 
 Talk to it with `@serf`, for example:
 - `@serf red science stopped at [gps=..]`
@@ -45,13 +41,15 @@ Talk to it with `@serf`, for example:
 - `@serf set up an iron mine on the patch at [gps=..] and belt the ore to [gps=..]`
 - `@serf two more just like it at [gps=..] and [gps=..]`
 
-None of these need the planner: Jev reads the order and code does it. Anything Jev isn't sure of goes to the planner,
+None of these need the planner: Sonnet reads the order (a few seconds) and code does it. Anything it isn't sure of
+goes to the planner,
 which also looks over what the actor built by itself when it has nothing else to do. A plan that doesn't get there
 sends the next one at max thinking effort.
-Add `--no-think` to run with Jev and code only (also what happens when Opus hits a usage limit): chat then follows
+Add `--no-think` to run with Sonnet and code only (also what happens when Opus hits a usage limit): chat then follows
 plain rules (a line with `@serf` is an order, "stop" stops).
 
-The Jev key is read from `~/dev/jev.env`. Opus runs through the local Claude Code login (the Agent SDK).
+Opus and Sonnet run through the local Claude Code login (the Agent SDK). Jev, TypeSafe's model, did Sonnet's part
+until 2026-11-01; `lab/` holds the question tests from then.
 
 ### Projects
 

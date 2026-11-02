@@ -10,7 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from jev import quickbuild  # noqa: E402
-from jev.typesafe import reader  # noqa: E402
+from jev.quick_reader import reader  # noqa: E402
 
 CARRY = {}  # options list id -> what the belts carry
 IRON = ["firearm-magazine", "iron-chest", "iron-gear-wheel", "iron-stick", "light-armor", "pipe"]

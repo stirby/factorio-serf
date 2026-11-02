@@ -16,7 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from jev import decide  # noqa: E402
-from jev.typesafe import reader, choice, noul  # noqa: E402
+from jev.quick_reader import reader, choice, noul  # noqa: E402
 
 import os
 DATA = ROOT / "lab" / "data" / os.environ.get("CHAT_SET", "chat.jsonl")

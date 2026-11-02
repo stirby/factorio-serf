@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from jev import quickcopy  # noqa: E402
-from jev.typesafe import reader  # noqa: E402
+from jev.quick_reader import reader  # noqa: E402
 
 CASES = [("@serf nice. Two more just like it: ore belts at [gps=28,8] and [gps=44,8], chests at [gps=32,30] and "
           "[gps=48,30].", True),

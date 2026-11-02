@@ -1,7 +1,10 @@
-"""Sonnet in Jev's place, to compare readers: the same ask(state, questions) -> {question id: Answer}, answered by
-Claude Sonnet through the Claude Agent SDK (the subscription the planner uses). Every gate in code stays as it is.
+"""The quick reader: the small yes/no and pick-one questions code asks about an order or a moment of play ("is this
+a copy of the last build?", "which product does this row make?"), answered by Claude Sonnet through the Claude Agent
+SDK on the player's own Claude login (the one the planner uses). ask(state, questions) -> {question id: Answer}; the
+gates in code read the answers' probabilities.
 
-    JEV_READER=sonnet .venv/bin/python bench/run.py ...      # or lab/eval_*.py
+It took the place of Jev (TypeSafe's model, which needed its own API key) on 2026-11-01, answering the same questions,
+so the actor still calls it `self.jev`. The model can be changed with SERF_QUICK_MODEL.
 """
 from __future__ import annotations
 
@@ -9,12 +12,11 @@ import asyncio
 import json
 import os
 import time
+from dataclasses import dataclass, field
 from pathlib import Path
 
-from .typesafe import Answer, JevError, Stats
-
-MODEL = os.environ.get("JEV_SONNET_MODEL", "claude-sonnet-5-5")
-SYSTEM = """You answer structured questions about one moment of a Factorio 2.0 game, for a program that acts on your \
+MODEL = os.environ.get("SERF_QUICK_MODEL", "claude-sonnet-5-5")
+SYSTEM = """You answer structured questions about one moment of a Factorio 2.1 game, for a program that acts on your \
 answers at once (a character building, belting, fixing). The input is JSON: "state" (what the program knows, often \
 a player's chat message as "order" or "message") and "questions" (id -> question). Each question has "type", \
 "instructions" and usually "criteria" (examples or option descriptions).
@@ -29,18 +31,80 @@ probabilities over those names summing to 1.
 Be calibrated: 0.5 means you can't tell; near 0 or 1 only when the text is clear. No prose, no code fences."""
 
 
-class SonnetStats(Stats):
+# ---------------------------------------------------------------------- question builders
+def choice(instructions, options: dict, **extra) -> dict:
+    """options: {name: description (str/obj/None)}. At most 255."""
+    if len(options) > 255:
+        raise ValueError(f"choice has {len(options)} options (max 255)")
+    return {"type": "choice", "instructions": instructions, "criteria": options, **extra}
+
+
+def noul(instructions, true: str | None = None, false: str | None = None) -> dict:
+    q = {"type": "noul", "instructions": instructions}
+    if true or false:
+        q["criteria"] = {"true": true or "yes", "false": false or "no"}
+    return q
+
+
+def score(instructions, levels: list) -> dict:
+    """levels: ordered list, lowest first; the answer's score is the expected level index."""
+    return {"type": "score", "instructions": instructions, "criteria": list(levels)}
+
+
+@dataclass
+class Answer:
+    type: str
+    raw: dict
+
+    @property
+    def choice(self) -> str | None:
+        return self.raw.get("choice")
+
+    @property
+    def confidence(self) -> float:
+        return float(self.raw.get("confidence") or 0.0)
+
+    @property
+    def probs(self) -> dict:
+        return self.raw.get("probabilities") or {}
+
+    @property
+    def p(self) -> float:
+        """Noul probability (yes)."""
+        return float(self.raw.get("noul") or 0.0)
+
+    @property
+    def score(self) -> float | None:
+        return self.raw.get("score")
+
+
+@dataclass
+class Stats:
+    calls: int = 0
+    input_tokens: int = 0
+    errors: int = 0
+    ms_total: float = 0.0
     usd: float = 0.0
+    by_kind: dict = field(default_factory=dict)
 
     @property
     def cost(self) -> float:
         return self.usd
 
+    def as_dict(self) -> dict:
+        return {"calls": self.calls, "input_tokens": self.input_tokens, "errors": self.errors,
+                "cost_usd": round(self.cost, 6), "ms_mean": round(self.ms_total / self.calls, 1) if self.calls else None,
+                "by_kind": self.by_kind}
 
-class SonnetJev:
+
+class ReaderError(Exception):
+    pass
+
+
+class QuickReader:
     def __init__(self, log_path: Path | None = None, model: str = MODEL, concurrency: int = 6, timeout: float = 90):
         self.model, self.log_path, self.timeout = model, log_path, timeout
-        self.stats = SonnetStats()
+        self.stats = Stats()
         self._sem = asyncio.Semaphore(concurrency)
 
     async def close(self) -> None:
@@ -88,7 +152,7 @@ class SonnetJev:
             self.stats.errors += 1
             self._log({"t": t0, "kind": kind, "ms": round(ms), "error": err, "state": state, "questions": questions,
                        "meta": meta, "reader": self.model})
-            raise JevError(err or "no answer")
+            raise ReaderError(err or "no answer")
         answers = {}
         for qid, q in questions.items():
             a = out.get(qid) if isinstance(out.get(qid), dict) else {}
@@ -128,47 +192,5 @@ class SonnetJev:
             f.write(json.dumps(rec, default=str) + "\n")
 
 
-class HybridReader:
-    """Jev first; Sonnet answers again only where Jev is unsure on the readings Sonnet does better (what to build, belt
-    jobs, mines). Chat triage and everything else stays Jev's: on the held-out set Jev read the conversation better
-    (corrections, questions, stop) and Sonnet read terse build orders better."""
-    ESCALATE = {"quickbuild", "quickbelt", "quickmine", "quickcopy"}
-
-    def __init__(self, log_path: Path | None = None):
-        from .typesafe import Jev
-        self.jev = Jev(log_path=log_path)
-        self.sonnet = SonnetJev(log_path=log_path)
-        self.escalated = 0
-
-    @property
-    def stats(self):
-        j, s = self.jev.stats, self.sonnet.stats
-        out = Stats(calls=j.calls + s.calls, input_tokens=j.input_tokens + s.input_tokens, errors=j.errors + s.errors,
-                    ms_total=j.ms_total + s.ms_total, by_kind={**j.by_kind, **{f"sonnet:{k}": v for k, v in
-                                                                               s.by_kind.items()}})
-        cost = j.cost + s.cost
-        out.as_dict = lambda: {**Stats.as_dict(out), "cost_usd": round(cost, 6), "escalated": self.escalated}
-        return out
-
-    async def close(self) -> None:
-        await self.jev.close()
-
-    @staticmethod
-    def unsure(answers: dict) -> bool:
-        for a in answers.values():
-            if a.type == "noul" and 0.3 < a.p < 0.7:
-                return True
-            if a.type == "choice" and (a.confidence < 0.6 or a.choice == "none_of_these"):
-                return True
-        return False
-
-    async def ask(self, state, questions: dict, kind: str = "misc", meta: dict | None = None,
-                  long_context: bool = False) -> dict[str, Answer]:
-        a = await self.jev.ask(state, questions, kind=kind, meta=meta, long_context=long_context)
-        if kind in self.ESCALATE and self.unsure(a):
-            self.escalated += 1
-            try:
-                return await self.sonnet.ask(state, questions, kind=kind, meta={**(meta or {}), "escalated": True})
-            except JevError:
-                return a
-        return a
+def reader(log_path: Path | None = None) -> QuickReader:
+    return QuickReader(log_path=log_path)

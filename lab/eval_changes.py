@@ -5,7 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from jev import decide  # noqa: E402
-from jev.typesafe import reader  # noqa: E402
+from jev.quick_reader import reader  # noqa: E402
 
 JOB = "build a gear assembler off the iron belt with the gears going into a chest"
 CASES = [

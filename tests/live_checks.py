@@ -1162,7 +1162,7 @@ return true""")
     print("   ", line)
     import tempfile
     from jev.actor import Actor
-    from jev.typesafe import reader
+    from jev.quick_reader import reader
     d = Path(tempfile.mkdtemp())
     act = Actor(g, reader(log_path=d / "jev.jsonl"), d, "serf", think=False)
     rec = await g.call("recipes", agent="serf", detail=True)
@@ -1246,7 +1246,7 @@ return true""")
           and any((e.get("further") or {}).get("gap") == 1 and e.get("toward") == "west" for e in ends), net)
     import tempfile
     from jev.actor import Actor
-    from jev.typesafe import reader
+    from jev.quick_reader import reader
     d = Path(tempfile.mkdtemp())
     act = Actor(g, reader(log_path=d / "jev.jsonl"), d, "serf", think=False)
     txt = await act._thinker_tools()["pipes"]({"x": x0 + 3.5, "y": y0 + 6.5})
@@ -1294,7 +1294,7 @@ async def chk_end_ref(L: Live, state: dict):
     """A plan that taps a bus and builds a row on the tap's end via "end:1", run by the actor's plan loop."""
     import tempfile
     from jev.actor import Actor, Order
-    from jev.typesafe import reader
+    from jev.quick_reader import reader
     g = L.g
     x0, y0 = await L.site(28, 30)
     await L.ev(f"""local s, f = game.surfaces.nauvis, game.forces.player

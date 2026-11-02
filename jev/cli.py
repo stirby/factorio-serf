@@ -15,7 +15,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
-import os
 import signal
 import time
 from pathlib import Path
@@ -23,7 +22,7 @@ from pathlib import Path
 from .actor import Actor
 from .game import Game
 from .rcon import Crew, Rcon
-from .typesafe import reader
+from .quick_reader import reader
 
 
 async def play(a) -> None:
@@ -42,7 +41,7 @@ async def play(a) -> None:
         spawn = {}
     state = Path.home() / ".local" / "state" / "jev" / time.strftime("%Y%m%d-%H%M%S")
     state.mkdir(parents=True, exist_ok=True)
-    jev = reader(log_path=state / "jev.jsonl")
+    jev = reader(log_path=state / "quick.jsonl")
     await g.start(**spawn)
     if g.away:
         # sent away in an earlier session: it stays away until a player calls it back
@@ -100,11 +99,7 @@ def main() -> None:
     pl.add_argument("--note", help="said in game after the greeting (live testing: what changed since the restart)")
     pl.add_argument("--no-think", action="store_true")
     pl.add_argument("--effort")
-    pl.add_argument("--reader", choices=["jev", "sonnet", "hybrid"], help="who reads orders and makes quick decisions "
-                    "(default jev; sonnet = Claude Sonnet in its place)")
     a = p.parse_args()
-    if getattr(a, "reader", None):
-        os.environ["JEV_READER"] = a.reader
     logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(name)s %(levelname)s %(message)s")
     asyncio.run(play(a))
 

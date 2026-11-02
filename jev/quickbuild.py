@@ -10,7 +10,7 @@ import math
 import re
 
 from .rowgen import DIRS
-from .typesafe import Jev, choice, noul
+from .quick_reader import QuickReader, choice, noul
 from .world import Line, World
 
 ASSEMBLER_CATS = {"crafting", "advanced-crafting", "electronics", "pressing"}
@@ -315,7 +315,7 @@ def plain_counts(order: str) -> str:
     return order
 
 
-async def read_order(jev: Jev, order: str, products: list[str], carried: list[str] | None = None) -> dict:
+async def read_order(jev: QuickReader, order: str, products: list[str], carried: list[str] | None = None) -> dict:
     alias = {"iron-gear-wheel": "gears", "firearm-magazine": "ammo, yellow ammo", "copper-cable": "wire",
              "electronic-circuit": "green circuits", "automation-science-pack": "red science",
              "iron-plate": "iron, plates: furnaces smelting iron ore",

@@ -13,7 +13,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import os
 import re
 import signal
 import sys
@@ -27,7 +26,7 @@ from instance import Instance  # noqa: E402
 from jev.actor import Actor  # noqa: E402
 from jev.game import Game  # noqa: E402
 from jev.rcon import GameError, RconError  # noqa: E402
-from jev.typesafe import reader  # noqa: E402
+from jev.quick_reader import reader  # noqa: E402
 
 PRELUDE = (ROOT / "bench" / "prelude.lua").read_text()
 RUNS = ROOT / "bench" / "runs"
@@ -129,7 +128,7 @@ async def run(a) -> dict:
     minutes = float(a.minutes or scn.get("minutes", 10))
     from jev.library import lessons
     res: dict = {"run_id": run_id, "scenario": scn["name"], "tag": a.tag, "think": not a.no_think,
-                 "reader": os.environ.get("JEV_READER", "jev"),
+                 "reader": "claude",
                  "lessons_at_start": len(lessons()),
                  "start": time.strftime("%Y-%m-%d %H:%M:%S"), "minutes_planned": minutes, "errors": [],
                  "objectives": []}
@@ -313,13 +312,10 @@ def main() -> None:
     p.add_argument("--minutes", type=float)
     p.add_argument("--tag", default="duo")
     p.add_argument("--run-id")
-    p.add_argument("--no-think", action="store_true", help="no Opus: Jev + code only")
-    p.add_argument("--reader", choices=["jev", "sonnet", "hybrid"], help="who reads orders (default: $JEV_READER, else jev)")
+    p.add_argument("--no-think", action="store_true", help="no Opus: the quick reader + code only")
     p.add_argument("--effort", default=None, help="thinker effort (low/medium/high)")
     p.add_argument("--no-record", action="store_true")
     a = p.parse_args()
-    if a.reader:
-        os.environ["JEV_READER"] = a.reader
     import logging
     logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(name)s %(levelname)s %(message)s")
     asyncio.run(run(a))

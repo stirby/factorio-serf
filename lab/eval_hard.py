@@ -4,11 +4,10 @@ questions, examples and code checks by a separate agent). Each message goes thro
 actor uses; scored twice: "guarded" (with code's checks, what the actor does) and "raw" (the reader's own pick).
 
     .venv/bin/python lab/eval_hard.py                 # Jev
-    JEV_READER=sonnet .venv/bin/python lab/eval_hard.py
+    .venv/bin/python lab/eval_hard.py
 Writes lab/runs/hard-<reader>.json with every item's result."""
 import asyncio
 import json
-import os
 import re
 import sys
 import time
@@ -17,7 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from jev import decide, quickbelt, quickbuild, quickcopy, quickmine  # noqa: E402
-from jev.typesafe import JevError, reader  # noqa: E402
+from jev.quick_reader import ReaderError, reader  # noqa: E402
 
 IRON = ["firearm-magazine", "iron-chest", "iron-gear-wheel", "iron-stick", "light-armor", "pipe"]
 SCENES = {  # options, what the belts carry
@@ -94,7 +93,7 @@ async def one(jev, kind, it):
                                                                         and c.addressed >= 0.85),
                  "brier": (c.addressed - (1.0 if it["addressed"] else 0.0)) ** 2,
                  "got": {"addressed": round(c.addressed, 2), "kind": c.kind, "kind_conf": round(c.kind_conf, 2)}}
-    except JevError as e:
+    except ReaderError as e:
         r = {"guarded": False, "raw": False, "conf_wrong": False, "error": str(e)[:200]}
     r["secs"] = round(time.time() - t0, 2)
     r["item"] = it
@@ -103,7 +102,7 @@ async def one(jev, kind, it):
 
 async def main():
     data = json.loads((ROOT / "lab" / "data" / "hard_orders.json").read_text())
-    name = os.environ.get("JEV_READER", "jev")
+    name = "claude"
     jev = reader(log_path=ROOT / "lab" / "runs" / f"hard-{name}.jsonl")
     out, lines = {}, []
     for kind in ("quick", "belt", "mine", "copy", "chat"):

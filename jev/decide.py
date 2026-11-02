@@ -13,7 +13,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from .typesafe import Jev, choice, noul
+from .quick_reader import QuickReader, choice, noul
 
 KINDS = {
     "new_job": {"means": "asks for new work in the game", "examples": ["automate gears here", "build 8 furnaces",
@@ -58,7 +58,7 @@ class ChatCall:
     multi: float = 0.0  # asks for two or more separate jobs at once
 
 
-async def chat(jev: Jev, me: str, speaker: str, message: str, doing: str | None, last_said: str | None) -> ChatCall:
+async def chat(jev: QuickReader, me: str, speaker: str, message: str, doing: str | None, last_said: str | None) -> ChatCall:
     state = {"me": me, "speaker": speaker, "message": message,
              "what_i_am_doing": doing or "nothing", "my_last_chat_line": last_said or "none"}
     qs = {
@@ -77,7 +77,7 @@ async def chat(jev: Jev, me: str, speaker: str, message: str, doing: str | None,
                     a["playbook"].confidence, a["multi"].p)
 
 
-async def fault(jev: Jev, complaint: str, faults: list[dict]) -> tuple[int | None, float, float, float]:
+async def fault(jev: QuickReader, complaint: str, faults: list[dict]) -> tuple[int | None, float, float, float]:
     """Pick the fault the complaint is about. Returns (index or None, confidence, p_any_fits, p_wants_everything_fixed)."""
     opts = {f"f{i}": f["text"] for i, f in enumerate(faults[:60])}
     state = {"player_said": complaint, "problems_found_near_there": list(opts.values())}
@@ -120,7 +120,7 @@ def failure_facts(msg: str) -> dict:
             "item_exists_nowhere": "no chest or machine output" in m and "can't hand-craft" in m}
 
 
-async def recovery(jev: Jev, goal: str, step_text: str, error: str, tries: int,
+async def recovery(jev: QuickReader, goal: str, step_text: str, error: str, tries: int,
                    options: dict | None = None) -> tuple[str, float]:
     opts = options or RECOVERY
     state = {"goal": goal, "step": step_text, "error_message": error, "times_tried": tries,
@@ -130,14 +130,14 @@ async def recovery(jev: Jev, goal: str, step_text: str, error: str, tries: int,
     return a["next"].choice, a["next"].confidence
 
 
-async def goal_met(jev: Jev, goal: str, area: dict) -> float:
+async def goal_met(jev: QuickReader, goal: str, area: dict) -> float:
     a = await jev.ask({"goal": goal, "area_now": area},
                       {"met": noul("Does `area_now` show that `goal` is achieved and running on its own?")},
                       kind="goal_met")
     return a["met"].p
 
 
-async def which_item(jev: Jev, phrase: str, candidates: list[str]) -> tuple[str, float]:
+async def which_item(jev: QuickReader, phrase: str, candidates: list[str]) -> tuple[str, float]:
     opts = {c: None for c in candidates[:255]}
     a = await jev.ask({"player_wrote": phrase}, {"item": choice("Which item does `player_wrote` mean?", opts)},
                       kind="item")
@@ -165,7 +165,7 @@ KITS = {
 }
 
 
-async def kit(jev: Jev, order: str) -> tuple[str, float]:
+async def kit(jev: QuickReader, order: str) -> tuple[str, float]:
     opts = {k: v["what"] for k, v in KITS.items()}
     a = await jev.ask({"order": order}, {"kit": choice("Which building materials will doing `order` most likely "
                                                        "need?", opts)}, kind="kit")
@@ -181,13 +181,13 @@ QUESTIONS = {
 }
 
 
-async def question_type(jev: Jev, message: str) -> tuple[str, float]:
+async def question_type(jev: QuickReader, message: str) -> tuple[str, float]:
     a = await jev.ask({"question": message}, {"type": choice("What does `question` ask about?", QUESTIONS)},
                       kind="question")
     return a["type"].choice, a["type"].confidence
 
 
-async def scope(jev: Jev, order: str) -> float:
+async def scope(jev: QuickReader, order: str) -> float:
     """Probability the order is about many places spread over a wide area (not one spot)."""
     a = await jev.ask({"order": order}, {"wide": noul(
         "Does `order` talk about several separate setups or places spread over a wide area (e.g. 'all my furnace "
@@ -195,7 +195,7 @@ async def scope(jev: Jev, order: str) -> float:
     return a["wide"].p
 
 
-async def same_job(jev: Jev, job: str, message: str) -> float:
+async def same_job(jev: QuickReader, job: str, message: str) -> float:
     """Probability the message is about that job (details, corrections, additions), not another job or subject (live
     test: "break all the rocks... can you use construction bots?" joined the queued roboport order)."""
     a = await jev.ask({"queued_job": job, "message": message}, {"same": noul(
@@ -204,7 +204,7 @@ async def same_job(jev: Jev, job: str, message: str) -> float:
     return a["same"].p
 
 
-async def changes_plan(jev: Jev, doing: str, message: str) -> float:
+async def changes_plan(jev: QuickReader, doing: str, message: str) -> float:
     """Probability the message asks to change how/where the current job is done (so the plan must change)."""
     a = await jev.ask({"current_job": doing, "message": message}, {"change": noul(
         "Does `message` ask to change how, where or what is being built for `current_job` (a different place, "
@@ -213,7 +213,7 @@ async def changes_plan(jev: Jev, doing: str, message: str) -> float:
     return a["change"].p
 
 
-async def not_done(jev: Jev, job: str, message: str) -> float:
+async def not_done(jev: QuickReader, job: str, message: str) -> float:
     """Probability the message says the finished job isn't actually done or something about it is still wrong."""
     a = await jev.ask({"finished_job": job, "message": message}, {"not_done": noul(
         "Does `message` say that `finished_job` is not actually done, not working, or still has a problem to fix "
@@ -221,14 +221,14 @@ async def not_done(jev: Jev, job: str, message: str) -> float:
     return a["not_done"].p
 
 
-async def trouble(jev: Jev, conditions: list[str], area: dict) -> list[float]:
+async def trouble(jev: QuickReader, conditions: list[str], area: dict) -> list[float]:
     """For each watched condition (words from the planner), the probability `area` shows it now."""
     qs = {f"w{i}": noul(f"Does `area` show this problem: {c}?") for i, c in enumerate(conditions[:20])}
     a = await jev.ask({"area": area}, qs, kind="watch")
     return [a[f"w{i}"].p for i in range(len(qs))]
 
 
-async def research(jev: Jev, order: str, techs: list) -> tuple[str | None, float]:
+async def research(jev: QuickReader, order: str, techs: list) -> tuple[str | None, float]:
     """Which of the techs that can be researched now (names, or the techs call's dicts with what they unlock) does
     `order` ask for (None: none of them, or not a research order)? Returns the tech and its probability."""
     opts = {}
@@ -258,7 +258,7 @@ UPGRADES = {"fast-transport-belt": "red belts (fast transport belt), with their 
             "none_of_these": "not an upgrade order, or something else"}
 
 
-async def upgrade(jev: Jev, order: str) -> tuple[str | None, float, float]:
+async def upgrade(jev: QuickReader, order: str) -> tuple[str | None, float, float]:
     """An order to swap buildings for a better tier: (into, probability, p_whole_belt_line)."""
     a = await jev.ask({"order": order}, {
         "into": choice("What does `order` ask to replace things with (swap or upgrade to)?", UPGRADES),
@@ -287,7 +287,7 @@ EFFORTS = {
 }
 
 
-async def effort(jev: Jev, order: str) -> tuple[str, float]:
+async def effort(jev: QuickReader, order: str) -> tuple[str, float]:
     """How hard the planner should think about `order`: low, medium, high or max (the user: Jev "for deciding thinking
     effort on a given task"). Logged next to each order's outcome for now, not used."""
     a = await jev.ask({"order": order}, {"effort": choice("How much thinking does planning `order` need?", EFFORTS)},

@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from jev import decide  # noqa: E402
-from jev.typesafe import reader  # noqa: E402
+from jev.quick_reader import reader  # noqa: E402
 
 # (order, into or None, line?)
 CASES = [("@serf swap the belts on the iron line at [gps=1,1] for red ones", "fast-transport-belt", True),

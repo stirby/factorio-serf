@@ -8,7 +8,7 @@ from dev import connect  # noqa: E402
 from jev.actor import Actor  # noqa: E402
 from jev.game import Game  # noqa: E402
 from jev.rcon import GameError  # noqa: E402
-from jev.typesafe import reader  # noqa: E402
+from jev.quick_reader import reader  # noqa: E402
 
 
 class AsPlayer:

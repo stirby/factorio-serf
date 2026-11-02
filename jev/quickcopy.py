@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import re
 
-from .typesafe import Jev, noul
+from .quick_reader import QuickReader, noul
 from .world import World
 
 # an order for more of the same says so in words ("two more like that", "do that again", "dupe that", "x3"); without
@@ -81,7 +81,7 @@ def shifted(ents: list[dict], d: tuple) -> list[dict]:
     return [{**e, "x": e["x"] + d[0], "y": e["y"] + d[1]} for e in ents]
 
 
-async def read_order(jev: Jev, order: str) -> float:
+async def read_order(jev: QuickReader, order: str) -> float:
     a = await jev.ask({"order": order}, {
         "copy": noul("Does `order` ask for more of something already built, the same again at the places it points "
                      "at?",

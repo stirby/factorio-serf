@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from jev import quickmine  # noqa: E402
-from jev.typesafe import reader  # noqa: E402
+from jev.quick_reader import reader  # noqa: E402
 
 CASES = [("@serf set up an iron mine on the patch at [gps=119,5] and belt the ore back to the belt end at "
           "[gps=-136,-3], it feeds that chest. I want at least 60 ore a minute.", ["iron-ore"], "iron-ore"),

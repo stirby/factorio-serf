@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from jev import quickbelt  # noqa: E402
-from jev.typesafe import reader  # noqa: E402
+from jev.quick_reader import reader  # noqa: E402
 
 CASES = [
     ("@serf the boiler at [gps=-8,64] keeps running out of coal. Belt coal to it from the drills at [gps=-40,64] so "

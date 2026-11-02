@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import math
 
-from .typesafe import Jev, noul
+from .quick_reader import QuickReader, noul
 from .world import World, grid_live, items_words
 
 TAKES = ("container", "logistic-container", "boiler", "furnace", "assembling-machine", "lab", "burner-generator")
@@ -121,7 +121,7 @@ def endpoints(wa: World, a, wb: World, b) -> dict | None:
     return None
 
 
-async def read_order(jev: Jev, order: str) -> float:
+async def read_order(jev: QuickReader, order: str) -> float:
     a = await jev.ask({"order": order}, {
         "move": noul("Does `order` want items from one place it points at (a belt, drills, a machine) to keep "
                      "reaching another place it points at, which a new belt between them would do?",

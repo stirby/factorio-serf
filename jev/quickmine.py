@@ -7,7 +7,7 @@ from __future__ import annotations
 import math
 import re
 
-from .typesafe import Jev, choice, noul
+from .quick_reader import QuickReader, choice, noul
 
 DRILL_PER_MIN = 30  # an electric mining drill: 0.5 ore/s
 
@@ -103,7 +103,7 @@ def best_layout(tiles: set, n: int, toward: tuple, pole: str = "small-electric-p
     return max(cands, key=lambda c: (c["drills"], heads(c)))
 
 
-async def read_order(jev: Jev, order: str, ores: list[str]) -> tuple[float, str | None, float]:
+async def read_order(jev: QuickReader, order: str, ores: list[str]) -> tuple[float, str | None, float]:
     opts = {o: o.replace("-", " ") for o in ores}
     opts["none_of_these"] = "another resource, or not about mining"
     a = await jev.ask({"order": order, "ore_patches_there": ores}, {
