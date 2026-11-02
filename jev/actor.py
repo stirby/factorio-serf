@@ -98,6 +98,7 @@ class Order:
     quick_plan: dict | None = None  # the plan a fast path ran (re-checked when it's reopened)
     project: "Project | None" = None  # the project that gave this order (jev/project.py)
     asked: str | None = None  # a question the serf asked while on it: the order is done only in part
+    acked: str = ""  # what it said when it took the order: "now" (it starts at once) or "queued" (it waited)
 
     @property
     def focus(self):
@@ -122,6 +123,12 @@ def fixed_words(fixed: list[str]) -> str:
 # short names players use: --model / "@serf use sonnet" (jev/cli.py takes the same)
 MODELS = {"opus": "claude-opus-5-5", "sonnet": "claude-sonnet-5-5", "haiku": "claude-haiku-5-5",
           "fable": "claude-fable-5-1"}
+
+
+def short_text(text: str, n: int = 60) -> str:
+    """An order's words for a chat line: no @names or [gps] tags, cut at a word."""
+    t = re.sub(r"\s+", " ", re.sub(r"@\S+|\[gps=[^\]]*\]", "", text)).strip(" ,.")
+    return t if len(t) <= n else t[:n].rsplit(" ", 1)[0] + "..."
 
 
 def short_model(model: str) -> str:
@@ -194,6 +201,19 @@ class Actor(FastPaths):
         self.workdir.mkdir(parents=True, exist_ok=True)
         with open(self.log_path, "a") as f:
             f.write(json.dumps(rec, default=str) + "\n")
+
+    async def starting(self, o: Order, what: str = "") -> None:
+        """The line when it starts on a player's order. Not again right after its reply on taking it (live test
+        10-30: 'these random "on it" messages are wack'); an order that waited in the queue says which one it is."""
+        if o.speaker in (self.name, "planner") or o.project is not None:
+            return
+        if o.acked == "now":
+            return
+        if o.acked == "queued":
+            await self.say(f"starting on {o.speaker}'s order: {what or short_text(o.text)}")
+        else:
+            await self.say(f"on it: {what}" if what else "on it")
+        o.acked = "now"
 
     async def tell(self, player: str, text: str) -> None:
         """A line only `player` sees (the mod's tell op)."""
@@ -623,8 +643,10 @@ class Actor(FastPaths):
             waiting = sum(1 for x in self.orders if x.status == "new")
             await self.say(d.reply or ("got it, I'll do that next" if waiting <= 1 else f"got it, that's #{waiting} in "
                                                                                           "my queue"))
+            o.acked = "queued"
         elif d.reply:
             await self.say(d.reply)
+            o.acked = "now"
         self.wake.set()
 
     async def _read_chat(self, speaker: str, msg: str, explicit: bool, assigned: bool = False) -> ChatDecision:
@@ -830,6 +852,29 @@ class Actor(FastPaths):
                     "carry in chests first).")
         return out
 
+    async def _others_words(self) -> str:
+        """Other players' serfs in this world: where each is and what it's doing, so a plan stays out of their way
+        (in multiplayer every player can bring one; 2026-11-01: "how are the serfs not going to collide")."""
+        try:
+            agents = (await self.g.call("list")).get("agents") or []
+        except Exception:  # noqa: BLE001
+            return ""
+        out = []
+        for a in agents if isinstance(agents, list) else []:
+            if a.get("name") == self.name or not a.get("alive"):
+                continue
+            pos, job = a.get("position") or [0, 0], a.get("job") if isinstance(a.get("job"), dict) else {}
+            doing = " ".join(str(x) for x in (job.get("op"), job.get("what")) if x) or "idle"
+            if job.get("walking_to"):
+                doing += f", walking to {fmt_xy(job['walking_to'])}"
+            out.append(f"{a['name']}" + (f" ({a['owner']}'s)" if a.get("owner") else "") + f" at {fmt_xy(pos)}: "
+                       + doing + (f", {a['queued']} queued" if a.get("queued") else ""))
+        if not out:
+            return ""
+        return ("\n\nOther serfs here (other players' teammates): " + "; ".join(out[:6]) + ". Don't build over, mine, "
+                "or take items from what they're working on; pick another spot or other chests if yours would cross "
+                "theirs, and say so.")
+
     async def _where_words(self) -> str:
         try:
             return self._planet_words(await self.g.me()) + "\n"
@@ -949,8 +994,7 @@ class Actor(FastPaths):
                            else r)
             return True
         if o.playbook == "fix" and o.focus:
-            if o.speaker != self.name:
-                await self.say("on it, taking a look")
+            await self.starting(o, "taking a look")
             wide = await decide.scope(self.jev, o.text)
             detailed = self._detailed(o.text)
             self.log({"kind": "scope", "order": o.id, "wide": round(wide, 3), "detailed": detailed})
@@ -1041,7 +1085,7 @@ class Actor(FastPaths):
                 return await self._planned(o, f"New order from {o.speaker}: \"{o.text}\"\n\nThe actor tried to "
                                               f"belt it over itself and it didn't work out: {r}\nWhat it built is "
                                               "still there.")
-        await self.say("on it")
+        await self.starting(o)
         return await self._planned(o, f"New order from {o.speaker}: \"{o.text}\"")
 
     async def _route(self, o: Order, pairs) -> bool | str:
@@ -1411,7 +1455,8 @@ class Actor(FastPaths):
         elif (oid is not None and not plan.get("no_plan") and plan.get("steps") and
               (done := next((x for x in self.orders if x.id == oid and x.status in ("done", "failed")), None))):
             # the planner's review of something the actor did by itself found a problem: a follow-up order
-            fo = Order(self.next_id, f"(the planner's follow-up to order {oid}) {plan.get('goal') or ''}"[:300],
+            # titled as its own work (live test: "(the planner's follow-up to order 3)" read as a second agent)
+            fo = Order(self.next_id, f"fixing up #{oid} ({short_text(done.text, 40)}): {plan.get('goal') or ''}"[:300],
                        "planner", "plan", list(done.points))
             fo.next_plan = plan
             self.next_id += 1
@@ -1529,6 +1574,7 @@ class Actor(FastPaths):
     async def _planned(self, o: Order, intro: str) -> bool:
         """Thinker plans, actor runs, code/Jev verify; failures and misses go back to the thinker (up to 4 plans)."""
         text = intro + "\n" + self._order_context(o)
+        text += await self._others_words()
         if o.focus:
             text += await self._tags_near(o.focus)
         if o.focus:

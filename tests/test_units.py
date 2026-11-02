@@ -1891,6 +1891,40 @@ def test_wiki_helpers():
           and all(len(x) <= 250 for x in out), out)
 
 
+def test_starting_line():
+    import asyncio
+    from jev.actor import Actor, Order
+    a = _fake_actor()
+    a.starting = Actor.starting.__get__(a)
+    now = Order(1, "@serf make gears off this belt [gps=1,2]", "otterplex", "plan", [])
+    now.acked = "now"
+    queued = Order(2, "@serf make gears off this belt [gps=1,2] please", "otterplex", "plan", [])
+    queued.acked = "queued"
+    todo = Order(3, "red science line", "otterplex", "plan", [])
+    for o in (now, queued, todo):
+        asyncio.run(a.starting(o, ""))
+    asyncio.run(a.starting(todo, ""))  # twice for one order: once
+    check("starting: quiet right after its reply, names a queued order, 'on it' once otherwise",
+          a.said == ["starting on otterplex's order: make gears off this belt please", "on it"], a.said)
+
+
+def test_others_words():
+    import asyncio
+    from types import SimpleNamespace
+    from jev.actor import Actor
+
+    async def call(op, **kw):
+        return {"agents": [
+            {"name": "otterplex-serf", "alive": True, "position": [0, 0]},
+            {"name": "kyle-serf", "alive": True, "owner": "kyle", "position": [120.4, -30.2], "queued": 2,
+             "job": {"op": "build", "what": "assembling-machine-2", "walking_to": [130, -30]}},
+            {"name": "old", "alive": False}]}
+    a = SimpleNamespace(name="otterplex-serf", g=SimpleNamespace(call=call))
+    w = asyncio.run(Actor._others_words(a))
+    check("others: other live serfs, whose, where and what they're doing; not itself", "kyle-serf (kyle's)" in w
+          and "build assembling-machine-2" in w and "2 queued" in w and "otterplex-serf" not in w and "old" not in w, w)
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):

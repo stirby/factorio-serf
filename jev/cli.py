@@ -52,7 +52,9 @@ async def play(a) -> None:
         await g.start(**spawn)
     else:
         await g.start(spawn=False)
-        await own_serf(g, a.name)
+        model = await own_serf(g, a.name)
+        if model and not a.model:  # "/serf add sonnet"
+            a.model = model
     if g.away:
         # sent away in an earlier session: it stays away until a player calls it back
         print(f"{g.name} is away (a player sent it off); waiting for /serf join", flush=True)
@@ -98,13 +100,14 @@ async def play(a) -> None:
         print(f"thinker: {actor.thinker.stats}", flush=True)
 
 
-async def own_serf(g: Game, wanted: str | None) -> None:
-    """A player's own app: take over their serf in this world, or wait for /serf add and bring one in there."""
+async def own_serf(g: Game, wanted: str | None) -> str | None:
+    """A player's own app: take over their serf in this world, or wait for /serf add and bring one in there. Returns
+    the model a "/serf add sonnet" asked for."""
     def waiting():
         print(f"connected to {g.you or 'your game'}'s Factorio. In the game, type /serf add to bring in your serf.",
               flush=True)
     while True:
-        ev = await g.pick_serf(wanted, waiting)
+        ev = await g.pick_serf(wanted, waiting, not_names=MODELS)
         try:
             if ev is None:
                 await g.spawn()
@@ -119,6 +122,8 @@ async def own_serf(g: Game, wanted: str | None) -> None:
                 pass
     while not g.chat.empty():  # what was said before it arrived isn't for it
         g.chat.get_nowait()
+    asked = (ev or {}).get("name")
+    return asked if asked in MODELS else None
 
 
 def main() -> None:

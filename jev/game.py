@@ -88,11 +88,12 @@ class Game:
             except Exception:  # noqa: BLE001
                 pass
 
-    async def pick_serf(self, wanted: str | None, on_wait=None) -> dict | None:
+    async def pick_serf(self, wanted: str | None, on_wait=None, not_names=()) -> dict | None:
         """A player's own app: the serf to run. Theirs if they already have one in this world (taken over at once,
         the return is None); else it waits for the player's /serf add and returns that event. The name is the one they
         typed, else `wanted`, else "serf" while it's free, else "<player>-serf" (in multiplayer each player brings
-        their own, and the mod refuses a name another player's serf has)."""
+        their own, and the mod refuses a name another player's serf has). Words in `not_names` (model names:
+        "/serf add sonnet") aren't taken as a name."""
         agents = (await self.call("list")).get("agents") or []
         mine = [a for a in agents if a.get("client") == self.client]
         if wanted and any(a["name"] == wanted for a in mine) or (not wanted and mine):
@@ -105,7 +106,8 @@ class Game:
             if ev.get("type") != "add":
                 continue
             taken = {a["name"] for a in (await self.call("list")).get("agents") or [] if a.get("client") != self.client}
-            self.name = serf_name(ev.get("name") or wanted, self.you or ev.get("player") or "", taken)
+            asked = ev.get("name") if ev.get("name") not in not_names else None
+            self.name = serf_name(asked or wanted, self.you or ev.get("player") or "", taken)
             return ev
 
     async def stop(self) -> None:

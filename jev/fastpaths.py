@@ -174,7 +174,7 @@ class FastPaths:
         o.quick = True
         o.quick_plan = plan
         self.log({"kind": "quick_plan", "order": o.id, "plan": plan})
-        await self.say(f"on it: {what}")
+        await self.starting(o, what)
         ok, report = await self._run_plan(o, plan)
         if o.status == "cancelled":
             return False
