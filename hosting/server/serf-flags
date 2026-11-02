@@ -19,7 +19,8 @@ from pathlib import Path
 F = Path("/opt/factorio")
 OUT = F / "flags"
 WORLD = F / "saves" / "world.zip"
-CHAT = re.compile(r"\[CHAT\] (?P<player>[^:<>\[\]]+): *!+ *(?P<note>.*)$")
+# "[CHAT] kyle: ! note"; a team line may carry a tag after the name ("kyle [player]: ...")
+CHAT = re.compile(r"\[CHAT\] (?P<player>[^:<>\[\]]+?)(?: \[[^\]]*\])?: *!+ *(?P<note>.*)$")
 
 
 def rcon(cmd: str) -> str:
