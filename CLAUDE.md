@@ -11,6 +11,16 @@ Development happens on the OVH server (`~/factorio-serf`); the server's own note
   ladder or long campaigns. Don't start big test runs (campaigns, ladders, batches) unless asked.
 - Commit and push to GitHub (`git push origin main`) once a change is tested. No need to ask.
 
+## How the owner works
+- Work independently. They've said so in capitals: don't ask them to approve routine commands. Ask only about what's
+  really theirs to decide, like something public or hard to undo.
+- Never overwrite one of their saves. Work on a clone of the world (Oct 25: a test copy got saved over a solo save).
+- Biters stay off in tests and benches. In live sessions, follow what they last said.
+- Be straight about what was and wasn't tested. Never print keys or tokens.
+- Read `media/review/user-feedback.md` before changing how the serf behaves. It has what they've asked for and
+  complained about, in their own words, ranked by how much it mattered. `media/review/logs-review.md` has the defects
+  found in the logs of the Oct 30 session.
+
 ## Testing
 - `.venv/bin/python tests/test_units.py`: offline, seconds. Run it after every app change.
 - `.venv/bin/python tests/test_chat_replay.py`: chat regressions, offline.
