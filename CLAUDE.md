@@ -54,3 +54,22 @@ Development happens on the OVH server (`~/factorio-serf`); the server's own note
 - `~/pc-archive`: what came over from the owner's PC: serf app logs, old bench runs, and save backups.
 - `!` flags from the shared world are in `/opt/factorio/flags/<time>-<player>/` (world.zip and flag.json).
 - The friends' join page is https://claude.ai/artifact/7Y4BokTpcA3rgKG2Wj4EDA (private; no password on it).
+
+## Where things stand (2026-11-02)
+- **Mod:** 0.4.1 is built and on a GitHub pre-release (`mod-0.4.1`). The portal and the shared world are still on
+  0.4.0, because the owner wants one more live test before uploading it.
+- **After the owner uploads 0.4.1:** update the shared world. Refuse if anyone is online, back up, then run
+  `sudo factorio-ctl install-mods <dir>` with the 0.4.1 zip plus the current mods and mod list. Check the checksum
+  matches the portal's.
+- **Look at first in the next live test:** robots bringing a build's items (`Runner.robots_bring`). The owner's top
+  complaint was the serf hand-crafting what the logistic network holds. The live checks pass, but it hasn't been seen
+  in a real game yet. Spare items going to storage chests (`tidy`) has no check of its own.
+- **Known test failure:** `pipes` ("the audit traces both dry machines' lines") fails in full `live_checks` runs and
+  passes alone. The cause isn't diagnosed.
+- **Waiting on the owner:**
+  - The Todo List interface: an upstream PR from `stirby/factorio-todo-list`, or publishing the fork under another
+    name.
+  - Whether to open one password-protected test port so they can join a test slot from their own game.
+  - `gh auth login` on the server. It can pull from GitHub but can't push until then.
+- **Asked for, not started:** combat, tank and danger awareness; the wiki handing over blueprints; physical
+  build-area claims (only planner hints exist).
